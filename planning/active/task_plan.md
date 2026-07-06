@@ -58,13 +58,12 @@ Adding a future area = adding `config/<area>/`, zero code change.
 
 ## Phase 2 — Prove Neexdzii parity (regression gate)
 
-- [ ] Run `Rscript scripts/run_area.R neexdzii` (steps 1,2,3) against local `fwapg` + `link` 0.44.2.
-- [ ] Verify from `data/neexdzii/` outputs:
-  - network km: `sum(sf::st_length(streams_co3))/1000` → **678.2 km**
-  - floodplain km²: `sum(sf::st_area(co_ff04))/1e6` → **171.0 km²**
-  - tree loss ha: sum `area_ha` of `transition_co_ff04_2017_2023` where
-    `from_class == "Trees" & to_class != "Trees"` → **943.13 ha** (±~0.004%).
-- [ ] If any number is off beyond VCA noise, fix before Phase 3.
+- [x] Run `Rscript scripts/run_area.R neexdzii` (steps 1,2,3) against local `fwapg` + `link` 0.44.1.
+- [x] Verify from `data/neexdzii/` outputs — **ALL PASS** (2026-07-06):
+  - network: **678.2 km** (1936 segments) vs 678.2 → −0.003%
+  - floodplain co_ff04: **171.0 km²** vs 171.0 → +0.004%
+  - tree loss: **943.13 ha** (2263 patches) vs 943.13 → +0.000%
+- [x] Within ~0.004% VCA noise — generalization is faithful. Proceed to Phase 3.
 
 ## Phase 3 — Run MORR (first new area)
 
