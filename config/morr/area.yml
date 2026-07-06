@@ -1,0 +1,12 @@
+# Morice watershed group (MORR) — first NEW area. DRAFT — refine during the MORR run.
+# MORR is a first-class link watershed group (appears in the BULK drainage closure).
+name: morr
+watershed_group: MORR          # link aoi
+species: co
+min_order: 3
+schema: morr                   # dedicated persist schema
+# OPEN QUESTION (resolve during the MORR run): does MORR run as the WHOLE watershed group,
+# or is it subset to a reach the way Neexdzii is subset from BULK? Default: whole WSG.
+subset: null
+# flood_scenarios.csv / break_points.csv in this dir are copied from Neexdzii as a starting
+# template — review the flood_factor scenarios and (re)place the sub-basin break points for MORR.
