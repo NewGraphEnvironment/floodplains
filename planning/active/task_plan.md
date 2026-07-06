@@ -38,22 +38,22 @@ Adding a future area = adding `config/<area>/`, zero code change.
 
 ## Phase 1 — Generalize 01–03 to config-driven + working runner
 
-- [ ] `fp_read_config(area)` in `run_area.R` (yaml + 2 CSVs → `cfg`; create `dir_out`). Add
+- [x] `fp_read_config(area)` in `run_area.R` (yaml + 2 CSVs → `cfg`; create `dir_out`). Add
       `primary_scenario: co_ff04` to both `area.yml` files.
-- [ ] `01_network_extract.R` → `fp_network(cfg)`: literals → `cfg$…`; **branch on subset** —
+- [x] `01_network_extract.R` → `fp_network(cfg)`: literals → `cfg$…`; **branch on subset** —
       `NULL` = whole WSG (skip `frs_watershed_at_measure` + `st_filter`), else confluence subset;
       delete QGIS-copy block; keep `lnk_config("default")` as method constant.
-- [ ] `02_floodplain_model.R` → `fp_floodplain(cfg, scenarios = "run")`: break_points + scenarios
+- [x] `02_floodplain_model.R` → `fp_floodplain(cfg, scenarios = "run")`: break_points + scenarios
       from `cfg`; paths → `cfg$dir_out`; keep run/all/id selection; delete QGIS-copy block; fix
       stale header filenames.
-- [ ] `03_lulc_classify.R` → `fp_lulc(cfg, scenario)`: default `cfg$primary_scenario`; paths →
+- [x] `03_lulc_classify.R` → `fp_lulc(cfg, scenario)`: default `cfg$primary_scenario`; paths →
       `cfg$dir_out`; scenarios from `cfg`; delete copy_to_qgis/index.Rmd blocks; keep `years`,
       `patch_min_m2`, `ag_classes`, `zone_col` as method constants.
-- [ ] Build `run_area.R` driver: parse `<area> [steps]`, source packages.R + step files, resolve
+- [x] Build `run_area.R` driver: parse `<area> [steps]`, source packages.R + step files, resolve
       `cfg`, dispatch steps 1/2/3 in order, remove skeleton `stop()`.
-- [ ] `scripts/run_areas.sh` — thin multi-area loop modelled on `link`'s `study_area_run.sh`
+- [x] `scripts/run_areas.sh` — thin multi-area loop modelled on `link`'s `study_area_run.sh`
       (per-area soft-fail + timestamped logs).
-- [ ] Update `scripts/floodplain_lcc/README.md`: CSVs in `config/<area>/`, outputs in
+- [x] Update `scripts/floodplain_lcc/README.md`: CSVs in `config/<area>/`, outputs in
       `data/<area>/`, drop index.Rmd/External-Paths section, note 04/05 deferred.
 
 ## Phase 2 — Prove Neexdzii parity (regression gate)

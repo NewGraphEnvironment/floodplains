@@ -5,6 +5,7 @@ watershed_group: MORR          # link aoi
 species: co
 min_order: 3
 schema: morr                   # dedicated persist schema
+primary_scenario: co_ff04      # headline scenario for LULC (03)
 # OPEN QUESTION (resolve during the MORR run): does MORR run as the WHOLE watershed group,
 # or is it subset to a reach the way Neexdzii is subset from BULK? Default: whole WSG.
 subset: null

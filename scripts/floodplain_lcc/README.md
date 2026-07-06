@@ -1,64 +1,62 @@
 # Floodplain Land Cover Change Pipeline
 
-Modelled floodplain delineation and satellite-derived land cover change analysis for the Neexdzii Kwah watershed.
+Modelled floodplain delineation and satellite-derived land cover change analysis, run per area
+(a watershed group, optionally subset to a reach). Driven by `scripts/run_area.R`.
 
-## Pipeline Order
+## Architecture
 
-| Script | Tool | Purpose |
-|--------|------|---------|
-| `01_network_extract.R` | fresh | Build coho-accessible stream network + filtered waterbodies |
-| `02_floodplain_model.R` | flooded | Run VCA at each flood_factor scenario |
-| `03_lulc_classify.R` | drift | Classify land cover per sub-basin within floodplain |
-| `04_lulc_zones.R` | drift | Zone-stratified LULC (nested flood zones) |
-| `05_prioritization_score.R` | — | Score sub-basins from all above |
+Each step is a function taking a single `cfg` list (built once by `fp_read_config()` in
+`run_area.R` from `config/<area>/`). No ambient/sourced context — data flows as explicit
+arguments. Adding a new area is adding `config/<area>/`; the code does not change.
 
-Scripts `01`–`02` need the fwapg database — see [Prerequisite — fwapg database](../README.md#prerequisite--fwapg-database) (a local fwapg DB works; no SSH tunnel required). The DEM comes from the national MRDEM-30 via `flooded::fl_dem_aoi()`.
+| Step | Script | Function | Tool | Purpose |
+|------|--------|----------|------|---------|
+| 1 | `01_network_extract.R` | `fp_network(cfg)` | link/fresh | Coho-accessible stream network (order ≥ `cfg$min_order`) + filtered waterbodies |
+| 2 | `02_floodplain_model.R` | `fp_floodplain(cfg, scenarios = "run")` | flooded | Sub-basins + VCA floodplain at each selected flood_factor scenario |
+| 3 | `03_lulc_classify.R` | `fp_lulc(cfg, scenario = cfg$primary_scenario)` | drift | Classify land cover + transition (tree loss / ag expansion) within the floodplain |
 
-## CSV Controls
+`04_lulc_zones.R` (zone-stratified LULC — a sketch) and `05_prioritization_score.R`
+(sub-basin prioritization — carries absolute machine/OneDrive paths) are **not yet generalized**
+and are **not wired into `run_area.R`**. Deferred to a later issue.
 
-All in `data/lulc/`:
+Steps 1–2 need the fwapg database — see [Prerequisite — fwapg database](../README.md). The DEM
+comes from the national MRDEM-30 via `flooded::fl_dem_aoi()`; LULC imagery from the Microsoft
+Planetary Computer STAC.
+
+## Running
+
+```sh
+Rscript scripts/run_area.R <area> [steps]     # steps default "1,2,3"
+Rscript scripts/run_area.R neexdzii            # full pipeline for one area
+Rscript scripts/run_area.R morr 1,2            # steps 1 and 2 only
+scripts/run_areas.sh neexdzii morr             # loop several areas (soft-fail + logs)
+```
+
+## Config (`config/<area>/`)
 
 | File | Purpose |
 |------|---------|
-| `flood_scenarios.csv` | VCA parameters per scenario. `run=TRUE` rows are executed. |
-| `parameters_fresh.csv` | Access gradient, spawn gradient min per species |
-| `parameters_habitat_thresholds.csv` | Spawn/rear gradient, channel width, MAD thresholds |
-| `break_points.csv` | Sub-basin delineation points on FWA network |
+| `area.yml` | Area identity: `watershed_group`, `species`, `min_order`, `schema`, `subset` (blk + drm, or `null` for whole WSG), `primary_scenario` |
+| `flood_scenarios.csv` | VCA parameters per scenario. `run=TRUE` rows execute (step 2 default). |
+| `break_points.csv` | Sub-basin delineation points on the FWA network (step 2) |
 
-## Outputs
+## Outputs (`data/<area>/`, gitignored)
 
-All outputs live in `data/lulc/` (gitignored — regenerate by running the pipeline).
+Multi-layer GeoPackages grouped by theme; layer names include the scenario ID so outputs are
+self-documenting.
 
-### Naming Convention
+| GeoPackage / file | From | Layers / contents |
+|-------------------|------|-------------------|
+| `aquatic_network.gpkg` | 1 | `streams_co3`, `waterbodies_co3` |
+| `subbasins.gpkg` | 2 | Single layer |
+| `floodplain_{scenario_id}.tif` | 2 | Floodplain raster per scenario |
+| `floodplain.gpkg` | 2 | One layer per scenario (`co_ff02`, `co_ff04`, ...) |
+| `floodplain_landcover.gpkg` | 3 | `classified_{scenario}_{year}`, `transition_{scenario}_{from}_{to}` |
+| `rasters/{scenario_id}/` | 3 | Classified + transition tifs |
+| `lulc_summary_{scenario_id}.rds`, `lulc_summary.rds` | 3 | Area/pct by class, sub-basin, year |
 
-Outputs are multi-layer GeoPackages grouped by theme. Each pipeline step owns one gpkg. Layer names include the scenario ID (e.g., `co_ff04`) so outputs are self-documenting regardless of when or how they were generated.
+## Adding scenarios
 
-| GeoPackage | From | Layers | Copied to QGIS |
-|------------|------|--------|----------------|
-| `aquatic_network.gpkg` | 01 | `streams_classified`, `streams_co3`, `waterbodies_co3` | Yes |
-| `floodplain.gpkg` | 02 | One layer per scenario: `co_ff02`, `co_ff04`, `co_ff06` | Yes |
-| `floodplain_landcover.gpkg` | 03 | `classified_{scenario}_{year}`, `transition_{scenario}_{from}_{to}` | Yes |
-| `subbasins.gpkg` | 02 | Single layer | No |
-
-### Other outputs
-
-| File | From | Description |
-|------|------|-------------|
-| `floodplain_{scenario_id}.tif` | 02 | Floodplain raster per scenario |
-| `lulc_summary_{scenario_id}.rds` | 03 | Area/pct by class, sub-basin, year |
-| `lulc_summary.rds` | 03 | Copy of active scenario (report reads this) |
-| `rasters/{scenario_id}/` | 03 | Classified + transition tifs per scenario |
-
-## External Paths
-
-Pipeline scripts read `params$path_gis` from `index.Rmd` YAML via:
-
-```r
-params <- rmarkdown::yaml_front_matter(here::here("index.Rmd"))$params
-```
-
-This is the QGIS project directory where gpkgs are copied for field/team use. Edit `path_gis` in `index.Rmd` if your file system differs. DEM and slope rasters are expected at `{path_gis}/dem_neexdzii.tif` and `{path_gis}/slope_neexdzii.tif`.
-
-## Adding Scenarios
-
-Add a row to `flood_scenarios.csv` with the desired parameters and set `run=TRUE`. Re-run `02_floodplain_model.R` — the new scenario appears as a layer in `floodplain.gpkg`. Then run `03_lulc_classify.R {scenario_id}` to classify land cover within the new floodplain extent.
+Add a row to the area's `flood_scenarios.csv` with the desired parameters and set `run=TRUE`,
+then re-run step 2. The new scenario appears as a layer in `floodplain.gpkg`; run step 3 with
+that scenario id to classify land cover within it.

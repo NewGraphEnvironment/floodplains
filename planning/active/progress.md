@@ -9,4 +9,12 @@
   deferred).
 - Created branch `1-generalize-pipeline-to-aoi-driven-prove` off main.
 - Scaffolded PWF baseline from issue #1 with approved phases.
-- Next: start Phase 1 — `fp_read_config()` + refactor `01_network_extract.R` → `fp_network(cfg)`.
+- **Phase 1 complete.** Refactored 01/02/03 into `fp_network(cfg)` / `fp_floodplain(cfg, scenarios)`
+  / `fp_lulc(cfg, scenario)`; added `fp_read_config()` + working dispatch in `run_area.R`; added
+  `primary_scenario: co_ff04` to both area.yml; wrote `scripts/run_areas.sh` (soft-fail loop);
+  rewrote `floodplain_lcc/README.md`; removed the broken `index.Rmd` QGIS auto-copy from all three.
+  - Verified: all R/shell files parse; `fp_read_config` builds correct cfg for both areas (Neexdzii
+    subset populated, MORR subset NULL); the three step files source and define `fp_*` with correct
+    signatures. Full pipeline run is Phase 2 (needs fwapg + internet).
+- Next: Phase 2 — run `Rscript scripts/run_area.R neexdzii` and check parity (678.2 km / 171.0 km²
+  / 943.13 ha).
