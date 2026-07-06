@@ -101,11 +101,30 @@ Full issue #1 body:
 - Network: **1295.6 km** (4877 segments, orders 3-8, 412 waterbodies).
 - Floodplain extent (VCA, MRDEM-30): co_ff02 **379.0 km²** · **co_ff04 411.1 km²** (functional) ·
   co_ff06 **432.4 km²**.
-- LULC change within co_ff04 floodplain (IO 10 m, 2017→2023): tree loss **22.0 ha** (221 patches);
-  ag expansion **16.0 ha**.
 - Single sub-basin ("Morice") = whole WSG; `lulc_summary.rds` has 22 rows (class × year).
-- Contrast with Neexdzii (943 ha tree loss over 171 km² floodplain): MORR is far less disturbed —
-  consistent with a largely forested group vs. the agricultural Bulkley valley.
+
+### ⚠️ MORR LULC / tree-loss result is INVALID — incomplete STAC coverage (caught 2026-07-06)
+
+The reported tree loss (22.0 ha) and the entire transition matrix are an **artifact of incomplete
+land-cover classification**, NOT a real "MORR floodplain barely changed" finding:
+
+- `dft_stac_fetch` (step 3) classified only **~1,199 ha ≈ 3% of the 41,113 ha co_ff04 floodplain**.
+  The classified cells form a single **5.9 × 10.2 km patch** in the lower Morice near the Bulkley
+  confluence; the floodplain spans **84.6 × 87.4 km**. ~97% of the floodplain is unclassified (NA).
+- So the 22 ha tree loss (and the agriculture-dominated transitions: Crops→Rangeland, Rangeland→
+  Built, etc.) reflect only that one small settled pocket — unrepresentative of the whole floodplain.
+- **Cross-check:** the per-sub-basin summary totals only 924.63 ha/yr classified (Trees 564 ha =
+  61%), not the ~25,000 ha of Trees a fully-classified 41,113 ha floodplain would show.
+- **Root cause:** `drift::dft_stac_fetch` under-covers large multi-tile AOIs. Neexdzii's floodplain
+  (171 km², verified **104% covered** → matched parity exactly) fits within the returned coverage;
+  MORR (411 km², 84×87 km, spanning multiple MGRS/UTM tiles) exceeds it and only one tile came back.
+- **Impact is scoped:** the floodplain EXTENT numbers (co_ff04 411.1 km², co_ff02 379.0, co_ff06
+  432.4; network 1295.6 km) come from steps 1-2 (VCA), independent of the LULC fetch — those stand.
+  Only step-3 LULC / transition output for MORR is invalid. **Parity (Neexdzii) is unaffected.**
+- **Follow-up:** fix multi-tile mosaicking in `drift::dft_stac_fetch` (method-in-packages), then
+  re-run `run_area.R morr 3`. Until then, do NOT report MORR tree loss and do NOT land the MORR
+  `floodplain_landcover.gpkg` in QGIS (Phase 4 landcover copy on hold; network/floodplain/subbasins
+  gpkgs are valid).
 
 ## Resolved decisions
 

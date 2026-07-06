@@ -33,8 +33,14 @@
     deferred). Derived the MORR mainstem outlet from the network (Morice River blk 360885316,
     lon/lat -126.746442/54.410770) and verified it delineates 4382.2 km² ≈ whole MORR group
     (4379.1 km², 100.1%) capturing 4877/4877 segments. Wrote `config/morr/break_points.csv` (1 row).
-  - Steps 2-3 complete (exit 0). MORR headline: floodplain co_ff04 **411.1 km²** (co_ff02 379.0,
-    co_ff06 432.4); tree loss **22.0 ha** (221 patches); ag expansion **16.0 ha**. Single "Morice"
-    basin. Much less disturbed than Neexdzii (943 ha) — fits a forested vs. agricultural group.
-- **Phase 3 complete.** Next: Phase 4 — copy MORR gpkgs into rwk QGIS project under `morr/`, local
-  only (do NOT Mergin-sync).
+  - Steps 2-3 complete (exit 0). MORR floodplain EXTENT (valid, steps 1-2): co_ff04 **411.1 km²**
+    (co_ff02 379.0, co_ff06 432.4), network 1295.6 km.
+  - ⚠️ **MORR LULC/tree-loss is INVALID** — `drift::dft_stac_fetch` classified only ~1,199 ha ≈ 3%
+    of the 41,113 ha floodplain (one 5.9×10.2 km tile near the confluence; floodplain spans
+    84×87 km). The 22 ha "tree loss" reflects only that pocket, not the floodplain. See findings.md.
+    Verified DEM/step-2 is NOT the cause: MRDEM-30 fully covers the floodplain (443,975 valley
+    cells = 41,113 ha across the full 86×87 km, 2272 polygon parts following the whole network).
+    Neexdzii LULC was 104% covered → parity unaffected.
+- **Phase 3: extent done; LULC blocked** on a drift STAC multi-tile-coverage fix. Phase 4 landcover
+  copy ON HOLD (network/floodplain/subbasins gpkgs valid; landcover not). Follow-up: fix
+  `dft_stac_fetch` mosaicking for large AOIs, re-run `run_area.R morr 3`.

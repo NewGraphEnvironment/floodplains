@@ -72,8 +72,11 @@ Adding a future area = adding `config/<area>/`, zero code change.
       Morice-outlet point derived + verified (whole WSG, 100% network capture). flood_scenarios.csv
       reviewed (run=TRUE: co_ff02/co_ff04/co_ff06, same as Neexdzii template — kept).
 - [x] Run `Rscript scripts/run_area.R morr` steps 1–3 (step 1 whole-WSG, then 2,3). Exit 0.
-- [x] Record MORR headline numbers in `findings.md`: network 1295.6 km; floodplain co_ff04
-      411.1 km²; tree loss 22.0 ha; ag expansion 16.0 ha.
+- [x] Record MORR **extent** numbers (valid): network 1295.6 km; floodplain co_ff04 411.1 km²
+      (co_ff02 379.0, co_ff06 432.4). DEM/step-2 fully covers the floodplain.
+- [ ] ⚠️ MORR **LULC/tree-loss INVALID** — `drift::dft_stac_fetch` covered only ~3% of the
+      41,113 ha floodplain (one STAC tile). Blocked on a drift multi-tile mosaicking fix, then
+      re-run `run_area.R morr 3`. Do NOT report MORR tree loss until fixed.
 
 ## Phase 4 — Land MORR outputs in GIS (local, interim)
 
