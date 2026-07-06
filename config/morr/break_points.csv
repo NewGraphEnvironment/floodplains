@@ -1,15 +1,2 @@
 id,lon,lat,blk,drm,gnis_name,dist_m,name_basin,fisheries_value,falls_downstream,description
-1,-126.1299133,54.37877127,360881038,718.6999344,Maxan Creek,15.8,Maxan Creek,3,1,Maxan Creek from outlet of Maxan Lake to confluence with Bulkley Lake.
-2,-126.5171814,54.45727224,360862508,314.5014329,Aitken Creek,66.6,Aitken Creek,3,0,Aitken Creek watershed entering Bulkley River near Houston.
-3,-126.7436273,54.4103463,360873822,165115.8037,Bulkley River,33.8,Bulkley Confluence-McKilligan,5,0,"Neexdzii Kwa (Upper Bulkley River) from Wedzin Kwa (Morice River) confluence to McKilligan Road upstream of Houston.  Includes Houston municipality as well as Rasberry Creek, McKillligan Creek and Henry Creek watersheds."
-4,-126.6546002,54.39940243,360886221,838.2383948,Buck Creek,10.4,Buck Creek Below Falls,5,0,Buck Creek from mouth upstream to Buck Falls located just downstream of the Buck Flats Road bridge 46.7km upstream from confluence with Neexdzii Kwa confluence.
-5,-126.2499336,54.46118921,360873822,233563.5583,Bulkley River,11.9,Bulkley River Above Falls,3,1,Neexdzii Kwa (Upper Bulkley River) mainstem and tributaries upstream of Bulkley Falls to inlet of Bulkley Lake.
-6,-126.0367154,54.4007067,360873822,265377.5151,Bulkley River,26.2,Taman Creek,2,1,Taman Creek watershed (local name for Bulkley River upstream of Bulkley Lake).
-7,-126.5054273,54.18826115,360886221,46584.79229,Buck Creek,30.7,Buck Creek Above Falls,2,1,Buck Creek and tributaries upstream of Buck Falls; includes Klo Creek and Goosley Lake.
-8,-126.2657008,54.47103915,360846413,533.66414,NA,11.2,Gilmore-Day Lakes,3,0,"Gilmore Lake, Sunset Lake, Elwin Lake and Day Lakes."
-9,-126.4463188,54.51418543,360873822,207453.0321,Bulkley River,54.6,Perow-Byman,4,0,Neexdzii Kwa (Upper Bulkley River) mainstem McKilligan Road to upstream of Byman Creek confluence. Includes Perow Creek and Byman Creek watersheds.
-10,-126.3428601,54.50726571,360873822,217936.2446,Bulkley River,4.1,Cesford-Ailport,5,0,Neexdzii Kwa (Upper Bulkley River) mainstem  from upstream of Richfield Creek confluence to Bulkley Falls. Includes Cesford Creek and Ailport Creek watersheds.
-12,-126.5616216,54.44413596,360873822,188452.2608,Bulkley River,2.7,Barren - McQuarrie,5,0,Neexdzii Kwa (Upper Bulkley River) mainstem from McKilligan Road to upstream of McQuarrie Creek confluence. Includes Barren Creek and McQuarrie Creek watersheds. 
-13,-126.3730418,54.5146447,360873822,214943.997,Bulkley River,1.2,Johnny David-Richfield,5,0,Neexdzii Kwa (Upper Bulkley River) from upstream of Byman Creek confluence to upstream of Richfield Creek confluence. Includes Johnny David and Richfield Creek watersheds.
-14,-126.1146204,54.32021014,360881038,16619.16808,Maxan Creek,5.6,Maxan Lake,2,1,Maxan Lake and headwater tributaries above lake outlet.
-15,-126.1425154,54.3032359,360877225,3225.553353,Foxy Creek,11,Foxy Creek,2,1,Foxy Creek watershed.
+1,-126.746442,54.410770,360885316,61.99551,Morice River,0,Morice,5,0,MORR whole-watershed-group outlet — Morice River mainstem at the Bulkley (Wedzin Kwa) confluence. Single break point => one sub-basin covering the entire MORR group (verified 4382.2 km2 vs 4379.1 km2 group area; captures 4877/4877 coho order-3+ segments). Interior sub-basin delineation deferred to a later pass (issue #1 Phase 3).

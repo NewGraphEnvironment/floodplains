@@ -96,7 +96,19 @@ Full issue #1 body:
 > Local `fwapg` (libpq env vars); `link` >= 0.44.0, `flooded`, `drift`, `fresh`; internet for
 > national MRDEM-30 (`flooded::fl_dem_aoi()`) + Microsoft Planetary Computer STAC.
 
-## Open questions / decisions
+## MORR headline results (2026-07-06, whole WSG, coho order-3+)
 
-- **MORR whole-WSG vs subset** — deferred to Phase 3; default whole WSG (`subset: null`).
-- **MORR break points** — placeholders copied from Neexdzii; must be replaced in Phase 3.
+- Network: **1295.6 km** (4877 segments, orders 3-8, 412 waterbodies).
+- Floodplain extent (VCA, MRDEM-30): co_ff02 **379.0 km²** · **co_ff04 411.1 km²** (functional) ·
+  co_ff06 **432.4 km²**.
+- LULC change within co_ff04 floodplain (IO 10 m, 2017→2023): tree loss **22.0 ha** (221 patches);
+  ag expansion **16.0 ha**.
+- Single sub-basin ("Morice") = whole WSG; `lulc_summary.rds` has 22 rows (class × year).
+- Contrast with Neexdzii (943 ha tree loss over 171 km² floodplain): MORR is far less disturbed —
+  consistent with a largely forested group vs. the agricultural Bulkley valley.
+
+## Resolved decisions
+
+- **MORR whole-WSG vs subset** — resolved: **whole WSG** (`subset: null`, issue default).
+- **MORR break points** — resolved: **single outlet basin** (user choice). Real outlet point
+  derived + verified (see progress.md); interior sub-basin delineation deferred to a later pass.

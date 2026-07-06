@@ -25,5 +25,16 @@
   - Segment count (1936) matches the archived rwk figure. The generalization is faithful.
   - Env for the run: `PGHOST=localhost PGPORT=5432 PGDATABASE=fwapg PGUSER=postgres PGPASSWORD=postgres`.
     Packages: link 0.44.1 / flooded 0.3.2 / drift 0.2.2 / fresh 0.32.0.
-- Next: Phase 3 — MORR. Resolve whole-WSG (default) vs reach; replace placeholder break_points;
-  run `Rscript scripts/run_area.R morr`; record headline numbers.
+- **Phase 3 in progress — MORR.**
+  - Resolved: whole WSG (issue default; `subset: null`). MORR step 1 (network, whole-WSG NULL-subset
+    branch) ran clean → **1295.6 km**, 4877 coho order-3+ segments (orders 3-8), 412 waterbodies.
+    This exercised the `subset: null` code path that Neexdzii parity did not.
+  - Break points: user chose **single outlet basin** (headline numbers now; interior sub-basins
+    deferred). Derived the MORR mainstem outlet from the network (Morice River blk 360885316,
+    lon/lat -126.746442/54.410770) and verified it delineates 4382.2 km² ≈ whole MORR group
+    (4379.1 km², 100.1%) capturing 4877/4877 segments. Wrote `config/morr/break_points.csv` (1 row).
+  - Steps 2-3 complete (exit 0). MORR headline: floodplain co_ff04 **411.1 km²** (co_ff02 379.0,
+    co_ff06 432.4); tree loss **22.0 ha** (221 patches); ag expansion **16.0 ha**. Single "Morice"
+    basin. Much less disturbed than Neexdzii (943 ha) — fits a forested vs. agricultural group.
+- **Phase 3 complete.** Next: Phase 4 — copy MORR gpkgs into rwk QGIS project under `morr/`, local
+  only (do NOT Mergin-sync).

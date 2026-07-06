@@ -67,12 +67,13 @@ Adding a future area = adding `config/<area>/`, zero code change.
 
 ## Phase 3 — Run MORR (first new area)
 
-- [ ] Resolve `config/morr/area.yml` open question: whole WSG (`subset: null`, default) vs. reach
-      subset. Default: whole WSG.
-- [ ] Replace placeholder MORR `break_points.csv` with real MORR points; review
-      `flood_scenarios.csv`.
-- [ ] Run `Rscript scripts/run_area.R morr` steps 1–3.
-- [ ] Record MORR headline numbers in `planning/active/findings.md`.
+- [x] Resolve `config/morr/area.yml` open question: **whole WSG** (`subset: null`, default).
+- [x] Replace placeholder MORR `break_points.csv` — **single outlet basin** (user choice); real
+      Morice-outlet point derived + verified (whole WSG, 100% network capture). flood_scenarios.csv
+      reviewed (run=TRUE: co_ff02/co_ff04/co_ff06, same as Neexdzii template — kept).
+- [x] Run `Rscript scripts/run_area.R morr` steps 1–3 (step 1 whole-WSG, then 2,3). Exit 0.
+- [x] Record MORR headline numbers in `findings.md`: network 1295.6 km; floodplain co_ff04
+      411.1 km²; tree loss 22.0 ha; ag expansion 16.0 ha.
 
 ## Phase 4 — Land MORR outputs in GIS (local, interim)
 
