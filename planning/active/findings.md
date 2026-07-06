@@ -115,16 +115,26 @@ land-cover classification**, NOT a real "MORR floodplain barely changed" finding
   Built, etc.) reflect only that one small settled pocket — unrepresentative of the whole floodplain.
 - **Cross-check:** the per-sub-basin summary totals only 924.63 ha/yr classified (Trees 564 ha =
   61%), not the ~25,000 ha of Trees a fully-classified 41,113 ha floodplain would show.
-- **Root cause:** `drift::dft_stac_fetch` under-covers large multi-tile AOIs. Neexdzii's floodplain
-  (171 km², verified **104% covered** → matched parity exactly) fits within the returned coverage;
-  MORR (411 km², 84×87 km, spanning multiple MGRS/UTM tiles) exceeds it and only one tile came back.
-- **Impact is scoped:** the floodplain EXTENT numbers (co_ff04 411.1 km², co_ff02 379.0, co_ff06
-  432.4; network 1295.6 km) come from steps 1-2 (VCA), independent of the LULC fetch — those stand.
-  Only step-3 LULC / transition output for MORR is invalid. **Parity (Neexdzii) is unaffected.**
-- **Follow-up:** fix multi-tile mosaicking in `drift::dft_stac_fetch` (method-in-packages), then
-  re-run `run_area.R morr 3`. Until then, do NOT report MORR tree loss and do NOT land the MORR
-  `floodplain_landcover.gpkg` in QGIS (Phase 4 landcover copy on hold; network/floodplain/subbasins
-  gpkgs are valid).
+- **Root cause: `drift::dft_stac_fetch` CACHE-KEY COLLISION** (NOT mosaicking — earlier guess was
+  wrong). The cache file is `file.path(cache_source_dir, paste0(yr, ".nc"))` (dft_stac_fetch.R:103) —
+  keyed only by **source + year, no AOI**. Neexdzii ran first (Phase 2) and populated
+  `~/Library/Caches/drift/io-lulc/{2017,2020,2023}.nc` with the **Neexdzii** extent. MORR ran second
+  (Phase 3); with `force=FALSE` (default) `dft_stac_fetch` found those files and returned the
+  **Neexdzii** rasters, masked to the MORR floodplain. Only the ~1,199 ha where the two overlap near
+  the shared Bulkley/Morice confluence survived → the "3% coverage". Transitions were agricultural
+  because it was literally Bulkley/Houston-valley data.
+- **Proof:** cache `io-lulc/*.nc` extent = E 645443-696463 / N 6000758-6056578 ≈ Neexdzii fp bbox
+  (645444-696461 / 6000762-6056573), NOT MORR fp bbox (566715-651331 / 5948369-6035818).
+- **Secondary bug:** `force=TRUE` is also broken — it calls `gdalcubes::write_ncdf()` on the
+  existing cache path, which errors "File already exists" (no overwrite). Can't override a stale
+  cache without manually deleting the file.
+- **Impact is scoped:** floodplain EXTENT (co_ff04 411.1 km², co_ff02 379.0, co_ff06 432.4; network
+  1295.6 km) is from steps 1-2 (VCA), independent of the LULC cache — stands. Neexdzii parity
+  unaffected (ran first, clean cache, matched 943.13 ha). Only MORR step-3 LULC is invalid.
+- **Fix (drift):** put the AOI in the cache key (bbox/geometry hash) + make `force=TRUE` overwrite.
+  See `planning/active/drift_issue_stac_cache.md`. **Immediate unblock (no drift fix needed):** clear
+  the stale cache and re-run `run_area.R morr 3` — a per-AOI cache clear is a valid workaround.
+- Phase 4 landcover copy stays on hold until MORR step 3 is re-run with correct coverage.
 
 ## Resolved decisions
 
