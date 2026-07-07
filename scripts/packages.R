@@ -10,7 +10,7 @@ if (identical(getOption("repos")[["CRAN"]], "@CRAN@") ||
 if (!requireNamespace("pak", quietly = TRUE)) install.packages("pak")
 
 pkgs_cran <- c(
-  "sf", "terra", "stars",          # spatial
+  "sf", "terra", "stars",          # spatial (terra >= 1.8-10 for drift's transition patches fix)
   "DBI", "RPostgres",              # fwapg
   "here", "fs", "yaml",            # utils + config
   "dplyr", "readr", "stringr"
@@ -19,7 +19,7 @@ pkgs_cran <- c(
 pkgs_gh <- c(
   "newgraphenvironment/link",      # network extraction (>= 0.44.0 access fix)
   "newgraphenvironment/flooded",   # VCA floodplain delineation
-  "newgraphenvironment/drift",     # STAC LULC classify + transition
+  "newgraphenvironment/drift",     # STAC LULC classify + transition (>= 0.2.4: AOI cache key + single-pass transition, drift#25/#27)
   "newgraphenvironment/fresh"      # falls.csv + parameter CSVs (link engine)
 )
 
