@@ -41,21 +41,20 @@ actually populates for that group — not every species is modelled everywhere.
 
 ## Prerequisites (when running)
 
-Local `fwapg` (libpq env vars); `link` ≥ 0.44.0, `flooded`, `drift`, `fresh`; internet for the
-national MRDEM-30 (`flooded::fl_dem_aoi()`) and Microsoft Planetary Computer STAC.
+Local `fwapg` (libpq env vars); `link` ≥ 0.44.0, `flooded`, `drift` ≥ 0.2.4, `fresh`, `terra`
+≥ 1.8-10; internet for the national MRDEM-30 (`flooded::fl_dem_aoi()`) and Microsoft Planetary
+Computer STAC.
 
 ## Running gotchas (learned the hard way, issue #1)
 
-- **Clear the STAC cache between areas.** `drift::dft_stac_fetch` keys its cache on source+year only,
-  with no AOI — so a second area silently reuses the first area's rasters (drift#25). Run
-  `drift::dft_cache_clear(source = "io-lulc")` before each area's step 3 until drift is fixed.
-  Symptom when missed: implausibly low LULC change + classified coverage far below the floodplain.
-- **Large-extent floodplains OOM the transition vectorizer.** `drift::dft_transition_vectors`
-  processes the full raster grid once per transition class; a wide-bbox floodplain (e.g. UFRA,
-  ~103M cells) exhausts memory (drift#27). `fp_lulc` wraps it in `fp_transition_vectors_tiled`
-  (column-tiling; single-tile = identical output for small areas) as a stop-gap.
-- Both are "scales on small AOIs, breaks on large ones" — watch for the class when scaling to bigger
-  groups. Verify LULC by checking classified coverage ≈ floodplain area before trusting numbers.
+- **Two drift scaling bugs, both now FIXED — keep the verify-coverage habit.** `dft_stac_fetch`
+  used to key its cache on source+year only (no AOI), so a second area silently reused the first
+  area's rasters (drift#25, fixed in drift 0.2.3 — cache key now hashes the AOI). And
+  `dft_transition_vectors` used to process the full raster grid per transition class and OOM on
+  wide-bbox floodplains (drift#27, fixed in drift 0.2.4 — single `terra::patches()` pass, hence the
+  terra ≥ 1.8-10 floor). No more between-areas `dft_cache_clear` or driver-side tiling needed. But
+  the class of failure was "scales on small AOIs, breaks on large ones" — so still **verify LULC by
+  checking classified coverage ≈ floodplain area** before trusting numbers when scaling to new groups.
 - The single-outlet break point can fail `frs_watershed_split` at the exact WSG downstream tip
   (a boundary edge case); nudge one segment upstream on the mainstem and re-verify coverage.
 
