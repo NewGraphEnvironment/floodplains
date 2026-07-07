@@ -7,6 +7,7 @@ watershed_group: BULK          # link aoi — runs the whole WSG, then subset be
 species: co
 min_order: 3                   # minimum stream order for the floodplain-input network
 schema: neexdzii               # dedicated persist schema (never shared fresh.*)
+primary_scenario: co_ff04      # headline scenario for LULC (03) + parity check (171.0 km²)
 # Neexdzii is a reach of BULK: keep only the network upstream of the Wedzin Kwa confluence.
 subset:
   blue_line_key: 360873822

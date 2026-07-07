@@ -2,35 +2,81 @@
 #
 # run_area.R  —  top-level driver: run the floodplain + LULC pipeline for one area.
 #
-# SKELETON. The pipeline steps (scripts/floodplain_lcc/01-05) are currently the verbatim
-# Neexdzii originals and are NOT yet AOI-parameterized. Generalizing them to read config
-# from config/<area>/ and wiring them into this runner is the first tracked issue.
-#
-# Target interface:
+# Usage:
 #   Rscript scripts/run_area.R <area> [steps]
 #     <area>   directory name under config/ (e.g. neexdzii, morr)
 #     [steps]  optional comma list, default "1,2,3" (network, floodplain, lulc)
 #
-# Reads:  config/<area>/area.yml  + flood_scenarios.csv + break_points.csv
-# Writes: data/<area>/ ...  (aquatic_network.gpkg, floodplain.gpkg, floodplain_landcover.gpkg, ...)
+# Reads:  config/<area>/area.yml + flood_scenarios.csv + break_points.csv
+# Writes: data/<area>/ ... (aquatic_network.gpkg, floodplain.gpkg,
+#                           floodplain_landcover.gpkg, subbasins.gpkg, lulc_summary.rds, ...)
+#
+# Architecture: the per-area config is resolved ONCE here into a single `cfg` list
+# (fp_read_config) and passed explicitly to each step function. The step functions
+# live in scripts/floodplain_lcc/ and each take `cfg`:
+#   1 -> fp_network(cfg)      01_network_extract.R
+#   2 -> fp_floodplain(cfg)   02_floodplain_model.R
+#   3 -> fp_lulc(cfg)         03_lulc_classify.R
 #
 # Parity contract: `run_area.R neexdzii` must reproduce the known-good Neexdzii numbers
 # (coho-3 network 678.2 km | floodplain co_ff04 171.0 km² | floodplain tree loss 943 ha)
 # before any new area's numbers are trusted.
 
-args <- commandArgs(trailingOnly = TRUE)
+# --- fp_read_config: area name -> one cfg list carrying everything the steps need ---
+fp_read_config <- function(area) {
+  cfg_dir <- here::here("config", area)
+  if (!dir.exists(cfg_dir)) {
+    stop("no config for area '", area, "' at ", cfg_dir, call. = FALSE)
+  }
+
+  cfg <- yaml::read_yaml(file.path(cfg_dir, "area.yml"))
+  cfg$scenarios    <- readr::read_csv(file.path(cfg_dir, "flood_scenarios.csv"),
+                                      show_col_types = FALSE)
+  cfg$break_points <- readr::read_csv(file.path(cfg_dir, "break_points.csv"),
+                                      show_col_types = FALSE)
+
+  cfg$area    <- area
+  cfg$dir_out <- here::here("data", area)
+  fs::dir_create(cfg$dir_out)
+
+  if (is.null(cfg$primary_scenario)) cfg$primary_scenario <- "co_ff04"
+  cfg
+}
+
+# --- CLI ---
+args  <- commandArgs(trailingOnly = TRUE)
 area  <- args[1]
 steps <- if (length(args) >= 2) strsplit(args[2], ",")[[1]] else c("1", "2", "3")
 
 if (is.na(area)) stop("usage: Rscript scripts/run_area.R <area> [steps]", call. = FALSE)
 
-cfg_dir <- here::here("config", area)
-if (!dir.exists(cfg_dir)) stop("no config for area '", area, "' at ", cfg_dir, call. = FALSE)
+# --- Load packages + step functions ---
+update_packages <- FALSE
+source(here::here("scripts", "packages.R"))
+lcc_dir <- here::here("scripts", "floodplain_lcc")
+source(file.path(lcc_dir, "01_network_extract.R"))
+source(file.path(lcc_dir, "02_floodplain_model.R"))
+source(file.path(lcc_dir, "03_lulc_classify.R"))
 
-cfg <- yaml::read_yaml(file.path(cfg_dir, "area.yml"))
+# --- Resolve config ---
+cfg <- fp_read_config(area)
 message("Area: ", cfg$name, " | WSG: ", cfg$watershed_group,
-        " | order >= ", cfg$min_order, " | schema: ", cfg$schema)
+        " | order >= ", cfg$min_order, " | schema: ", cfg$schema,
+        " | subset: ", if (is.null(cfg$subset)) "whole WSG" else "reach",
+        " | steps: ", paste(steps, collapse = ","))
 
-# TODO(#1): source scripts/packages.R, then dispatch the generalized 01-05 with `cfg` +
-# the per-area CSVs, writing to data/<area>/. Until 01-05 are parameterized this is a stub.
-stop("run_area.R is a skeleton — see the MORR generalization issue.", call. = FALSE)
+# --- Dispatch requested steps in order ---
+if ("1" %in% steps) {
+  message("\n### Step 1: network extract ###")
+  fp_network(cfg)
+}
+if ("2" %in% steps) {
+  message("\n### Step 2: floodplain model ###")
+  fp_floodplain(cfg)
+}
+if ("3" %in% steps) {
+  message("\n### Step 3: LULC classify + transition ###")
+  fp_lulc(cfg)
+}
+
+message("\nDone: ", cfg$name, " (steps ", paste(steps, collapse = ","), ").")
