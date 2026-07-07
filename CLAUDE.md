@@ -58,6 +58,18 @@ Computer STAC.
 - The single-outlet break point can fail `frs_watershed_split` at the exact WSG downstream tip
   (a boundary edge case); nudge one segment upstream on the mainstem and re-verify coverage.
 
+## Slash Command Configuration
+
+- **SRED repo:** `NewGraphEnvironment/sred`
+- **SRED issue:** `#35` — Config-Driven Multi-Watershed, Multi-Species Floodplain + Land-Cover-Change
+  Framework (floodplains). `/gh-pr-push` adds `Relates to NewGraphEnvironment/sred#35` to PR bodies.
+
+SRED tracking discipline (for clean year-end extraction): the uncertainties + iterations live in the
+PWF (`planning/`), and each PR body carries the `sred#35` ref. Method-package bugs this framework
+surfaces (e.g. drift#25/#27) are noted in the PWF/PR here but tracked under their own experiment
+(drift = sred#16). Keep numbers labelled (gross loss / gross gain / net) so headline figures are
+unambiguous when pulled at year end.
+
 ## Conventions
 
 Run `/claude-md-init` to sync New Graph soul conventions below the marker.
