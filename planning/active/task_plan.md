@@ -74,9 +74,11 @@ Adding a future area = adding `config/<area>/`, zero code change.
 - [x] Run `Rscript scripts/run_area.R morr` steps 1–3 (step 1 whole-WSG, then 2,3). Exit 0.
 - [x] Record MORR **extent** numbers (valid): network 1295.6 km; floodplain co_ff04 411.1 km²
       (co_ff02 379.0, co_ff06 432.4). DEM/step-2 fully covers the floodplain.
-- [ ] ⚠️ MORR **LULC/tree-loss INVALID** — `drift::dft_stac_fetch` covered only ~3% of the
-      41,113 ha floodplain (one STAC tile). Blocked on a drift multi-tile mosaicking fix, then
-      re-run `run_area.R morr 3`. Do NOT report MORR tree loss until fixed.
+- [x] MORR LULC — root cause was `drift::dft_stac_fetch` **cache-key collision** (no AOI in key;
+      MORR got Neexdzii's cached rasters). Filed **drift#25**. Unblocked via
+      `dft_cache_clear(source="io-lulc")` + re-run `run_area.R morr 3` (no drift code change needed).
+- [x] MORR LULC CORRECTED (full coverage): tree loss **433.8 ha**, tree gain 684.5 ha
+      (net +250.7 ha greening), ag expansion 411.2 ha; classified 42,097 ha/yr (was 924).
 
 ## Phase 4 — Land MORR outputs in GIS (local, interim)
 

@@ -103,7 +103,20 @@ Full issue #1 body:
   co_ff06 **432.4 km²**.
 - Single sub-basin ("Morice") = whole WSG; `lulc_summary.rds` has 22 rows (class × year).
 
-### ⚠️ MORR LULC / tree-loss result is INVALID — incomplete STAC coverage (caught 2026-07-06)
+### MORR LULC — CORRECTED after cache-collision fix (2026-07-06, full coverage)
+
+After `dft_cache_clear(source="io-lulc")` + re-run of `run_area.R morr 3`, the classification now
+covers the full floodplain (42,097 ha classified/yr vs the poisoned 924 ha; new classified raster
+extent matches the MORR fp bbox). Corrected co_ff04 land-cover change 2017→2023:
+- **Tree loss 433.8 ha** (2727 change patches, 1.06% of floodplain) — was the bogus 22.0 ha.
+- Tree gain 684.5 ha → **net tree +250.7 ha** (slight greening). Ag expansion 411.2 ha.
+- Independent cross-check: classified Trees 19,790 ha (2017) → 20,065 ha (2023), 47% of floodplain.
+- Transitions read as real Morice floodplain dynamics (Rangeland↔Trees succession 531/352 ha,
+  Bare Ground→Trees regrowth 85 ha, Trees→Water channel migration 61 ha) — NOT the Bulkley
+  agricultural signature that the poisoned cache produced.
+- No separate large-AOI problem: the full 10 m fetch over 84×87 km succeeded (8745×8462 cells).
+
+### ⚠️ (RESOLVED) MORR LULC was INVALID — drift cache-key collision (caught 2026-07-06)
 
 The reported tree loss (22.0 ha) and the entire transition matrix are an **artifact of incomplete
 land-cover classification**, NOT a real "MORR floodplain barely changed" finding:
@@ -132,7 +145,7 @@ land-cover classification**, NOT a real "MORR floodplain barely changed" finding
   1295.6 km) is from steps 1-2 (VCA), independent of the LULC cache — stands. Neexdzii parity
   unaffected (ran first, clean cache, matched 943.13 ha). Only MORR step-3 LULC is invalid.
 - **Fix (drift):** put the AOI in the cache key (bbox/geometry hash) + make `force=TRUE` overwrite.
-  See `planning/active/drift_issue_stac_cache.md`. **Immediate unblock (no drift fix needed):** clear
+  Filed: **NewGraphEnvironment/drift#25** (draft in `planning/active/drift_issue_stac_cache.md`). **Immediate unblock (no drift fix needed):** clear
   the stale cache and re-run `run_area.R morr 3` — a per-AOI cache clear is a valid workaround.
 - Phase 4 landcover copy stays on hold until MORR step 3 is re-run with correct coverage.
 

@@ -41,6 +41,13 @@
     Verified DEM/step-2 is NOT the cause: MRDEM-30 fully covers the floodplain (443,975 valley
     cells = 41,113 ha across the full 86×87 km, 2272 polygon parts following the whole network).
     Neexdzii LULC was 104% covered → parity unaffected.
-- **Phase 3: extent done; LULC blocked** on a drift STAC multi-tile-coverage fix. Phase 4 landcover
-  copy ON HOLD (network/floodplain/subbasins gpkgs valid; landcover not). Follow-up: fix
-  `dft_stac_fetch` mosaicking for large AOIs, re-run `run_area.R morr 3`.
+- **Root cause found + fixed (workaround).** MORR LULC bug was NOT mosaicking — it was a
+  `drift::dft_stac_fetch` **cache-key collision** (caches per source+year, no AOI; MORR silently got
+  Neexdzii's cached rasters masked to MORR). Proven via cache extent = Neexdzii bbox. Filed
+  **NewGraphEnvironment/drift#25** (cache key must include AOI; also `force=TRUE` can't overwrite).
+- **Resumed:** `dft_cache_clear(source="io-lulc")` + re-ran `run_area.R morr 3`. Coverage restored
+  3% → full (42,097 ha/yr classified). **Corrected MORR:** tree loss **433.8 ha**, tree gain
+  684.5 ha (net +250.7 ha greening), ag expansion 411.2 ha. Real Morice floodplain dynamics, not the
+  Bulkley agricultural signature the poisoned cache produced. No separate large-AOI problem.
+- **Phase 3 complete (valid).** Next: Phase 4 — copy MORR gpkgs into rwk QGIS project under `morr/`,
+  **local only, do NOT Mergin-sync** (target is a live Mergin project — .mergin present).
