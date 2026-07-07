@@ -50,9 +50,11 @@
   684.5 ha (net +250.7 ha greening), ag expansion 411.2 ha. Real Morice floodplain dynamics, not the
   Bulkley agricultural signature the poisoned cache produced. No separate large-AOI problem.
 - **Phase 3 complete (valid).**
-- **Phase 4 complete.** Copied the 4 MORR gpkgs into `…/restoration_wedzin_kwa/morr/` — local only,
-  no mergin sync run. Target is a live Mergin project; files sit as local changes (do NOT push until
-  MORR is its own project).
+- **Phase 4 complete + synced.** Copied the 4 MORR gpkgs into `…/restoration_wedzin_kwa/morr/`, then
+  (at user's direction, overriding the issue's "local only, do NOT sync yet") pushed to Mergin:
+  previewed `rfp_mergin_status` (only the 4 morr/ files pending, no stray WIP), ran `rfp_mergin_sync`
+  → **v95** on `newgraph/restoration_wedzin_kwa`; status clean after. Needed `uv sync` to build the
+  rfp mergin CLI venv (installed pkg location) first.
 - **All 4 phases done.** Issue #1 core scope delivered: generalized config-driven pipeline, proven
   Neexdzii parity, MORR run (extent + valid LULC). Ready for `/planning-archive` + PR.
   Open follow-ups: drift#25 (cache fix), MORR interior sub-basins, MORR own project, S3/04-05 (deferred).

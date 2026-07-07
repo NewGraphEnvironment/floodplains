@@ -83,9 +83,11 @@ Adding a future area = adding `config/<area>/`, zero code change.
 ## Phase 4 — Land MORR outputs in GIS (local, interim)
 
 - [x] Copied MORR gpkgs (aquatic_network, subbasins, floodplain, floodplain_landcover) into
-      `…/restoration_wedzin_kwa/morr/` — local only, **no mergin sync run**. ⚠️ Target is a live
-      Mergin project (.mergin present); these sit as local changes — do NOT push until MORR is its
-      own project.
+      `…/restoration_wedzin_kwa/morr/`.
+- [x] **Synced to Mergin at user's direction** (overriding the issue's original "local only" note).
+      Previewed via `rfp_mergin_status` (changeset = the 4 morr/ gpkgs only, no stray WIP), then
+      `rfp_mergin_sync` → pushed as **v95** on `newgraph/restoration_wedzin_kwa`. Status clean after.
+      (Required `uv sync` to build the rfp mergin CLI venv first.)
 
 ## Validation
 
