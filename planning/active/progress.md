@@ -49,5 +49,10 @@
   3% → full (42,097 ha/yr classified). **Corrected MORR:** tree loss **433.8 ha**, tree gain
   684.5 ha (net +250.7 ha greening), ag expansion 411.2 ha. Real Morice floodplain dynamics, not the
   Bulkley agricultural signature the poisoned cache produced. No separate large-AOI problem.
-- **Phase 3 complete (valid).** Next: Phase 4 — copy MORR gpkgs into rwk QGIS project under `morr/`,
-  **local only, do NOT Mergin-sync** (target is a live Mergin project — .mergin present).
+- **Phase 3 complete (valid).**
+- **Phase 4 complete.** Copied the 4 MORR gpkgs into `…/restoration_wedzin_kwa/morr/` — local only,
+  no mergin sync run. Target is a live Mergin project; files sit as local changes (do NOT push until
+  MORR is its own project).
+- **All 4 phases done.** Issue #1 core scope delivered: generalized config-driven pipeline, proven
+  Neexdzii parity, MORR run (extent + valid LULC). Ready for `/planning-archive` + PR.
+  Open follow-ups: drift#25 (cache fix), MORR interior sub-basins, MORR own project, S3/04-05 (deferred).

@@ -82,12 +82,23 @@ Adding a future area = adding `config/<area>/`, zero code change.
 
 ## Phase 4 — Land MORR outputs in GIS (local, interim)
 
-- [ ] Copy MORR gpkgs into the rwk QGIS project under a `morr/` subdir — local only, **do NOT
-      Mergin-sync**.
+- [x] Copied MORR gpkgs (aquatic_network, subbasins, floodplain, floodplain_landcover) into
+      `…/restoration_wedzin_kwa/morr/` — local only, **no mergin sync run**. ⚠️ Target is a live
+      Mergin project (.mergin present); these sit as local changes — do NOT push until MORR is its
+      own project.
 
 ## Validation
 
-- [ ] Neexdzii parity gate (Phase 2) passes before MORR is trusted
-- [ ] `Rscript scripts/run_area.R <area>` runs clean end-to-end for both areas
-- [ ] `/code-check` clean on each commit; PWF checkboxes match landed work
-- [ ] `/planning-archive` on completion
+- [x] Neexdzii parity gate (Phase 2) passes before MORR is trusted (678.2 km / 171.0 km² / 943.13 ha)
+- [x] `Rscript scripts/run_area.R <area>` runs clean end-to-end for both areas (neexdzii, morr)
+- [x] `/code-check` clean on Phase 1 commit; PWF checkboxes match landed work
+- [ ] `/planning-archive` on completion (ready)
+
+## Follow-ups (separate)
+
+- **drift#25** — `dft_stac_fetch` cache-key collision (AOI missing from key) + `force=TRUE` overwrite
+  bug. Filed. Until fixed, clear the cache between areas (`dft_cache_clear(source=...)`) — the runner
+  could call this per-area defensively once drift is patched.
+- MORR interior sub-basin break points (currently a single whole-WSG outlet basin).
+- MORR becomes its own QGIS/Mergin project (then the `morr/` gpkgs can sync).
+- Deferred from issue: S3 `stac_floodplains_bc` STAC collection; generalize scripts 04/05.
