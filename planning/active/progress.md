@@ -58,3 +58,24 @@
 - **All 4 phases done.** Issue #1 core scope delivered: generalized config-driven pipeline, proven
   Neexdzii parity, MORR run (extent + valid LULC). Ready for `/planning-archive` + PR.
   Open follow-ups: drift#25 (cache fix), MORR interior sub-basins, MORR own project, S3/04-05 (deferred).
+
+## Session 2026-07-06 (cont.) — UFRA (Upper Fraser), chinook, burn to sern_fraser_2024
+
+- Generalized the pipeline to **species**: `fp_network` now reads `access_<cfg$species>` instead of
+  hardcoded `access_co` (guards the code as a short lowercase token before SQL interpolation). For
+  `species: co` the SQL is byte-identical → Neexdzii/MORR coho results unaffected.
+- UFRA has **no coho** (access_co unmodelled in the Upper Fraser) but a full **chinook** model
+  (access_ch: 96,300 streams). Per user decision, ran UFRA as **chinook** (`config/ufra/`: species
+  ch, ch_ff* scenarios, primary ch_ff04, whole WSG single-outlet basin). Outlet break point: exact
+  Fraser tip failed frs_watershed_split (boundary edge case) → nudged 1 segment up, delineates
+  6761 km² = 100% of group.
+- **UFRA step 3 OOM'd** at `drift::dft_transition_vectors` (full 102.6M-cell grid × 56 classes;
+  UFRA floodplain spans a 119 km bbox so trim can't shrink it). Fixed with a **column-tiled**
+  wrapper `fp_transition_vectors_tiled` in `fp_lulc` (memory-bounded; single-tile = identical output
+  for small areas). Filed **drift#27** for the proper in-package fix.
+- **UFRA chinook results** (whole WSG): network 807.7 km; floodplain ch_ff04 **188.2 km²** (ch_ff02
+  167.5, ch_ff06 202.8); tree loss **544.5 ha**, gain 718.9 ha (net +174.4), ag 490.0 ha; LULC
+  coverage 104% (cache cleared first — drift#25 guard).
+- **Burned to sern**: `mergin download`ed the 1.6 GB `newgraph/sern_fraser_2024` (not cloned
+  locally), copied the 4 UFRA gpkgs to `sern_fraser_2024/ufra/`, previewed status (only those 4),
+  `rfp_mergin_sync` → **v95**.

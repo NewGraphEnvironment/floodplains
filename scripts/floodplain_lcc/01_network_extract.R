@@ -36,8 +36,17 @@ fp_network <- function(cfg) {
   min_order <- cfg$min_order
   aoi_wsg   <- cfg$watershed_group
   schema    <- cfg$schema
+  species   <- cfg$species
   out_dir   <- cfg$dir_out
   fs::dir_create(out_dir)
+
+  # species drives which accessibility column is read (access_co, access_ch, ...).
+  # Guard it: it is interpolated into SQL as a column name, so restrict to a short
+  # lowercase code (co, ch, sk, st, wct, ...).
+  if (!is.character(species) || !grepl("^[a-z]{2,4}$", species)) {
+    stop("cfg$species must be a short lowercase species code (e.g. 'co', 'ch'), got: ",
+         species, call. = FALSE)
+  }
 
   # --- Run the link habitat pipeline for the watershed group ---
   # Use the `default` config (NewGraph methodology), NOT `bcfishpass`. They differ
@@ -74,12 +83,13 @@ fp_network <- function(cfg) {
 
   message("Pipeline complete (schema ", schema, ").")
 
-  # --- Read the coho-accessible network ---
-  # Coho-accessible (access_co IN (1,2): 1 = modelled accessible past natural
-  # barriers, 2 = observation-confirmed above a barrier; 0 = blocked), order >=
-  # min_order. Join upstream_area_ha (VCA field) + map_upstream (precip) from fwapg
-  # -- link's streams table doesn't carry them but `02`/flooded need them.
-  message("Reading coho-accessible order >= ", min_order, " streams + attributes...")
+  # --- Read the species-accessible network ---
+  # access_<species> IN (1,2): 1 = modelled accessible past natural barriers,
+  # 2 = observation-confirmed above a barrier; 0 = blocked (NULL = species not
+  # modelled here). order >= min_order. Join upstream_area_ha (VCA field) +
+  # map_upstream (precip) from fwapg -- link's streams table doesn't carry them
+  # but `02`/flooded need them.
+  message("Reading ", species, "-accessible order >= ", min_order, " streams + attributes...")
   streams_sql <- sprintf("
     SELECT s.id_segment, s.blue_line_key, s.downstream_route_measure,
            s.stream_order, s.gnis_name, s.channel_width, s.gradient,
@@ -95,8 +105,8 @@ fp_network <- function(cfg) {
     ) ua ON ua.linear_feature_id = s.linear_feature_id
     LEFT JOIN whse_basemapping.fwa_stream_networks_mean_annual_precip p
       ON p.wscode_ltree = s.wscode_ltree AND p.localcode_ltree = s.localcode_ltree
-    WHERE a.access_co IN (1, 2) AND s.stream_order >= %2$s",
-    schema, min_order)
+    WHERE a.access_%3$s IN (1, 2) AND s.stream_order >= %2$s",
+    schema, min_order, species)
   streams <- sf::st_read(conn, query = streams_sql, quiet = TRUE) |> sf::st_zm(drop = TRUE)
 
   # --- Optional reach subset ---

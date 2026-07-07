@@ -21,6 +21,39 @@
 #
 # Called by scripts/run_area.R (step 3). cfg comes from fp_read_config().
 
+# Memory-bounded transition vectorization.
+#
+# drift::dft_transition_vectors() processes the FULL raster grid once per transition
+# class (allocates rep(NA, ncell) vectors + runs terra::patches() per class). For a
+# large-extent floodplain (e.g. UFRA: ~103M-cell grid over a 119 km-wide bbox, 56
+# transition classes) that OOMs, even though only ~2% of cells hold data and trim()
+# can't shrink it (data follows the mainstem across the whole bbox). Here we split the
+# raster into column tiles so peak memory is bounded to one tile, vectorize each via
+# drift, and row-bind. Single tile (small areas) => one direct call => identical output
+# to the un-tiled path. Transition AREA is preserved (a patch split at a tile seam sums
+# across its pieces); only patch counts inflate slightly at seams. See drift issue on
+# dft_transition_vectors memory scaling.
+fp_transition_vectors_tiled <- function(x, zones, zone_col, max_cells = 25e6) {
+  if (terra::ncell(x) <= max_cells) {
+    return(dft_transition_vectors(x, zones = zones, zone_col = zone_col))
+  }
+  ntile <- ceiling(terra::ncell(x) / max_cells)
+  brks  <- unique(floor(seq(1, terra::ncol(x) + 1, length.out = ntile + 1)))
+  xmn <- terra::xmin(x); xres <- terra::xres(x)
+  parts <- list()
+  for (k in seq_len(length(brks) - 1L)) {
+    c0 <- brks[k]; c1 <- brks[k + 1L] - 1L
+    tile <- terra::crop(x, terra::ext(xmn + (c0 - 1L) * xres, xmn + c1 * xres,
+                                      terra::ymin(x), terra::ymax(x)))
+    if (all(is.na(terra::values(tile, mat = FALSE)))) next
+    v <- dft_transition_vectors(tile, zones = zones, zone_col = zone_col)
+    if (nrow(v) > 0) parts[[length(parts) + 1L]] <- v
+  }
+  if (length(parts) == 0) return(dft_transition_vectors(x[1, 1, drop = FALSE],
+                                                        zones = zones, zone_col = zone_col))
+  do.call(rbind, parts)
+}
+
 fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
   library(drift)
   library(sf)
@@ -104,7 +137,7 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
   # otherwise dominate as fragmented "Trees -> Trees" / "Water -> Water" pieces).
   if (nrow(trans_all$summary) > 0) {
     lyr <- paste0("transition_", scenario_id, "_2017_2023")
-    trans_polys <- dft_transition_vectors(
+    trans_polys <- fp_transition_vectors_tiled(
       trans_all$raster,
       zones = subbasins,
       zone_col = "name_basin"
