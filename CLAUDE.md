@@ -12,22 +12,52 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
 
 ## Layout
 
-- `scripts/floodplain_lcc/01-05` — the pipeline (copied verbatim from rwk; being generalized to AOI-driven)
-- `scripts/run_area.R` — top-level runner: `Rscript scripts/run_area.R <area> [steps]`
+- `scripts/floodplain_lcc/01-03` — the generalized pipeline. Each defines one config-driven step
+  function taking a single `cfg`: `fp_network(cfg)` (01), `fp_floodplain(cfg)` (02), `fp_lulc(cfg)`
+  (03). `04-05` (zones sketch, prioritization) are NOT generalized/wired — deferred.
+- `scripts/run_area.R` — top-level runner: `Rscript scripts/run_area.R <area> [steps]`. Builds one
+  `cfg` via `fp_read_config(area)` and dispatches the step functions. Steps default `1,2,3`.
+- `scripts/run_areas.sh` — thin multi-area loop (per-area soft-fail + timestamped logs).
 - `config/<area>/` — per-area config: `area.yml` + `flood_scenarios.csv` + `break_points.csv`
 - `data/<area>/` — outputs (gitignored)
 
+Adding an area = adding `config/<area>/`; no code change. `area.yml` carries `species` (drives
+`access_<species>` in 01 — `co`, `ch`, …), `watershed_group`, `min_order`, `schema`,
+`primary_scenario`, and `subset` (blk+drm for a reach, or `null` for the whole WSG).
+
 ## Areas
 
-- `neexdzii` — **parity fixture**. The generalized pipeline must reproduce the known-good
-  Neexdzii numbers (coho-3 network 678.2 km, floodplain co_ff04 171.0 km², floodplain tree loss
-  943 ha) before any new area is trusted.
-- `morr` — Morice watershed group, first new area.
+- `neexdzii` — **parity fixture** (coho, BULK subset). The generalized pipeline must reproduce the
+  known-good numbers (coho-3 network 678.2 km, floodplain co_ff04 171.0 km², floodplain tree loss
+  943.13 ha, within ~0.004% VCA noise) before any new area is trusted. Verified.
+- `morr` — Morice watershed group (coho, whole WSG). Run: floodplain co_ff04 411.1 km², tree loss
+  433.8 ha. Burned to `restoration_wedzin_kwa` Mergin.
+- `ufra` — Upper Fraser (**chinook** — coho is unmodelled up there; `access_ch` exists). Run:
+  floodplain ch_ff04 188.2 km², tree loss 544.5 ha. Burned to `sern_fraser_2024` Mergin.
+
+`morr`/`ufra` currently use a single whole-WSG outlet break point (one sub-basin); interior
+sub-basin delineation is deferred. Pick species by which `access_<species>` column the fwapg schema
+actually populates for that group — not every species is modelled everywhere.
 
 ## Prerequisites (when running)
 
 Local `fwapg` (libpq env vars); `link` ≥ 0.44.0, `flooded`, `drift`, `fresh`; internet for the
 national MRDEM-30 (`flooded::fl_dem_aoi()`) and Microsoft Planetary Computer STAC.
+
+## Running gotchas (learned the hard way, issue #1)
+
+- **Clear the STAC cache between areas.** `drift::dft_stac_fetch` keys its cache on source+year only,
+  with no AOI — so a second area silently reuses the first area's rasters (drift#25). Run
+  `drift::dft_cache_clear(source = "io-lulc")` before each area's step 3 until drift is fixed.
+  Symptom when missed: implausibly low LULC change + classified coverage far below the floodplain.
+- **Large-extent floodplains OOM the transition vectorizer.** `drift::dft_transition_vectors`
+  processes the full raster grid once per transition class; a wide-bbox floodplain (e.g. UFRA,
+  ~103M cells) exhausts memory (drift#27). `fp_lulc` wraps it in `fp_transition_vectors_tiled`
+  (column-tiling; single-tile = identical output for small areas) as a stop-gap.
+- Both are "scales on small AOIs, breaks on large ones" — watch for the class when scaling to bigger
+  groups. Verify LULC by checking classified coverage ≈ floodplain area before trusting numbers.
+- The single-outlet break point can fail `frs_watershed_split` at the exact WSG downstream tip
+  (a boundary edge case); nudge one segment upstream on the mainstem and re-verify coverage.
 
 ## Conventions
 
