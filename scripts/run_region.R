@@ -112,9 +112,18 @@ results <- list()
 for (i in seq_len(nrow(runnable))) {
   w <- runnable$wsg[i]; sp <- runnable$species[i]; area <- tolower(w)
   log <- file.path(log_dir, sprintf("region_%s_%s_%s.log", region, area, ts))
-  message("\n### ", w, " -> ", sp, " (steps ", steps, ") -> ", basename(log), " ###")
-  rc <- system2("Rscript", c(here::here("scripts", "run_area.R"), area, steps),
-                stdout = log, stderr = log)
+  # Resumable: a group whose lulc_summary.rds already exists is complete — skip it so a
+  # re-run after an interruption picks up where it left off. FORCE=1 redoes everything.
+  summary_rds <- file.path(here::here("data", area), "lulc_summary.rds")
+  cached <- file.exists(summary_rds) && !nzchar(Sys.getenv("FORCE"))
+  if (cached) {
+    message("\n### ", w, " -> ", sp, ": complete (lulc_summary.rds present) — SKIP (FORCE=1 to redo) ###")
+    rc <- 0L
+  } else {
+    message("\n### ", w, " -> ", sp, " (steps ", steps, ") -> ", basename(log), " ###")
+    rc <- system2("Rscript", c(here::here("scripts", "run_area.R"), area, steps),
+                  stdout = log, stderr = log)
+  }
   # POST-VERIFY: network non-empty (guards pre-pass-said-yes / run-gave-empty)
   km <- NA_real_; fp_km2 <- NA_real_
   net <- file.path(here::here("data", area), "aquatic_network.gpkg")
@@ -127,11 +136,11 @@ for (i in seq_len(nrow(runnable))) {
       if (!is.null(f)) fp_km2 <- sum(as.numeric(sf::st_area(f))) / 1e6
     }
   }
-  status <- if (rc != 0) "FAIL(run)" else if (is.na(km)) "FAIL(empty network)" else "ok"
-  if (status != "ok") message("  ⚠ ", w, ": ", status, " — see ", basename(log))
+  status <- if (rc != 0) "FAIL(run)" else if (is.na(km)) "FAIL(empty network)" else if (cached) "ok(cached)" else "ok"
+  if (!status %in% c("ok", "ok(cached)")) message("  ⚠ ", w, ": ", status, " — see ", basename(log))
   results[[i]] <- data.frame(wsg = w, species = sp, status = status,
                              network_km = round(km, 1), floodplain_km2 = round(fp_km2, 1),
-                             log = basename(log), stringsAsFactors = FALSE)
+                             log = if (cached) "" else basename(log), stringsAsFactors = FALSE)
 }
 
 # --- Coverage summary ---
@@ -142,5 +151,5 @@ csv <- file.path(log_dir, sprintf("region_%s_%s.csv", region, ts))
 readr::write_csv(summ, csv)
 message("\n=== Region ", region, " coverage ===")
 print(summ, row.names = FALSE)
-ok <- sum(summ$status == "ok")
-message(sprintf("\n%d/%d groups produced a floodplain. Summary: %s", ok, nrow(summ), csv))
+ok <- sum(summ$status %in% c("ok", "ok(cached)"))
+message(sprintf("\n%d/%d groups have a floodplain. Summary: %s", ok, nrow(summ), csv))
