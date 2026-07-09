@@ -18,7 +18,15 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
 - `scripts/run_area.R` — top-level runner: `Rscript scripts/run_area.R <area> [steps]`. Builds one
   `cfg` via `fp_read_config(area)` and dispatches the step functions. Steps default `1,2,3`.
 - `scripts/run_areas.sh` — thin multi-area loop (per-area soft-fail + timestamped logs).
-- `config/<area>/` — per-area config: `area.yml` + `flood_scenarios.csv` + `break_points.csv`
+- `scripts/run_region.R` — batch runner over a region of watershed groups (`config/regions/<region>.yml`):
+  a pre-pass resolves one species per WSG (first in the ordered `species` preference modelled at
+  `order ≥ min_order`, via province-wide `fresh.streams_vw_bcfp`), generates each group's config,
+  runs the pipeline per-WSG (soft-fail + log), and writes a coverage CSV. Resumable — a group whose
+  `lulc_summary.rds` exists is skipped (`FORCE=1` redoes). `scripts/floodplain_lcc/fp_region.R` holds
+  `fp_wsg_subbasin` (the whole-WSG sub-basin = group polygon).
+- `config/<area>/` — per-area config: `area.yml` + `flood_scenarios.csv` (+ optional `break_points.csv`;
+  absent ⇒ whole-WSG single sub-basin = group polygon, present ⇒ interior sub-basins).
+- `config/regions/<region>.yml` — a region = a named set of WSGs + ordered `species` preference.
 - `data/<area>/` — outputs (gitignored)
 
 Adding an area = adding `config/<area>/`; no code change. `area.yml` carries `species` (drives
@@ -35,13 +43,18 @@ Adding an area = adding `config/<area>/`; no code change. `area.yml` carries `sp
 - `ufra` — Upper Fraser (**chinook** — coho is unmodelled up there; `access_ch` exists). Run:
   floodplain ch_ff04 188.2 km², tree loss 544.5 ha. Burned to `sern_fraser_2024` Mergin.
 
-`morr`/`ufra` currently use a single whole-WSG outlet break point (one sub-basin); interior
-sub-basin delineation is deferred. Pick species by which `access_<species>` column the fwapg schema
-actually populates for that group — not every species is modelled everywhere.
+Whole-WSG areas use the **FWA group polygon** as the single sub-basin (`fp_wsg_subbasin`; no
+`break_points.csv` needed). The earlier single-outlet break point does NOT generalize — delineating
+upstream of the mainstem outlet over-shoots a tributary group 2–40× (only headwater groups like
+MORR/UFRA happened to work). Interior sub-basin delineation is deferred. Pick species by which
+`access_<species>` column the fwapg schema populates — the region pre-pass does this automatically.
+
+**Fraser region** (`sern_fraser_2024`, chinook): all 8 WSGs run — LCHL, LSAL, WILL, TABR, UFRA,
+NECR, MORK, FRAN — 3,366 km² total floodplain, 15,022 ha gross tree loss (2017→2023).
 
 ## Prerequisites (when running)
 
-Local `fwapg` (libpq env vars); `link` ≥ 0.44.0, `flooded`, `drift` ≥ 0.2.4, `fresh`, `terra`
+Local `fwapg` (libpq env vars); `link` ≥ 0.44.0, `flooded`, `drift` ≥ 0.4.0, `fresh`, `terra`
 ≥ 1.8-10; internet for the national MRDEM-30 (`flooded::fl_dem_aoi()`) and Microsoft Planetary
 Computer STAC.
 
@@ -52,11 +65,15 @@ Computer STAC.
   area's rasters (drift#25, fixed in drift 0.2.3 — cache key now hashes the AOI). And
   `dft_transition_vectors` used to process the full raster grid per transition class and OOM on
   wide-bbox floodplains (drift#27, fixed in drift 0.2.4 — single `terra::patches()` pass, hence the
-  terra ≥ 1.8-10 floor). No more between-areas `dft_cache_clear` or driver-side tiling needed. But
-  the class of failure was "scales on small AOIs, breaks on large ones" — so still **verify LULC by
+  terra ≥ 1.8-10 floor). And large-floodplain LULC exhausted memory in the transition (drift#34,
+  fixed in drift 0.4.0 — streaming `dft_rast_transition` + `changes_only`, which `fp_lulc` passes).
+  The class of failure was "scales on small AOIs, breaks on large ones" — so still **verify LULC by
   checking classified coverage ≈ floodplain area** before trusting numbers when scaling to new groups.
-- The single-outlet break point can fail `frs_watershed_split` at the exact WSG downstream tip
-  (a boundary edge case); nudge one segment upstream on the mainstem and re-verify coverage.
+- **Wrap long runs in `caffeinate -s`.** The big-floodplain STAC fetch is ~30 min and download-bound
+  (it downloads the whole floodplain *bounding box* — ~10× the floodplain; the polygon-clip speedup
+  is drift#36, blocked upstream by gdalcubes#110). Long background jobs get killed by macOS idle
+  sleep — `caffeinate -s Rscript scripts/run_region.R <region>` (the resumable runner picks up any
+  interrupted group).
 
 ## Slash Command Configuration
 

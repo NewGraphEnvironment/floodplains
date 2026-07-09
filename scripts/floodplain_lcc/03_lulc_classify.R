@@ -99,20 +99,21 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
     message("  Layer: ", lyr)
   }
 
-  # Transition patches -- exploded with area + sub-basin attribution
-  # Filter to actual changes only (drop stable from == to patches, which would
-  # otherwise dominate as fragmented "Trees -> Trees" / "Water -> Water" pieces).
+  # Transition patches -- exploded with area + sub-basin attribution.
+  # changes_only = TRUE (drift#34) builds polygons ONLY for actual changes (from != to),
+  # never materializing the stable "Trees -> Trees" / "Water -> Water" patches that
+  # dominate a large floodplain and OOM the vectorizer. So the post-filter is unneeded.
   if (nrow(trans_all$summary) > 0) {
     lyr <- paste0("transition_", scenario_id, "_2017_2023")
     trans_polys <- dft_transition_vectors(
       trans_all$raster,
       zones = subbasins,
-      zone_col = "name_basin"
+      zone_col = "name_basin",
+      changes_only = TRUE
     )
     parts <- strsplit(trans_polys$transition, " -> ", fixed = TRUE)
     trans_polys$from_class <- vapply(parts, `[`, character(1), 1)
     trans_polys$to_class   <- vapply(parts, `[`, character(1), 2)
-    trans_polys <- trans_polys[trans_polys$from_class != trans_polys$to_class, ]
 
     # Recompute area_ha from geometry post-intersection. drift's column is
     # pre-intersection so patches straddling sub-basin boundaries are
