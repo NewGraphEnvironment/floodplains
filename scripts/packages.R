@@ -19,7 +19,7 @@ pkgs_cran <- c(
 pkgs_gh <- c(
   "newgraphenvironment/link",      # network extraction (>= 0.44.0 access fix)
   "newgraphenvironment/flooded",   # VCA floodplain delineation
-  "newgraphenvironment/drift",     # STAC LULC classify + transition (>= 0.2.4: AOI cache key + single-pass transition, drift#25/#27)
+  "newgraphenvironment/drift",     # STAC LULC classify + transition (>= 0.4.0: changes_only bounds large-floodplain memory, drift#25/#27/#34)
   "newgraphenvironment/fresh"      # falls.csv + parameter CSVs (link engine)
 )
 
