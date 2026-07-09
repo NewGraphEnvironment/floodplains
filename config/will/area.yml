@@ -1,6 +1,6 @@
-name: ufra
-watershed_group: UFRA
+name: will
+watershed_group: WILL
 species: ch
 min_order: 3
-schema: ufra
+schema: will
 primary_scenario: ch_ff04

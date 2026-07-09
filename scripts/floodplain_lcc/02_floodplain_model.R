@@ -46,9 +46,17 @@ fp_floodplain <- function(cfg, scenarios = "run") {
   # fwapg DB via standard libpq env vars (PGHOST/...); local fwapg for portable builds.
   conn <- DBI::dbConnect(RPostgres::Postgres())
 
-  # --- Step 1: Generate sub-basins from cfg$break_points ---
+  # --- Step 1: Generate sub-basins ---
+  # break_points present => interior sub-basins via frs_watershed_split (e.g. a reach).
+  # break_points absent  => whole-WSG single sub-basin = the group polygon (fp_wsg_subbasin);
+  # this is exact and avoids the mainstem-outlet delineation that over-shoots tributary WSGs.
   message("=== Generating sub-basins ===")
-  subbasins <- fresh::frs_watershed_split(conn, cfg$break_points)
+  if (is.null(cfg$break_points) || nrow(cfg$break_points) == 0) {
+    message("  whole-WSG sub-basin (", cfg$watershed_group, " group polygon; no break points)")
+    subbasins <- fp_wsg_subbasin(conn, cfg$watershed_group, cfg$name)
+  } else {
+    subbasins <- fresh::frs_watershed_split(conn, cfg$break_points)
+  }
   sb_path <- file.path(out_dir, "subbasins.gpkg")
   sf::st_write(subbasins, sb_path, layer = "subbasins", delete_dsn = TRUE, quiet = TRUE)
   message("  ", nrow(subbasins), " sub-basins -> ", basename(sb_path))

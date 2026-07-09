@@ -1,6 +1,6 @@
-name: ufra
-watershed_group: UFRA
+name: lsal
+watershed_group: LSAL
 species: ch
 min_order: 3
-schema: ufra
+schema: lsal
 primary_scenario: ch_ff04

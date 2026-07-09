@@ -1,6 +1,6 @@
-name: ufra
-watershed_group: UFRA
+name: fran
+watershed_group: FRAN
 species: ch
 min_order: 3
-schema: ufra
+schema: fran
 primary_scenario: ch_ff04

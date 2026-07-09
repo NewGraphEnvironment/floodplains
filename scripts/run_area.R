@@ -32,8 +32,13 @@ fp_read_config <- function(area) {
   cfg <- yaml::read_yaml(file.path(cfg_dir, "area.yml"))
   cfg$scenarios    <- readr::read_csv(file.path(cfg_dir, "flood_scenarios.csv"),
                                       show_col_types = FALSE)
-  cfg$break_points <- readr::read_csv(file.path(cfg_dir, "break_points.csv"),
-                                      show_col_types = FALSE)
+  # break_points.csv is OPTIONAL: present => interior sub-basins via frs_watershed_split
+  # (e.g. a reach like neexdzii); absent => whole-WSG single sub-basin = the group polygon
+  # (fp_floodplain uses fp_wsg_subbasin). Whole-WSG areas need no break_points.csv.
+  bp_path <- file.path(cfg_dir, "break_points.csv")
+  cfg$break_points <- if (file.exists(bp_path)) {
+    readr::read_csv(bp_path, show_col_types = FALSE)
+  } else NULL
 
   cfg$area    <- area
   cfg$dir_out <- here::here("data", area)
@@ -54,6 +59,7 @@ if (is.na(area)) stop("usage: Rscript scripts/run_area.R <area> [steps]", call. 
 update_packages <- FALSE
 source(here::here("scripts", "packages.R"))
 lcc_dir <- here::here("scripts", "floodplain_lcc")
+source(file.path(lcc_dir, "fp_region.R"))          # fp_wsg_subbasin (whole-WSG sub-basin)
 source(file.path(lcc_dir, "01_network_extract.R"))
 source(file.path(lcc_dir, "02_floodplain_model.R"))
 source(file.path(lcc_dir, "03_lulc_classify.R"))

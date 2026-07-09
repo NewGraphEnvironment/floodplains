@@ -1,6 +1,6 @@
-name: ufra
-watershed_group: UFRA
+name: mork
+watershed_group: MORK
 species: ch
 min_order: 3
-schema: ufra
+schema: mork
 primary_scenario: ch_ff04

@@ -1,6 +1,6 @@
-name: ufra
-watershed_group: UFRA
+name: lchl
+watershed_group: LCHL
 species: ch
 min_order: 3
-schema: ufra
+schema: lchl
 primary_scenario: ch_ff04

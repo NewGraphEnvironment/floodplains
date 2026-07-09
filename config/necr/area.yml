@@ -1,6 +1,6 @@
-name: ufra
-watershed_group: UFRA
+name: necr
+watershed_group: NECR
 species: ch
 min_order: 3
-schema: ufra
+schema: necr
 primary_scenario: ch_ff04
