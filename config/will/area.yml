@@ -1,0 +1,10 @@
+# Willow River watershed group (WILL) — Fraser region, batch-runner validation group.
+# CHINOOK (access_ch modelled on ~95% of the order>=3 network per the province-wide pre-pass).
+# Whole WSG, single sub-basin = the group polygon (no break_points.csv → fp_wsg_subbasin).
+name: will
+watershed_group: WILL
+species: ch                    # chinook (drives access_ch in fp_network)
+min_order: 3
+schema: will                  # dedicated persist schema
+primary_scenario: ch_ff04     # headline scenario for LULC (03)
+subset: null                  # whole WSG
