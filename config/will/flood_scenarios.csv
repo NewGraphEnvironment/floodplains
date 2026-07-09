@@ -1,7 +1,7 @@
 scenario_id,species,min_order,anchor_order,flood_factor,slope_threshold,max_width,cost_threshold,size_threshold,hole_threshold,lakes,wetlands,wetland_filter,run,description,ecological_process,citations
-ch_ff01,ch,3,1,1,9,2000,2500,5000,2500,TRUE,TRUE,network,FALSE,Bankfull channel extent,Active channel,hall_etal2007Predictingriver;nagel_etal2014LandscapeScale
-ch_ff02,ch,3,1,2,9,2000,2500,5000,2500,TRUE,TRUE,network,TRUE,Flood-prone width / active channel margin,Active channel margin,hall_etal2007Predictingriver;bair_etal2021newdatadriven;nagel_etal2014LandscapeScale
-ch_ff04,ch,3,1,4,9,2000,2500,5000,2500,TRUE,TRUE,network,TRUE,Functional floodplain,Functional floodplain,hall_etal2007Predictingriver;nagel_etal2014LandscapeScale;opperman_etal2010EcologicallyFunctional;rosenfeld_etal2008EffectsSide;morley_etal2005Juvenilesalmonid
-ch_ff06,ch,3,1,6,9,2000,2500,5000,2500,TRUE,TRUE,network,TRUE,Valley bottom extent,Valley bottom,nagel_etal2014LandscapeScale;opperman_etal2010EcologicallyFunctional;beechie_etal2010ProcessbasedPrinciples;cluer_thorne2014StreamEvolution;hauer_etal2016Gravelbedriver
-ch_ff08,ch,3,1,8,9,2000,2500,5000,2500,TRUE,TRUE,network,FALSE,Extended valley - large wood recruitment,Extended valley / LWD recruitment,opperman_etal2010EcologicallyFunctional;wheaton_etal2019LowTechProcessBased
-ch_ff12,ch,3,1,12,9,2000,2500,5000,2500,TRUE,TRUE,network,FALSE,Channel migration zone - full process width,Channel migration zone,rapp_abbe2003FrameworkDelineating;obrien_etal2019Mappingvalley;wheaton_etal2019LowTechProcessBased
+ch_ff01,ch,3,1,1,9,2000,2500,5000,2500,TRUE,TRUE,network,FALSE,Bankfull channel extent,Active channel,
+ch_ff02,ch,3,1,2,9,2000,2500,5000,2500,TRUE,TRUE,network,TRUE,Flood-prone width / active channel margin,Active channel margin,
+ch_ff04,ch,3,1,4,9,2000,2500,5000,2500,TRUE,TRUE,network,TRUE,Functional floodplain,Functional floodplain,
+ch_ff06,ch,3,1,6,9,2000,2500,5000,2500,TRUE,TRUE,network,TRUE,Valley bottom extent,Valley bottom,
+ch_ff08,ch,3,1,8,9,2000,2500,5000,2500,TRUE,TRUE,network,FALSE,Extended valley - large wood recruitment,Extended valley / LWD recruitment,
+ch_ff12,ch,3,1,12,9,2000,2500,5000,2500,TRUE,TRUE,network,FALSE,Channel migration zone - full process width,Channel migration zone,

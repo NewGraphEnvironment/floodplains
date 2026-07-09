@@ -1,6 +1,6 @@
-name: will
-watershed_group: WILL
+name: lsal
+watershed_group: LSAL
 species: ch
 min_order: 3
-schema: will
+schema: lsal
 primary_scenario: ch_ff04

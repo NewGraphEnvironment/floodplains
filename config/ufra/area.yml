@@ -1,14 +1,6 @@
-# Upper Fraser River watershed group (UFRA) — new area for the sern_fraser_2024 project.
-# CHINOOK: the Upper Fraser is outside coho range (access_co is unmodelled here); the
-# fwapg schema has a full chinook accessibility model (access_ch), so we model species: ch.
 name: ufra
-watershed_group: UFRA          # link aoi — Upper Fraser River
-species: ch                    # chinook (drives access_ch in fp_network)
+watershed_group: UFRA
+species: ch
 min_order: 3
-schema: ufra                   # dedicated persist schema
-primary_scenario: ch_ff04      # headline scenario for LULC (03)
-# Whole watershed group (no reach subset), same pattern as MORR.
-subset: null
-# break_points.csv holds a single outlet break point => one sub-basin = whole WSG
-# (interior sub-basin delineation deferred, as for MORR). flood_scenarios.csv copied
-# from the standard template (run=TRUE: co_ff02/co_ff04/co_ff06).
+schema: ufra
+primary_scenario: ch_ff04

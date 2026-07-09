@@ -1,6 +1,6 @@
-name: will
-watershed_group: WILL
+name: tabr
+watershed_group: TABR
 species: ch
 min_order: 3
-schema: will
+schema: tabr
 primary_scenario: ch_ff04

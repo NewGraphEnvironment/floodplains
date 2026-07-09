@@ -1,6 +1,6 @@
-name: will
-watershed_group: WILL
+name: fran
+watershed_group: FRAN
 species: ch
 min_order: 3
-schema: will
+schema: fran
 primary_scenario: ch_ff04

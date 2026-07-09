@@ -1,6 +1,6 @@
-name: will
-watershed_group: WILL
+name: necr
+watershed_group: NECR
 species: ch
 min_order: 3
-schema: will
+schema: necr
 primary_scenario: ch_ff04

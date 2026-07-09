@@ -1,6 +1,6 @@
-name: will
-watershed_group: WILL
+name: lchl
+watershed_group: LCHL
 species: ch
 min_order: 3
-schema: will
+schema: lchl
 primary_scenario: ch_ff04

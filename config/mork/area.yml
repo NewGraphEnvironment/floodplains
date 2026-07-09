@@ -1,6 +1,6 @@
-name: will
-watershed_group: WILL
+name: mork
+watershed_group: MORK
 species: ch
 min_order: 3
-schema: will
+schema: mork
 primary_scenario: ch_ff04
