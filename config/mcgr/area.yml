@@ -1,0 +1,6 @@
+name: mcgr
+watershed_group: MCGR
+species: ch
+min_order: 3
+schema: mcgr
+primary_scenario: ch_ff04
