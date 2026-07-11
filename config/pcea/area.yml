@@ -1,0 +1,6 @@
+name: pcea
+watershed_group: PCEA
+species: bt
+min_order: 3
+schema: pcea
+primary_scenario: bt_ff04

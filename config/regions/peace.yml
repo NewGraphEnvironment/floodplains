@@ -1,0 +1,14 @@
+# Peace region — Peace/Parsnip drainage (Arctic slope). Bull trout is the target species:
+# chinook do not occur above the Fraser divide, so `ch` is unmodelled here (access_ch = 0)
+# and `bt` carries the network. Same whole-WSG treatment as the Fraser groups (no
+# break_points.csv => the FWA group polygon is the single sub-basin).
+#
+# PINE (Pine River) belongs to this region but is NOT yet loaded in the local fwapg build
+# (0 segments in fresh.streams_vw_bcfp) — add it here after a link/bcfishpass build loads it.
+# The pre-pass will loudly SKIP any listed group with no modelled network, so PINE can be
+# added now and will simply be reported as SKIPPED until the data exists.
+region: peace
+mergin_project: TBD              # doc-only; set when a Peace field project exists
+min_order: 3
+species: [bt]                    # bull trout only (ch unmodelled on the Arctic slope)
+watershed_groups: [PCEA, PARS]   # PINE pending a link build
