@@ -54,9 +54,9 @@ NECR, MORK, FRAN — 3,366 km² total floodplain, 15,022 ha gross tree loss (201
 
 ## Prerequisites (when running)
 
-Local `fwapg` (libpq env vars); `link` ≥ 0.44.0, `flooded`, `drift` ≥ 0.4.0, `fresh`, `terra`
+Local `fwapg` (libpq env vars); `link` ≥ 0.44.0, `flooded`, `drift` ≥ 0.6.0, `fresh`, `terra`
 ≥ 1.8-10; internet for the national MRDEM-30 (`flooded::fl_dem_aoi()`) and Microsoft Planetary
-Computer STAC.
+Computer STAC. (`drift` ≥ 0.6.0 because `fp_lulc` passes `tile_size` to `dft_stac_fetch`.)
 
 ## Running gotchas (learned the hard way, issue #1)
 
@@ -70,10 +70,13 @@ Computer STAC.
   The class of failure was "scales on small AOIs, breaks on large ones" — so still **verify LULC by
   checking classified coverage ≈ floodplain area** before trusting numbers when scaling to new groups.
 - **Wrap long runs in `caffeinate -s`.** The big-floodplain STAC fetch is ~30 min and download-bound
-  (it downloads the whole floodplain *bounding box* — ~10× the floodplain; the polygon-clip speedup
-  is drift#36, blocked upstream by gdalcubes#110). Long background jobs get killed by macOS idle
-  sleep — `caffeinate -s Rscript scripts/run_region.R <region>` (the resumable runner picks up any
-  interrupted group).
+  by default (it downloads the whole floodplain *bounding box* — ~10× the floodplain). drift 0.6.0
+  ships `dft_stac_fetch(tile_size=)` (drift#36) — the `filter_geom`-independent path that streams
+  only tiles intersecting the AOI, exposed as an **opt-in per-area `tile_size:` in `area.yml`**
+  (absent ⇒ unchanged bbox path). Speedup vs parity/accuracy is being benchmarked under issue #8
+  before broad adoption; the in-cube polygon-clip remains blocked upstream by gdalcubes#110. Long
+  background jobs get killed by macOS idle sleep — `caffeinate -s Rscript scripts/run_region.R
+  <region>` (the resumable runner picks up any interrupted group).
 
 ## Slash Command Configuration
 

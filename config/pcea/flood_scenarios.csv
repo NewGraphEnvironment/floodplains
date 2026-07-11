@@ -1,0 +1,7 @@
+scenario_id,species,min_order,anchor_order,flood_factor,slope_threshold,max_width,cost_threshold,size_threshold,hole_threshold,lakes,wetlands,wetland_filter,run,description,ecological_process,citations
+bt_ff01,bt,3,1,1,9,2000,2500,5000,2500,TRUE,TRUE,network,FALSE,Bankfull channel extent,Active channel,
+bt_ff02,bt,3,1,2,9,2000,2500,5000,2500,TRUE,TRUE,network,TRUE,Flood-prone width / active channel margin,Active channel margin,
+bt_ff04,bt,3,1,4,9,2000,2500,5000,2500,TRUE,TRUE,network,TRUE,Functional floodplain,Functional floodplain,
+bt_ff06,bt,3,1,6,9,2000,2500,5000,2500,TRUE,TRUE,network,TRUE,Valley bottom extent,Valley bottom,
+bt_ff08,bt,3,1,8,9,2000,2500,5000,2500,TRUE,TRUE,network,FALSE,Extended valley - large wood recruitment,Extended valley / LWD recruitment,
+bt_ff12,bt,3,1,12,9,2000,2500,5000,2500,TRUE,TRUE,network,FALSE,Channel migration zone - full process width,Channel migration zone,
