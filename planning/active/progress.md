@@ -15,6 +15,13 @@
   03bf025 (plan-review hardening: drift>=0.6.0 assert + FP_TILE_SIZE override), eae82a3 (this
   PWF + research/ + logs/ baseline).
 - Branch `8-tile-fetch-benchmark`, not yet pushed.
-- Next: Phase 2 — generate PCEA steps 1,2; run neexdzii step 3 both ways for the ~1 ha parity
-  gate (untiled must hold 943.13 ha); accuracy on PCEA corridor; speedup direct-time. Needs
-  local fwapg + `caffeinate -s`.
+## Session 2026-07-11 (Phase 2/3 — benchmark + decision)
+- Whole NGE stack brought current (link 0.44.1 -> 0.44.2; fresh/flooded/drift already latest).
+- neexdzii same-stack gate: untiled reproduces 943.13 ha; tiled (5000 m) 941.25 ha (Δ −1.88 ha,
+  sieve-quantized); accuracy ≥ 99.999%, no seam band. Tiled full step-3 was 6.3× slower.
+- Speedup tested directly on the existing FRAN 883 km² floodplain (no PCEA steps 1,2 needed —
+  speedup is a pure fetch question): untiled 177 s vs tiled 20000 m 0.79× / 10000 m 0.31×.
+- **Decision: DO NOT adopt tile_size** — slower at every size on every AOI; floodplain corridors
+  tile badly. Opt-in stays wired (default off). Real fix is in-cube (gdalcubes#110).
+- Evidence: logs/20260711_lulc_tile-benchmark_{neexdzii,fran}.md; verdict in research memo.
+- Closes #8.

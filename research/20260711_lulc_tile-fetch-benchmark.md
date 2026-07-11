@@ -36,12 +36,33 @@ untiled (`.nc`) key distinctly and never collide, so timing re-downloads use `fo
 Raw timings/coverage → committed evidence logs under `scripts/floodplain_lcc/logs/`
 (`yyyymmdd_lulc_tile-benchmark_<wsg>.md`). This memo records the distilled verdict.
 
-## Results
+## Results (2026-07-11)
 
-_TBD — populated after the runs._
+Evidence logs: `scripts/floodplain_lcc/logs/20260711_lulc_tile-benchmark_{neexdzii,fran}.md`.
 
-## Decision
+- **Accuracy — PASS.** neexdzii same-stack tiled vs untiled: ≥ 99.999% classified-pixel
+  agreement (12–16 px of 1.76M differ/yr), coverage within 0.002%, no seam band. The mosaic is
+  faithful — tiling is not broken.
+- **Parity — −1.88 ha (−0.20%)** tree-loss on neexdzii. Over the strict ~1 ha gate, but it is
+  1 ha-sieve quantization of a dozen edge pixels, not a modelling error. Confirms tiled ≠
+  byte-identical → fixture + published groups must stay untiled.
+- **Speedup — FAILS. Tiling is slower at every tile size, on every AOI tested.**
+  - neexdzii reach (5000 m): full step-3 **6.3× slower** (66 min vs 10.5 min).
+  - FRAN 883 km² corridor, direct fetch: 20000 m **0.79×**, 10000 m **0.31×**.
+  - Geometric + robust: a floodplain is a thin diagonal corridor — coarse tiles still blanket
+    ~92% of the bbox (no saving, N× overhead); fine tiles hug the corridor but explode
+    round-trips. No sweet spot exists.
+- **Secondary:** untiled single-year fetch is ~177 s — the "~30 min download-bound" framing is
+  dominated by classify/transition, not the fetch, so a fetch speedup would barely move step-3.
 
-_TBD._ If accuracy + parity hold: adopt `tile_size` per-area for large whole-WSG floodplains
-(set `tile_size:` in their `area.yml`), leaving the parity fixture + published groups on the
-default path. If seams degrade accuracy: keep opt-in off and record why.
+## Decision — DO NOT adopt `tile_size`
+
+The hypothesis (tile → footprint-tight download → faster) is **refuted for this geometry class**:
+the per-tile round-trip overhead exceeds the download saving because floodplain corridors tile
+badly. Accuracy is fine, so nothing is broken — it is simply not faster.
+
+- **No group sets `tile_size:`.** All areas stay on the untiled default path.
+- **Keep the opt-in wired** (default off, harmless) — it costs nothing and may suit a different
+  source/geometry later; ripping it out would just churn a merged, inert knob.
+- **The real fix for bbox-download waste is in-cube** (drift#36 `filter_geom` polygon clip),
+  blocked upstream by gdalcubes#110 — not client-side square tiling. Track there, not here.
