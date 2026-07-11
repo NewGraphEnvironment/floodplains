@@ -27,6 +27,15 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
   library(terra)
   library(dplyr)
 
+  # fp_lulc passes tile_size to dft_stac_fetch unconditionally (NULL = off), a param that
+  # only exists in drift >= 0.6.0 — on an older drift the call errors with "unused argument"
+  # for EVERY area, tiled or not. update_packages defaults FALSE, so guard loudly here.
+  if (utils::packageVersion("drift") < "0.6.0") {
+    stop("fp_lulc requires drift >= 0.6.0 (dft_stac_fetch tile_size); installed ",
+         as.character(utils::packageVersion("drift")),
+         ". Update: pak::pak('newgraphenvironment/drift')", call. = FALSE)
+  }
+
   sf::sf_use_s2(FALSE)
   terra::terraOptions(threads = 12)
 

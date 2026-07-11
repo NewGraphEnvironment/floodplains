@@ -48,6 +48,11 @@ fp_read_config <- function(area) {
   # tile_size: OPTIONAL area.yml key (CRS metres). Absent => cfg$tile_size is NULL =>
   # fp_lulc fetches the whole floodplain bbox (unchanged). Set it to bound the STAC
   # download to the AOI footprint on large whole-WSG floodplains (drift#36).
+  # FP_TILE_SIZE env var overrides area.yml at runtime WITHOUT editing a committed config —
+  # so the neexdzii parity fixture can be run tiled for the #8 benchmark and reverted by
+  # unsetting the var, never risking a committed tile_size in the fixture. Empty => no override.
+  env_tile <- Sys.getenv("FP_TILE_SIZE", "")
+  if (nzchar(env_tile)) cfg$tile_size <- as.numeric(env_tile)
   cfg
 }
 
