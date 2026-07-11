@@ -45,6 +45,9 @@ fp_read_config <- function(area) {
   fs::dir_create(cfg$dir_out)
 
   if (is.null(cfg$primary_scenario)) cfg$primary_scenario <- "co_ff04"
+  # tile_size: OPTIONAL area.yml key (CRS metres). Absent => cfg$tile_size is NULL =>
+  # fp_lulc fetches the whole floodplain bbox (unchanged). Set it to bound the STAC
+  # download to the AOI footprint on large whole-WSG floodplains (drift#36).
   cfg
 }
 

@@ -64,8 +64,14 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
   # Use name_basin from break_points (carried through via fresh::frs_watershed_split)
 
   # --- Pass 1: Whole floodplain (for interactive map) ---
+  # tile_size (drift#36, opt-in via area.yml; NULL = off) bounds the STAC download to
+  # tiles intersecting the AOI instead of the whole floodplain bounding box (~10x the
+  # polygon for a thin corridor). Left NULL for the parity fixture + already-published
+  # groups so their fetch path is byte-for-byte unchanged; set per-area for large
+  # whole-WSG floodplains where the bbox waste dominates the ~30 min fetch.
   message("=== Whole floodplain ===")
-  rasters_all <- dft_stac_fetch(floodplain, source = "io-lulc", years = years)
+  rasters_all <- dft_stac_fetch(floodplain, source = "io-lulc", years = years,
+                                tile_size = cfg$tile_size)
   classified_all <- dft_rast_classify(rasters_all, source = "io-lulc")
   trans_all <- dft_rast_transition(
     classified_all, from = "2017", to = "2023",
@@ -146,7 +152,8 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
     }
 
     message("Processing: ", lab)
-    rasters <- dft_stac_fetch(fp_clip, source = "io-lulc", years = years)
+    rasters <- dft_stac_fetch(fp_clip, source = "io-lulc", years = years,
+                              tile_size = cfg$tile_size)
     classified <- dft_rast_classify(rasters, source = "io-lulc")
     summary <- dft_rast_summarize(classified, unit = "ha")
     summary$name_basin <- lab
