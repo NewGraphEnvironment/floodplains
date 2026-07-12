@@ -161,9 +161,12 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
     }
 
     message("Processing: ", lab)
-    rasters <- dft_stac_fetch(fp_clip, source = "io-lulc", years = years,
-                              tile_size = cfg$tile_size)
-    classified <- dft_rast_classify(rasters, source = "io-lulc")
+    # Reuse Pass 1's whole-floodplain classified raster instead of re-fetching per
+    # sub-basin: each sub-basin is a subset of classified_all, so crop + mask gives the
+    # same pixels with no STAC round-trip. classified_all is auto-UTM; fp_clip is in the
+    # floodplain CRS, so project it to the raster CRS before cropping. (#11)
+    v <- terra::project(terra::vect(fp_clip), terra::crs(classified_all))
+    classified <- terra::mask(terra::crop(classified_all, v), v)
     summary <- dft_rast_summarize(classified, unit = "ha")
     summary$name_basin <- lab
     results[[i]] <- summary
