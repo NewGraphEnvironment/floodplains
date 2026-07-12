@@ -33,6 +33,32 @@ Verified by exit code + the freshness message + built-vs-grab km/segments + that
 did not overwrite `data/pcea/aquatic_network.gpkg`. PARS's built network was restored after the
 grab test (functionally identical; keeps it matched to its already-built floodplain).
 
+## Provenance stamp + guard override (lnk_stamp)
+
+Step 1 now writes an `aquatic_network.stamp.md` sidecar (via `link::lnk_stamp`) next to every
+network — build or grab. It records config identity (`default`), link/fresh versions + git SHAs,
+a DB snapshot (`bcfishobs.observations` = the crossings/observations signal), per-file config
+provenance (the crossings/barrier override CSVs + byte/shape drift), AOI, and a
+"Floodplains network source" footer (source + freshness result). So a floodplain self-documents
+what produced it, and any guard override is auditable.
+
+`network_guard` (area.yml / `FP_NETWORK_GUARD`): **strict** (default, stop on divergence) |
+**warn** (log + proceed) | **off** (proceed, override recorded in stamp). Set warn/off when a
+divergence is expected and understood — updated crossings data (override CSV byte-drift) or a
+deliberately different config.
+
+Validated (`FP_NETWORK_SOURCE=fresh_default`, step 1):
+
+| run | exit | outcome |
+|---|---|---|
+| PARS, strict | 0 | 0.2% dev → pass, stamp written |
+| PCEA, strict | 1 | 4.0% dev → stop ("set network_guard: warn/off if intentional") |
+| PCEA, **guard=off** | 0 | 4.0% dev → proceeds; stamp records `source: GRAB from fresh_default`, `freshness: 4.0% dev, guard=off`, config provenance (0 drift) + observations 372,690 |
+
+`fresh_default` carries no in-DB stamp, so the stamp is generated at build/grab time (captures the
+current config/version/DB state). Built networks were restored + grab-test sidecars removed after
+the check (`data/` is gitignored).
+
 ## Scope
 
 Validated at **step 1** (network read + guard). Steps 2–3 consume `aquatic_network.gpkg` agnostic

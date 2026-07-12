@@ -57,6 +57,12 @@ fp_network <- function(cfg) {
   # the bcfp reference (a stale source fails loud). (#14)
   grab        <- !is.null(cfg$network_source) && nzchar(cfg$network_source)
   read_schema <- if (grab) cfg$network_source else schema
+  net_source  <- if (grab) paste0("GRAB from ", read_schema) else paste0("BUILD into ", schema)
+  fresh_note  <- "built (no freshness check)"
+  # network_guard: strict (default, stop on divergence) | warn (log + proceed) | off (skip
+  # the check). Set warn/off when a divergence is EXPECTED and understood -- updated crossings
+  # data or a deliberately different config -- with the stamp sidecar recording the override.
+  guard       <- if (is.null(cfg$network_guard)) "strict" else cfg$network_guard
 
   if (grab) {
     message("Network source: GRAB from '", read_schema, "' (skipping link pipeline build).")
@@ -138,15 +144,24 @@ fp_network <- function(cfg) {
       species, min_order, aoi_wsg))[1, 1]
     tol <- if (is.null(cfg$network_source_tol)) 0.02 else cfg$network_source_tol
     if (is.na(bcfp_km) || bcfp_km == 0) {
-      message("Freshness check: no bcfp reference for ", aoi_wsg, "/", species,
-              " — cannot verify '", read_schema, "'; proceeding.")
+      fresh_note <- sprintf("grabbed %.0f km; no bcfp reference (UNVERIFIED)", grab_km)
+      message("Freshness check: ", fresh_note)
     } else {
       dev <- abs(grab_km - bcfp_km) / bcfp_km
-      message(sprintf("Freshness check: grabbed %.0f km vs bcfp reference %.0f km (%.1f%% dev, tol %.0f%%).",
-                      grab_km, bcfp_km, 100 * dev, 100 * tol))
+      fresh_note <- sprintf("grabbed %.0f km vs bcfp %.0f km = %.1f%% dev (tol %.0f%%, guard=%s)",
+                            grab_km, bcfp_km, 100 * dev, 100 * tol, guard)
+      message("Freshness check: ", fresh_note)
       if (dev > tol) {
-        stop(sprintf("network_source '%s' diverges from bcfp by %.1f%% (> %.0f%% tol) for %s -- likely stale; rebuild (drop network_source) or refresh the source.",
-                     read_schema, 100 * dev, 100 * tol, aoi_wsg), call. = FALSE)
+        msg <- sprintf("network_source '%s' diverges from bcfp by %.1f%% (> %.0f%% tol) for %s",
+                       read_schema, 100 * dev, 100 * tol, aoi_wsg)
+        if (identical(guard, "off")) {
+          message(msg, " -- network_guard=off, proceeding (override recorded in stamp).")
+        } else if (identical(guard, "warn")) {
+          warning(msg, " -- network_guard=warn, proceeding.", call. = FALSE)
+        } else {
+          stop(msg, " -- likely stale. If intentional (updated crossings / different config), ",
+               "set network_guard: warn|off; else drop network_source to build.", call. = FALSE)
+        }
       }
     }
   }
@@ -193,6 +208,21 @@ fp_network <- function(cfg) {
                  append = TRUE, quiet = TRUE)
   }
   message("Saved: ", basename(out_gpkg))
+
+  # --- Provenance stamp sidecar ---
+  # lnk_stamp records config identity + link/fresh versions + git SHAs + a DB snapshot
+  # (bcfishobs.observations = the crossings/observations signal) + per-file config
+  # provenance (the crossings/barrier override CSVs + their drift status). Written next to
+  # every network so a floodplain self-documents what produced it -- and so a grab-guard
+  # override (network_guard = warn|off) is auditable: the stamp shows whether the source's
+  # divergence lines up with updated crossings / a different config. (#14)
+  stamp <- lnk_stamp_finish(lnk_stamp(lnk_config("default"), conn, aoi = aoi_wsg))
+  stamp_md <- c(format(stamp, "markdown"), "",
+                "### Floodplains network source",
+                paste0("- source: ", net_source),
+                paste0("- freshness: ", fresh_note))
+  writeLines(stamp_md, file.path(out_dir, "aquatic_network.stamp.md"))
+  message("Wrote provenance sidecar: aquatic_network.stamp.md")
 
   invisible(out_gpkg)
 }

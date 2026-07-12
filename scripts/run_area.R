@@ -59,6 +59,11 @@ fp_read_config <- function(area) {
   # overrides at runtime without editing a committed config (used to validate a source).
   env_ns <- Sys.getenv("FP_NETWORK_SOURCE", "")
   if (nzchar(env_ns)) cfg$network_source <- env_ns
+  # network_guard (optional): strict (default) | warn | off — override the grab freshness
+  # guard when a divergence is expected (updated crossings / different config). The
+  # lnk_stamp sidecar records the override. FP_NETWORK_GUARD overrides at runtime.
+  env_guard <- Sys.getenv("FP_NETWORK_GUARD", "")
+  if (nzchar(env_guard)) cfg$network_guard <- env_guard
   cfg
 }
 
