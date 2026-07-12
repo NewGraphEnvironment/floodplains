@@ -1,0 +1,6 @@
+name: pine
+watershed_group: PINE
+species: bt
+min_order: 3
+schema: pine
+primary_scenario: bt_ff04
