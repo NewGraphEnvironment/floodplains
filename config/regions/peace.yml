@@ -3,12 +3,13 @@
 # and `bt` carries the network. Same whole-WSG treatment as the Fraser groups (no
 # break_points.csv => the FWA group polygon is the single sub-basin).
 #
-# PINE (Pine River) belongs to this region but is NOT yet loaded in the local fwapg build
-# (0 segments in fresh.streams_vw_bcfp) — add it here after a link/bcfishpass build loads it.
-# The pre-pass will loudly SKIP any listed group with no modelled network, so PINE can be
-# added now and will simply be reported as SKIPPED until the data exists.
+# PINE (Pine River) was loaded via a link build: fresh_default + the fwapg base carry it
+# (8,509 bt segments / 2,152 km at order >= 3). NOTE: it is NOT in fresh.streams_vw_bcfp (the
+# bcfishpass reference view was not refreshed), so the run_region PRE-PASS — which checks that
+# view — will still SKIP PINE. Run it directly (`run_area.R pine`, BUILD reads the fwapg base)
+# until the bcfp view is refreshed, or the pre-pass is pointed at fresh_default.
 region: peace
 mergin_project: TBD              # doc-only; set when a Peace field project exists
 min_order: 3
 species: [bt]                    # bull trout only (ch unmodelled on the Arctic slope)
-watershed_groups: [PCEA, PARS]   # PINE pending a link build
+watershed_groups: [PCEA, PARS, PINE]   # PINE built; see pre-pass caveat above
