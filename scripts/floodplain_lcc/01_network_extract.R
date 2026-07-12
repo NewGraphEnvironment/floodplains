@@ -9,7 +9,9 @@
 #   waterbodies_co3  lakes/wetlands on the accessible network
 #
 # `link` is watershed-group scoped, so we run cfg$watershed_group, persist into the
-# DEDICATED cfg$schema (never the shared province-wide `fresh.*`). If cfg$subset is set
+# DEDICATED cfg$schema. When cfg$network_source is set (e.g. "fresh_default") the accessible
+# network is GRABBED from that already-built schema instead of re-running the pipeline, with
+# a freshness guard against the bcfp reference (#14). If cfg$subset is set
 # (blue_line_key + downstream_route_measure) the network is subset to that reach
 # (e.g. Neexdzii = upstream of the Wedzin Kwa confluence within BULK); if cfg$subset is
 # NULL the whole watershed group is exported (e.g. MORR).
@@ -48,6 +50,17 @@ fp_network <- function(cfg) {
          species, call. = FALSE)
   }
 
+  # Network source: BUILD (default) re-runs the link pipeline into cfg$schema; GRAB reads
+  # the accessible network from an already-built schema (cfg$network_source, e.g.
+  # "fresh_default"), skipping the pipeline. Grab schemas are province-wide, so the read
+  # below filters watershed_group_code and a freshness guard checks the grabbed km against
+  # the bcfp reference (a stale source fails loud). (#14)
+  grab        <- !is.null(cfg$network_source) && nzchar(cfg$network_source)
+  read_schema <- if (grab) cfg$network_source else schema
+
+  if (grab) {
+    message("Network source: GRAB from '", read_schema, "' (skipping link pipeline build).")
+  } else {
   # --- Run the link habitat pipeline for the watershed group ---
   # Use the `default` config (NewGraph methodology), NOT `bcfishpass`. They differ
   # in the natural-barrier set: bcfishpass opts in `subsurfaceflow` for parity,
@@ -82,6 +95,7 @@ fp_network <- function(cfg) {
                    dams = TRUE, mapping_code = FALSE)
 
   message("Pipeline complete (schema ", schema, ").")
+  }
 
   # --- Read the species-accessible network ---
   # access_<species> IN (1,2): 1 = modelled accessible past natural barriers,
@@ -105,9 +119,37 @@ fp_network <- function(cfg) {
     ) ua ON ua.linear_feature_id = s.linear_feature_id
     LEFT JOIN whse_basemapping.fwa_stream_networks_mean_annual_precip p
       ON p.wscode_ltree = s.wscode_ltree AND p.localcode_ltree = s.localcode_ltree
-    WHERE a.access_%3$s IN (1, 2) AND s.stream_order >= %2$s",
-    schema, min_order, species)
+    WHERE a.access_%3$s IN (1, 2) AND s.stream_order >= %2$s
+      AND s.watershed_group_code = '%4$s'",
+    read_schema, min_order, species, aoi_wsg)
   streams <- sf::st_read(conn, query = streams_sql, quiet = TRUE) |> sf::st_zm(drop = TRUE)
+
+  # --- Freshness guard (grab only) ---
+  # A shared schema is not uniformly current per-WSG, so compare the grabbed accessible km
+  # to the province bcfp reference and fail loud if it diverges beyond tolerance (default
+  # 2%). A current default-config source is within ~0.5% of bcfp; a stale one is caught
+  # here instead of silently shifting the floodplain. Checked on the full-WSG read, before
+  # any reach subset. (#14)
+  if (grab) {
+    grab_km <- sum(streams$length_metre, na.rm = TRUE) / 1000
+    bcfp_km <- DBI::dbGetQuery(conn, sprintf(
+      "SELECT sum(length_metre)/1000.0 FROM fresh.streams_vw_bcfp
+       WHERE access_%1$s IN (1,2) AND stream_order >= %2$d AND watershed_group_code = '%3$s'",
+      species, min_order, aoi_wsg))[1, 1]
+    tol <- if (is.null(cfg$network_source_tol)) 0.02 else cfg$network_source_tol
+    if (is.na(bcfp_km) || bcfp_km == 0) {
+      message("Freshness check: no bcfp reference for ", aoi_wsg, "/", species,
+              " — cannot verify '", read_schema, "'; proceeding.")
+    } else {
+      dev <- abs(grab_km - bcfp_km) / bcfp_km
+      message(sprintf("Freshness check: grabbed %.0f km vs bcfp reference %.0f km (%.1f%% dev, tol %.0f%%).",
+                      grab_km, bcfp_km, 100 * dev, 100 * tol))
+      if (dev > tol) {
+        stop(sprintf("network_source '%s' diverges from bcfp by %.1f%% (> %.0f%% tol) for %s -- likely stale; rebuild (drop network_source) or refresh the source.",
+                     read_schema, 100 * dev, 100 * tol, aoi_wsg), call. = FALSE)
+      }
+    }
+  }
 
   # --- Optional reach subset ---
   # If cfg$subset is set, keep only the network upstream of the confluence measure
