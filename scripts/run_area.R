@@ -53,6 +53,17 @@ fp_read_config <- function(area) {
   # unsetting the var, never risking a committed tile_size in the fixture. Empty => no override.
   env_tile <- Sys.getenv("FP_TILE_SIZE", "")
   if (nzchar(env_tile)) cfg$tile_size <- as.numeric(env_tile)
+  # network_source (optional area.yml key): a schema to GRAB the accessible network from in
+  # step 1 (e.g. "fresh_default"), skipping the link build; absent => build. A freshness guard
+  # (fp_network) refuses a source that diverges from the bcfp reference. FP_NETWORK_SOURCE
+  # overrides at runtime without editing a committed config (used to validate a source).
+  env_ns <- Sys.getenv("FP_NETWORK_SOURCE", "")
+  if (nzchar(env_ns)) cfg$network_source <- env_ns
+  # network_guard (optional): strict (default) | warn | off — override the grab freshness
+  # guard when a divergence is expected (updated crossings / different config). The
+  # lnk_stamp sidecar records the override. FP_NETWORK_GUARD overrides at runtime.
+  env_guard <- Sys.getenv("FP_NETWORK_GUARD", "")
+  if (nzchar(env_guard)) cfg$network_guard <- env_guard
   cfg
 }
 
