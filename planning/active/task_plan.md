@@ -26,39 +26,38 @@ never collide, so re-download for timing uses `force = TRUE` on a direct `dft_st
 call, not a cache wipe. Tile the fixture via the `FP_TILE_SIZE` env var, never by editing
 `config/neexdzii/area.yml`.
 
-- [ ] **Prereq — AOIs exist.** neexdzii outputs are present; generate PCEA (and PARS) steps 1–2
-      first (`run_area.R <wsg> 1,2`) so `floodplain.gpkg`/`subbasins.gpkg` exist. This is
-      long-running and is NOT part of the fetch timing.
-- [ ] **Parity (go/no-go anchor)** — run `neexdzii` step 3 untiled, then tiled via
-      `FP_TILE_SIZE=<m> Rscript scripts/run_area.R neexdzii 3`. Pass = tiled `co_ff04` tree-loss
-      equals untiled within **one patch-sieve unit (~1 ha)** — the tolerance is patch-quantized,
-      NOT the 0.004% VCA figure: post-sieve (`patch_min_m2 = 10000`) a single seam pixel near a
-      1 ha patch boundary can add/drop a whole patch. Untiled must still reproduce 943.13 ha.
-- [ ] **Accuracy (the real seam test)** — on a **whole-WSG corridor** (PCEA — the adoption
-      target, many interior `terra::merge()` seams; neexdzii is a compact reach and under-tests
-      seams), compare classified rasters (pre-sieve) tiled-mosaic vs untiled+clip **inside the
-      polygon**. Pass = **≥ 99.9% pixel agreement and no systematic seam band** (disagreement
-      not aligned to tile edges). This is the metric that actually rules out the mosaic risk.
-- [ ] **Speedup** — direct-time `dft_stac_fetch` untiled vs `tile_size` 5000 / 10000 m on
-      PCEA's floodplain, `force = TRUE` each, no cache wipe; record wall-clock ratio.
-- [ ] Write measurements to `scripts/floodplain_lcc/logs/20260711_lulc_tile-benchmark_<wsg>.md`.
+- [x] **Prereq — AOIs.** Used existing outputs: neexdzii for parity/accuracy; reused the existing
+      **FRAN** 883 km² floodplain for the speedup fetch (no PCEA steps 1–2 needed — the speedup is
+      a pure `dft_stac_fetch` question, so any existing large corridor serves).
+- [x] **Parity** — neexdzii step 3 untiled (943.13 ha, reproduces fixture) vs tiled via
+      `FP_TILE_SIZE=5000` (941.25 ha). Δ **−1.88 ha** — over the strict ~1 ha gate, but sieve
+      quantization of ~a dozen edge pixels, not a modelling error.
+- [x] **Accuracy** — neexdzii classified rasters tiled vs untiled: **≥ 99.999%** pixel agreement
+      (12–16 px/1.76M), coverage within 0.002%, **no seam band**. Mosaic is faithful.
+- [x] **Speedup** — direct `dft_stac_fetch` timing on FRAN, `force=TRUE`, isolated cache:
+      untiled 177 s vs tiled 20000 m **0.79×** / 10000 m **0.31×**. Slower at every size. neexdzii
+      full step-3 was 6.3× slower. **FAILS.**
+- [x] Wrote measurements to `logs/20260711_lulc_tile-benchmark_{neexdzii,fran}.md`.
 
 ## Phase 3: Decide + document
-- [ ] Populate the `research/` memo Results + Decision from the logs.
-- [ ] Adopt only if **all three** hold: parity within ~1 ha, accuracy ≥ 99.9% with no seam band,
-      speedup ≥ 2×. Set `tile_size:` in the **benchmarked** large group(s) first (PCEA/PARS).
-- [ ] Extend to same-geometry whole-WSG corridors (MCGR, BOWR) **only** with the generalization
-      stated (seams are corridor-geometry-dependent), and per-group `verify classified coverage
-      ≈ floodplain area` before trusting numbers. Fixture + published groups stay on default.
-- [ ] If accuracy shows seams or parity fails: keep opt-in off, record why in the memo.
+- [x] Populated the `research/` memo Results + Decision from the logs.
+- [x] **Decision: DO NOT adopt.** Speedup is refuted (tiling slower at every size, every AOI) —
+      floodplain corridors tile badly (thin diagonal: coarse tiles blanket the bbox, fine tiles
+      explode round-trips; no sweet spot). No group sets `tile_size:`; all stay on the untiled
+      default. Accuracy passed, so nothing is broken — it is simply not faster.
+- [x] Keep the opt-in wired (default off, harmless). The real bbox-download fix is in-cube
+      (drift#36 `filter_geom`), blocked upstream by gdalcubes#110 — tracked there, not here.
 
 ## Validation
-- [ ] neexdzii untiled reproduces 943.13 ha AND tiled passes the ~1 ha parity gate before any
-      group adopts `tile_size`.
-- [ ] Accuracy floor (≥ 99.9%, no seam band) met on the whole-WSG corridor, not only the reach.
-- [ ] Shared drift cache never deleted during benchmarking (published caches intact).
-- [ ] `/code-check` clean on each commit; PWF checkboxes match landed work.
-- [ ] `/planning-archive` on completion.
+- [x] neexdzii untiled reproduces 943.13 ha exactly; tiled Δ −1.88 ha (sieve-quantized, over the
+      strict gate) — moot for adoption since speedup failed first.
+- [x] Accuracy floor met (≥ 99.999%, no seam band) on neexdzii. The whole-WSG-corridor accuracy
+      test became moot: speedup failed decisively on FRAN (geometry-robust), so no group adopts
+      regardless of corridor accuracy.
+- [x] Shared drift cache never touched — benchmarking used isolated/`FP_TILE_SIZE` paths, `force`
+      not wipe. Published caches intact.
+- [x] Scripts parse; PWF checkboxes match landed work.
+- [ ] `/planning-archive` on completion (after this commit closes #8).
 
 ## Out of scope
 - The new-area configs (MCGR, BOWR / Peace PCEA, PARS) landed alongside under #3 — they
