@@ -1,4 +1,4 @@
-# Fraser region — the 8 watershed groups in the sern_fraser_2024 project.
+# Fraser region — the watershed groups in the sern_fraser_2024 project.
 # The runner resolves ONE species per WSG: the first in `species` (ordered preference)
 # that is modelled at order >= min_order (checked against the province-wide
 # fresh.streams_vw_bcfp). A WSG where NONE of the listed species is modelled is NOT run
@@ -7,4 +7,4 @@ region: fraser
 mergin_project: newgraph/sern_fraser_2024
 min_order: 3
 species: [ch, bt]          # ordered: chinook, then bull trout
-watershed_groups: [LCHL, LSAL, WILL, TABR, UFRA, NECR, MORK, FRAN]
+watershed_groups: [LCHL, LSAL, WILL, TABR, UFRA, NECR, MORK, FRAN, BOWR, MCGR]
