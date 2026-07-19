@@ -1,0 +1,15 @@
+# Bulkley watershed group (BULK) — WHOLE WSG, coho.
+# `neexdzii` models only the upper reach (upstream of the Wedzin Kwa confluence); this config
+# runs the ENTIRE Bulkley group as a single sub-basin (FWA group polygon, no break_points.csv),
+# consistent with the whole-WSG treatment of MORR/UFRA/PCEA/etc. Deliberately duplicates
+# neexdzii's floodplain (neexdzii is a geographic subset of BULK) to keep storage partitioned
+# by watershed group.
+name: bulk
+watershed_group: BULK          # link aoi — whole group
+species: co                    # coho runs the whole Bulkley
+min_order: 3
+schema: bulk                   # dedicated persist schema (never shared fresh.*, never neexdzii)
+primary_scenario: co_ff04      # headline scenario for LULC (03)
+subset: null                   # whole WSG — the group polygon is the single sub-basin
+# flood_scenarios.csv copied from the coho scenario set (co_ff04 = functional floodplain).
+# No break_points.csv — whole-WSG single sub-basin.

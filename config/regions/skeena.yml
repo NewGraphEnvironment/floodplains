@@ -1,0 +1,14 @@
+# Skeena region — upper Skeena drainage. Coho is the target species: chinook do not carry
+# these upper-Skeena networks, so `co` runs the whole watershed group. Same whole-WSG
+# treatment as the Fraser/Peace groups (no break_points.csv => the FWA group polygon is the
+# single sub-basin).
+#
+# BULK (Bulkley) runs the ENTIRE Bulkley group as a single sub-basin. NEEXDZII (Upper Bulkley)
+# is a geographic SUBSET of BULK and is deliberately NOT rostered here — publishing both would
+# produce two overlapping items over the same ground. Add it only if a distinct subset item is
+# wanted.
+region: skeena
+mergin_project: TBD              # doc-only; set when a Skeena field project exists
+min_order: 3
+species: [co]                    # coho only on these upper-Skeena groups
+watershed_groups: [BULK, MORR]   # whole-WSG coho; NEEXDZII (subset of BULK) intentionally excluded
