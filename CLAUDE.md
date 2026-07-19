@@ -33,13 +33,22 @@ Adding an area = adding `config/<area>/`; no code change. `area.yml` carries `sp
 `access_<species>` in 01 — `co`, `ch`, …), `watershed_group`, `min_order`, `schema`,
 `primary_scenario`, and `subset` (blk+drm for a reach, or `null` for the whole WSG).
 
+**Multiple species per area coexist in one `data/<area>/` (#23).** Outputs are keyed by species
+(`streams_<sp><min_order>`) and species-prefixed scenario id (`co_ff04`, `ch_ff06`); each run writes
+per-layer (`append=file.exists + delete_layer=TRUE`, no whole-file wipe), so a second species lands
+alongside the first without destroying it. Run a non-default species via env overrides (no config
+edit): `FP_SPECIES=ch FP_PRIMARY_SCENARIO=ch_ff06 Rscript scripts/run_area.R <area>` — the area's
+`flood_scenarios.csv` must carry that species' rows (step 2 runs only rows whose `species` matches).
+Coexistence is data-layer only (steps 01/02/03); zones (04) + prioritization (05) stay coho-hardwired.
+
 ## Areas
 
 - `neexdzii` — **parity fixture** (coho, BULK subset). The generalized pipeline must reproduce the
   known-good numbers (coho-3 network 678.2 km, floodplain co_ff04 171.0 km², floodplain tree loss
   943.13 ha, within ~0.004% VCA noise) before any new area is trusted. Verified.
-- `morr` — Morice watershed group (coho, whole WSG). Run: floodplain co_ff04 411.1 km², tree loss
-  433.8 ha. Burned to `restoration_wedzin_kwa` Mergin.
+- `morr` — Morice watershed group (whole WSG). **Coho + chinook coexist** in `data/morr/` (#23):
+  coho floodplain co_ff04 411.1 km², tree loss 433.8 ha (burned to `restoration_wedzin_kwa` Mergin);
+  chinook ch_ff06 (valley bottom) 432.4 km², tree loss 482.4 ha. Fire attribution ~6% of loss (both).
 - `ufra` — Upper Fraser (**chinook** — coho is unmodelled up there; `access_ch` exists). Run:
   floodplain ch_ff04 188.2 km², tree loss 544.5 ha. Burned to `sern_fraser_2024` Mergin.
 
