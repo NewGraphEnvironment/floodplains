@@ -28,14 +28,14 @@ unset, and guard that it belongs to the selected species and exists in `cfg$scen
       `paste0("streams_", sp, min_order)`.
 
 ## Phase 2 — Species-scoped, non-destructive floodplain + land-cover (02 + 03)
-- [ ] `02`: remove `file.remove(floodplain.gpkg)` (L108). Write each scenario layer with
-      `layer = sc$scenario_id, append = file.exists(out_gpkg), delete_layer = TRUE` (L146).
-- [ ] `02`: filter scenario selection by species after L95-104:
+- [x] `02`: removed `file.remove(floodplain.gpkg)`. Each scenario layer written with
+      `append = file.exists(out_gpkg), delete_layer = TRUE`.
+- [x] `02`: filter scenario selection by species:
       `run_scenarios <- run_scenarios[run_scenarios$species == cfg$species, ]`.
-- [ ] `03`: remove `file.remove(floodplain_landcover.gpkg)` (L105) — the blocker; L112's
+- [x] `03`: removed `file.remove(floodplain_landcover.gpkg)` — the blocker; L112's
       `append = file.exists(out_lc_gpkg)` already handles create/preserve.
-- [ ] `03`: document generic `lulc_summary.rds` (L184) as last-writer-wins active-scenario pointer;
-      per-scenario `lulc_summary_<scenario_id>.rds` (L183) is the durable store. No consumer change.
+- [x] `03`: documented generic `lulc_summary.rds` as last-writer-wins pointer;
+      per-scenario `lulc_summary_<scenario_id>.rds` is the durable store. No consumer change.
 
 ## Phase 3 — Runtime species selection (run_area) + MORR config + docs
 - [ ] `run_area.R` `fp_read_config()`: add `FP_SPECIES` + `FP_PRIMARY_SCENARIO` env overrides

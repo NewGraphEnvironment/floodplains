@@ -105,11 +105,19 @@ fp_floodplain <- function(cfg, scenarios = "run") {
   } else {
     run_scenarios <- all_scenarios[all_scenarios$run == TRUE, ]
   }
+  # Keep only this run's species so a flood_scenarios.csv holding both co_* and ch_* rows does not
+  # compute the other species' scenarios against this species' network (#23).
+  run_scenarios <- run_scenarios[run_scenarios$species == cfg$species, ]
+  if (nrow(run_scenarios) == 0) {
+    stop("No scenarios for species '", cfg$species, "' in flood_scenarios.csv — check the ",
+         "species column and run flags for area '", cfg$name, "'.", call. = FALSE)
+  }
   message("Scenarios to run: ", paste(run_scenarios$scenario_id, collapse = ", "))
 
-  # --- Multi-layer gpkg for all scenarios ---
+  # --- Multi-layer gpkg: one layer per scenario_id (species-prefixed => species coexist). Do NOT
+  # wipe the file; each scenario write below uses delete_layer=TRUE so re-running replaces only its
+  # own layer while other species'/scenarios' layers persist (#23). ---
   out_gpkg <- file.path(out_dir, "floodplain.gpkg")
-  if (file.exists(out_gpkg)) file.remove(out_gpkg)
 
   # --- Loop scenarios ---
   for (i in seq_len(nrow(run_scenarios))) {
@@ -147,7 +155,8 @@ fp_floodplain <- function(cfg, scenarios = "run") {
     # --- Write outputs ---
     out_raster <- file.path(out_dir, paste0("floodplain_", sc$scenario_id, ".tif"))
     terra::writeRaster(valleys, out_raster, overwrite = TRUE)
-    sf::st_write(valleys_poly, out_gpkg, layer = sc$scenario_id, append = TRUE, quiet = TRUE)
+    sf::st_write(valleys_poly, out_gpkg, layer = sc$scenario_id,
+                 append = file.exists(out_gpkg), delete_layer = TRUE, quiet = TRUE)
     message("  Saved: ", basename(out_raster), " + layer ", sc$scenario_id, " in ", basename(out_gpkg))
   }
 
