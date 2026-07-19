@@ -13,3 +13,7 @@
 
 # Mergin CLI stray logs / cache (never commit)
 .mergin/
+
+# Bulk per-run pipeline logs (kills/retries/iteration output). Curated evidence logs
+# (yyyymmdd_noun_verb-detail_target.ext) live directly under logs/, not runs/.
+scripts/floodplain_lcc/logs/runs/
