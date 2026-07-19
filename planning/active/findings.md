@@ -39,5 +39,33 @@ An adversarial Plan-agent review of the first design caught what the initial pas
 8. **Scope confirmed coho-only (out):** `05:55/98/130`, `04:65` — downstream zones/prioritization
    stay coho. "MORR chinook modelled" = data-layer coexistence only.
 
-## Run results
-(to be filled during Phase 4)
+## Run results (Phase 4, 2026-07-18)
+
+**Parity gate — PASSES exactly on a clean cold-path run.** Wiped `data/neexdzii/`, re-ran
+`run_area.R neexdzii 1,2,3`: network `streams_co3` **678.2 km** (target 678.2), floodplain `co_ff04`
+**171.0 km²** (171.0), tree loss **943.13 ha** (943.13). The refactor is transparent to the coho
+fixture; backward-compatible layer name preserved; no orphan layers (fresh dir).
+
+**MORR chinook — coexistence proven, coho exactly preserved.**
+`FP_SPECIES=ch FP_PRIMARY_SCENARIO=ch_ff06 run_area.R morr 1,2,3` (step 3 resumed after an external
+kill; interrupted STAC fetch had cached cleanly). Layer inventory in `data/morr/`:
+- aquatic_network: `streams_co3, waterbodies_co3, streams_ch3, waterbodies_ch3`
+- floodplain: `co_ff02/04/06` + `ch_ff02/04/06`
+- floodplain_landcover: `classified_co_ff04_*`, `transition_co_ff04` + `classified_ch_ff06_*`,
+  `transition_ch_ff06`
+
+Step 1 message confirmed `ch-accessible order>=3 streams` → `streams_ch3: 4877 segments`; step 2
+`Scenarios to run: ch_ff02, ch_ff04, ch_ff06` (species filter, no coho leakage).
+
+**Coho untouched (exact):** `co_ff04` 411.1 km² (was 411.1), co tree loss 433.8 ha (was 433.8).
+**MORR chinook `ch_ff06`** (valley bottom): floodplain **432.4 km²**, Trees→non-Trees loss **482.4 ha**
+(682 patches).
+
+**Idempotency both directions:** after the chinook run, a coho step-2 re-run kept all `ch_ff0x`
+layers intact (and re-wrote only the `co_ff0x` layers) — no cross-species clobber either way.
+
+**Fire attribution (via fire_tag.R, the #19 prototype already on main):** applied to both MORR
+scenarios. chinook `ch_ff06`: 29.4 ha / 6% of loss inside a 2017–2023 fire perimeter; coho `co_ff04`:
+27.1 ha / 6%. Consistent with BULK (5%) — these groups are conversion-driven, not fire-driven.
+`transition_ch_ff06_2017_2023_fire` + `transition_co_ff04_2017_2023_fire` written to
+`data/morr/floodplain_landcover.gpkg`.

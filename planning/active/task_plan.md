@@ -47,15 +47,18 @@ unset, and guard that it belongs to the selected species and exists in `cfg$scen
       area" section (`FP_SPECIES`/`FP_PRIMARY_SCENARIO`), and the 04/05-still-coho scope boundary.
 
 ## Phase 4 — Parity gate + MORR chinook run
-- [ ] Reset `data/neexdzii/` clean; re-run `run_area.R neexdzii` (1,2,3); verify 678.2/171.0/943.
-- [ ] Run `FP_SPECIES=ch FP_PRIMARY_SCENARIO=ch_ff06 caffeinate -s Rscript scripts/run_area.R morr
-      1,2,3`; verify coho `co_*` layers preserved and `ch_*` coexist in `data/morr/` gpkgs.
-- [ ] Record MORR chinook headline numbers (network km, ch_ff02/04/06 km², ch_ff06 tree loss) in
-      `findings.md`.
+- [x] Reset `data/neexdzii/` clean; re-ran `run_area.R neexdzii` (1,2,3); **678.2 / 171.0 / 943.13**
+      exact.
+- [x] Ran `FP_SPECIES=ch FP_PRIMARY_SCENARIO=ch_ff06 run_area.R morr 1,2,3`; coho `co_*` preserved
+      exactly (411.1 km² / 433.8 ha) and `ch_*` coexist in `data/morr/` gpkgs. ch_ff06 = 432.4 km²,
+      482.4 ha tree loss.
+- [x] Recorded MORR chinook + coho + fire numbers in `findings.md`.
+- [x] Fire attribution (per user request): ran `fire_tag.R morr {ch_ff06,co_ff04}` — 6% of loss in
+      fire, `transition_*_fire` layers written.
 
 ## Validation
-- [ ] neexdzii parity gate passes on a clean dir (regression contract)
-- [ ] `data/morr/` shows both `co_*` and `ch_*` layer families coexisting (co untouched)
-- [ ] Re-running MORR coho after the chinook run still reproduces the coho layers (idempotency)
-- [ ] `/code-check` clean on each commit; PWF checkboxes match landed work
+- [x] neexdzii parity gate passes on a clean dir (regression contract) — exact
+- [x] `data/morr/` shows both `co_*` and `ch_*` layer families coexisting (co untouched, exact numbers)
+- [x] Re-running MORR coho after the chinook run kept the `ch_*` layers (idempotency both directions)
+- [x] `/code-check` clean on each commit (rounds run per phase); PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion
