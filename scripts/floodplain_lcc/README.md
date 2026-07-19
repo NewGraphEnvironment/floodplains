@@ -47,13 +47,28 @@ self-documenting.
 
 | GeoPackage / file | From | Layers / contents |
 |-------------------|------|-------------------|
-| `aquatic_network.gpkg` | 1 | `streams_co3`, `waterbodies_co3` |
+| `aquatic_network.gpkg` | 1 | `streams_{sp}{order}`, `waterbodies_{sp}{order}` (e.g. `streams_co3`) |
 | `subbasins.gpkg` | 2 | Single layer |
 | `floodplain_{scenario_id}.tif` | 2 | Floodplain raster per scenario |
 | `floodplain.gpkg` | 2 | One layer per scenario (`co_ff02`, `co_ff04`, ...) |
 | `floodplain_landcover.gpkg` | 3 | `classified_{scenario}_{year}`, `transition_{scenario}_{from}_{to}` |
 | `rasters/{scenario_id}/` | 3 | Classified + transition tifs |
-| `lulc_summary_{scenario_id}.rds`, `lulc_summary.rds` | 3 | Area/pct by class, sub-basin, year |
+| `lulc_summary_{scenario_id}.rds`, `lulc_summary.rds` | 3 | Per-scenario store; `lulc_summary.rds` = last-writer-wins pointer |
+
+## Multiple species per area
+
+Outputs are keyed by species (`streams_{sp}{order}`) and by species-prefixed scenario id
+(`co_ff04`, `ch_ff06`), so a second species coexists in the same `data/<area>/` gpkgs without
+destroying the first — re-running a species replaces only its own layers. Run a non-default species
+against an area's config with env overrides (no config edit):
+
+```
+FP_SPECIES=ch FP_PRIMARY_SCENARIO=ch_ff06 Rscript scripts/run_area.R morr 1,2,3
+```
+
+The area's `flood_scenarios.csv` must carry the target species' rows (step 2 runs only rows whose
+`species` matches). **Scope:** coexistence is at the data layer (steps 1–3); the zones (04) and
+prioritization (05) steps remain coho-hardwired.
 
 ## Adding scenarios
 

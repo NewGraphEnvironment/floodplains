@@ -101,8 +101,10 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
   message("Floodplain rasters saved to ", fp_dir)
 
   # --- Vectorize to floodplain_landcover.gpkg ---
+  # Do NOT wipe the file: layers are species+scenario keyed (classified_<scenario>_<yr>,
+  # transition_<scenario>_...), so a second species writes alongside the first. Each write below
+  # uses delete_layer=TRUE (append=file.exists) => re-running replaces only its own layers (#23).
   out_lc_gpkg <- file.path(out_dir, "floodplain_landcover.gpkg")
-  if (file.exists(out_lc_gpkg)) file.remove(out_lc_gpkg)
   message("Vectorizing to ", basename(out_lc_gpkg), "...")
 
   # Classified land cover per year (dissolved by class)
@@ -135,8 +137,8 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
     # double-counted when summed by row.
     trans_polys$area_ha <- as.numeric(sf::st_area(trans_polys)) / 1e4
 
-    sf::st_write(trans_polys, out_lc_gpkg, layer = lyr, append = TRUE,
-                 delete_layer = TRUE, quiet = TRUE)
+    sf::st_write(trans_polys, out_lc_gpkg, layer = lyr,
+                 append = file.exists(out_lc_gpkg), delete_layer = TRUE, quiet = TRUE)
     message("  Layer: ", lyr, " (", nrow(trans_polys),
             " change patches >= ", patch_min_m2 / 1e4, " ha)")
   }
@@ -179,7 +181,10 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
   lulc_summary$scenario_id <- scenario_id
   lulc_summary$flood_factor <- scenario_row$flood_factor
 
-  # Scenario-specific file + copy as lulc_summary.rds for report consumption
+  # lulc_summary_<scenario_id>.rds is the durable per-scenario store. lulc_summary.rds is a
+  # last-writer-wins pointer to the most recently run scenario, kept for the report / 05 /
+  # run_region cache (all coho today); with two species in one dir it reflects whichever ran step 3
+  # last -- read the per-scenario file for a specific species/scenario (#23).
   saveRDS(lulc_summary, file.path(out_dir, paste0("lulc_summary_", scenario_id, ".rds")))
   saveRDS(lulc_summary, file.path(out_dir, "lulc_summary.rds"))
 

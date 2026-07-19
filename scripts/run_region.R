@@ -128,7 +128,7 @@ for (i in seq_len(nrow(runnable))) {
   km <- NA_real_; fp_km2 <- NA_real_
   net <- file.path(here::here("data", area), "aquatic_network.gpkg")
   if (rc == 0 && file.exists(net)) {
-    s <- tryCatch(sf::st_read(net, layer = "streams_co3", quiet = TRUE), error = function(e) NULL)
+    s <- tryCatch(sf::st_read(net, layer = paste0("streams_", sp, min_order), quiet = TRUE), error = function(e) NULL)
     if (!is.null(s) && nrow(s) > 0) km <- sum(as.numeric(sf::st_length(s))) / 1000
     fp <- file.path(here::here("data", area), "floodplain.gpkg")
     if (file.exists(fp)) {
