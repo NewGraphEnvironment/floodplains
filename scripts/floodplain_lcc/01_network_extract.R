@@ -5,8 +5,9 @@
 # Build the coho-accessible stream network + filtered waterbodies for an area using
 # the `link` package (a config-driven pipeline that orchestrates `fresh` over a fwapg
 # PostgreSQL database). Produces data/<area>/aquatic_network.gpkg with:
-#   streams_co3      coho-accessible streams, order >= cfg$min_order (input to 02)
-#   waterbodies_co3  lakes/wetlands on the accessible network
+#   streams_<sp><order>      <species>-accessible streams, order >= cfg$min_order (input to 02)
+#   waterbodies_<sp><order>  lakes/wetlands on the accessible network
+#   (e.g. streams_co3 / waterbodies_co3 for coho order-3; multiple species coexist in one gpkg)
 #
 # `link` is watershed-group scoped, so we run cfg$watershed_group, persist into the
 # DEDICATED cfg$schema. When cfg$network_source is set (e.g. "fresh_default") the accessible
@@ -196,16 +197,27 @@ fp_network <- function(cfg) {
     waterbodies <- streams[0, ]
   }
 
-  message("  streams_co3: ", nrow(streams), " segments | waterbodies_co3: ",
-          nrow(waterbodies))
+  # Layer names are species-keyed (streams_<sp><min_order>) so multiple species coexist in one
+  # aquatic_network.gpkg (e.g. streams_co3 + streams_ch3). Coho order-3 => streams_co3 (unchanged).
+  streams_lyr     <- paste0("streams_", species, min_order)
+  waterbodies_lyr <- paste0("waterbodies_", species, min_order)
+  message("  ", streams_lyr, ": ", nrow(streams), " segments | ",
+          waterbodies_lyr, ": ", nrow(waterbodies))
 
-  # --- Save multi-layer aquatic_network.gpkg (02 reads streams_co3 + waterbodies_co3) ---
+  # --- Save multi-layer aquatic_network.gpkg (02 reads streams_<sp><order> + waterbodies_<sp><order>) ---
+  # Do NOT wipe the whole gpkg: a second species writes alongside the first. Per-layer
+  # delete_layer=TRUE replaces only the same-species layer; append=file.exists creates the file on
+  # the first species and appends subsequent species (#23).
   out_gpkg <- file.path(out_dir, "aquatic_network.gpkg")
-  if (file.exists(out_gpkg)) file.remove(out_gpkg)
-  sf::st_write(streams, out_gpkg, layer = "streams_co3", quiet = TRUE)
+  sf::st_write(streams, out_gpkg, layer = streams_lyr,
+               append = file.exists(out_gpkg), delete_layer = TRUE, quiet = TRUE)
   if (nrow(waterbodies)) {
-    sf::st_write(waterbodies, out_gpkg, layer = "waterbodies_co3",
-                 append = TRUE, quiet = TRUE)
+    sf::st_write(waterbodies, out_gpkg, layer = waterbodies_lyr,
+                 append = file.exists(out_gpkg), delete_layer = TRUE, quiet = TRUE)
+  } else if (file.exists(out_gpkg) && waterbodies_lyr %in% sf::st_layers(out_gpkg)$name) {
+    # No waterbodies this run: drop any same-species layer left by a prior run so 02 does not
+    # silently read stale waterbodies (the old whole-file wipe used to prevent this) (#23).
+    sf::st_delete(out_gpkg, layer = waterbodies_lyr, quiet = TRUE)
   }
   message("Saved: ", basename(out_gpkg))
 
@@ -221,8 +233,10 @@ fp_network <- function(cfg) {
                 "### Floodplains network source",
                 paste0("- source: ", net_source),
                 paste0("- freshness: ", fresh_note))
-  writeLines(stamp_md, file.path(out_dir, "aquatic_network.stamp.md"))
-  message("Wrote provenance sidecar: aquatic_network.stamp.md")
+  # Species-suffixed so a second species' step 1 doesn't overwrite the first's stamp (#23).
+  stamp_name <- paste0("aquatic_network_", species, min_order, ".stamp.md")
+  writeLines(stamp_md, file.path(out_dir, stamp_name))
+  message("Wrote provenance sidecar: ", stamp_name)
 
   invisible(out_gpkg)
 }

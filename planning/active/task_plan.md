@@ -17,15 +17,15 @@ regex-swap the `co`→`ch` prefix; default `primary_scenario` to `paste0(species
 unset, and guard that it belongs to the selected species and exists in `cfg$scenarios`.
 
 ## Phase 1 — Species-keyed, non-destructive network (01 + 02 read + run_region read)
-- [ ] Derive network layer names `paste0("streams_", cfg$species, cfg$min_order)` /
-      `paste0("waterbodies_", cfg$species, cfg$min_order)` in `01` (write, L205/207) and `02`
-      (read, L71/80). Coho-order-3 → `streams_co3` (backward compatible).
-- [ ] `01`: remove `file.remove(aquatic_network.gpkg)` (L204). Write both streams and waterbodies
-      with `append = file.exists(out_gpkg), delete_layer = TRUE` (waterbodies after streams).
-- [ ] `01`: species-suffix stamp sidecar → `aquatic_network_<sp><min_order>.stamp.md` (L224); update
-      `streams_co3` message strings.
-- [ ] `run_region.R:131`: replace hardcoded `layer = "streams_co3"` with
-      `paste0("streams_", sp, min_order)` (else chinook batch groups report FAIL(empty network)).
+- [x] Derive network layer names `paste0("streams_", cfg$species, cfg$min_order)` /
+      `paste0("waterbodies_", cfg$species, cfg$min_order)` in `01` (write) and `02` (read).
+      Coho-order-3 → `streams_co3` (backward compatible).
+- [x] `01`: remove `file.remove(aquatic_network.gpkg)`. Write both streams and waterbodies
+      with `append = file.exists(out_gpkg), delete_layer = TRUE`.
+- [x] `01`: species-suffix stamp sidecar → `aquatic_network_<sp><min_order>.stamp.md`; update
+      `streams_co3` message + header doc strings.
+- [x] `run_region.R:131`: replaced hardcoded `layer = "streams_co3"` with
+      `paste0("streams_", sp, min_order)`.
 
 ## Phase 2 — Species-scoped, non-destructive floodplain + land-cover (02 + 03)
 - [ ] `02`: remove `file.remove(floodplain.gpkg)` (L108). Write each scenario layer with

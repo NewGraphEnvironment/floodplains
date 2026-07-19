@@ -6,7 +6,7 @@
 # 2. Run flooded VCA for each selected scenario in cfg$scenarios
 #
 # Stream network and waterbodies are pre-built by fp_network() (step 1):
-#   data/<area>/aquatic_network.gpkg  (layers streams_co3, waterbodies_co3)
+#   data/<area>/aquatic_network.gpkg  (layers streams_<sp><order>, waterbodies_<sp><order>)
 #
 # VCA parameters (flood_factor, slope_threshold, etc.) are read from cfg$scenarios --
 # each row is a fully specified scenario.
@@ -64,11 +64,15 @@ fp_floodplain <- function(cfg, scenarios = "run") {
   DBI::dbDisconnect(conn)
 
   # --- Step 2: Load streams and waterbodies from fp_network() ---
+  # Network layers are species-keyed (streams_<sp><min_order>); read the layer for this run's
+  # species so the coho and chinook networks in one gpkg don't cross-contaminate (#23).
   network_gpkg <- file.path(out_dir, "aquatic_network.gpkg")
   if (!file.exists(network_gpkg)) stop("Run step 1 (fp_network) first: ", network_gpkg)
+  streams_lyr     <- paste0("streams_", cfg$species, cfg$min_order)
+  waterbodies_lyr <- paste0("waterbodies_", cfg$species, cfg$min_order)
 
-  message("Loading streams from ", basename(network_gpkg), " (layer: streams_co3)")
-  streams <- sf::st_read(network_gpkg, layer = "streams_co3", quiet = TRUE) |> sf::st_zm(drop = TRUE)
+  message("Loading streams from ", basename(network_gpkg), " (layer: ", streams_lyr, ")")
+  streams <- sf::st_read(network_gpkg, layer = streams_lyr, quiet = TRUE) |> sf::st_zm(drop = TRUE)
   # Ensure numeric columns (gpkg can store as character)
   for (col in c("upstream_area_ha", "map_upstream", "channel_width", "stream_order")) {
     if (col %in% names(streams)) streams[[col]] <- as.numeric(streams[[col]])
@@ -76,8 +80,8 @@ fp_floodplain <- function(cfg, scenarios = "run") {
   message("  ", nrow(streams), " segments, orders: ",
           paste(sort(unique(streams$stream_order)), collapse = ", "))
 
-  message("Loading waterbodies from ", basename(network_gpkg), " (layer: waterbodies_co3)")
-  waterbodies <- sf::st_read(network_gpkg, layer = "waterbodies_co3", quiet = TRUE) |> sf::st_zm(drop = TRUE)
+  message("Loading waterbodies from ", basename(network_gpkg), " (layer: ", waterbodies_lyr, ")")
+  waterbodies <- sf::st_read(network_gpkg, layer = waterbodies_lyr, quiet = TRUE) |> sf::st_zm(drop = TRUE)
   message("  ", nrow(waterbodies), " features")
 
   # --- DEM from national MRDEM-30 (portable; no local DEM dependency) ---
