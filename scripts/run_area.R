@@ -44,7 +44,23 @@ fp_read_config <- function(area) {
   cfg$dir_out <- here::here("data", area)
   fs::dir_create(cfg$dir_out)
 
-  if (is.null(cfg$primary_scenario)) cfg$primary_scenario <- "co_ff04"
+  # FP_SPECIES overrides the committed area.yml species at runtime (e.g. run MORR chinook against a
+  # coho-default config) WITHOUT editing the config — parallels the other FP_* overrides below.
+  # Must be applied BEFORE the primary_scenario default so that default keys off the right species (#23).
+  env_species <- Sys.getenv("FP_SPECIES", "")
+  if (nzchar(env_species)) cfg$species <- env_species
+  # primary_scenario defaults to <species>_ff04 (functional floodplain) when the config omits it;
+  # FP_PRIMARY_SCENARIO overrides it at runtime (pair with FP_SPECIES, e.g. run ch_ff06).
+  if (is.null(cfg$primary_scenario)) cfg$primary_scenario <- paste0(cfg$species, "_ff04")
+  env_ps <- Sys.getenv("FP_PRIMARY_SCENARIO", "")
+  if (nzchar(env_ps)) cfg$primary_scenario <- env_ps
+  # Guard: the resolved primary_scenario must be a scenario of the selected species in the CSV,
+  # else step 3 would read the wrong (or a missing) floodplain layer. Fail loud early.
+  if (!nrow(cfg$scenarios[cfg$scenarios$scenario_id == cfg$primary_scenario &
+                          cfg$scenarios$species == cfg$species, ])) {
+    stop("primary_scenario '", cfg$primary_scenario, "' is not a '", cfg$species,
+         "' scenario in config/", area, "/flood_scenarios.csv", call. = FALSE)
+  }
   # tile_size: OPTIONAL area.yml key (CRS metres). Absent => cfg$tile_size is NULL =>
   # fp_lulc fetches the whole floodplain bbox (unchanged). Set it to bound the STAC
   # download to the AOI footprint on large whole-WSG floodplains (drift#36).

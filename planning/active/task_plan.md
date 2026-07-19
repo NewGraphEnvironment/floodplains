@@ -38,13 +38,13 @@ unset, and guard that it belongs to the selected species and exists in `cfg$scen
       per-scenario `lulc_summary_<scenario_id>.rds` is the durable store. No consumer change.
 
 ## Phase 3 — Runtime species selection (run_area) + MORR config + docs
-- [ ] `run_area.R` `fp_read_config()`: add `FP_SPECIES` + `FP_PRIMARY_SCENARIO` env overrides
-      (parallel L54-66); default `primary_scenario <- paste0(cfg$species, "_ff04")` only when unset;
+- [x] `run_area.R` `fp_read_config()`: added `FP_SPECIES` (before the default) + `FP_PRIMARY_SCENARIO`
+      env overrides; default `primary_scenario <- paste0(cfg$species, "_ff04")` only when unset;
       guard `stop()` if resolved `primary_scenario` not a row in `cfg$scenarios` for the species.
-- [ ] Add `ch_ff01..12` rows (copy from `config/ufra/flood_scenarios.csv`) to
-      `config/morr/flood_scenarios.csv` — AFTER the Phase-2 species filter is in place.
-- [ ] Update `scripts/floodplain_lcc/README.md` (L50/53): species-keyed layers,
-      `FP_SPECIES`/`FP_PRIMARY_SCENARIO`, and the 04/05-still-coho scope boundary.
+- [x] Added `ch_ff01..12` rows to `config/morr/flood_scenarios.csv` (derived from MORR's coho rows,
+      keeping run flags + citations) — ch run=TRUE for ff02/04/06.
+- [x] Updated `scripts/floodplain_lcc/README.md`: species-keyed layers, a "Multiple species per
+      area" section (`FP_SPECIES`/`FP_PRIMARY_SCENARIO`), and the 04/05-still-coho scope boundary.
 
 ## Phase 4 — Parity gate + MORR chinook run
 - [ ] Reset `data/neexdzii/` clean; re-run `run_area.R neexdzii` (1,2,3); verify 678.2/171.0/943.

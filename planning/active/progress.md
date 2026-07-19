@@ -18,4 +18,9 @@
   (the blocker) + made the transition write `append=file.exists` for idiom consistency; documented
   generic `lulc_summary.rds` as last-writer-wins. code-check round 1 clean; applied 2 reviewer-
   suggested hardening items.
-- Next: Phase 3 (FP_SPECIES/FP_PRIMARY_SCENARIO overrides + guard in run_area; MORR ch scenario rows; README)
+- **Phase 3 done** — run_area: `FP_SPECIES` (applied before the primary_scenario default) +
+  `FP_PRIMARY_SCENARIO` env overrides; default `primary_scenario = <species>_ff04` when unset; guard
+  stops if the resolved primary_scenario isn't a row of the selected species. Added `ch_ff01..12`
+  rows to `config/morr/flood_scenarios.csv` (derived from the coho rows; ch run=TRUE ff02/04/06).
+  README: "Multiple species per area" section + scope note. code-check round 1 clean.
+- Next: Phase 4 (parity gate on clean data/neexdzii; MORR chinook run; record numbers)
