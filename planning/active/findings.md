@@ -38,4 +38,22 @@ change patch per-source, windowed to the change interval. Additive; residual = n
 - Pest (deferred): `whse_forest_vegetation.pest_infestation_poly`, `capture_year`, insects + disease.
 
 ## Run results
-(to be filled during implementation)
+
+**Phase 1 parity (fire-only, wrapper re-read path):** exact — BULK 103.2 ha, MORR-co 27.1, MORR-ch 29.4.
+
+**Phase 2 parity (fire, wired in-pipeline):** BULK 103.22 vs 103.2, MORR-co 27.07 vs 27.1 (both ±0.5).
+Transition layers now carry `in_fire`/`fire_year`/`fire_number` in-pipeline.
+
+**Phase 3 multi-source (fire + harvest):** harvest loaded (121,836 cutblocks, 2017–2026):
+
+| area | total loss | fire | harvest | residual |
+|---|---|---|---|---|
+| BULK co_ff04 | 2073.3 ha | 103.2 (5%) | 739.0 (36%) | 1286.3 (62%) |
+| MORR co_ff04 | 433.8 ha | 27.1 (6%) | 125.1 (29%) | 281.6 (65%) |
+| MORR ch_ff06 | 482.4 ha | 29.4 (6%) | 149.5 (31%) | 303.5 (63%) |
+
+Harvest explains ~30–36% of floodplain tree loss that was previously in the "95% noise" bucket. Fire
++ harvest together ~35–41%; residual (true conversion + classification noise) ~62–65%. Per-source %
+sums exceed 100% by ~3% = patches both burned AND logged (salvage) — additive attribution working.
+The residual is still large: much of Trees→Rangeland is io-lulc noise, plus real Trees→Built/Crops/
+Water conversion not captured by fire/harvest.

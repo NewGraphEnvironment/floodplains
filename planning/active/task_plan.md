@@ -35,11 +35,11 @@ name); shared `config/disturbance.yml` (mirrors `config/regions/`); hoist change
       in_fire loss BULK **103.22** vs 103.2, MORR **27.07** vs 27.1 (both within ±0.5).
 
 ## Phase 3 — Load harvest + add as source + validate multi-source
-- [ ] One-time bc2pg load of `veg_consolidated_cut_blocks_sp` (filter `HARVEST_START_YEAR_CALENDAR >=
-      2017`) into fwapg; document the command.
-- [ ] Add `harvest` to `config/disturbance.yml`.
-- [ ] Run BULK/MORR; report fire + harvest + residual — expect much of the ~95% Trees→Rangeland
-      "noise" to resolve into cutblocks.
+- [x] One-time bc2pg load of `veg_consolidated_cut_blocks_sp` (filter `HARVEST_START_YEAR_CALENDAR >=
+      2017`) into fwapg — 121,836 cutblocks, 2017–2026. Evidence log in `scripts/fwapg/logs/`.
+- [x] Add `harvest` to `config/disturbance.yml`.
+- [x] Validated multi-source (BULK/MORR): harvest explains **29–36%** of tree loss (BULK 739 ha,
+      MORR-co 125, MORR-ch 150); residual dropped 95%→62–65%; ~3% salvage (fire AND harvest).
 
 ## Phase 4 — Docs + STAC ripple
 - [ ] README + CLAUDE.md: the disturbance step, `config/disturbance.yml`, `change_interval`, pest
