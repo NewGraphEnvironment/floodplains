@@ -17,14 +17,14 @@ name); shared `config/disturbance.yml` (mirrors `config/regions/`); hoist change
 (mandatory for the huge harvest layer); `fire_tag.R` refit as a thin wrapper + parity harness.
 
 ## Phase 1 — Generalized routine + shared config + change_interval (fire only)
-- [ ] `fp_disturbance.R`: `fp_disturbance_tag(patches, sources, conn, target_crs, window)` — data-driven
+- [x] `fp_disturbance.R`: `fp_disturbance_tag(patches, sources, conn, window)` — data-driven
       dominant-overlap tagging; `st_make_valid()` both sides; transform source to `st_crs(patches)`;
-      AOI-bbox server-side SQL prefilter; additive residual + combination report.
-- [ ] `config/disturbance.yml` with the `fire` source (reproduces fire_tag.R's current query).
-- [ ] `fp_read_config`: load `cfg$disturbance` (guarded, absent⇒NULL⇒skip) + `cfg$change_interval`;
+      AOI-bbox server-side SQL prefilter; `fp_disturbance_report` (additive residual).
+- [x] `config/disturbance.yml` with the `fire` source (reproduces fire_tag.R's current query).
+- [x] `fp_read_config`: load `cfg$disturbance` (guarded, absent⇒NULL⇒skip) + `cfg$change_interval`;
       source the new file.
-- [ ] Refit `fire_tag.R` to call `fp_disturbance_tag`; **parity gate** — wrapper (re-read) reproduces
-      BULK 103.2 / MORR-co 27.1 / MORR-ch 29.4 exactly.
+- [x] Refit `fire_tag.R` to call `fp_disturbance_tag`; **parity gate PASSES exactly** —
+      BULK 103.2 / MORR-co 27.1 / MORR-ch 29.4.
 
 ## Phase 2 — Wire into fp_lulc + fire parity gate
 - [ ] Tag `trans_polys` at `03:138→140` when `cfg$disturbance` set; open DB conn inside `fp_lulc` only

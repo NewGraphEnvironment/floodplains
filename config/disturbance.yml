@@ -1,0 +1,22 @@
+# Shared, province-wide disturbance sources for land-cover-change attribution (#19).
+# Same for every area (these are DataBC layers loaded into fwapg via bc2pg), so this lives here
+# rather than duplicated in each config/<area>/area.yml -- mirrors config/regions/*.yml.
+#
+# fp_disturbance_tag() tags each transition patch with, per source: in_<name> + the `carry`
+# attributes of the dominant overlapping feature, windowed to the change interval
+# (cfg$change_interval, default 2017-2023 -- only a disturbance inside the change window can explain
+# an observed loss). Attribution is additive; the residual (matches no source) is the noise floor.
+#
+# Per source: name, table (fwapg schema.table), geom_col, year_col, carry [cols], optional
+# `filter` (extra SQL predicate) and `window` [from, to] override, and a `confidence` label.
+sources:
+  - name: fire
+    table: whse_land_and_natural_resource.prot_historical_fire_polys_sp
+    geom_col: geom
+    year_col: fire_year
+    carry: [fire_year, fire_number]
+    confidence: high
+  # harvest (Phase 3): whse_forest_vegetation.veg_consolidated_cut_blocks_sp,
+  #   year_col harvest_start_year_calendar -- add after the one-time bc2pg load.
+  # pest (deferred): whse_forest_vegetation.pest_infestation_poly, year_col capture_year,
+  #   filter to a disease-species subset; confidence: low (defoliation is not always stand-replacing).
