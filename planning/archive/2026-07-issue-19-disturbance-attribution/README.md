@@ -30,4 +30,4 @@ code-check and fixed with `sort()`. (3) **A parallel Claude session switched the
 tree mid-Phase-1**, floating my uncommitted work on their branch — recovered by backing up + checking
 out branch 19; the durable fix is separate worktrees per session. Commit + push early.
 
-Closed by: PR #25 (commits ffc77a7 → 7f19294 on branch 19-config-driven-layer-agnostic-disturbance)
+Closed by: PR #26 (commits ffc77a7 → 7f19294 on branch 19-config-driven-layer-agnostic-disturbance)
