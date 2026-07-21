@@ -23,6 +23,7 @@
 # before any new area's numbers are trusted.
 
 # --- fp_read_config: area name -> one cfg list carrying everything the steps need ---
+`%||%` <- function(a, b) if (is.null(a)) b else a   # base R ships %||% only >= 4.4.0; define locally
 fp_read_config <- function(area) {
   cfg_dir <- here::here("config", area)
   if (!dir.exists(cfg_dir)) {

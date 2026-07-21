@@ -21,7 +21,7 @@ if (!file.exists(gpkg)) stop("no gpkg: ", gpkg)
 
 lyrs <- sf::st_layers(gpkg)$name
 tlyr <- if (!is.na(a[2])) {
-  grep(sprintf("^transition_%s_[0-9]", a[2]), lyrs, value = TRUE)[1]
+  grep(sprintf("^transition_%s_.*[0-9]$", a[2]), lyrs, value = TRUE)[1]  # [0-9]$ excludes *_disturbance
 } else {
   grep("^transition_.*[0-9]$", lyrs, value = TRUE)[1]   # exclude any *_disturbance layer
 }
