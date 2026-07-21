@@ -18,4 +18,10 @@
   Recovered: backed up to scratchpad, confirmed no file overlap (they only touched
   `config/morr/area.yml`), checked out branch 19 (carried my changes back), committed + pushed
   immediately. Two sessions sharing one git working tree is the hazard — commit+push early.
-- Next: Phase 2 (wire fp_disturbance_tag into fp_lulc + fire parity gate on the wired path)
+- **Phase 2 done** — wired `fp_disturbance_tag` into `fp_lulc` (tag `trans_polys` in memory before the
+  transition write; conn opened only when `cfg$disturbance` set, explicit disconnect + on.exit net).
+  Hoisted the change interval to `cfg$change_interval` (drives fetch years, transition from/to, layer
+  name; `sort()` guards a reversed config). Wired-path parity: BULK 103.22 vs 103.2, MORR 27.07 vs
+  27.1 (both ±0.5); transition layers now carry `in_fire`/`fire_year`/`fire_number` in-pipeline.
+  code-check: 1 real fix (reversed-interval `sort`) + on.exit norm alignment.
+- Next: Phase 3 (bc2pg-load harvest + add as source + validate multi-source on BULK/MORR)

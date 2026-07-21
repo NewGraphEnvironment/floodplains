@@ -27,11 +27,12 @@ name); shared `config/disturbance.yml` (mirrors `config/regions/`); hoist change
       BULK 103.2 / MORR-co 27.1 / MORR-ch 29.4.
 
 ## Phase 2 — Wire into fp_lulc + fire parity gate
-- [ ] Tag `trans_polys` at `03:138→140` when `cfg$disturbance` set; open DB conn inside `fp_lulc` only
-      then (`on.exit(dbDisconnect)`) so offline step-3 is unaffected.
-- [ ] Consume `cfg$change_interval` at `03:45`/`03:82` (replace hardcoded 2017/2023).
-- [ ] Parity: re-run step 3 BULK/MORR w/ fire; transition gains `in_fire`/`fire_year`/`fire_number`;
-      loss-in-fire matches wrapper within ±0.5 ha (in-memory vs re-read tolerance, flagged).
+- [x] Tag `trans_polys` before the transition write when `cfg$disturbance` set; open DB conn only then
+      (explicit disconnect + `on.exit` safety net) so offline step-3 is unaffected.
+- [x] Consume `cfg$change_interval` (fetch years, transition from/to, layer name); `sort()` guards a
+      reversed config.
+- [x] Parity: BULK + MORR step 3 wired → transition carries `in_fire`/`fire_year`/`fire_number`;
+      in_fire loss BULK **103.22** vs 103.2, MORR **27.07** vs 27.1 (both within ±0.5).
 
 ## Phase 3 — Load harvest + add as source + validate multi-source
 - [ ] One-time bc2pg load of `veg_consolidated_cut_blocks_sp` (filter `HARVEST_START_YEAR_CALENDAR >=

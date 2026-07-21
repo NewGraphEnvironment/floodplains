@@ -42,7 +42,11 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
   out_dir <- cfg$dir_out
   fs::dir_create(out_dir)
   ag_classes <- c("Crops", "Rangeland", "Bare Ground")
-  years <- c(2017, 2020, 2023)
+  # Snapshots to fetch: the change-interval endpoints + midpoint. cfg$change_interval is the single
+  # source of truth (also drives the transition from/to and layer name below) so they can't drift.
+  # Default c(2017, 2023) => c(2017, 2020, 2023), unchanged (#19).
+  yrs   <- sort(cfg$change_interval)   # ascending: from=yrs[1], to=yrs[2] (guard a reversed config)
+  years <- sort(unique(c(yrs[1], round(mean(yrs)), yrs[2])))
 
   # Patch-size sieve: drop transition patches smaller than 1.0 ha (100 px at
   # 10 m IO LULC resolution). 0.5 ha (BC VRI minimum mapping unit) and 1.0 ha
@@ -83,7 +87,7 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
                                 tile_size = cfg$tile_size)
   classified_all <- dft_rast_classify(rasters_all, source = "io-lulc")
   trans_all <- dft_rast_transition(
-    classified_all, from = "2017", to = "2023",
+    classified_all, from = as.character(yrs[1]), to = as.character(yrs[2]),
     patch_area_min = patch_min_m2
   )
 
@@ -121,7 +125,7 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
   # never materializing the stable "Trees -> Trees" / "Water -> Water" patches that
   # dominate a large floodplain and OOM the vectorizer. So the post-filter is unneeded.
   if (nrow(trans_all$summary) > 0) {
-    lyr <- paste0("transition_", scenario_id, "_2017_2023")
+    lyr <- paste0("transition_", scenario_id, "_", yrs[1], "_", yrs[2])
     trans_polys <- dft_transition_vectors(
       trans_all$raster,
       zones = subbasins,
@@ -136,6 +140,19 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
     # pre-intersection so patches straddling sub-basin boundaries are
     # double-counted when summed by row.
     trans_polys$area_ha <- as.numeric(sf::st_area(trans_polys)) / 1e4
+
+    # Disturbance attribution (#19): tag each change patch by configured overlay layer, in memory
+    # before the write so the transition layer carries in_<source> + carried attrs. Open a DB conn
+    # ONLY when sources are configured, so offline step-3 runs (no cfg$disturbance) are unaffected.
+    if (!is.null(cfg$disturbance)) {
+      conn <- DBI::dbConnect(RPostgres::Postgres())
+      on.exit(try(DBI::dbDisconnect(conn), silent = TRUE), add = TRUE)  # norm: disconnect even on error
+      trans_polys <- fp_disturbance_tag(trans_polys, cfg$disturbance, conn,
+                                        window = cfg$change_interval)
+      DBI::dbDisconnect(conn)
+      message("  Tagged disturbance: ",
+              paste(vapply(cfg$disturbance, function(s) s$name, character(1)), collapse = ", "))
+    }
 
     sf::st_write(trans_polys, out_lc_gpkg, layer = lyr,
                  append = file.exists(out_lc_gpkg), delete_layer = TRUE, quiet = TRUE)
