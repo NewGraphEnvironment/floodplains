@@ -6,6 +6,13 @@ species: co
 min_order: 3
 schema: morr                   # dedicated persist schema
 primary_scenario: co_ff04      # headline scenario for LULC (03)
+# Publish targets for the STAC layer (stac_floodplains_bc): one item per (species, scenario).
+# MORR is modelled for both coho (ff04) and chinook — chinook's headline LULC extent is ff06,
+# not the ff04 default, so it is declared explicitly. WSGs without `targets` fall back to a
+# single {species, primary_scenario} item, so this is additive and backward compatible.
+targets:
+  - {species: co, scenario: co_ff04}
+  - {species: ch, scenario: ch_ff06}
 # OPEN QUESTION (resolve during the MORR run): does MORR run as the WHOLE watershed group,
 # or is it subset to a reach the way Neexdzii is subset from BULK? Default: whole WSG.
 subset: null
