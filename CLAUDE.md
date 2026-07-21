@@ -27,6 +27,16 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
 - `config/<area>/` — per-area config: `area.yml` + `flood_scenarios.csv` (+ optional `break_points.csv`;
   absent ⇒ whole-WSG single sub-basin = group polygon, present ⇒ interior sub-basins).
 - `config/regions/<region>.yml` — a region = a named set of WSGs + ordered `species` preference.
+- `scripts/floodplain_lcc/fp_disturbance.R` — `fp_disturbance_tag`: config-driven, layer-agnostic
+  disturbance attribution (#19). Step 3 tags each transition patch with the overlay layers in the
+  shared `config/disturbance.yml` (province-wide DataBC layers loaded into fwapg via `bc2pg`):
+  `in_<name>` + carried attrs from the dominant overlapping feature, windowed to `cfg$change_interval`
+  (default 2017–2023). Additive — a patch may match several sources (salvage = fire AND harvest); the
+  residual (matches none) is the classification-noise floor. Opt-in by file presence (no yml ⇒ step 3
+  unchanged, no DB conn). `fire_tag.R` is a thin CLI wrapper to re-tag an existing gpkg without the
+  STAC fetch. **Fire + harvest wired; pest deferred.** Harvest resolves ~30–36% of floodplain tree
+  loss previously in the "noise" bucket (BULK: fire 5% / harvest 36% / residual 62%). The transition
+  layer now carries N disturbance attrs → the STAC schema must too (stac_floodplains_bc#6).
 - `data/<area>/` — outputs (gitignored)
 
 Adding an area = adding `config/<area>/`; no code change. `area.yml` carries `species` (drives

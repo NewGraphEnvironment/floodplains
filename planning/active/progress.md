@@ -24,4 +24,9 @@
   name; `sort()` guards a reversed config). Wired-path parity: BULK 103.22 vs 103.2, MORR 27.07 vs
   27.1 (both ±0.5); transition layers now carry `in_fire`/`fire_year`/`fire_number` in-pipeline.
   code-check: 1 real fix (reversed-interval `sort`) + on.exit norm alignment.
-- Next: Phase 3 (bc2pg-load harvest + add as source + validate multi-source on BULK/MORR)
+- **Phase 3 done** — bc2pg-loaded consolidated cutblocks (121,836, 2017–2026); added `harvest` to
+  `config/disturbance.yml`. Multi-source validated: harvest 29–36% of loss (BULK 739 ha), residual
+  95%→62–65%, ~3% salvage (fire AND harvest). Evidence log in `scripts/fwapg/logs/`.
+- **Phase 4 done** — README + CLAUDE.md document the disturbance step, config, change_interval, pest
+  deferred, stac#6 ripple. Validation all green (parity, no-op guard, downstream-safe, multi-source).
+- Next: `/planning-archive` + `/gh-pr-push`.

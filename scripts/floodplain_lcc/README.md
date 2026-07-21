@@ -70,6 +70,26 @@ The area's `flood_scenarios.csv` must carry the target species' rows (step 2 run
 `species` matches). **Scope:** coexistence is at the data layer (steps 1–3); the zones (04) and
 prioritization (05) steps remain coho-hardwired.
 
+## Disturbance attribution
+
+Step 3 tags each transition (change) patch with the disturbance layers listed in the shared
+`config/disturbance.yml` (province-wide DataBC layers loaded into fwapg via `bc2pg`). Each source
+adds `in_<name>` + carried attributes (e.g. `in_fire` + `fire_year`/`fire_number`, `in_harvest` +
+`harvest_start_year_calendar`) from the dominant overlapping feature, windowed to `change_interval`
+(default 2017–2023, one source of truth also driving the transition years). Attribution is
+**additive** — a patch may match several sources (burned AND salvage-logged) — so the residual
+(matches nothing) is the classification-noise floor. `fp_disturbance.R` holds the routine; the AOI
+bbox is pushed into the SQL server-side so a province-wide layer never streams into R.
+
+Config is opt-in by file presence: no `config/disturbance.yml` ⇒ step 3 runs unchanged (no DB conn,
+no columns). Adding a source is config-only. `scripts/floodplain_lcc/fire_tag.R <area> [scenario]`
+re-tags an existing gpkg (writes a `*_disturbance` layer) without re-running the STAC fetch.
+
+Representative result (Trees→non-Trees loss, BULK co_ff04): fire 5% · harvest 36% · residual 62%.
+**Scope:** fire + harvest wired; pest/forest-health deferred (the config contract already supports
+it via `filter:` + `confidence:`). The transition layer now carries N disturbance attributes → the
+STAC publish schema must carry them (NewGraphEnvironment/stac_floodplains_bc#6).
+
 ## Adding scenarios
 
 Add a row to the area's `flood_scenarios.csv` with the desired parameters and set `run=TRUE`,

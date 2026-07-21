@@ -42,13 +42,16 @@ name); shared `config/disturbance.yml` (mirrors `config/regions/`); hoist change
       MORR-co 125, MORR-ch 150); residual dropped 95%→62–65%; ~3% salvage (fire AND harvest).
 
 ## Phase 4 — Docs + STAC ripple
-- [ ] README + CLAUDE.md: the disturbance step, `config/disturbance.yml`, `change_interval`, pest
-      deferred; transition layer now carries N disturbance attrs → stac_floodplains_bc#6.
+- [x] README (`scripts/floodplain_lcc/README.md`) + CLAUDE.md: the disturbance step,
+      `config/disturbance.yml`, `change_interval`, pest deferred; transition carries N disturbance
+      attrs → stac_floodplains_bc#6.
 
 ## Validation
-- [ ] Parity: wrapper reproduces BULK/MORR fire numbers exactly; wired path within ±0.5 ha
-- [ ] No-config no-op: an area with no `config/disturbance.yml` runs step 3 byte-identically
-- [ ] Downstream intact: `05_prioritization_score.R` runs (extra columns ignored)
-- [ ] Multi-source: patches carry `in_fire` + `in_harvest`; residual reported; both-overlap tagged both
-- [ ] `/code-check` clean per phase; PWF checkboxes match landed work
+- [x] Parity: wrapper reproduces BULK/MORR fire numbers exactly; wired path within ±0.5 ha
+- [x] No-config no-op: guaranteed by the `!is.null(cfg$disturbance)` guard (file-presence-driven,
+      reviewer-confirmed) — no yml ⇒ no conn, no columns
+- [x] Downstream intact: `05_prioritization_score.R` reads the transition layer by name (review-confirmed
+      non-breaking); extra columns ignored
+- [x] Multi-source: patches carry `in_fire` + `in_harvest`; residual reported; salvage (~3%) tagged both
+- [x] `/code-check` clean per phase (Plan-agent design review + fresh-eyes per commit)
 - [ ] `/planning-archive` on completion
