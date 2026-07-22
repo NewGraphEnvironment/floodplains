@@ -23,6 +23,7 @@
 # before any new area's numbers are trusted.
 
 # --- fp_read_config: area name -> one cfg list carrying everything the steps need ---
+`%||%` <- function(a, b) if (is.null(a)) b else a   # base R ships %||% only >= 4.4.0; define locally
 fp_read_config <- function(area) {
   cfg_dir <- here::here("config", area)
   if (!dir.exists(cfg_dir)) {
@@ -80,6 +81,13 @@ fp_read_config <- function(area) {
   # lnk_stamp sidecar records the override. FP_NETWORK_GUARD overrides at runtime.
   env_guard <- Sys.getenv("FP_NETWORK_GUARD", "")
   if (nzchar(env_guard)) cfg$network_guard <- env_guard
+  # change_interval: the [from, to] years the LULC transition (03) is measured over, and the default
+  # window for disturbance attribution — one source of truth so the two can never drift (#19).
+  cfg$change_interval <- cfg$change_interval %||% c(2017L, 2023L)
+  # disturbance: shared province-wide sources (config/disturbance.yml) for tagging change patches by
+  # overlay layer (fire, harvest, …). Absent => NULL => 03 skips tagging (behaviour unchanged) (#19).
+  dst_path <- here::here("config", "disturbance.yml")
+  cfg$disturbance <- if (file.exists(dst_path)) yaml::read_yaml(dst_path)$sources else NULL
   cfg
 }
 
@@ -98,6 +106,7 @@ source(file.path(lcc_dir, "fp_region.R"))          # fp_wsg_subbasin (whole-WSG 
 source(file.path(lcc_dir, "01_network_extract.R"))
 source(file.path(lcc_dir, "02_floodplain_model.R"))
 source(file.path(lcc_dir, "03_lulc_classify.R"))
+source(file.path(lcc_dir, "fp_disturbance.R"))     # fp_disturbance_tag (config-driven attribution)
 
 # --- Resolve config ---
 cfg <- fp_read_config(area)
