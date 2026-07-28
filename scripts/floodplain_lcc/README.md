@@ -15,9 +15,7 @@ arguments. Adding a new area is adding `config/<area>/`; the code does not chang
 | 2 | `02_floodplain_model.R` | `fp_floodplain(cfg, scenarios = "run")` | flooded | Sub-basins + VCA floodplain at each selected flood_factor scenario |
 | 3 | `03_lulc_classify.R` | `fp_lulc(cfg, scenario = cfg$primary_scenario)` | drift | Classify land cover + transition (tree loss / ag expansion) within the floodplain |
 
-`04_lulc_zones.R` (zone-stratified LULC — a sketch) and `05_prioritization_score.R`
-(sub-basin prioritization — carries absolute machine/OneDrive paths) are **not yet generalized**
-and are **not wired into `run_area.R`**. Deferred to a later issue.
+Zone-stratified LULC and sub-basin prioritization are possible future steps — not yet built.
 
 Steps 1–2 need the fwapg database — see [Prerequisite — fwapg database](../README.md). The DEM
 comes from the national MRDEM-30 via `flooded::fl_dem_aoi()`; LULC imagery from the Microsoft
@@ -67,8 +65,8 @@ FP_SPECIES=ch FP_PRIMARY_SCENARIO=ch_ff06 Rscript scripts/run_area.R morr 1,2,3
 ```
 
 The area's `flood_scenarios.csv` must carry the target species' rows (step 2 runs only rows whose
-`species` matches). **Scope:** coexistence is at the data layer (steps 1–3); the zones (04) and
-prioritization (05) steps remain coho-hardwired.
+`species` matches). **Scope:** coexistence is at the data layer (steps 1–3); zone-stratified LULC
+and prioritization are future work, not yet built.
 
 ## Disturbance attribution
 

@@ -76,8 +76,8 @@ Neexdzii parity holds exactly.
 - **Published**: watershed groups staged to the `stac_floodplains_bc` STAC collection
   (`images.a11s.one`).
 
-Deferred: the zones (`04`) and prioritization (`05`) steps remain coho-hardwired; pest/forest-health
-as a disturbance source; patch-level field QA of the classification.
+Not yet built: zone-stratified LULC and sub-basin prioritization steps; pest/forest-health as a
+disturbance source; patch-level field QA of the classification.
 
 ## Prerequisites (when running)
 
@@ -90,7 +90,7 @@ as a disturbance source; patch-level field QA of the classification.
 
 ## Roadmap
 
-- [ ] Generalize the zones (`04`) + prioritization (`05`) steps beyond coho
+- [ ] Add zone-stratified LULC + sub-basin prioritization steps
 - [ ] Add pest/forest-health as a disturbance source (config contract already supports it)
 - [ ] Patch-level (exploded) classified output + field accuracy assessment (confusion matrix)
 - [ ] Per-area reporting consumes published outputs instead of re-modelling
