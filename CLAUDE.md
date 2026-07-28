@@ -14,7 +14,7 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
 
 - `scripts/floodplain_lcc/01-03` — the generalized pipeline. Each defines one config-driven step
   function taking a single `cfg`: `fp_network(cfg)` (01), `fp_floodplain(cfg)` (02), `fp_lulc(cfg)`
-  (03). `04-05` (zones sketch, prioritization) are NOT generalized/wired — deferred.
+  (03). Zone-stratified LULC + sub-basin prioritization are possible future steps — not yet built.
 - `scripts/run_area.R` — top-level runner: `Rscript scripts/run_area.R <area> [steps]`. Builds one
   `cfg` via `fp_read_config(area)` and dispatches the step functions. Steps default `1,2,3`.
 - `scripts/run_areas.sh` — thin multi-area loop (per-area soft-fail + timestamped logs).
@@ -49,7 +49,7 @@ per-layer (`append=file.exists + delete_layer=TRUE`, no whole-file wipe), so a s
 alongside the first without destroying it. Run a non-default species via env overrides (no config
 edit): `FP_SPECIES=ch FP_PRIMARY_SCENARIO=ch_ff06 Rscript scripts/run_area.R <area>` — the area's
 `flood_scenarios.csv` must carry that species' rows (step 2 runs only rows whose `species` matches).
-Coexistence is data-layer only (steps 01/02/03); zones (04) + prioritization (05) stay coho-hardwired.
+Coexistence is data-layer only (steps 01/02/03).
 
 ## Areas
 
