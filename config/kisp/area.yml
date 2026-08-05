@@ -1,0 +1,17 @@
+# Kispiox River watershed group (KISP) — WHOLE WSG, chinook.
+# First area generated after the item-key change (#30), so its layers carry wsg/species/scenario
+# natively (no backfill) — the end-to-end test that a brand-new area lands correctly all the way
+# through to the STAC publish layer.
+#
+# Chinook is well modelled here: 4,458 access_ch segments at order >= 3 in fresh.streams_vw_bcfp.
+# primary_scenario is ch_ff04 (functional floodplain) — the catalog-standard headline extent, unlike
+# MORR chinook which deliberately uses ff06.
+name: kisp
+watershed_group: KISP          # link aoi — whole group
+species: ch
+min_order: 3
+schema: kisp                   # dedicated persist schema
+primary_scenario: ch_ff04      # headline scenario for LULC (03)
+subset: null                   # whole WSG — the FWA group polygon is the single sub-basin
+# flood_scenarios.csv carries the chinook scenario set (ch_ff02/04/06 run=TRUE).
+# No break_points.csv — whole-WSG single sub-basin.

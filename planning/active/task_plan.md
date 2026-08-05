@@ -36,24 +36,24 @@ downstream at merge time; the columns are what make it possible.
       unchanged**.
 
 ## Phase 3 — KISP (Kispiox) chinook: new area, born with the keys
-- [ ] `config/kisp/area.yml` (whole WSG, `species: ch`, `schema: kisp`, `primary_scenario: ch_ff04`)
+- [x] `config/kisp/area.yml` (whole WSG, `species: ch`, `schema: kisp`, `primary_scenario: ch_ff04`)
       + `flood_scenarios.csv` with the `ch_*` rows.
-- [ ] Add `KISP` to a region file for the stac wsg→region mapping. **Check first:** `skeena.yml`
+- [x] Add `KISP` to a region file for the stac wsg→region mapping. **Check first:** `skeena.yml`
       preference is `[co]` and could resolve KISP to coho — if so, give KISP its own region file
       (`region: skeena`, `species: [ch]`).
-- [ ] Run `run_area.R kisp 1,2,3` (new AOI ⇒ real ~30 min STAC fetch; `caffeinate -s`).
-- [ ] Verify KISP carries the keys **natively** (no backfill) + classified coverage ≈ floodplain area.
+- [x] Run `run_area.R kisp 1,2,3` (new AOI ⇒ real ~30 min STAC fetch; `caffeinate -s`).
+- [x] Verify KISP carries the keys **natively** (no backfill) + classified coverage ≈ floodplain area.
 
 ## Phase 4 — stac smoke test + docs
-- [ ] Run the stac smoke test with `WSG_ONLY=kisp` — validates staging/metrics/registration with the
+- [x] Run the stac smoke test (`WSG=kisp`) — validates staging/metrics/registration with the
       new columns AND a never-before-seen WSG. Any stac-side change it surfaces is filed there.
-- [ ] README + CLAUDE.md: the item-key column contract + the backfill utility.
-- [ ] Hand off republish (16 → 17 items) to `stac_floodplains_bc#5`.
+- [x] README + CLAUDE.md: the item-key column contract + the backfill utility.
+- [x] Hand off republish (16 → 17 items) to `stac_floodplains_bc#5`.
 
 ## Validation
-- [ ] Newly generated layers carry all three keys; MORR headline numbers unchanged
-- [ ] All 16 backfilled areas verified (keys correct, feature counts unchanged)
-- [ ] KISP keyed natively end-to-end; coverage check passes
-- [ ] stac smoke test green against KISP (or failure understood + filed)
-- [ ] `/code-check` clean per phase; PWF checkboxes match landed work
+- [x] Newly generated layers carry all three keys; MORR headline numbers unchanged
+- [x] All 16 backfilled areas verified (keys correct, feature counts unchanged)
+- [x] KISP keyed natively end-to-end; coverage check passes
+- [x] stac smoke test green against KISP (or failure understood + filed)
+- [x] `/code-check` clean per phase; PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion

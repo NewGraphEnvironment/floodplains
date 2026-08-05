@@ -31,7 +31,18 @@ The **method lives in the packages** (`link`, `flooded`, `drift`, `fresh`); this
   `co_ff04`/`ch_ff06`), so e.g. MORR carries both coho and chinook in one `data/morr/` without
   either overwriting the other. Run a non-default species with `FP_SPECIES=…`.
 - **Regions batch a set of groups.** `config/regions/<region>.yml` runs many WSGs with a species
-  preference: `fraser` (chinook), `peace` (bull trout), `skeena` (coho).
+  preference: `fraser` (chinook), `peace` (bull trout), `skeena` (coho / `skeena_ch` chinook). The
+  publish layer derives its WSG→region map from these files, so a group added here is visible
+  downstream with no change there. A region file carries **one** species preference and
+  `run_region.R` writes each group's `area.yml` from it — so a group of a different species needs
+  its own region file (same `region:` label), not an entry in an existing one.
+- **Every published layer carries the item key** — `wsg`, `species`, `scenario` — mirroring the STAC
+  item id (`morr_ch_ff06`). The same key is a STAC *property* (to select items) and a gpkg *column*
+  (to separate rows once merged), so many areas fetch-and-append into one gpkg and stay separable by
+  attribute. Layer names stay producer-keyed (`classified_ch_ff06_2017`) because that is what lets
+  two species coexist in one gpkg; flattening to generic layers happens downstream at merge time, so
+  adding an area or species never touches a QGIS project. Pre-existing outputs are migrated with
+  `scripts/floodplain_lcc/gpkg_backfill-wsg.R <area>` (idempotent).
 - **Disturbance attribution is layer-agnostic.** `config/disturbance.yml` lists overlay layers
   (fire, harvest) that tag each change patch; the residual (matches none) is the
   classification-noise floor. Adding a source is config-only.
