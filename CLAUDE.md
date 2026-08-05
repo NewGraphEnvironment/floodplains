@@ -27,6 +27,18 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
 - `config/<area>/` — per-area config: `area.yml` + `flood_scenarios.csv` (+ optional `break_points.csv`;
   absent ⇒ whole-WSG single sub-basin = group polygon, present ⇒ interior sub-basins).
 - `config/regions/<region>.yml` — a region = a named set of WSGs + ordered `species` preference.
+  `run_region.R` **writes** each group's `area.yml` from the region file (`run_region.R:95-98`), so a
+  group whose species differs from the region's preference needs its **own** region file with the
+  same `region:` label (e.g. `skeena_ch.yml` for KISP chinook) — listing it in an existing one would
+  clobber its `area.yml`. The publish layer derives its WSG→region roster from these files.
+- **Item key on every published layer (#30):** `wsg`, `species`, `scenario` — mirroring the STAC item
+  id. The same key is a STAC *property* (select items) and a gpkg *column* (separate rows after
+  merge), so many areas fetch-and-append into one gpkg and stay separable by attribute; adding an
+  area/species never touches a QGIS project. Written at generation time in 02 (scenario delineation
+  layers) and 03 (classified + transition). Layer names stay producer-keyed — generic names inside a
+  per-area gpkg would collide across species and undo #23's per-layer replace; flattening to generic
+  layers is a **downstream merge-time** concern. `scripts/floodplain_lcc/gpkg_backfill-wsg.R <area>`
+  migrates pre-existing outputs (idempotent **by value**, so a re-run repairs a wrong value).
 - `scripts/floodplain_lcc/fp_disturbance.R` — `fp_disturbance_tag`: config-driven, layer-agnostic
   disturbance attribution (#19). Step 3 tags each transition patch with the overlay layers in the
   shared `config/disturbance.yml` (province-wide DataBC layers loaded into fwapg via `bc2pg`):

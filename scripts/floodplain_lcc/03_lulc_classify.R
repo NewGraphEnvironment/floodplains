@@ -115,6 +115,12 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
   for (yr in names(classified_all)) {
     lyr <- paste0("classified_", scenario_id, "_", yr)
     polys <- terra::as.polygons(classified_all[[yr]]) |> sf::st_as_sf()
+    # Item key (#30): every published layer carries wsg + species + scenario, mirroring the STAC
+    # item id (<wsg>_<species>_<scenario>). Layer names stay producer-keyed; these columns are what
+    # let many areas merge into one gpkg downstream and stay separable by attribute.
+    polys$wsg      <- cfg$watershed_group
+    polys$species  <- cfg$species
+    polys$scenario <- scenario_id
     sf::st_write(polys, out_lc_gpkg, layer = lyr, append = file.exists(out_lc_gpkg),
                  delete_layer = TRUE, quiet = TRUE)
     message("  Layer: ", lyr)
@@ -153,6 +159,11 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
       message("  Tagged disturbance: ",
               paste(vapply(cfg$disturbance, function(s) s$name, character(1)), collapse = ", "))
     }
+
+    # Item key (#30) — set after disturbance tagging so the keys sit alongside the tagged columns.
+    trans_polys$wsg      <- cfg$watershed_group
+    trans_polys$species  <- cfg$species
+    trans_polys$scenario <- scenario_id
 
     sf::st_write(trans_polys, out_lc_gpkg, layer = lyr,
                  append = file.exists(out_lc_gpkg), delete_layer = TRUE, quiet = TRUE)

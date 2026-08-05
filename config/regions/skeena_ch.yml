@@ -1,0 +1,12 @@
+# Skeena region — CHINOOK groups. Split from skeena.yml because a region file carries ONE ordered
+# species preference and `run_region.R` WRITES config/<wsg>/area.yml from it (run_region.R:95-98):
+# listing a chinook group under skeena.yml (`species: [co]`) would overwrite its area.yml with coho.
+#
+# `region: skeena` is deliberately the SAME label as skeena.yml — the region string is what the
+# publish layer maps a WSG to (stac_floodplains_bc 01_stage.R derives its wsg->region roster from
+# these files), so KISP publishes as a Skeena item alongside BULK/MORR.
+region: skeena
+mergin_project: TBD              # doc-only; set when a Skeena field project exists
+min_order: 3
+species: [ch]                    # chinook
+watershed_groups: [KISP]         # Kispiox River
