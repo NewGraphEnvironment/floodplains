@@ -155,6 +155,11 @@ fp_floodplain <- function(cfg, scenarios = "run") {
     # --- Write outputs ---
     out_raster <- file.path(out_dir, paste0("floodplain_", sc$scenario_id, ".tif"))
     terra::writeRaster(valleys, out_raster, overwrite = TRUE)
+    # Item key (#30): scenario-layer names (co_ff04, ch_ff04) are identical across every area, so
+    # these columns are the only way a merged multi-area floodplain.gpkg stays separable.
+    valleys_poly$wsg      <- cfg$watershed_group
+    valleys_poly$species  <- cfg$species
+    valleys_poly$scenario <- sc$scenario_id
     sf::st_write(valleys_poly, out_gpkg, layer = sc$scenario_id,
                  append = file.exists(out_gpkg), delete_layer = TRUE, quiet = TRUE)
     message("  Saved: ", basename(out_raster), " + layer ", sc$scenario_id, " in ", basename(out_gpkg))

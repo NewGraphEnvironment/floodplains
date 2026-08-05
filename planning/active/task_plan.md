@@ -18,21 +18,21 @@ downstream at merge time; the columns are what make it possible.
 `subbasins.gpkg` is not published → out of scope.
 
 ## Phase 1 — Write the item key at generation time (02 + 03)
-- [ ] `03_lulc_classify.R`: set `wsg`/`species`/`scenario` on `polys` before the classified
+- [x] `03_lulc_classify.R`: set `wsg`/`species`/`scenario` on `polys` before the classified
       `st_write` (per-year loop) and on `trans_polys` before the transition `st_write` (after the
       disturbance tagging).
-- [ ] `02_floodplain_model.R`: same three columns on `valleys_poly` before the scenario-layer
+- [x] `02_floodplain_model.R`: same three columns on `valleys_poly` before the scenario-layer
       `st_write`, using `sc$scenario_id`.
-- [ ] Verify: `run_area.R morr 2,3` off cached rasters; every layer in both gpkgs carries
+- [x] Verify: `run_area.R morr 2,3` off cached rasters; every layer in both gpkgs carries
       `wsg="MORR"` + correct `species`/`scenario`.
-- [ ] Assert headline numbers unchanged (MORR co_ff04: 411.1 km², 433.8 ha).
+- [x] Assert headline numbers unchanged (MORR co_ff04: 411.1 km², 433.8 ha).
 
 ## Phase 2 — Backfill the 16 existing areas
-- [ ] `scripts/floodplain_lcc/gpkg_backfill-wsg.R <area>` — both gpkgs, add missing key columns,
+- [x] `scripts/floodplain_lcc/gpkg_backfill-wsg.R <area>` — both gpkgs, add missing key columns,
       idempotent, values from `config/<area>/area.yml` + layer name.
-- [ ] Prove in-place layer replace is safe on a **copy** first; else temp-gpkg-and-swap.
-- [ ] Run over all 16 areas.
-- [ ] Verify: every layer, both gpkgs, all 16 areas — correct non-NA keys, **feature counts
+- [x] Prove in-place layer replace is safe on a **copy** first; else temp-gpkg-and-swap.
+- [x] Run over all 16 areas.
+- [x] Verify: every layer, both gpkgs, all 16 areas — correct non-NA keys, **feature counts
       unchanged**.
 
 ## Phase 3 — KISP (Kispiox) chinook: new area, born with the keys
