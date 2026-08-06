@@ -29,4 +29,4 @@ Verified: all four helper branches unit-checked (prints on steps 2/3, silent on 
 when suppressed, multi-area batch), and confirmed in situ after a real `run_area.R morr 3` (0 errors).
 floodplains retains no executable dependency on stac — the hook is a message, nothing more.
 
-Closed by: PR #33
+Closed by: PR #34
