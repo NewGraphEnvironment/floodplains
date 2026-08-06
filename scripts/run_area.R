@@ -102,6 +102,7 @@ if (is.na(area)) stop("usage: Rscript scripts/run_area.R <area> [steps]", call. 
 update_packages <- FALSE
 source(here::here("scripts", "packages.R"))
 lcc_dir <- here::here("scripts", "floodplain_lcc")
+source(here::here("scripts", "publish_hint.R"))    # fp_publish_hint (advisory publish handoff)
 source(file.path(lcc_dir, "fp_region.R"))          # fp_wsg_subbasin (whole-WSG sub-basin)
 source(file.path(lcc_dir, "01_network_extract.R"))
 source(file.path(lcc_dir, "02_floodplain_model.R"))
@@ -130,3 +131,6 @@ if ("3" %in% steps) {
 }
 
 message("\nDone: ", cfg$name, " (steps ", paste(steps, collapse = ","), ").")
+
+# Advisory publish handoff (#32) — prints the stac release sequence; does not run it.
+fp_publish_hint(cfg$name, steps)

@@ -50,6 +50,14 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   loss previously in the "noise" bucket (BULK: fire 5% / harvest 36% / residual 62%). The transition
   layer now carries N disturbance attrs → the STAC schema must too (stac_floodplains_bc#6).
 - `data/<area>/` — outputs (gitignored)
+- `scripts/publish_hint.R` — `fp_publish_hint()`: after a run producing publishable outputs (steps 2
+  or 3) the runners print the stac release sequence (`run_pipeline.sh` rebuild → `catalogue_release.sh`
+  publish; order matters, releasing without rebuilding ships a stale catalogue). `run_region` sets
+  `FP_NO_PUBLISH_HINT=1` for its per-WSG children and prints once for the batch (#32).
+  **Do NOT wire this repo to call the publish layer.** The coupling is deliberately one-way —
+  `stac_floodplains_bc` PULLS from `$FLOODPLAINS_DATA`; floodplains knows nothing about it beyond
+  that printed message. Shelling out to the sibling repo would make the dependency circular and
+  break the layering (a driver reaching into the publish layer). The hook is advisory by design.
 
 Adding an area = adding `config/<area>/`; no code change. `area.yml` carries `species` (drives
 `access_<species>` in 01 — `co`, `ch`, …), `watershed_group`, `min_order`, `schema`,

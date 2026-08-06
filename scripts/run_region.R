@@ -19,6 +19,10 @@
 # Prints and writes a coverage summary (data/logs/region_<region>_<ts>.csv).
 
 suppressMessages({library(here); library(yaml); library(readr); library(fs); library(sf)})
+source(here::here("scripts", "publish_hint.R"))    # fp_publish_hint (advisory publish handoff)
+# run_area is invoked per-WSG as a subprocess and inherits this env, so the child stays quiet and
+# the batch prints ONE hint at the end instead of one per group (8x for Fraser) (#32).
+Sys.setenv(FP_NO_PUBLISH_HINT = "1")
 sf::sf_use_s2(FALSE)
 `%||%` <- function(a, b) if (is.null(a)) b else a
 
@@ -153,3 +157,9 @@ message("\n=== Region ", region, " coverage ===")
 print(summ, row.names = FALSE)
 ok <- sum(summ$status %in% c("ok", "ok(cached)"))
 message(sprintf("\n%d/%d groups have a floodplain. Summary: %s", ok, nrow(summ), csv))
+
+# One hint for the whole batch — the children were suppressed above. Unset first so this call
+# prints even though the child-suppression flag is still set in this process (#32).
+Sys.unsetenv("FP_NO_PUBLISH_HINT")
+published <- summ$wsg[summ$status %in% c("ok", "ok(cached)")]
+if (length(published)) fp_publish_hint(tolower(published))
