@@ -90,6 +90,28 @@ Neexdzii parity holds exactly.
 Not yet built: zone-stratified LULC and sub-basin prioritization steps; pest/forest-health as a
 disturbance source; patch-level field QA of the classification.
 
+## Publishing
+
+Modelling and publishing are separate repos, and the dependency points **one way**: the publish
+layer ([`stac_floodplains_bc`](https://github.com/NewGraphEnvironment/stac_floodplains_bc)) reads
+this repo's `data/` (`$FLOODPLAINS_DATA`); this repo knows nothing about it beyond the reminder a run
+prints. After generating products:
+
+```
+cd ../stac_floodplains_bc
+bash scripts/run_pipeline.sh        # rebuild data/stac from the new outputs
+bash scripts/catalogue_release.sh   # validate -> sync -> register -> verify
+```
+
+Order matters — the release publishes whatever `run_pipeline.sh` last built, so releasing without
+rebuilding ships a stale catalogue. Both are idempotent (the sync skips unchanged objects, the
+register upserts), so re-running is safe. Removing or re-deriving a watershed's products is
+registry-driven via that repo's `scripts/item_unregister.sh`. The whole lifecycle is repo-owned —
+no server-side incantation.
+
+`run_area.R` / `run_region.R` print this sequence when a run produced publishable outputs (steps 2
+or 3); `FP_NO_PUBLISH_HINT=1` silences it.
+
 ## Prerequisites (when running)
 
 - Local `fwapg` PostgreSQL (standard libpq env vars) — steps 01/02 and disturbance attribution
