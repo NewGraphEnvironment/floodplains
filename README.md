@@ -77,18 +77,22 @@ floodplains/
 The pipeline (steps 1–3) is generalized and config-driven; `run_area.R` / `run_region.R` work;
 Neexdzii parity holds exactly.
 
-- **16 watershed groups modelled** across three regions — Fraser (chinook: LCHL, LSAL, WILL, TABR,
+- **17 watershed groups modelled** across three regions — Fraser (chinook: LCHL, LSAL, WILL, TABR,
   UFRA, NECR, MORK, FRAN — 3,366 km² floodplain, 15,022 ha gross tree loss 2017→2023), Peace (bull
-  trout: PCEA, PARS, PINE), Skeena (coho: BULK, MORR) — plus the `neexdzii` parity fixture.
+  trout: PCEA, PARS, PINE), Skeena (coho: BULK, MORR; chinook: KISP) — plus the `neexdzii` parity
+  fixture.
 - **Multiple species per area** (MORR carries coho + chinook side by side).
+- **Every published layer carries the item key** (`wsg`, `species`, `scenario`), so many areas merge
+  into one gpkg and stay separable by attribute.
 - **Disturbance attribution** wired: fire + harvest overlays tag every change patch. Result: roughly
   a third of floodplain tree loss is attributable **cutblocks** (BULK: fire 5% / harvest 36% /
   residual 62%) — previously buried in a "conversion/noise" bucket.
-- **Published**: watershed groups staged to the `stac_floodplains_bc` STAC collection
-  (`images.a11s.one`).
+- **Published**: **17 items live** in the `stac_floodplains_bc` STAC collection (`images.a11s.one`),
+  keyed by `wsg`/`species`/`scenario`; the release is repo-owned and one-command.
 
 Not yet built: zone-stratified LULC and sub-basin prioritization steps; pest/forest-health as a
-disturbance source; patch-level field QA of the classification.
+third disturbance source (#35); patch-level field QA of the classification (#27); per-area run
+provenance (#33).
 
 ## Publishing
 
