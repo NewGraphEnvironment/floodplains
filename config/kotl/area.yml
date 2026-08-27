@@ -1,0 +1,8 @@
+name: kotl
+watershed_group: KOTL
+species: bt
+min_order: 3
+schema: kotl
+primary_scenario: bt_ff04
+network_source: fresh_default
+network_guard: warn

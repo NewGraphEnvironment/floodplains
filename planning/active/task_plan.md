@@ -10,13 +10,13 @@ first species with any access, not the best, so `wct` never fires — documented
 **through publish**, since the collection extent is the stated problem.
 
 ## Phase 1 — Region + area configs
-- [ ] `run_region.R`: pass `network_source` / `network_guard` from the region yml into the
+- [x] `run_region.R`: pass `network_source` / `network_guard` from the region yml into the
       generated `area.yml` (it currently writes neither, so a region can only BUILD)
-- [ ] Write `config/regions/columbia.yml` — bt/wct preference, GRAB from `fresh_default`,
+- [x] Write `config/regions/columbia.yml` — bt/wct preference, GRAB from `fresh_default`,
       guard `warn`, with the barrier history and the guard-calibration finding in the header
-- [ ] `DRY=1 Rscript scripts/run_region.R columbia` — verify pre-pass resolves **bt** for all
+- [x] `DRY=1 Rscript scripts/run_region.R columbia` — verify pre-pass resolves **bt** for all
       three with zero SKIPs, and the generated `area.yml`s carry species/scenario/source
-- [ ] `/code-check` + commit
+- [x] `/code-check` + commit
 
 ## Phase 2 — Run the region
 - [ ] `caffeinate -s Rscript scripts/run_region.R columbia` (steps 1,2,3), resumable
