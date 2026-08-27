@@ -167,3 +167,30 @@ shape everywhere.
 
 KOTL tracks the BULK baseline closely; LARL is more fire-weighted and less harvest-driven. Neither
 is anomalous, so the attribution is behaving on a region it has never seen.
+
+## Results — columbia region, bt_ff04 (2026-08-27)
+
+All three groups pass both gates: 0 in-band error markers, and every output newer than the
+run-start marker. Coverage CSV: `data/logs/region_columbia_20260827_190638.csv`.
+
+| WSG | network km | floodplain km2 | classified coverage | water % | trees ha | tree loss ha | loss % of treed | fire | harvest | residual |
+|---|---|---|---|---|---|---|---|---|---|---|
+| KOTL | 1,968.8 | 707.8 | 101.2% | 65.6 | 10,593 | 641.7 | 6.1% | 3.0% | 33.4% | 63.7% |
+| LARL | 1,112.4 | 306.9 | 102.7% | 74.2 | 5,994 | 204.5 | 3.4% | 8.9% | 21.2% | 72.4% |
+| SLOC | 729.5 | 129.6 | 104.3% | 60.8 | 3,949 | 110.3 | 2.8% | 0.0% | 1.3% | 98.7% |
+
+Classified coverage is 101–104% of the delineated floodplain — 10 m cells straddling the polygon
+edge, so the "scales on small AOIs, breaks on large ones" failure class did **not** recur, even on
+KOTL at 936,950 ha (the largest group run to date).
+
+**SLOC's 98.7% residual is real, not a failure.** Checked directly: only **15 cutblocks / 4.6 ha**
+of 2017-2023 harvest fall inside the SLOC `bt_ff04` floodplain, against 89 blocks / 242.2 ha for
+KOTL. The issue body predicted exactly this — Slocan valley-bottom harvest is 56 blocks / 277 ha
+"peaking in the 1980s", well outside the change window. The attribution is correctly reporting that
+recent logging is not the driver there; a residual that size would be alarming anywhere it was not
+independently explained, so it was verified rather than assumed.
+
+**All three groups are lake/reservoir-dominated** (Kootenay Lake, Lower Arrow reservoir, Slocan
+Lake) at 61-74% open water. Strong support for #38 — raw `gross_loss_ha` across these and a
+river-dominated group is not a like-for-like comparison, whereas "loss % of treed" separates them
+cleanly (6.1 / 3.4 / 2.8%).

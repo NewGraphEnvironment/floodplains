@@ -19,19 +19,19 @@ first species with any access, not the best, so `wct` never fires — documented
 - [x] `/code-check` + commit
 
 ## Phase 2 — Run the region
-- [ ] `caffeinate -s Rscript scripts/run_region.R columbia` (steps 1,2,3), resumable
-- [ ] Gate every group on BOTH in-band error markers (`Execution halted|Error:` count 0) AND
+- [x] `caffeinate -s Rscript scripts/run_region.R columbia` (steps 1,2,3), resumable
+- [x] Gate every group on BOTH in-band error markers (`Execution halted|Error:` count 0) AND
       `lulc_summary.rds` mtime newer than a run-start marker — a wrapper's exit 0 is not success
-- [ ] Verify LULC classified coverage ≈ floodplain area per group (the "scales on small AOIs,
+- [x] Verify LULC classified coverage ≈ floodplain area per group (the "scales on small AOIs,
       breaks on large ones" failure class). **KOTL at 936,950 ha is the largest group run to
       date** (BULK, previous largest, is 776,201 ha)
-- [ ] KOTL contingency: on stall/OOM use `FP_TILE_SIZE=` + `run_area.R`, never a hand-edited
+- [x] KOTL contingency: on stall/OOM use `FP_TILE_SIZE=` + `run_area.R`, never a hand-edited
       `area.yml` (run_region rewrites it every invocation)
 
 ## Phase 3 — Report coverage + attribution
-- [ ] Per group: network km, floodplain `bt_ff04` km², tree loss ha, fire/harvest/residual split
-- [ ] Cross-check the split against the BULK baseline (fire 5% / harvest 36% / residual 62%)
-- [ ] Confirm the item key (`wsg`, `species`, `scenario`) is native on the new layers
+- [x] Per group: network km, floodplain `bt_ff04` km², tree loss ha, fire/harvest/residual split
+- [x] Cross-check the split against the BULK baseline (fire 5% / harvest 36% / residual 62%)
+- [x] Confirm the item key (`wsg`, `species`, `scenario`) is native on the new layers
 
 ## Phase 4 — Publish
 - [ ] stac two-step: `run_pipeline.sh` then `catalogue_release.sh` (order matters)
