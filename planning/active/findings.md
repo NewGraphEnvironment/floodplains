@@ -101,3 +101,28 @@ extension — no `link_version`, no `config_hash`, no run date. That gap is floo
 (producer) + stac#17 (publisher), both open. The new log tables make them substantially cheaper:
 three scalar properties joinable from the DB at stage time on a key the items already carry.
 Out of scope here — recorded so #33/stac#17 can be re-scoped against it.
+
+## Related issues — what this run changes for each
+
+| issue | relevance | what Columbia changes |
+|---|---|---|
+| **floodplains#36** | this work | closes it |
+| **stac#6** — carry disturbance attribution into the STAC schema | **direct** | Its "current upstream state" says *"Only BULK and MORR have either; the other 15 groups have neither."* `config/disturbance.yml` is present, so KOTL/LARL/SLOC get `_disturbance` layers natively — coverage moves **2 of 17 → 5 of 20**. Still gated on uniformity (#35), but both numbers in the gate move. |
+| **floodplains#35** — pest as a third source, re-run across all areas | **direct** | Title literally encodes *"(2 of 17 today)"* → becomes **5 of 20**, and the re-run scope grows by three groups. |
+| **floodplains#33** ↔ **stac#17** — run provenance | **direct** | link 0.45.1's `log` / `log_parameters_fresh` / `log_dimensions` / `log_input` tables now exist, keyed `watershed_group_code`. Three scalar properties (`link_version`, `config_hash`, `date_end`) are joinable at stage time on a key the items already carry — no new producer plumbing. Also: `lnk_stamp` stamps the **working-tree** config, so on a GRAB run the sidecar is aspirational and the DB log is the only authoritative record. That is an accuracy bug in the stamp, not just a missing feature. |
+| **stac#19** — versioned catalogue releases | **moderate** | This release changes the collection's **spatial extent** (north-only → statewide-south past 49.5 N). That is exactly the class of change a version stamp + NEWS entry exists to record for consumers with cached extent assumptions. |
+| **floodplains#3** — scale to multi-WSG + publish (pilot: Fraser) | **closing** | Columbia is the fourth region; the umbrella is fully delivered at 20 items. Close-or-rescope. |
+| **floodplains#20** — transition params as config | **weak but real** | KOTL's floodplain is **65.6% open water** (Kootenay Lake). Fixed `patch_area_min` / class handling tuned on river-dominated groups may not suit lake-dominated ones. |
+
+### New issue candidates surfaced by this work (not filed — user's call)
+
+1. **GRAB freshness tolerance is mis-calibrated.** `fp_network`'s guard defaults to 2% against the
+   bcfp reference, but across all 49 groups in both schemas the `default` bundle runs a median
+   **+0.7%** over bcfp with an IQR of +0.1–2.6% and a range of −15.5% to +161%. A quarter of all
+   groups would trip a strict guard against a perfectly fresh source, so every region adopting
+   GRAB will need `warn` — which blunts the guard everywhere rather than fixing it. Wants either a
+   calibrated default, a per-group expected-divergence baseline, or comparison against the source
+   schema's own log rather than bcfp.
+2. **Loss figures need a treed-area denominator.** KOTL is 14.8% trees and 65.6% water; SLOC will
+   be river-dominated. Raw `gross_loss_ha` compared across groups is misleading — loss as a share
+   of treed floodplain is the honest cross-group statistic. Touches stac#6's property design.
