@@ -1,0 +1,8 @@
+name: larl
+watershed_group: LARL
+species: bt
+min_order: 3
+schema: larl
+primary_scenario: bt_ff04
+network_source: fresh_default
+network_guard: warn

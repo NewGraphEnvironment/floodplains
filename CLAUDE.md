@@ -88,8 +88,28 @@ upstream of the mainstem outlet over-shoots a tributary group 2–40× (only hea
 MORR/UFRA happened to work). Interior sub-basin delineation is deferred. Pick species by which
 `access_<species>` column the fwapg schema populates — the region pre-pass does this automatically.
 
-**Fraser region** (`sern_fraser_2024`, chinook): all 8 WSGs run — LCHL, LSAL, WILL, TABR, UFRA,
-NECR, MORK, FRAN — 3,366 km² total floodplain, 15,022 ha gross tree loss (2017→2023).
+**Fraser region** (`sern_fraser_2024`, chinook): LCHL, LSAL, WILL, TABR, UFRA, NECR, MORK, FRAN
+(3,366 km² total floodplain, 15,022 ha gross tree loss 2017→2023) plus BOWR and MCGR — 10 groups.
+
+**Columbia region** (`columbia.yml`, **bull trout**): KOTL 707.8 km², LARL 306.9, SLOC 129.6 at
+`bt_ff04`. ch/co/st/salmon are unmodelled here — verified empirically (`access_* = -9`, the "not
+modelled" SENTINEL, not NULL) rather than inferred from the barrier history (Grand Coulee / Chief
+Joseph 1942; Bonnington Falls). Two traps this region exposed, both documented in `columbia.yml`:
+
+- **`species:` is an ordered preference resolved FIRST-modelled, not BEST-modelled.** `access_bt`
+  > 0 in all three groups, so `bt` always wins and the listed `wct` never fires — even in KOTL
+  where wct has the longer accessible network (2,037 vs 1,920 km). To model wct too, add a SECOND
+  region file with the same `region:` label (the `skeena_ch.yml` pattern), not a second entry.
+- **The GRAB freshness guard fires on config difference, not just staleness** (#37). Columbia GRABs
+  from `fresh_default` (link ≥ 0.45.0) and needs `network_guard: warn`: it diverges +1.8/+2.5/+6.6%
+  from the bcfp reference, but across all 49 groups in both schemas the `default` bundle runs a
+  median **+0.7%** over bcfp (IQR +0.1–2.6%) because `default` leaves `subsurfaceflow` OFF as a
+  natural barrier where `bcfishpass` opts it in. The 2% default tolerance is tighter than the real
+  spread, so ~a quarter of groups trip it against a perfectly fresh source.
+
+`run_region.R` carries `network_source` / `network_guard` from the region file into each generated
+`area.yml` — it rewrites `area.yml` every invocation, so hand-editing them there does not survive,
+and the `FP_NETWORK_*` env overrides leave the choice unreproducible.
 
 ## Prerequisites (when running)
 

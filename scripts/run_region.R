@@ -96,10 +96,18 @@ runnable <- plan[!is.na(plan$species), ]
 for (i in seq_len(nrow(runnable))) {
   w <- runnable$wsg[i]; sp <- runnable$species[i]
   d <- here::here("config", tolower(w)); fs::dir_create(d)
-  yaml::write_yaml(list(name = tolower(w), watershed_group = w, species = sp,
-                        min_order = min_order, schema = tolower(w),
-                        primary_scenario = paste0(sp, "_ff04")),
-                   file.path(d, "area.yml"))
+  area <- list(name = tolower(w), watershed_group = w, species = sp,
+               min_order = min_order, schema = tolower(w),
+               primary_scenario = paste0(sp, "_ff04"))
+  # network_source / network_guard: the REGION file is the source of truth for how the
+  # accessible network is obtained -- GRAB from an already-built schema (e.g. fresh_default)
+  # vs BUILD the link pipeline per WSG. area.yml is REWRITTEN on every invocation (below), so
+  # a hand-edited value there is clobbered; the env overrides (FP_NETWORK_SOURCE/_GUARD) work
+  # for one run but leave the choice unreproducible. Carry it through from the region instead.
+  # Both absent => omitted => fp_network BUILDs, exactly as before.
+  if (!is.null(reg$network_source)) area$network_source <- reg$network_source
+  if (!is.null(reg$network_guard))  area$network_guard  <- reg$network_guard
+  yaml::write_yaml(area, file.path(d, "area.yml"))
   readr::write_csv(base_scenarios(sp), file.path(d, "flood_scenarios.csv"))
   # whole-WSG batch groups use the group-polygon sub-basin; drop any stale break_points.csv
   bp <- file.path(d, "break_points.csv"); if (file.exists(bp)) fs::file_delete(bp)

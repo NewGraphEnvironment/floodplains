@@ -77,22 +77,28 @@ floodplains/
 The pipeline (steps 1–3) is generalized and config-driven; `run_area.R` / `run_region.R` work;
 Neexdzii parity holds exactly.
 
-- **17 watershed groups modelled** across three regions — Fraser (chinook: LCHL, LSAL, WILL, TABR,
-  UFRA, NECR, MORK, FRAN — 3,366 km² floodplain, 15,022 ha gross tree loss 2017→2023), Peace (bull
-  trout: PCEA, PARS, PINE), Skeena (coho: BULK, MORR; chinook: KISP) — plus the `neexdzii` parity
-  fixture.
+- **19 watershed groups modelled** across four regions — Fraser (chinook: LCHL, LSAL, WILL, TABR,
+  UFRA, NECR, MORK, FRAN, BOWR, MCGR), Peace (bull trout: PCEA, PARS, PINE), Skeena (coho: BULK,
+  MORR; chinook: KISP), Columbia (bull trout: KOTL, LARL, SLOC) — plus the `neexdzii` parity
+  fixture. Groups and items differ: MORR carries two species, so 19 groups publish as 20 items.
 - **Multiple species per area** (MORR carries coho + chinook side by side).
 - **Every published layer carries the item key** (`wsg`, `species`, `scenario`), so many areas merge
   into one gpkg and stay separable by attribute.
-- **Disturbance attribution** wired: fire + harvest overlays tag every change patch. Result: roughly
-  a third of floodplain tree loss is attributable **cutblocks** (BULK: fire 5% / harvest 36% /
-  residual 62%) — previously buried in a "conversion/noise" bucket.
-- **Published**: **17 items live** in the `stac_floodplains_bc` STAC collection (`images.a11s.one`),
-  keyed by `wsg`/`species`/`scenario`; the release is repo-owned and one-command.
+- **Disturbance attribution** wired: fire + harvest overlays tag every change patch. Where recent
+  logging is the driver, roughly a third of floodplain tree loss is attributable to **cutblocks**
+  (BULK: fire 5% / harvest 36% / residual 62%; KOTL tracks it closely at 3% / 33% / 64%) —
+  previously buried in a "conversion/noise" bucket. Where it is not, the method says so: SLOC comes
+  back 99% unattributed, and only 4.6 ha of 2017–2023 cutblock falls inside its floodplain, since
+  Slocan valley-bottom harvest peaked in the 1980s.
+- **Published**: **20 items live** in the `stac_floodplains_bc` STAC collection (`images.a11s.one`),
+  keyed by `wsg`/`species`/`scenario`; the release is repo-owned and one-command. Adding the
+  Columbia region moved the collection's spatial extent south from 52.71 N to **48.99 N**, so the
+  catalogue now answers queries over the Kootenays.
 
 Not yet built: zone-stratified LULC and sub-basin prioritization steps; pest/forest-health as a
 third disturbance source (#35); patch-level field QA of the classification (#27); per-area run
-provenance (#33).
+provenance (#33); a treed-area denominator so loss is comparable across groups whose floodplains
+differ in composition (#38 — the Columbia groups are 61–74% open water).
 
 ## Publishing
 

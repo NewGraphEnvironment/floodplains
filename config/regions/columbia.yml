@@ -1,0 +1,36 @@
+# Columbia region — Kootenay/Columbia groups (KOTL, LARL, SLOC; 1,941,273 ha). Bull trout is the
+# target species. The Columbia above Grand Coulee and Chief Joseph has been inaccessible to
+# anadromous salmon since 1942, and Bonnington Falls was a natural barrier on the Kootenay long
+# before that — so ch/co/st/salmon do not apply here at all. That is confirmed empirically, not
+# assumed: access_ch, access_co, access_st and access_salmon are all -9 (the "not modelled"
+# SENTINEL — not NULL) in all three groups, while access_bt and access_wct take real 0/1/2 values.
+#
+# Accessible network at order >= 3 (fresh.streams_vw_bcfp):
+#   WSG    network km   access_bt km   access_wct km
+#   KOTL       2,829          1,920          2,037
+#   LARL       2,277          1,093            959
+#   SLOC       1,317            684            597
+#
+# `species` is an ordered preference and the pre-pass takes the FIRST species with any access —
+# NOT the one with the most. access_bt > 0 everywhere here, so bt always wins, including in KOTL
+# where wct actually has the longer accessible network. So `wct` below is a documented fallback,
+# not a live second choice: it would only fire in a group where bt is unmodelled. To publish wct
+# as well, add a SECOND region file with the same `region: columbia` label (the skeena_ch.yml
+# pattern) and let the #23 multi-species coexistence machinery carry both in one data/<area>/.
+#
+# network_source: the accessible network is GRABBED from fresh_default (link 0.45.1, config
+# `default`, built 2026-08-27) rather than rebuilt per WSG. network_guard: warn because the
+# freshness guard compares the grab against the bcfp reference view at a 2% strict tolerance, and
+# Columbia diverges +1.8% (LARL) / +2.5% (KOTL) / +6.6% (SLOC). That divergence is expected, not
+# staleness: across all 49 groups present in both schemas the default bundle runs a median +0.7%
+# over bcfp (IQR +0.1% to +2.6%, range -15.5% to +161%), because `default` leaves subsurfaceflow
+# OFF as a natural barrier where `bcfishpass` opts it in. The 2% tolerance is simply tighter than
+# the real spread — a quarter of all groups would trip it against a perfectly fresh source. The
+# override is recorded in each network's lnk_stamp sidecar.
+region: columbia
+mergin_project: TBD              # doc-only; set when a Columbia field project exists
+min_order: 3
+species: [bt, wct]               # bull trout; wct documented fallback (see note above)
+watershed_groups: [KOTL, LARL, SLOC]
+network_source: fresh_default    # GRAB (skip the per-WSG link build)
+network_guard: warn              # expected default-vs-bcfp divergence; see note above
