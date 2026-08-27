@@ -34,12 +34,12 @@ first species with any access, not the best, so `wct` never fires — documented
 - [x] Confirm the item key (`wsg`, `species`, `scenario`) is native on the new layers
 
 ## Phase 4 — Publish
-- [ ] stac two-step: `run_pipeline.sh` then `catalogue_release.sh` (order matters)
-- [ ] Verify 20 items live, the three `*_bt_ff04` items resolve, assets 200, and the
+- [x] stac two-step: `run_pipeline.sh` then `catalogue_release.sh` (order matters)
+- [x] Verify 20 items live, the three `*_bt_ff04` items resolve, assets 200, and the
       **collection extent now reaches below 49.5 N** — the issue's actual acceptance test
 
 ## Phase 5 — Docs + close
-- [ ] `README.md` + `CLAUDE.md`: 17 → 20 groups, four regions, Columbia numbers
+- [x] `README.md` + `CLAUDE.md`: 17 → 20 groups, four regions, Columbia numbers
 - [ ] `/planning-archive`, `/gh-pr-push` (PR body refs rtj#213, sred#35)
 
 ## Validation
