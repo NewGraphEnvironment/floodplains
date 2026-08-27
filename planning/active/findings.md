@@ -114,15 +114,15 @@ Out of scope here — recorded so #33/stac#17 can be re-scoped against it.
 | **floodplains#3** — scale to multi-WSG + publish (pilot: Fraser) | **closing** | Columbia is the fourth region; the umbrella is fully delivered at 20 items. Close-or-rescope. |
 | **floodplains#20** — transition params as config | **weak but real** | KOTL's floodplain is **65.6% open water** (Kootenay Lake). Fixed `patch_area_min` / class handling tuned on river-dominated groups may not suit lake-dominated ones. |
 
-### New issue candidates surfaced by this work (not filed — user's call)
+### New issues filed from this work
 
-1. **GRAB freshness tolerance is mis-calibrated.** `fp_network`'s guard defaults to 2% against the
+1. **#37 — GRAB freshness tolerance is mis-calibrated.** `fp_network`'s guard defaults to 2% against the
    bcfp reference, but across all 49 groups in both schemas the `default` bundle runs a median
    **+0.7%** over bcfp with an IQR of +0.1–2.6% and a range of −15.5% to +161%. A quarter of all
    groups would trip a strict guard against a perfectly fresh source, so every region adopting
    GRAB will need `warn` — which blunts the guard everywhere rather than fixing it. Wants either a
    calibrated default, a per-group expected-divergence baseline, or comparison against the source
    schema's own log rather than bcfp.
-2. **Loss figures need a treed-area denominator.** KOTL is 14.8% trees and 65.6% water; SLOC will
+2. **#38 — Loss figures need a treed-area denominator.** KOTL is 14.8% trees and 65.6% water; SLOC will
    be river-dominated. Raw `gross_loss_ha` compared across groups is misleading — loss as a share
    of treed floodplain is the honest cross-group statistic. Touches stac#6's property design.
