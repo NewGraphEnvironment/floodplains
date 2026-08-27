@@ -126,3 +126,44 @@ Out of scope here — recorded so #33/stac#17 can be re-scoped against it.
 2. **#38 — Loss figures need a treed-area denominator.** KOTL is 14.8% trees and 65.6% water; SLOC will
    be river-dominated. Raw `gross_loss_ha` compared across groups is misleading — loss as a share
    of treed floodplain is the honest cross-group statistic. Touches stac#6's property design.
+
+## Blocker for stac#6: the same layer name carries three different schemas
+
+stac#6 documents attribution as living in a sibling layer:
+`transition_<sp>_<scenario>_2017_2023_disturbance`. That is the shape produced by the
+**`fire_tag.R` CLI wrapper**, which retro-tags an existing gpkg. It is not what the pipeline
+produces natively — `03_lulc_classify.R` writes the attribution columns **onto** the plain
+transition layer. Verified across the corpus:
+
+| group | how tagged | `transition_<sp>_<sc>_2017_2023` | siblings |
+|---|---|---|---|
+| BULK, MORR | retro-tagged via `fire_tag.R` | `in_fire` only — **no `in_harvest`** | `_fire` (prototype), `_disturbance` (fire + harvest) |
+| KOTL, LARL, SLOC | native (`disturbance.yml` present at run time) | `in_fire` **and** `in_harvest` | none |
+
+So the plain `transition_*` layer means **fire-only** in BULK/MORR and **fire + harvest** in
+Columbia — a silent schema divergence under an identical layer name. Neither read rule works
+across the catalogue:
+
+- read `transition_*` → Columbia has harvest, BULK/MORR silently do not
+- read `*_disturbance` → BULK/MORR resolve, Columbia has no such layer
+
+This is a harder blocker for stac#6 than the coverage count it currently tracks: a consumer
+joining across groups on the layer name gets a column that exists for some groups and is absent
+for others, with no error. It also widens #35's cleanup — the problem is not just retiring the
+`_fire` prototype, it is that three generations coexist and the newest one changed where the
+attributes live without changing the layer name.
+
+Cleanest resolution is for the retro-tag path to converge on the native shape (attributes on the
+transition layer, no sibling) and for #35's re-run to regenerate BULK/MORR natively, leaving one
+shape everywhere.
+
+## Attribution, area-weighted on tree loss (the comparable statistic)
+
+| group | tree loss ha | fire | harvest | residual |
+|---|---|---|---|---|
+| KOTL | 641.7 | 3.0% | 33.4% | 63.7% |
+| LARL | 204.5 | 8.9% | 21.2% | 72.4% |
+| BULK (baseline) | 2,073.3 | 5.0% | 35.6% | 62.0% |
+
+KOTL tracks the BULK baseline closely; LARL is more fire-weighted and less harvest-driven. Neither
+is anomalous, so the attribution is behaving on a region it has never seen.
