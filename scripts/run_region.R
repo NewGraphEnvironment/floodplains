@@ -107,6 +107,9 @@ for (i in seq_len(nrow(runnable))) {
   # Both absent => omitted => fp_network BUILDs, exactly as before.
   if (!is.null(reg$network_source)) area$network_source <- reg$network_source
   if (!is.null(reg$network_guard))  area$network_guard  <- reg$network_guard
+  # attribute_by: same reasoning -- per-watercourse floodplain attribution is a region-wide choice
+  # and area.yml is rewritten every invocation, so it has to come from the region file (#40).
+  if (!is.null(reg$attribute_by))   area$attribute_by   <- reg$attribute_by
   yaml::write_yaml(area, file.path(d, "area.yml"))
   readr::write_csv(base_scenarios(sp), file.path(d, "flood_scenarios.csv"))
   # whole-WSG batch groups use the group-polygon sub-basin; drop any stale break_points.csv

@@ -81,6 +81,14 @@ fp_read_config <- function(area) {
   # lnk_stamp sidecar records the override. FP_NETWORK_GUARD overrides at runtime.
   env_guard <- Sys.getenv("FP_NETWORK_GUARD", "")
   if (nzchar(env_guard)) cfg$network_guard <- env_guard
+  # attribute_by (optional area.yml key): a column in the streams network to attribute the
+  # floodplain by, so a delineation can answer "where is the floodplain of THIS river?" and not
+  # only "of this watershed group's network" (#40). e.g. "gnis_name" (named watercourses) or
+  # "blue_line_key" (every distinct watercourse). Absent => NULL => 02 skips attribution and the
+  # output is unchanged -- same opt-in-by-config-presence shape as tile_size and disturbance.yml.
+  # FP_ATTRIBUTE_BY overrides at runtime without editing a committed config.
+  env_ab <- Sys.getenv("FP_ATTRIBUTE_BY", "")
+  if (nzchar(env_ab)) cfg$attribute_by <- env_ab
   # change_interval: the [from, to] years the LULC transition (03) is measured over, and the default
   # window for disturbance attribution — one source of truth so the two can never drift (#19).
   cfg$change_interval <- cfg$change_interval %||% c(2017L, 2023L)

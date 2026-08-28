@@ -80,6 +80,20 @@ fp_floodplain <- function(cfg, scenarios = "run") {
   message("  ", nrow(streams), " segments, orders: ",
           paste(sort(unique(streams$stream_order)), collapse = ", "))
 
+  # Guard cfg$attribute_by (#40) HERE rather than at the call site: the call happens after the DEM
+  # fetch and the VCA, so a typo'd column name would otherwise surface tens of minutes into a run.
+  # fl_valley_attribute() rejects it too, but without naming the area that has to be fixed.
+  if (!is.null(cfg$attribute_by)) {
+    if (!cfg$attribute_by %in% setdiff(names(streams), attr(streams, "sf_column"))) {
+      stop("attribute_by '", cfg$attribute_by, "' is not a column of ", streams_lyr,
+           " for area '", cfg$name, "'. Available: ",
+           paste(setdiff(names(streams), attr(streams, "sf_column")), collapse = ", "),
+           call. = FALSE)
+    }
+    message("  Attribution: will attribute ", cfg$primary_scenario, " by '", cfg$attribute_by,
+            "' (", length(unique(streams[[cfg$attribute_by]])), " groups)")
+  }
+
   message("Loading waterbodies from ", basename(network_gpkg), " (layer: ", waterbodies_lyr, ")")
   waterbodies <- sf::st_read(network_gpkg, layer = waterbodies_lyr, quiet = TRUE) |> sf::st_zm(drop = TRUE)
   message("  ", nrow(waterbodies), " features")
@@ -163,6 +177,48 @@ fp_floodplain <- function(cfg, scenarios = "run") {
     sf::st_write(valleys_poly, out_gpkg, layer = sc$scenario_id,
                  append = file.exists(out_gpkg), delete_layer = TRUE, quiet = TRUE)
     message("  Saved: ", basename(out_raster), " + layer ", sc$scenario_id, " in ", basename(out_gpkg))
+
+    # --- Per-watercourse attribution (#40) ---
+    # Which part of this floodplain belongs to which river? flooded::fl_valley_attribute() applies
+    # the VCA's own stream-dependent criteria (distance <= max_width/2, cost < cost_threshold) to
+    # ONE group's streams at a time against the delineation just computed. The delineation is NOT
+    # recomputed per group -- re-running the VCA on a subset would move the boundary (the flood
+    # surface interpolates from every seed), so "the floodplain of this river" must be an
+    # attribution of a fixed delineation, not a separate model run.
+    #
+    # max_width/cost_threshold MUST match the delineation being attributed, so they come from the
+    # same scenario row -- not from defaults.
+    #
+    # Rows OVERLAP near confluences, deliberately: ground there belongs to both floodplains, and a
+    # hard partition would be a false answer exactly where a sampling design cares most.
+    #
+    # Primary scenario only: attribution is a cost-distance pass per group, so doing ff02/ff04/ff06
+    # alike would triple the cost for no current need. Widen via cfg if that changes.
+    if (!is.null(cfg$attribute_by) && identical(sc$scenario_id, cfg$primary_scenario)) {
+      message("  Attributing ", sc$scenario_id, " by '", cfg$attribute_by, "' ...")
+      attributed <- flooded::fl_valley_attribute(
+        valleys, streams,
+        group          = cfg$attribute_by,
+        dem            = dem,              # slope derived internally, guaranteed to match `valleys`
+        max_width      = sc$max_width,
+        cost_threshold = sc$cost_threshold
+      )
+      # Item key (#30) + the grouping column: the grouping key is effectively a fourth member of
+      # the key, so an attributed floodplain stays separable after areas are merged into one gpkg.
+      attributed$wsg      <- cfg$watershed_group
+      attributed$species  <- cfg$species
+      attributed$scenario <- sc$scenario_id
+      attr_lyr <- paste0(sc$scenario_id, "_by_", cfg$attribute_by)
+      sf::st_write(attributed, out_gpkg, layer = attr_lyr,
+                   append = file.exists(out_gpkg), delete_layer = TRUE, quiet = TRUE)
+      # fallback_cells = valley cells no group reached within thresholds (morphological closing,
+      # hole filling, channel buffer, waterbody polygons get no spatial filter). complete = TRUE
+      # assigns them to the nearest group, so this is a QA signal on how much of the delineation
+      # attribution could not reach on its own terms -- log it rather than let it pass silently.
+      fb <- attr(attributed, "fl_fallback_cells")
+      message("  Saved: layer ", attr_lyr, " (", nrow(attributed), " groups",
+              if (!is.null(fb)) paste0("; ", fb, " fallback cells assigned to nearest") else "", ")")
+    }
   }
 
   message("\nDone. Floodplain AOI(s) ready for drift pipeline (step 3, fp_lulc).")

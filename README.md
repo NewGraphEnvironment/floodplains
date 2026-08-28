@@ -36,6 +36,13 @@ The **method lives in the packages** (`link`, `flooded`, `drift`, `fresh`); this
   downstream with no change there. A region file carries **one** species preference and
   `run_region.R` writes each group's `area.yml` from it — so a group of a different species needs
   its own region file (same `region:` label), not an entry in an existing one.
+- **A floodplain can be attributed per watercourse.** Optional `attribute_by:` (a column of the
+  stream network, e.g. `gnis_name` or `blue_line_key`) adds a `<scenario>_by_<column>` layer with
+  one row per watercourse via `flooded::fl_valley_attribute()`, so a delineation answers "where is
+  the floodplain of *this river*?" and not only "of this group's network". The delineation itself
+  is never recomputed, so regrouping relabels without moving a boundary, and **rows overlap** where
+  ground is genuinely shared at a confluence — on MORR that is 43.6% of the floodplain, so a hard
+  partition would mis-assign nearly half of it. Absent ⇒ nothing runs and output is unchanged.
 - **Every published layer carries the item key** — `wsg`, `species`, `scenario` — mirroring the STAC
   item id (`morr_ch_ff06`). The same key is a STAC *property* (to select items) and a gpkg *column*
   (to separate rows once merged), so many areas fetch-and-append into one gpkg and stay separable by
