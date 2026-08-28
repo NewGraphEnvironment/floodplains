@@ -121,3 +121,23 @@ alone — those name the *repository*, which is the underscore form, and are cor
 The asset-split half of #41 moved to `stac_floodplains_bc#23` with its size table carried over;
 #41's body records the split so `Closes #41` is honest. The `run_pipeline.sh` id assertion #41
 also suggested is publish-repo work and was left as a live suggestion there, not silently dropped.
+
+## Phase 5: parity, and what was filed
+
+`Rscript scripts/run_area.R neexdzii 2` through the real runner, with the pin live:
+**co_ff04 = 171.0 km²** — the parity contract holds, so the pin does not touch geometry. Gated on
+in-band error markers (0) and output mtime newer than a run-start marker, not on the wrapper's
+exit code.
+
+Filed rather than half-built:
+
+| ref | what |
+|---|---|
+| `stac_floodplains_bc#23` | the asset-split half of #41, moved with its size table |
+| `stac_floodplains_bc#22` | commented: `file:checksum` unblocked for a clean rebuild, with the partial-rerun caveat and the semantics decision it forces on consumers |
+| `soul#95` | canonicalize geometry before hashing — the gap in `code-check.md`'s cache-key section |
+| `#46` | content hash per feature, so "did the output change?" survives a partial rerun |
+
+`soul#95` and `#46` both carry the same open blocker, stated rather than papered over: **what
+exposes GEOS `normalize` in R**. `sf::st_normalize()` rescales to the unit bbox and is not it, so
+neither issue names a function it has not verified.

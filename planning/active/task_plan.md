@@ -36,16 +36,16 @@ documented id gets a clean `NotFoundError`, which reads as "not published" rathe
 - [x] Edit #41's body to record the split
 
 ## Phase 5 — Docs + close
-- [ ] `CLAUDE.md`: the pin, where it is set, the bounded guarantee
+- [x] `CLAUDE.md`: the pin, where it is set, the bounded guarantee
 - [x] `README.md`: determinism under the publish section
-- [ ] Comment on `stac_floodplains_bc` that `file:checksum` is unblocked for a clean rebuild
-- [ ] `soul` issue: geometry canonicalization before hashing -> `code-check.md` cache-key section
-- [ ] Follow-up issue here: content-hash identity on transition patches (links #27, #30)
+- [x] Comment on `stac_floodplains_bc` that `file:checksum` is unblocked for a clean rebuild
+- [x] `soul` issue: geometry canonicalization before hashing -> `code-check.md` cache-key section
+- [x] Follow-up issue here: content-hash identity on transition patches (links #27, #30)
 - [ ] `/planning-archive`, `/gh-pr-push`
 
 ## Validation
 - [x] `data/morr/floodplain_landcover.gpkg`: two full replays -> `cmp -s` identical
 - [x] `gpkg_determinism-check.R` fails with the pin removed, passes with it
-- [ ] `Rscript scripts/run_area.R neexdzii 2` -> parity fixture still 171.0 km2
+- [x] `Rscript scripts/run_area.R neexdzii 2` -> parity fixture still 171.0 km2
 - [x] `curl -s https://images.a11s.one/collections/stac-floodplains-bc | jq -r .id` resolves
 - [ ] `/code-check` clean on each commit
