@@ -11,4 +11,11 @@ region: skeena
 mergin_project: TBD              # doc-only; set when a Skeena field project exists
 min_order: 3
 species: [co]                    # coho only on these upper-Skeena groups
+# attribute_by (#40): also write a per-watercourse floodplain (<scenario>_by_gnis_name) for the
+# primary scenario, so "where is the floodplain of THIS river?" is answerable -- the question that
+# blocked Morice sampling. gnis_name rather than blue_line_key because the point here is a
+# human-readable watercourse name for field use; blue_line_key resolves every watercourse (no NA
+# group) for ~16% more time and is the better choice for analysis. Costs ~13 min per area on the
+# next step-2 run, primary scenario only. Remove this line to turn it off.
+attribute_by: gnis_name
 watershed_groups: [BULK, MORR]   # whole-WSG coho; NEEXDZII (subset of BULK) intentionally excluded
