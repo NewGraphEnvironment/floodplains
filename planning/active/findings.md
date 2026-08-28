@@ -107,3 +107,17 @@ delta is unstable by design. (Cost was not the reason — two VACUUMs on 7.5 MB 
 the same content?". For a partial rerun the second question needs a content hash over normalized
 geometry plus attributes — the FIT_changedetector shape — which is follow-up work, not this PR.
 Filed rather than half-built.
+
+## Phase 4: the id, verified live
+
+```
+GET /collections/stac-floodplains-bc  -> {"id":"stac-floodplains-bc","type":"Collection", ...}
+GET /collections/stac_floodplains_bc  -> {"code":"NotFoundError", ...}
+```
+
+`README.md:60` and `:102` corrected. `:115` and `:120` and `scripts/publish_hint.R` were left
+alone — those name the *repository*, which is the underscore form, and are correct as written.
+
+The asset-split half of #41 moved to `stac_floodplains_bc#23` with its size table carried over;
+#41's body records the split so `Closes #41` is honest. The `run_pipeline.sh` id assertion #41
+also suggested is publish-repo work and was left as a live suggestion there, not silently dropped.

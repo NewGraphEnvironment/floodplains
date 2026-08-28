@@ -31,13 +31,13 @@ documented id gets a clean `NotFoundError`, which reads as "not published" rathe
 - [x] Verify it FAILS without the pin and passes with it (cold path, not only the warm no-op)
 
 ## Phase 4 — #41
-- [ ] `README.md:60,100` -> `stac-floodplains-bc`; say the repo name and collection id differ
-- [ ] File the asset-split in `stac_floodplains_bc` with #41's size table carried over
-- [ ] Edit #41's body to record the split
+- [x] `README.md:60,100` -> `stac-floodplains-bc`; say the repo name and collection id differ
+- [x] File the asset-split in `stac_floodplains_bc` with #41's size table carried over
+- [x] Edit #41's body to record the split
 
 ## Phase 5 — Docs + close
 - [ ] `CLAUDE.md`: the pin, where it is set, the bounded guarantee
-- [ ] `README.md`: determinism under the publish section
+- [x] `README.md`: determinism under the publish section
 - [ ] Comment on `stac_floodplains_bc` that `file:checksum` is unblocked for a clean rebuild
 - [ ] `soul` issue: geometry canonicalization before hashing -> `code-check.md` cache-key section
 - [ ] Follow-up issue here: content-hash identity on transition patches (links #27, #30)
@@ -47,5 +47,5 @@ documented id gets a clean `NotFoundError`, which reads as "not published" rathe
 - [x] `data/morr/floodplain_landcover.gpkg`: two full replays -> `cmp -s` identical
 - [x] `gpkg_determinism-check.R` fails with the pin removed, passes with it
 - [ ] `Rscript scripts/run_area.R neexdzii 2` -> parity fixture still 171.0 km2
-- [ ] `curl -s https://images.a11s.one/collections/stac-floodplains-bc | jq -r .id` resolves
+- [x] `curl -s https://images.a11s.one/collections/stac-floodplains-bc | jq -r .id` resolves
 - [ ] `/code-check` clean on each commit
