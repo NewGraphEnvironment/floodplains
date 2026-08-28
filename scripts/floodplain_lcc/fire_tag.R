@@ -11,6 +11,8 @@
 suppressMessages({library(sf); library(DBI); library(RPostgres); library(yaml)})
 sf::sf_use_s2(FALSE)
 source(here::here("scripts", "floodplain_lcc", "fp_disturbance.R"))
+source(here::here("scripts", "fp_gpkg.R"))       # standalone CLI: not covered by run_area.R
+fp_gpkg_pin_date()                                # #45
 
 a     <- commandArgs(TRUE)
 area  <- a[1]

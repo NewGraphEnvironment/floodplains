@@ -13,6 +13,8 @@
 
 suppressMessages({library(sf); library(yaml)})
 sf::sf_use_s2(FALSE)
+source(here::here("scripts", "fp_gpkg.R"))       # standalone CLI: not covered by run_area.R
+fp_gpkg_pin_date()                                # #45
 
 area <- commandArgs(TRUE)[1]
 if (is.na(area)) stop("usage: Rscript gpkg_backfill-wsg.R <area>")

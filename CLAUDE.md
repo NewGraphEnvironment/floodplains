@@ -62,6 +62,21 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   loss previously in the "noise" bucket (BULK: fire 5% / harvest 36% / residual 62%). The transition
   layer now carries N disturbance attrs → the STAC schema must too (stac_floodplains_bc#6).
 - `data/<area>/` — outputs (gitignored)
+- **Byte-deterministic gpkg writes (#45):** GDAL stamps `gpkg_contents.last_change` with wall-clock
+  time, so two writes of identical data differ — a rerun was indistinguishable from a change, and
+  `file:checksum` downstream would churn every build (GeoPackage is 72% of the published bucket by
+  size). `scripts/fp_gpkg.R` pins `OGR_CURRENT_DATE` to a fixed epoch. Pinned via the **environment**,
+  not per-call `config_options`: GDAL reads config options from the env, so one call covers all 13
+  `st_write` sites plus anything added later, where per-call args go silently incomplete on the 14th.
+  Called at **four** entry points — `run_area.R`, `run_region.R`, and the two standalone CLIs
+  (`gpkg_backfill-wsg.R`, `fire_tag.R`), which do **not** source `packages.R`.
+  `gpkg_determinism-check.R` asserts it (`FP_GPKG_NO_PIN=1` runs the cold path, which must fail).
+  **The guarantee is bounded:** a full rebuild into an *absent* file is byte-identical; rewriting one
+  layer into an *existing* gpkg is not. `VACUUM` does not close that — it isolates the difference to
+  3 SQLite header bytes (change counter, schema cookie, version-valid-for), which are write-history
+  counters and cannot be normalized to content, so it was not adopted. Byte equality answers "same
+  build?", not "same content?"; the latter needs a content hash over normalized geometry. GeoTIFF
+  output was measured already deterministic.
 - `scripts/publish_hint.R` — `fp_publish_hint()`: after a run producing publishable outputs (steps 2
   or 3) the runners print the stac release sequence (`run_pipeline.sh` rebuild → `catalogue_release.sh`
   publish; order matters, releasing without rebuilding ships a stale catalogue). `run_region` sets

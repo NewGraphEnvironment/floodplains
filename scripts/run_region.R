@@ -20,6 +20,10 @@
 
 suppressMessages({library(here); library(yaml); library(readr); library(fs); library(sf)})
 source(here::here("scripts", "publish_hint.R"))    # fp_publish_hint (advisory publish handoff)
+source(here::here("scripts", "fp_gpkg.R"))         # fp_gpkg_pin_date (byte-deterministic gpkg)
+# Set here as well as in run_area.R: the per-WSG children inherit this process's environment,
+# so a child is pinned even if its own call is ever removed (#45).
+fp_gpkg_pin_date()
 # run_area is invoked per-WSG as a subprocess and inherits this env, so the child stays quiet and
 # the batch prints ONE hint at the end instead of one per group (8x for Fraser) (#32).
 Sys.setenv(FP_NO_PUBLISH_HINT = "1")

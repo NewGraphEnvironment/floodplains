@@ -57,7 +57,9 @@ The **method lives in the packages** (`link`, `flooded`, `drift`, `fresh`); this
   the known-good numbers — coho-3 network **678.2 km**, floodplain `co_ff04` **171.0 km²**, tree
   loss **943.13 ha** — before any change is trusted.
 - **Outputs** are per-area under `data/<area>/` (gitignored); published outputs live in the
-  `stac_floodplains_bc` STAC collection.
+  `stac-floodplains-bc` STAC collection. Note the id is **hyphenated** — `stac_floodplains_bc`
+  with underscores is the *repository* name, and querying it returns a `NotFoundError` that reads
+  like "not published" rather than "wrong name".
 
 ## Layout
 
@@ -97,7 +99,7 @@ Neexdzii parity holds exactly.
   previously buried in a "conversion/noise" bucket. Where it is not, the method says so: SLOC comes
   back 99% unattributed, and only 4.6 ha of 2017–2023 cutblock falls inside its floodplain, since
   Slocan valley-bottom harvest peaked in the 1980s.
-- **Published**: **20 items live** in the `stac_floodplains_bc` STAC collection (`images.a11s.one`),
+- **Published**: **20 items live** in the `stac-floodplains-bc` STAC collection (`images.a11s.one`),
   keyed by `wsg`/`species`/`scenario`; the release is repo-owned and one-command. Adding the
   Columbia region moved the collection's spatial extent south from 52.71 N to **48.99 N**, so the
   catalogue now answers queries over the Kootenays.
@@ -128,6 +130,15 @@ no server-side incantation.
 
 `run_area.R` / `run_region.R` print this sequence when a run produced publishable outputs (steps 2
 or 3); `FP_NO_PUBLISH_HINT=1` silences it.
+
+**Rebuilds are byte-reproducible.** GDAL stamps every GeoPackage with the wall-clock time of the
+write, which would make each rebuild a new checksum regardless of content — churn where provenance
+is wanted, across the 72% of the published bucket that is GeoPackage. The stamp is pinned to a
+fixed epoch (`scripts/fp_gpkg.R`), so a full rebuild from identical inputs is byte-identical and
+`file:checksum` downstream means what it says. `scripts/floodplain_lcc/gpkg_determinism-check.R`
+asserts it. One stated limit: rewriting a single layer into an *existing* gpkg is not byte-stable
+(SQLite records write history in its header), so the guarantee covers a clean rebuild, not every
+rerun.
 
 ## Prerequisites (when running)
 
