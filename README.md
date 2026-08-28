@@ -33,9 +33,15 @@ The **method lives in the packages** (`link`, `flooded`, `drift`, `fresh`); this
 - **Regions batch a set of groups.** `config/regions/<region>.yml` runs many WSGs with a species
   preference: `fraser` (chinook), `peace` (bull trout), `skeena` (coho / `skeena_ch` chinook). The
   publish layer derives its WSG→region map from these files, so a group added here is visible
-  downstream with no change there. A region file carries **one** species preference and
-  `run_region.R` writes each group's `area.yml` from it — so a group of a different species needs
-  its own region file (same `region:` label), not an entry in an existing one.
+  downstream with no change there. A region file carries **one** species preference, so a group of a
+  different species needs its own region file (same `region:` label), not an entry in an existing one.
+- **A region run reconciles area config; it does not regenerate it.** The region owns a fixed set of
+  keys (species, `min_order`, `network_source`, `attribute_by`, …); the area owns everything else, so
+  a second species' scenario rows, citations, `break_points.csv` and every comment survive.
+  `flood_scenarios.csv` is created when absent and appended to when the resolved species has no rows
+  — existing rows are never rewritten. **`DRY=1` writes nothing at all**: it prints the
+  reconciliation it would perform. (It used to write configs before the dry gate, so the preview was
+  as destructive as a real run.)
 - **A floodplain can be attributed per watercourse.** Optional `attribute_by:` (a column of the
   stream network, e.g. `gnis_name` or `blue_line_key`) adds a `<scenario>_by_<column>` layer with
   one row per watercourse via `flooded::fl_valley_attribute()`, so a delineation answers "where is
@@ -68,11 +74,15 @@ floodplains/
 ├── scripts/
 │   ├── run_area.R              # runner: run_area <area> [steps]  (steps 1,2,3)
 │   ├── run_region.R            # batch a region of WSGs (config/regions/<region>.yml)
+│   ├── fp_gpkg.R               # pins gpkg timestamps so a rebuild is byte-reproducible
 │   └── floodplain_lcc/
 │       ├── 01_network_extract.R   # fp_network(cfg)
 │       ├── 02_floodplain_model.R  # fp_floodplain(cfg)
 │       ├── 03_lulc_classify.R     # fp_lulc(cfg)  (classify + transition + disturbance tag)
-│       └── fp_disturbance.R       # fp_disturbance_tag() — config-driven attribution
+│       ├── fp_disturbance.R       # fp_disturbance_tag() — config-driven attribution
+│       ├── fp_region.R            # whole-WSG sub-basin + region/area config ownership
+│       ├── gpkg_determinism-check.R   # guard: a full rebuild is byte-identical
+│       └── region_config-check.R      # guard: a region run cannot destroy area config
 ├── config/
 │   ├── <area>/                 # area.yml + flood_scenarios.csv (+ optional break_points.csv)
 │   ├── regions/<region>.yml    # a named set of WSGs + species preference
