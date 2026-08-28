@@ -29,10 +29,10 @@ Decisions at plan time (user): **capability + the Morice layer** (not capability
 - [x] Log the fallback-cell count as a QA signal
 
 ## Phase 3 — The Morice deliverable
-- [ ] Run MORR with attribution; isolate `gnis_name == "Morice River"`
-- [ ] Locate the upstream terminus so "within" vs "upstream of" is well defined
-- [ ] Confirm overlap is represented at confluences (Nanika, Gosnell, Thautil), not resolved away
-- [ ] Hand over the layer with a note on what the two categories mean
+- [x] Run MORR with attribution; isolate `gnis_name == "Morice River"`
+- [x] Locate the upstream terminus so "within" vs "upstream of" is well defined
+- [x] Confirm overlap is represented at confluences (Nanika, Gosnell, Thautil), not resolved away
+- [x] Hand over the layer with a note on what the two categories mean
 
 ## Phase 4 — Docs + close
 - [ ] `README.md` + `CLAUDE.md`: grouping key as the fourth member of the item key; `attribute_by`

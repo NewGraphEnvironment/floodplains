@@ -135,11 +135,21 @@ sum of row areas:         590.27 km2
 **43.6% of the floodplain is claimed by more than one watercourse.** A hard partition would have
 mis-assigned nearly half the ground — which is the empirical case for the overlapping-rows design.
 
-Morice River: **55.98 km²** floodplain over 91.7 km of mainstem (route measure 0.1–91.7 km). Of
-that, **36.5 km² (65%) is shared** with other watercourses, mostly tributary confluences — Lamprey
-2.60, Thautil 2.27, Gosnell 1.97, Owen 1.59, Peacock 1.23, and 22.47 km² with unnamed streams. So
-only ~19.5 km² is unambiguously and exclusively Morice floodplain. That is a material input to a
-sampling design: "within the Morice floodplain" is mostly also within some tributary's.
+Morice River: **55.98 km²** floodplain over 91.7 km of mainstem (route measure 0.1–91.75 km).
+Splitting it against the union of every other watercourse:
+
+| part | km² | share |
+|---|---|---|
+| exclusive — only the Morice claims it | **24.92** | 45% |
+| shared — a tributary floodplain also claims it | **31.07** | 55% |
+
+(The two reconcile to 55.99 ≈ the whole. An earlier per-tributary sum gave 36.5 km²; that
+double-counts ground where two tributaries overlap the same Morice floodplain, so 31.07 is the
+correct shared figure.) Largest individual sharers: unnamed streams 22.47 km², Lamprey 2.60,
+Thautil 2.27, Gosnell 1.97, Owen 1.59, Peacock 1.23.
+
+Material to the sampling design: **a "within the Morice floodplain" sample is mostly also a
+tributary sample** unless restricted to the exclusive 24.92 km².
 
 ## Phase 2 regression — the strong form
 
