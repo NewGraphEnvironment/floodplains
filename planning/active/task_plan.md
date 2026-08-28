@@ -9,14 +9,14 @@ Decisions at plan time (user): **capability + the Morice layer** (not capability
 **`primary_scenario` only** (attribution costs a cost-distance pass per group per scenario).
 
 ## Phase 1 — Measure at watershed-group scale (closes flooded#44)
-- [ ] Install `flooded` 0.4.0; confirm `fl_valley_attribute` is available (we are on 0.3.2)
-- [ ] Time on **MORR / `co_ff04`** at `group = "gnis_name"` (k≈33) vs `fl_valley_confine()` for the
+- [x] Install `flooded` 0.4.0; confirm `fl_valley_attribute` is available (we are on 0.3.2)
+- [x] Time on **MORR / `co_ff04`** at `group = "gnis_name"` (k≈33) vs `fl_valley_confine()` for the
       same AOI; derive `slope` once and pass it rather than re-deriving per call
-- [ ] Then `group = "blue_line_key"` (k=340) — the one at real risk. Intractable is a finding, not
+- [x] Then `group = "blue_line_key"` (k=340) — the one at real risk. Intractable is a finding, not
       a failure: `gnis_name` becomes the documented default
-- [ ] Record what #44 asks: wall time, peak memory, per-group crop area as a fraction of the AOI,
+- [x] Record what #44 asks: wall time, peak memory, per-group crop area as a fraction of the AOI,
       and `attr(x, "fl_fallback_cells")`
-- [ ] Post numbers to flooded#44; post the #41 probe result to flooded#41
+- [x] Post numbers to flooded#44; post the #41 probe result to flooded#41
 
 ## Phase 2 — Wire attribution into step 2
 - [ ] Optional `attribute_by:` in `area.yml` — absent ⇒ nothing runs, output byte-identical

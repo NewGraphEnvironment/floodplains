@@ -76,3 +76,67 @@ least benefit. On the bundled tile the per-group crops were already 39–74% of 
 
 We hold the WSG data, the DEM fetch and the fwapg setup; flooded holds a test tile. So Phase 1 is
 their measurement, and its result decides our config default rather than the other way round.
+
+## Phase 1 measurement — MORR, 16,478,040 cells (closes flooded#44)
+
+`slope` supplied, derived exactly as the package does internally. AOI is the real `co_ff04`
+delineation (the issue estimated ~27M cells; the actual raster is 16.5M).
+
+| | k | wall time | vs delineation | peak R mem |
+|---|---|---|---|---|
+| `fl_valley_confine()` | — | **64.3 s** | 1× | ~381 Mb |
+| `fl_valley_attribute()` by `gnis_name` | 33 | **769.6 s** | **12.0×** | ~518 Mb |
+| `fl_valley_attribute()` by `blue_line_key` | 340 | **890.7 s** | **13.9×** | ~522 Mb |
+
+`fl_fallback_cells` 14,094 / 14,105 = **3.17%** of 443,975 valley cells (~13.05 km² of 411.13).
+
+### k is nearly free — and both prior hypotheses were wrong
+
+```
+marginal cost per extra group:     0.39 s
+implied k-independent fixed cost:  757 s  (85% of the k=340 run)
+10.3x the groups -> 1.16x the time
+```
+
+flooded#44 predicted hours at k=340 because per-group crops would stop paying off for a long
+sinuous mainstem. Measured, the opposite happens: at WSG scale the AOI dwarfs any one watercourse,
+so the worst-case crop is **0.201** of the grid (`gnis_name`) / **0.332** (`blue_line_key`) against
+0.39–0.74 on the bundled tile, and all crops sum to **0.7× / 1.3×** a full-grid pass against ~2.76×.
+Crop efficiency *improved* at scale and runtime got worse anyway.
+
+My own first reading — that per-group fixed overhead dominates — is also wrong: 10.3× the groups
+buys only 1.16× the time. **85% of the cost is k-independent.** So `blue_line_key` at k=340 is
+affordable (14.8 min), and the optimisation target upstream is the full-extent setup, not
+`crop_margin` or per-group overhead.
+
+### Which grouping to use
+
+| grouping | rows | NA group |
+|---|---|---|
+| `gnis_name` | 33 | **320.6 km² — 54% of summed area** (the 721 km of unnamed streams, pooled) |
+| `blue_line_key` | 340 | **0.0 km²** — every watercourse resolved |
+
+`blue_line_key` is strictly more informative and costs 16% more, so it is the better default for
+completeness. `gnis_name` earns its place when a human-readable name is the point — which is
+exactly the Morice deliverable, where you select `"Morice River"`. Documented as a tradeoff rather
+than hard-defaulted, since the key is opt-in config either way.
+
+## Attribution result on MORR (`co_ff04`, by `gnis_name`)
+
+**The `complete = TRUE` coverage contract holds exactly** — asserted, not assumed:
+
+```
+union of attributed rows: 411.13 km2
+unattributed co_ff04:     411.13 km2      ratio 1.0000
+sum of row areas:         590.27 km2
+=> overlap:               179.14 km2 (43.6%)
+```
+
+**43.6% of the floodplain is claimed by more than one watercourse.** A hard partition would have
+mis-assigned nearly half the ground — which is the empirical case for the overlapping-rows design.
+
+Morice River: **55.98 km²** floodplain over 91.7 km of mainstem (route measure 0.1–91.7 km). Of
+that, **36.5 km² (65%) is shared** with other watercourses, mostly tributary confluences — Lamprey
+2.60, Thautil 2.27, Gosnell 1.97, Owen 1.59, Peacock 1.23, and 22.47 km² with unnamed streams. So
+only ~19.5 km² is unambiguously and exclusively Morice floodplain. That is a material input to a
+sampling design: "within the Morice floodplain" is mostly also within some tributary's.
