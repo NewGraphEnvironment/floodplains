@@ -109,6 +109,8 @@ if (is.na(area)) stop("usage: Rscript scripts/run_area.R <area> [steps]", call. 
 # --- Load packages + step functions ---
 update_packages <- FALSE
 source(here::here("scripts", "packages.R"))
+source(here::here("scripts", "fp_gpkg.R"))       # fp_gpkg_pin_date (byte-deterministic gpkg)
+fp_gpkg_pin_date()                                # #45: pin gpkg_contents.last_change
 lcc_dir <- here::here("scripts", "floodplain_lcc")
 source(here::here("scripts", "publish_hint.R"))    # fp_publish_hint (advisory publish handoff)
 source(file.path(lcc_dir, "fp_region.R"))          # fp_wsg_subbasin (whole-WSG sub-basin)

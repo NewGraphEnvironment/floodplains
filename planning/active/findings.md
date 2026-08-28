@@ -69,3 +69,41 @@ Two separable asks in one issue body:
   against a ~550 MB Mergin finalize ceiling. That work is in `stac_floodplains_bc`, which already
   reads the transition layer at `01_stage.R:81` and can extract it itself. Doing it producer-side
   would add an output for a consumer-side need and blur the one-way coupling.
+
+## Phase 2 measurement: what the guarantee is, and where it stops
+
+**A full rebuild into an absent file is byte-reproducible.** Verified through the pipeline's own
+write shape on both real fixtures:
+
+| fixture | layers | size | result |
+|---|---|---|---|
+| `data/morr/floodplain.gpkg` | 7 | 7.5 MB | identical, twice |
+| `data/morr/floodplain_landcover.gpkg` | 18 | 79 MB | identical, twice (6.6 s) |
+
+Cold path verified too: with `FP_GPKG_NO_PIN=1` the same rebuilds differ, so a pass means the pin
+and not luck.
+
+**`VACUUM` does not close the partial-rerun gap — but it isolates it to three bytes.** After
+`VACUUM`, a file that had one layer rewritten differs from a fresh full rebuild in exactly 3 bytes
+of the SQLite header, with identical page count and identical content:
+
+| offset | field | fresh rebuild | after partial rerun |
+|---|---|---|---|
+| 24–27 | file change counter | `0x2f` (47) | `0x36` (54) |
+| 40–43 | schema cookie | `0x6d` (109) | `0x82` (130) |
+| 92–95 | version-valid-for | `0x2f` | `0x36` |
+
+(28–31 database size in pages: `0x725` in both. `cmp -l` reports 3 differing bytes out of 7.5 MB.)
+
+These are **write-history counters**, not content. The change counter records how many times the
+database has been modified and the schema cookie how many times its schema changed; a
+`delete_layer` + recreate is a schema change. By definition they cannot be normalized to a
+content-derived value — they exist to record that history.
+
+So `VACUUM` is **not adopted**: it adds a step, does not reach byte equality, and the residual
+delta is unstable by design. (Cost was not the reason — two VACUUMs on 7.5 MB took 0.07 s.)
+
+**The consequence, stated plainly:** byte equality answers "is this the same build?", not "is this
+the same content?". For a partial rerun the second question needs a content hash over normalized
+geometry plus attributes — the FIT_changedetector shape — which is follow-up work, not this PR.
+Filed rather than half-built.
