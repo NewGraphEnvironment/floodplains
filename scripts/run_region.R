@@ -3,16 +3,19 @@
 # run_region.R  —  run the pipeline over every watershed group in a region.
 #
 # Usage:
-#   Rscript scripts/run_region.R <region> [steps]      # plan + generate configs + run
-#   DRY=1 Rscript scripts/run_region.R <region>        # plan + generate configs only (no runs)
+#   Rscript scripts/run_region.R <region> [steps]      # plan + reconcile configs + run
+#   DRY=1 Rscript scripts/run_region.R <region>        # PREVIEW ONLY -- writes nothing at all
 #
 # Reads config/regions/<region>.yml (watershed_groups, ordered `species` preference,
 # min_order, mergin_project). For each WSG it:
 #   1. PRE-PASS resolves ONE species — the first in the preference list modelled at
 #      order >= min_order (province-wide fresh.streams_vw_bcfp). A WSG where none of the
 #      listed species is modelled is flagged LOUDLY and SKIPPED (never silently dropped).
-#   2. generates config/<wsg>/ (area.yml + flood_scenarios.csv; no break_points.csv =>
-#      whole-WSG polygon sub-basin).
+#   2. RECONCILES config/<wsg>/ against the region file -- it does not regenerate it (#44). The
+#      region owns FP_REGION_OWNED (species, min_order, network_source, attribute_by, ...); the area
+#      owns everything else, so a second species' scenario rows, citations, hand-set area.yml keys
+#      and break_points.csv all survive. flood_scenarios.csv is created when absent and appended to
+#      when the resolved species has no rows; existing rows are never rewritten.
 #   3. runs scripts/run_area.R <wsg> as a subprocess (per-WSG soft-fail + timestamped log).
 #   4. POST-VERIFY: the extracted network must be non-empty; if the pre-pass promised a
 #      species but the real run comes back empty, it is recorded as a FAILURE, not a pass.
@@ -21,6 +24,7 @@
 suppressMessages({library(here); library(yaml); library(readr); library(fs); library(sf)})
 source(here::here("scripts", "publish_hint.R"))    # fp_publish_hint (advisory publish handoff)
 source(here::here("scripts", "fp_gpkg.R"))         # fp_gpkg_pin_date (byte-deterministic gpkg)
+source(here::here("scripts", "floodplain_lcc", "fp_region.R"))  # fp_region_plan/_write (#44)
 # Set here as well as in run_area.R: the per-WSG children inherit this process's environment,
 # so a child is pinned even if its own call is ever removed (#45).
 fp_gpkg_pin_date()
@@ -95,34 +99,46 @@ if (nrow(skipped) > 0)
   message("\n⚠ ", nrow(skipped), " group(s) will produce NO floodplain: ",
           paste(skipped$wsg, collapse = ", "))
 
-# --- Generate configs for the runnable groups ---
+# --- Reconcile configs for the runnable groups (#44) ---
+# The region file owns FP_REGION_OWNED; the area owns everything else. Resolution is a PURE function
+# (fp_region_plan) so this loop can report under DRY without writing, and so the rules are testable
+# without the database connection this script holds open.
 runnable <- plan[!is.na(plan$species), ]
-for (i in seq_len(nrow(runnable))) {
+plans <- lapply(seq_len(nrow(runnable)), function(i) {
   w <- runnable$wsg[i]; sp <- runnable$species[i]
-  d <- here::here("config", tolower(w)); fs::dir_create(d)
-  area <- list(name = tolower(w), watershed_group = w, species = sp,
-               min_order = min_order, schema = tolower(w),
-               primary_scenario = paste0(sp, "_ff04"))
-  # network_source / network_guard: the REGION file is the source of truth for how the
-  # accessible network is obtained -- GRAB from an already-built schema (e.g. fresh_default)
-  # vs BUILD the link pipeline per WSG. area.yml is REWRITTEN on every invocation (below), so
-  # a hand-edited value there is clobbered; the env overrides (FP_NETWORK_SOURCE/_GUARD) work
-  # for one run but leave the choice unreproducible. Carry it through from the region instead.
-  # Both absent => omitted => fp_network BUILDs, exactly as before.
-  if (!is.null(reg$network_source)) area$network_source <- reg$network_source
-  if (!is.null(reg$network_guard))  area$network_guard  <- reg$network_guard
-  # attribute_by: same reasoning -- per-watercourse floodplain attribution is a region-wide choice
-  # and area.yml is rewritten every invocation, so it has to come from the region file (#40).
-  if (!is.null(reg$attribute_by))   area$attribute_by   <- reg$attribute_by
-  yaml::write_yaml(area, file.path(d, "area.yml"))
-  readr::write_csv(base_scenarios(sp), file.path(d, "flood_scenarios.csv"))
-  # whole-WSG batch groups use the group-polygon sub-basin; drop any stale break_points.csv
-  bp <- file.path(d, "break_points.csv"); if (file.exists(bp)) fs::file_delete(bp)
+  # network_source / network_guard: the REGION file is the source of truth for how the accessible
+  # network is obtained -- GRAB from an already-built schema (e.g. fresh_default) vs BUILD the link
+  # pipeline per WSG. The env overrides (FP_NETWORK_SOURCE/_GUARD) work for one run but leave the
+  # choice unreproducible, so carry it through from the region instead. Absent => fp_network BUILDs.
+  # attribute_by (#40) is region-wide for the same reason.
+  owned <- list(name = tolower(w), watershed_group = w, species = sp,
+                min_order = min_order, schema = tolower(w),
+                primary_scenario = paste0(sp, "_ff04"))
+  for (k in c("network_source", "network_guard", "attribute_by")) {
+    if (!is.null(reg[[k]])) owned[[k]] <- reg[[k]]
+  }
+  fp_region_plan(here::here("config", tolower(w)), owned, base_scenarios(sp))
+})
+
+message("\n=== Config reconciliation ===")
+for (i in seq_along(plans)) {
+  p <- plans[[i]]
+  message(sprintf("  %-5s area.yml: %s | flood_scenarios.csv: %s | break_points.csv: %s",
+                  runnable$wsg[i], p$area_action, p$scenarios_action, p$break_points_action))
 }
-message("Generated config/ for: ", paste(tolower(runnable$wsg), collapse = ", "))
+n_changed <- sum(vapply(plans, function(p) isTRUE(p$changed), logical(1)))
 DBI::dbDisconnect(conn)
 
-if (dry) { message("\n[DRY] plan + configs written; no pipeline runs."); quit(save = "no") }
+# DRY is a PREVIEW and writes NOTHING -- not the pipeline, and not the config either. It previously
+# wrote configs before this gate, so the safe-looking command destroyed hand-maintained files (#44).
+if (dry) {
+  message("\n[DRY] preview only -- nothing written. ", n_changed, " of ", length(plans),
+          " group(s) would change; re-run without DRY=1 to apply.")
+  quit(save = "no")
+}
+
+invisible(lapply(plans, fp_region_write))
+message(n_changed, " of ", length(plans), " config(s) updated; the rest were already current.")
 
 # --- Run each group as a subprocess (per-WSG soft-fail + log) ---
 ts <- format(Sys.time(), "%Y%m%d_%H%M%S", tz = "UTC")

@@ -26,29 +26,29 @@ current values — a plain `modifyList` would silently fail to clear a dropped k
 rewrite existing rows. `break_points.csv`: never deleted.
 
 ## Phase 1 — Factor config resolution into a pure, testable function
-- [ ] `fp_region_plan(cfg_dir, region_owned, base)` in `scripts/floodplain_lcc/fp_region.R` — reads
+- [x] `fp_region_plan(cfg_dir, region_owned, base)` in `scripts/floodplain_lcc/fp_region.R` — reads
       what is on disk, returns the merged `area.yml` list, the scenario rows to write (or `NULL`),
       and a human-readable action per file
-- [ ] `fp_region_write(plan)` — applies it. No DB, no globals, no side effects in the planner
-- [ ] Region-owned key set defined once, as a constant, so runner and checker cannot drift
+- [x] `fp_region_write(plan)` — applies it. No DB, no globals, no side effects in the planner
+- [x] Region-owned key set defined once, as a constant, so runner and checker cannot drift
 
 ## Phase 2 — Make `DRY=1` actually dry
-- [ ] Move config resolution before the dry gate and the write after it
-- [ ] `DRY=1` prints the per-group action lines and writes nothing
-- [ ] Correct the usage comment at `run_region.R:6-7` ("plan + generate configs only") — the wording
+- [x] Move config resolution before the dry gate and the write after it
+- [x] `DRY=1` prints the per-group action lines and writes nothing
+- [x] Correct the usage comment at `run_region.R:6-7` ("plan + generate configs only") — the wording
       that made the trap look intentional
 
 ## Phase 3 — Wire it into the runner
-- [ ] Replace `run_region.R:96-117` with the plan/write pair; `base_scenarios()` stays as the
+- [x] Replace `run_region.R:96-117` with the plan/write pair; `base_scenarios()` stays as the
       generator for the absent-file case
-- [ ] Log per group what changed, so a real run says what it touched
+- [x] Log per group what changed, so a real run says what it touched
 
 ## Phase 4 — Assert the acceptance criteria
-- [ ] `scripts/floodplain_lcc/region_config-check.R` — runs `fp_region_plan` against a temp copy of
+- [x] `scripts/floodplain_lcc/region_config-check.R` — runs `fp_region_plan` against a temp copy of
       `config/morr` and `config/bulk`, asserts #44's three criteria plus the ownership rule. No DB
-- [ ] Cold path: assert it on a config dir that does NOT exist (the create path every new group
+- [x] Cold path: assert it on a config dir that does NOT exist (the create path every new group
       takes), not only the merge path
-- [ ] The regression that would have caught this: a stale region-owned key is cleared when the
+- [x] The regression that would have caught this: a stale region-owned key is cleared when the
       region file stops setting it
 
 ## Phase 5 — Docs + close
@@ -59,9 +59,9 @@ rewrite existing rows. `break_points.csv`: never deleted.
 - [ ] `/planning-archive`, `/gh-pr-push`
 
 ## Validation
-- [ ] `DRY=1 Rscript scripts/run_region.R skeena` -> `git status` clean (the one that failed before)
-- [ ] A real `run_region.R skeena` preserves MORR's six `ch_*` rows, all 12 citations, break_points
-- [ ] `FP_SPECIES=ch FP_PRIMARY_SCENARIO=ch_ff06 Rscript scripts/run_area.R morr` still resolves
-- [ ] `region_config-check.R` passes, including create path and stale-key regression
-- [ ] A generated-only group (`config/tabr/`) is byte-identical after a region run
+- [x] `DRY=1 Rscript scripts/run_region.R skeena` -> `git status` clean (the one that failed before)
+- [x] A real `run_region.R skeena` preserves MORR's six `ch_*` rows, all 12 citations, break_points
+- [x] `FP_SPECIES=ch FP_PRIMARY_SCENARIO=ch_ff06 Rscript scripts/run_area.R morr` still resolves
+- [x] `region_config-check.R` passes, including create path and stale-key regression
+- [x] A generated-only group (`config/tabr/`) is byte-identical after a region run
 - [ ] `/code-check` clean on each commit
