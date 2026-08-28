@@ -35,13 +35,13 @@ Decisions at plan time (user): **capability + the Morice layer** (not capability
 - [x] Hand over the layer with a note on what the two categories mean
 
 ## Phase 4 — Docs + close
-- [ ] `README.md` + `CLAUDE.md`: grouping key as the fourth member of the item key; `attribute_by`
-- [ ] Note in #40 that `subset` (blk+drm) is the degenerate one-group case — do NOT refactor here
-- [ ] `/planning-archive`, `/gh-pr-push`
+- [x] `README.md` + `CLAUDE.md`: grouping key as the fourth member of the item key; `attribute_by`
+- [x] Note in #40 that `subset` (blk+drm) is the degenerate one-group case — do NOT refactor here
+- [x] `/planning-archive`, `/gh-pr-push`
 
 ## Validation
 - [x] No `attribute_by` ⇒ `floodplain.gpkg` byte-identical (the regression that matters)
 - [x] Attributed rows union to the unattributed `co_ff04` polygon (the `complete = TRUE` contract —
       assert it rather than assume it)
-- [ ] `/code-check` clean per commit
-- [ ] `/planning-archive` on completion
+- [x] `/code-check` clean per commit
+- [x] `/planning-archive` on completion

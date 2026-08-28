@@ -31,6 +31,18 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   group whose species differs from the region's preference needs its **own** region file with the
   same `region:` label (e.g. `skeena_ch.yml` for KISP chinook) — listing it in an existing one would
   clobber its `area.yml`. The publish layer derives its WSG→region roster from these files.
+- **Per-watercourse attribution (#40):** optional `attribute_by:` in `area.yml` (or the region
+  file — carried through like `network_source`) naming a column of the stream network. Step 2 calls
+  `flooded::fl_valley_attribute()` (needs flooded ≥ 0.4.0) on the **primary scenario only**, passing
+  the scenario row's `max_width`/`cost_threshold` so thresholds match the delineation, and writes
+  `<scenario_id>_by_<column>` with the item key plus the grouping column. Absent ⇒ unchanged.
+  The delineation is **not** recomputed per group — re-running the VCA on a subset moves the
+  boundary (the flood surface interpolates from every seed), so "this river's floodplain" must be
+  an attribution of a fixed delineation. **Rows overlap by design** (MORR: 43.6% of the floodplain
+  is claimed by more than one watercourse). Measured on MORR at 16.5M cells: attribution costs
+  12–14× the delineation, but **85% of that is k-independent** (0.39 s per extra group), so
+  `blue_line_key` (k=340, no NA group) is affordable where `gnis_name` (k=33) pools 54% of the area
+  into one unnamed group.
 - **Item key on every published layer (#30):** `wsg`, `species`, `scenario` — mirroring the STAC item
   id. The same key is a STAC *property* (select items) and a gpkg *column* (separate rows after
   merge), so many areas fetch-and-append into one gpkg and stay separable by attribute; adding an
