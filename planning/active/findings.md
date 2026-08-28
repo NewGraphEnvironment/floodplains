@@ -140,3 +140,21 @@ that, **36.5 km² (65%) is shared** with other watercourses, mostly tributary co
 2.60, Thautil 2.27, Gosnell 1.97, Owen 1.59, Peacock 1.23, and 22.47 km² with unnamed streams. So
 only ~19.5 km² is unambiguously and exclusively Morice floodplain. That is a material input to a
 sampling design: "within the Morice floodplain" is mostly also within some tributary's.
+
+## Phase 2 regression — the strong form
+
+Re-ran MORR step 2 **with attribution on** and compared the pre-existing `co_ff04` layer:
+
+```
+BEFORE: rows=1 area_m2=411131287.230639637 wkb_md5=c385ce7c556dca3fc8375d1b99917ffc
+AFTER : rows=1 area_m2=411131287.230639637 wkb_md5=c385ce7c556dca3fc8375d1b99917ffc
+```
+
+Byte-identical WKB. This is stronger than the planned "no `attribute_by` ⇒ unchanged" check,
+because it proves the existing layer is untouched **while attribution runs**, not merely when the
+feature is switched off. It also re-confirms the delineation is deterministic (same DEM + params
+reproduce the same geometry) and that the #23 per-layer write still holds — `ch_ff02/04/06`
+survived a coho run untouched.
+
+The wired path reproduced the standalone measurement exactly: `co_ff04_by_gnis_name`, 33 groups,
+14,094 fallback cells.

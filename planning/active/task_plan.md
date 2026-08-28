@@ -19,14 +19,14 @@ Decisions at plan time (user): **capability + the Morice layer** (not capability
 - [x] Post numbers to flooded#44; post the #41 probe result to flooded#41
 
 ## Phase 2 — Wire attribution into step 2
-- [ ] Optional `attribute_by:` in `area.yml` — absent ⇒ nothing runs, output byte-identical
-- [ ] Carry region → area via the pass-through added in #36 (`run_region.R` rewrites `area.yml`)
-- [ ] Call `fl_valley_attribute()` after `fl_valley_confine()` for the **primary scenario only**,
+- [x] Optional `attribute_by:` in `area.yml` — absent ⇒ nothing runs, output byte-identical
+- [x] Carry region → area via the pass-through added in #36 (`run_region.R` rewrites `area.yml`)
+- [x] Call `fl_valley_attribute()` after `fl_valley_confine()` for the **primary scenario only**,
       passing `sc$max_width` / `sc$cost_threshold` so thresholds match the delineation
-- [ ] New layer `<scenario_id>_by_<group>` with the item key (#30) + the group column; the existing
+- [x] New layer `<scenario_id>_by_<group>` with the item key (#30) + the group column; the existing
       `<scenario_id>` layer untouched
-- [ ] Fail early by area name if `attribute_by` is not a network column
-- [ ] Log the fallback-cell count as a QA signal
+- [x] Fail early by area name if `attribute_by` is not a network column
+- [x] Log the fallback-cell count as a QA signal
 
 ## Phase 3 — The Morice deliverable
 - [ ] Run MORR with attribution; isolate `gnis_name == "Morice River"`
@@ -40,8 +40,8 @@ Decisions at plan time (user): **capability + the Morice layer** (not capability
 - [ ] `/planning-archive`, `/gh-pr-push`
 
 ## Validation
-- [ ] No `attribute_by` ⇒ `floodplain.gpkg` byte-identical (the regression that matters)
-- [ ] Attributed rows union to the unattributed `co_ff04` polygon (the `complete = TRUE` contract —
+- [x] No `attribute_by` ⇒ `floodplain.gpkg` byte-identical (the regression that matters)
+- [x] Attributed rows union to the unattributed `co_ff04` polygon (the `complete = TRUE` contract —
       assert it rather than assume it)
 - [ ] `/code-check` clean per commit
 - [ ] `/planning-archive` on completion
