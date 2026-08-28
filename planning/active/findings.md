@@ -95,3 +95,19 @@ Before and after, on a real `run_region.R skeena`:
 The `DRY` preview is now useful rather than merely harmless: it reports per group what would change
 (`area.yml: update: attribute_by | flood_scenarios.csv: unchanged (12 rows, ch+co) |
 break_points.csv: present, kept (1 point(s) => interior sub-basins)`).
+
+## Filed, not decided: #48 (MORR break_points.csv)
+
+`config/morr/break_points.csv` and `CLAUDE.md` disagree about whether MORR is whole-WSG. The file's
+presence sends step 2 down the `frs_watershed_split` branch; the docs say MORR uses the group polygon
+and that whole-WSG areas need no break points — while separately warning that the single-outlet
+construct "does NOT generalize". The two paths differ by 0.07% for MORR (4382.2 vs 4379.1 km²),
+which is why nothing ever looked wrong.
+
+`morr/area.yml` still says its `break_points.csv` was "copied from Neexdzii as a starting template"
+and still carries an unresolved "OPEN QUESTION … does MORR run as the WHOLE watershed group" — a
+question the docs answered and the config never did. Filed as #48 rather than guessed at: it changes
+which code path a published area takes.
+
+The #44 fix is correct either way, and that is the point — **if MORR should be whole-WSG, deleting
+that file belongs in a commit with a message, not as a side effect of a preview command.**

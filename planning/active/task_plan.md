@@ -52,10 +52,10 @@ rewrite existing rows. `break_points.csv`: never deleted.
       region file stops setting it
 
 ## Phase 5 — Docs + close
-- [ ] `CLAUDE.md`: the ownership rule, and that `DRY=1` is now genuinely read-only. The current text
+- [x] `CLAUDE.md`: the ownership rule, and that `DRY=1` is now genuinely read-only. The current text
       documents the behaviour being fixed ("**writes** each group's `area.yml`", hand-edits "do not
       survive") and must not be left standing
-- [ ] File the MORR `break_points.csv` doc/config inconsistency as its own issue
+- [x] File the MORR `break_points.csv` doc/config inconsistency as its own issue — #48
 - [ ] `/planning-archive`, `/gh-pr-push`
 
 ## Validation
