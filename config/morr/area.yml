@@ -16,5 +16,6 @@ targets:
 # OPEN QUESTION (resolve during the MORR run): does MORR run as the WHOLE watershed group,
 # or is it subset to a reach the way Neexdzii is subset from BULK? Default: whole WSG.
 subset: null
+attribute_by: gnis_name
 # flood_scenarios.csv / break_points.csv in this dir are copied from Neexdzii as a starting
 # template — review the flood_factor scenarios and (re)place the sub-basin break points for MORR.

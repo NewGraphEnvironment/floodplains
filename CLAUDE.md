@@ -27,10 +27,23 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
 - `config/<area>/` — per-area config: `area.yml` + `flood_scenarios.csv` (+ optional `break_points.csv`;
   absent ⇒ whole-WSG single sub-basin = group polygon, present ⇒ interior sub-basins).
 - `config/regions/<region>.yml` — a region = a named set of WSGs + ordered `species` preference.
-  `run_region.R` **writes** each group's `area.yml` from the region file (`run_region.R:95-98`), so a
-  group whose species differs from the region's preference needs its **own** region file with the
-  same `region:` label (e.g. `skeena_ch.yml` for KISP chinook) — listing it in an existing one would
-  clobber its `area.yml`. The publish layer derives its WSG→region roster from these files.
+  `run_region.R` **reconciles** each group's `area.yml` against the region file — it does not
+  regenerate it (#44). The region owns `FP_REGION_OWNED` (`fp_region.R`): `name`,
+  `watershed_group`, `species`, `min_order`, `schema`, `primary_scenario`, `network_source`,
+  `network_guard`, `attribute_by`. The **area** owns everything else, so `subset`, `tile_size`,
+  `targets`, a second species' scenario rows, citations, `break_points.csv` and every **comment**
+  all survive a region run. Region-owned keys are stripped and re-applied rather than merged, so a
+  region file that drops `network_source` actually clears it downstream — a plain merge would leave
+  it stale and the group would keep GRABbing when it was meant to BUILD. `flood_scenarios.csv` is
+  created when absent and **appended** to when the resolved species has no rows; existing rows are
+  never rewritten. Still, a group whose species differs from the region's preference needs its
+  **own** region file with the same `region:` label (e.g. `skeena_ch.yml` for KISP chinook) —
+  listing it in an existing one would point the region-owned keys at the wrong species. The publish
+  layer derives its WSG→region roster from these files.
+  **`DRY=1` writes nothing at all** — it prints the per-group reconciliation it would perform and
+  exits. It used to write configs before the dry gate, so the preview was as destructive as a real
+  run; that is what #44 was. `scripts/floodplain_lcc/region_config-check.R` asserts all of the
+  above with no database (`fp_region_plan` is pure, which is why it can be checked at all).
 - **Per-watercourse attribution (#40):** optional `attribute_by:` in `area.yml` (or the region
   file — carried through like `network_source`) naming a column of the stream network. Step 2 calls
   `flooded::fl_valley_attribute()` (needs flooded ≥ 0.4.0) on the **primary scenario only**, passing
@@ -134,9 +147,10 @@ Joseph 1942; Bonnington Falls). Two traps this region exposed, both documented i
   natural barrier where `bcfishpass` opts it in. The 2% default tolerance is tighter than the real
   spread, so ~a quarter of groups trip it against a perfectly fresh source.
 
-`run_region.R` carries `network_source` / `network_guard` from the region file into each generated
-`area.yml` — it rewrites `area.yml` every invocation, so hand-editing them there does not survive,
-and the `FP_NETWORK_*` env overrides leave the choice unreproducible.
+`run_region.R` carries `network_source` / `network_guard` from the region file into each group's
+`area.yml` on every invocation, so hand-editing them **there** is overwritten on the next region run
+(they are region-owned — see the ownership rule above), and the `FP_NETWORK_*` env overrides leave
+the choice unreproducible. Set them in the region file.
 
 ## Prerequisites (when running)
 

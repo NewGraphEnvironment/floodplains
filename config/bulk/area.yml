@@ -11,5 +11,6 @@ min_order: 3
 schema: bulk                   # dedicated persist schema (never shared fresh.*, never neexdzii)
 primary_scenario: co_ff04      # headline scenario for LULC (03)
 subset: null                   # whole WSG — the group polygon is the single sub-basin
+attribute_by: gnis_name
 # flood_scenarios.csv copied from the coho scenario set (co_ff04 = functional floodplain).
 # No break_points.csv — whole-WSG single sub-basin.
