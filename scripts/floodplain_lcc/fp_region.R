@@ -86,7 +86,10 @@ fp_region_plan <- function(cfg_dir, region_owned, base) {
       area_mode <- "none"; area_action <- "unchanged"
     } else {
       area_mode <- "update"
-      area_action <- paste0("update: ", paste(c(set_keys, paste0("-", rm_keys)), collapse = ", "))
+      # paste0("-", character(0)) is "-", NOT character(0) -- a zero-length argument is treated as
+      # "" rather than short-circuiting, so an unguarded paste prints a phantom removed key.
+      removed <- if (length(rm_keys)) paste0("-", rm_keys) else character(0)
+      area_action <- paste0("update: ", paste(c(set_keys, removed), collapse = ", "))
     }
   }
 

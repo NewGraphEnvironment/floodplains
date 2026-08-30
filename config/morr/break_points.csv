@@ -1,2 +1,0 @@
-id,lon,lat,blk,drm,gnis_name,dist_m,name_basin,fisheries_value,falls_downstream,description
-1,-126.746442,54.410770,360885316,61.99551,Morice River,0,Morice,5,0,MORR whole-watershed-group outlet — Morice River mainstem at the Bulkley (Wedzin Kwa) confluence. Single break point => one sub-basin covering the entire MORR group (verified 4382.2 km2 vs 4379.1 km2 group area; captures 4877/4877 coho order-3+ segments). Interior sub-basin delineation deferred to a later pass (issue #1 Phase 3).
