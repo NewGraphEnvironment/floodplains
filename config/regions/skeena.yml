@@ -11,11 +11,20 @@ region: skeena
 mergin_project: TBD              # doc-only; set when a Skeena field project exists
 min_order: 3
 species: [co]                    # coho only on these upper-Skeena groups
-# attribute_by (#40): also write a per-watercourse floodplain (<scenario>_by_gnis_name) for the
+# attribute_by (#40): also write a per-watercourse floodplain (<scenario>_by_blue_line_key) for the
 # primary scenario, so "where is the floodplain of THIS river?" is answerable -- the question that
-# blocked Morice sampling. gnis_name rather than blue_line_key because the point here is a
-# human-readable watercourse name for field use; blue_line_key resolves every watercourse (no NA
-# group) for ~16% more time and is the better choice for analysis. Costs ~13 min per area on the
-# next step-2 run, primary scenario only. Remove this line to turn it off.
-attribute_by: gnis_name
+# blocked Morice sampling.
+#
+# blue_line_key, NOT gnis_name (#48). gnis_name reads better but answers the question for barely a
+# third of the ground: on MORR it yields 33 rows and pools 320.6 km2 -- 78% of the floodplain -- into
+# a single unnamed feature, so a click anywhere in it returns NA. The channels hidden in there are
+# not slivers (largest carry 20.1, 19.6, 17.1 km of network). blue_line_key resolves all 340 with no
+# NA group, and loses nothing: on MORR every named river is exactly ONE blue_line_key (Morice
+# 360885316, Thautil 360882037, ...) and no key carries two names, so it is a strict refinement.
+# Readability is recovered by the carried gnis_name label column rather than by grouping on the name.
+#
+# Cost is not the tradeoff it looks like: 85% of attribution is k-independent (0.39 s per extra
+# group, measured on MORR at 16.5M cells), so 307 extra groups is ~2 minutes on a ~15 min pass.
+# Primary scenario only. Remove this line to turn it off.
+attribute_by: blue_line_key
 watershed_groups: [BULK, MORR]   # whole-WSG coho; NEEXDZII (subset of BULK) intentionally excluded
