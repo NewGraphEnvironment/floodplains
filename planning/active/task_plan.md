@@ -11,11 +11,11 @@ with no way to tell which is live. Both gate a clean STAC rebuild; both are stru
 same file.
 
 ## Phase 1 — Prune the stale layers (#55)
-- [ ] `scripts/floodplain_lcc/gpkg_prune-legacy.R <area>` — `gpkg_backfill-wsg.R` shape: idempotent,
+- [x] `scripts/floodplain_lcc/gpkg_prune-legacy.R <area>` — `gpkg_backfill-wsg.R` shape: idempotent,
       removes only an explicit list of known-legacy names, prints removed + left
-- [ ] Never touch a layer not on the list
-- [ ] Run on morr and bulk; the other 18 report nothing to do
-- [ ] Re-run: removes nothing the second time
+- [x] Never touch a layer not on the list
+- [x] Run on morr and bulk; the other 18 report nothing to do
+- [x] Re-run: removes nothing the second time
 
 ## Phase 2 — The bridge (#54)
 - [ ] Rewrite around `st_intersection()` on sf objects (one row per intersecting pair, spatial index)

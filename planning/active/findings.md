@@ -52,3 +52,17 @@ exclusive (frac == 1).
 exercises attribution -> bridge end to end on an area whose numbers were never used to design any of
 this. Its network predates the link rebuild, so the run validates the **code**, not publishable
 numbers.
+
+## Phase 1: pruned
+
+| area | removed | kept | current transition layer(s) |
+|---|---|---|---|
+| morr | 4 (`ch_ff06`/`co_ff04` x `_fire`/`_disturbance`) | 14 | `transition_ch_ff06_2017_2023`, `transition_co_ff04_2017_2023` |
+| bulk | 2 (`co_ff04` x `_fire`/`_disturbance`) | 4 | `transition_co_ff04_2017_2023` |
+
+Second run on both: "nothing to prune". All 18 other areas: "nothing to prune". Backups of both
+gpkgs taken before the destructive run, since these are published assets.
+
+The stale layers were substantial, not stubs — BULK's carried 9,045 rows each against a current
+layer that is also 9,045. Identical row counts are exactly why they were easy to miss: nothing about
+them looked wrong, they were simply produced by a superseded code path.
