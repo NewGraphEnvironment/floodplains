@@ -66,3 +66,37 @@ gpkgs taken before the destructive run, since these are published assets.
 The stale layers were substantial, not stubs — BULK's carried 9,045 rows each against a current
 layer that is also 9,045. Identical row counts are exactly why they were easy to miss: nothing about
 them looked wrong, they were simply produced by a superseded code path.
+
+## Phase 2: two bugs, both caught before the long run
+
+**CRS mismatch.** The attribution layer is EPSG:3005 (BC Albers, inherited from the stream network);
+the transition layer is EPSG:32609 (UTM 9N, from the landcover raster). `st_intersection` errors
+outright, so this could not have shipped silently — but the *direction* of the fix could have.
+`area_ha` was measured in the patch CRS, so watercourses must be transformed **to** the patches; the
+reverse would leave the coverage check comparing areas from two projections and drifting against its
+own denominator.
+
+**The spec in #54 was wrong, and its own acceptance criterion caught it.** `overlap_frac` was
+documented as the apportionment weight. It cannot be: watercourse rows overlap each other, so a patch
+under three of them gets three rows each covering most of it, and `overlap_frac` sums to **2.31 per
+patch** on MORR. Weighting by it gave **790.6 ha of tree loss against an ungrouped 431.9 -- 83% over**.
+
+Two fractions are needed and only one is additive:
+
+| column | meaning | per-patch sum |
+|---|---|---|
+| `overlap_frac` | what share of this patch does this watercourse cover? | **2.31 mean** |
+| `apportion_weight` | what share of this patch is credited to it? | **1.000** (0.9998-1.0003) |
+
+With the normalized weight it reconciles: apportioned **431.82** vs ungrouped **431.87 ha**, a
+0.045 ha gap from two patches lying outside every attribution polygon. The three semantics separate
+meaningfully on the Morice: **inclusive 75.0 >= apportioned 45.7 >= exclusive 14.7 ha**.
+
+**The stated coverage invariant was wrong for the same reason.** "sum(overlap_ha) ~= area_ha" reports
+~2.3x because the rows overlap. The meaningful check is the **union** -- `max(overlap_frac)` per
+patch -- which is **0.966 mean** on MORR. The ~3% shortfall is patch boundaries and attribution
+boundaries coming off different raster grids (UTM landcover vs Albers valley), not a lost join.
+
+`bridge-check.R` asserts all of it, including a check that `overlap_frac` is **not** usable as a
+weight -- if it ever sums to 1 the two columns have been conflated and the distinction the table
+exists to make is gone.

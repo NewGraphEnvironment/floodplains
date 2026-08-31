@@ -169,6 +169,80 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
                  append = file.exists(out_lc_gpkg), delete_layer = TRUE, quiet = TRUE)
     message("  Layer: ", lyr, " (", nrow(trans_polys),
             " change patches >= ", patch_min_m2 / 1e4, " ha)")
+
+    # --- Bridge: which change patches belong to which watercourse (#54) ---
+    # The floodplain is exploded two ways that cannot be joined by a column. Change patches are
+    # DISJOINT (one row per patch); per-watercourse attribution rows deliberately OVERLAP where
+    # ground is shared at a confluence (#40) -- on MORR they sum to 795.8 km2 over a 411.1 km2
+    # floodplain. So a patch belongs to several watercourses at once, and writing a single
+    # blue_line_key onto it would force a choice that destroys exactly the overlap #40 preserves.
+    #
+    # Ship the relation instead, as a non-spatial table: one row per (patch, watercourse) pair with
+    # the overlap. overlap_frac is what lets a consumer pick their own semantics -- inclusive (every
+    # patch touching a river), apportioned (weight by frac; sums back to the basin total), or
+    # exclusive (frac == 1). Without it the natural join -- intersect, then sum area_ha by
+    # watercourse -- overcounts by up to 94% with nothing to warn them.
+    #
+    # No attribute_by => no attribution layer => no bridge, and step 3 output is unchanged.
+    attr_lyr <- if (!is.null(cfg$attribute_by))
+      paste0(scenario_id, "_by_", cfg$attribute_by) else NA_character_
+    if (!is.na(attr_lyr) && file.exists(fp_file) && attr_lyr %in% sf::st_layers(fp_file)$name) {
+      key <- cfg$attribute_by
+      wc  <- sf::st_read(fp_file, layer = attr_lyr, quiet = TRUE)[, key]
+      pat <- trans_polys[, c("patch_id", "area_ha")]
+      # The two layers are in DIFFERENT projected CRS -- the attribution layer inherits the stream
+      # network's BC Albers, the transition layer the landcover raster's UTM -- so st_intersection
+      # errors outright. Transform the watercourses TO the patches, not the reverse: area_ha was
+      # measured in the patch CRS, and computing overlap in the other one would leave the coverage
+      # check comparing areas from two projections and drifting against its own denominator.
+      if (sf::st_crs(wc) != sf::st_crs(pat)) wc <- sf::st_transform(wc, sf::st_crs(pat))
+      # st_intersection on two sf data.frames returns ONE ROW PER INTERSECTING PAIR carrying columns
+      # from both sides, using the spatial index -- which is the bridge itself. Do not hand-roll
+      # st_intersects + pairwise indexing: st_intersection takes no `by_feature` argument, so such a
+      # call silently computes a cross product of the paired vectors instead.
+      inter <- suppressWarnings(sf::st_intersection(pat, wc))
+      if (nrow(inter) > 0) {
+        ov_ha  <- as.numeric(sf::st_area(inter)) / 1e4
+        bridge <- data.frame(
+          patch_id     = inter$patch_id,
+          k            = inter[[key]],
+          overlap_ha   = round(ov_ha, 4),
+          # Capped at 1: a fully contained patch can overshoot by a float epsilon, and a fraction
+          # above 1 reads as a defect rather than as rounding.
+          overlap_frac = round(pmin(1, ov_ha / inter$area_ha), 4),
+          wsg = cfg$watershed_group, species = cfg$species, scenario = scenario_id,
+          stringsAsFactors = FALSE)
+        # TWO different fractions, and only one of them is additive. Watercourse rows overlap each
+        # other (#40), so a patch under three of them gets three rows each covering most of it and
+        # overlap_frac sums to ~2.3 per patch on MORR -- weighting by it overstates the basin total
+        # by 83%. apportion_weight normalises within the patch so the weights sum to exactly 1.
+        #   overlap_frac      "what share of this patch does this watercourse cover?"  (sums > 1)
+        #   apportion_weight  "what share of this patch is credited to it?"            (sums to 1)
+        # Ship both: the first answers whether a patch belongs to a river, the second is the only
+        # one that reconciles to an ungrouped total.
+        tot_ov <- tapply(bridge$overlap_ha, bridge$patch_id, sum)
+        bridge$apportion_weight <- round(
+          bridge$overlap_ha / tot_ov[as.character(bridge$patch_id)], 4)
+        names(bridge)[names(bridge) == "k"] <- key
+        # A shared boundary yields a zero-area pair: a join artefact, not a relationship. Keeping it
+        # would inflate the row count without changing any sum.
+        bridge <- bridge[bridge$overlap_ha > 0, , drop = FALSE]
+        b_lyr <- sub("^transition_", "patch_watercourse_", lyr)
+        sf::st_write(bridge, out_lc_gpkg, layer = b_lyr,
+                     append = file.exists(out_lc_gpkg), delete_layer = TRUE, quiet = TRUE)
+        # Coverage worth printing is the UNION one -- how much of a patch any watercourse reaches.
+        # Summing overlap_ha would report ~2.3 because the rows overlap, which says nothing about
+        # whether ground was missed. max(overlap_frac) under ~0.97 means patch boundaries and
+        # attribution boundaries are drifting apart (they come off different raster grids), and a
+        # sharp drop would mean the join is quietly losing ground.
+        u <- tapply(bridge$overlap_frac, bridge$patch_id, max)
+        message("  Layer: ", b_lyr, " (", nrow(bridge), " pairs over ",
+                length(unique(bridge$patch_id)), " patches and ",
+                length(unique(bridge[[key]])), " watercourses; union coverage ",
+                sprintf("%.3f", mean(u)),
+                ", unbridged patches ", sum(!pat$patch_id %in% bridge$patch_id), ")")
+      }
+    }
   }
 
   # --- Pass 2: Per-sub-basin summaries (for tables/plots) ---

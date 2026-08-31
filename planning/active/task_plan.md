@@ -18,18 +18,18 @@ same file.
 - [x] Re-run: removes nothing the second time
 
 ## Phase 2 — The bridge (#54)
-- [ ] Rewrite around `st_intersection()` on sf objects (one row per intersecting pair, spatial index)
-- [ ] `overlap_frac = overlap_ha / area_ha`, capped at 1
-- [ ] Drop zero-area pairs (shared boundary = join artefact, not a relationship)
-- [ ] No `attribute_by` => no bridge, step 3 unchanged
-- [ ] Written in step 3 where `fp_file` and `trans_polys` are already in scope
+- [x] Rewrite around `st_intersection()` on sf objects (one row per intersecting pair, spatial index)
+- [x] `overlap_frac = overlap_ha / area_ha`, capped at 1
+- [x] Drop zero-area pairs (shared boundary = join artefact, not a relationship)
+- [x] No `attribute_by` => no bridge, step 3 unchanged
+- [x] Written in step 3 where `fp_file` and `trans_polys` are already in scope
 
 ## Phase 3 — Test on BULK
 - [ ] `Rscript scripts/run_area.R bulk 2,3`; gate on error markers AND output mtime
 - [ ] Confirm the label column attaches on a second area (MORR was 33 of 340)
 
 ## Phase 4 — Assert the invariants
-- [ ] `scripts/floodplain_lcc/bridge-check.R` — guard idiom, no database
+- [x] `scripts/floodplain_lcc/bridge-check.R` — guard idiom, no database
 - [ ] Coverage: per-patch `sum(overlap_ha)` ~= `area_ha` (catches a silently-wrong join)
 - [ ] Apportioned tree loss sums to the ungrouped total
 - [ ] Inclusive >= apportioned >= exclusive
