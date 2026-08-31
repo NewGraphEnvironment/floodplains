@@ -56,6 +56,14 @@ The **method lives in the packages** (`link`, `flooded`, `drift`, `fresh`); this
   two species coexist in one gpkg; flattening to generic layers happens downstream at merge time, so
   adding an area or species never touches a QGIS project. Pre-existing outputs are migrated with
   `scripts/floodplain_lcc/gpkg_backfill-wsg.R <area>` (idempotent).
+- **Change patches can be attributed to watercourses.** The floodplain is exploded two ways that do
+  not line up — per watercourse (overlapping) and per change patch (disjoint) — so a
+  `patch_watercourse_<scenario>_<span>` table ships beside the patches with one row per
+  (patch, watercourse) pair. It carries two fractions because only one is additive:
+  `overlap_frac` (what share of the patch a watercourse covers) and `apportion_weight` (what share
+  is credited to it, summing to 1). That lets a consumer ask for tree loss **inclusively** (all
+  ground a river touches), **apportioned** (adds up to the basin total), or **exclusively** (ground
+  no other watercourse claims) — rather than inheriting one silently and being wrong by 83%.
 - **Disturbance attribution is layer-agnostic.** `config/disturbance.yml` lists overlay layers
   (fire, harvest) that tag each change patch; the residual (matches none) is the
   classification-noise floor. Adding a source is config-only.

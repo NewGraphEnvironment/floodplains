@@ -25,24 +25,26 @@ same file.
 - [x] Written in step 3 where `fp_file` and `trans_polys` are already in scope
 
 ## Phase 3 — Test on BULK
-- [ ] `Rscript scripts/run_area.R bulk 2,3`; gate on error markers AND output mtime
+- [~] BULK: step 2 + attribution landed (428 watercourses); run was killed during co_ff06, so
+      step 3 and the BULK bridge are outstanding
 - [ ] Confirm the label column attaches on a second area (MORR was 33 of 340)
 
 ## Phase 4 — Assert the invariants
 - [x] `scripts/floodplain_lcc/bridge-check.R` — guard idiom, no database
-- [ ] Coverage: per-patch `sum(overlap_ha)` ~= `area_ha` (catches a silently-wrong join)
-- [ ] Apportioned tree loss sums to the ungrouped total
-- [ ] Inclusive >= apportioned >= exclusive
-- [ ] No geometry duplication: transition row count unchanged
+- [x] Coverage — **corrected**: the sum is ~2.3x because rows overlap; the real check is the
+      union, `max(overlap_frac)` per patch (0.966 on MORR)
+- [x] Apportioned tree loss sums to the ungrouped total
+- [x] Inclusive >= apportioned >= exclusive
+- [x] No geometry duplication: transition row count unchanged
 
 ## Phase 5 — Docs + close
-- [ ] `CLAUDE.md`: two orthogonal explosions + the bridge, three semantics named
-- [ ] `README.md`: the bridge as a published output
+- [x] `CLAUDE.md`: two orthogonal explosions + the bridge, three semantics named
+- [x] `README.md`: the bridge as a published output
 - [ ] `/planning-archive`, `/gh-pr-push`
 
 ## Validation
-- [ ] `bridge-check.R` green on MORR and BULK
-- [ ] Apportioned reconciles to ungrouped total on both
-- [ ] `gpkg_prune-legacy.R`: one transition layer per scenario per span; second run a no-op
+- [~] `bridge-check.R` green on MORR (7/7); BULK outstanding
+- [x] Apportioned reconciles on MORR (431.82 vs 431.87 ha)
+- [x] `gpkg_prune-legacy.R`: one transition layer per scenario per span; second run a no-op
 - [ ] No `attribute_by` => `floodplain_landcover.gpkg` byte-identical
 - [ ] `/code-check` clean per commit
