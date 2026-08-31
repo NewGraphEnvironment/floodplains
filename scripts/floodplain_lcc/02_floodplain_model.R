@@ -208,6 +208,29 @@ fp_floodplain <- function(cfg, scenarios = "run") {
       attributed$wsg      <- cfg$watershed_group
       attributed$species  <- cfg$species
       attributed$scenario <- sc$scenario_id
+      # Label column (#48): grouping by an opaque key (blue_line_key) resolves every watercourse,
+      # but a click in QGIS then returns `360885316` rather than "Morice River" -- complete and
+      # unusable in the field. Carry the human-readable name alongside when the network offers one
+      # that is a clean function of the grouping key: on MORR all 340 keys map to 0 or 1 gnis_name,
+      # so 33 rows get a name and 307 are honestly NA. Skipped (with a message) when the mapping is
+      # ambiguous, rather than picking one name arbitrarily and quietly mislabelling a watercourse.
+      label_col <- "gnis_name"
+      if (!identical(cfg$attribute_by, label_col) &&
+            label_col %in% setdiff(names(streams), attr(streams, "sf_column"))) {
+        lut <- unique(sf::st_drop_geometry(streams)[, c(cfg$attribute_by, label_col)])
+        lut <- lut[!is.na(lut[[label_col]]), , drop = FALSE]
+        n_per_key <- tapply(lut[[label_col]], lut[[cfg$attribute_by]], function(x) length(unique(x)))
+        if (any(n_per_key > 1)) {
+          message("  Label: skipped -- ", sum(n_per_key > 1), " ", cfg$attribute_by,
+                  " value(s) carry more than one ", label_col, "; not guessing")
+        } else {
+          lut <- lut[!duplicated(lut[[cfg$attribute_by]]), , drop = FALSE]
+          attributed[[label_col]] <- lut[[label_col]][match(attributed[[cfg$attribute_by]],
+                                                            lut[[cfg$attribute_by]])]
+          message("  Label: ", sum(!is.na(attributed[[label_col]])), " of ", nrow(attributed),
+                  " groups carry a ", label_col)
+        }
+      }
       attr_lyr <- paste0(sc$scenario_id, "_by_", cfg$attribute_by)
       sf::st_write(attributed, out_gpkg, layer = attr_lyr,
                    append = file.exists(out_gpkg), delete_layer = TRUE, quiet = TRUE)

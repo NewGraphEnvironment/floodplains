@@ -59,6 +59,13 @@ message("\n#44 acceptance: a region run preserves hand-maintained area config")
 # MORR is the worst case: two species, 12 citations, and a break_points.csv that decides which
 # sub-basin branch step 2 takes. skeena.yml resolves it to coho with attribute_by = gnis_name.
 d <- copy_cfg("morr")
+# Synthesize the break_points.csv rather than depending on MORR shipping one. The real config lost
+# its break points in #48, which broke this check when it was coupled to the fixture -- the rule
+# ("a region run never deletes break_points.csv") is what matters, not which area happens to carry
+# one today. Construct the condition under test.
+writeLines(c("id,lon,lat,blk,drm,gnis_name,dist_m,name_basin,fisheries_value,falls_downstream,description",
+             "1,-126.7,54.4,360885316,0,Test Creek,0,Test,5,0,synthetic fixture for the guard"),
+           fs::path(d, "break_points.csv"))
 before_csv <- readr::read_csv(fs::path(d, "flood_scenarios.csv"), show_col_types = FALSE)
 # Compare the FILE, not two read_csv results: tibbles carry `spec`/`problems` attributes that differ
 # between reads of the same bytes, so identical() on them tests the reader, not the file.
@@ -139,8 +146,14 @@ ok("comment lines survive an update",
    sum(grepl("^\\s*#", after_lines)) == n_comments, paste(n_comments, "comments"))
 ok("the added region-owned key is present",
    identical(yaml::read_yaml(fs::path(d, "area.yml"))$attribute_by, "gnis_name"))
-ok("only added lines changed; nothing else was re-emitted",
-   all(before_lines %in% after_lines), paste(length(after_lines) - length(before_lines), "line(s) added"))
+# The rule is not "every original line survives" -- a region run is ALLOWED to rewrite a
+# region-owned key's line in place, and does so whenever the region changes that value. What it must
+# never touch is everything else: comments, blank lines, and area-owned keys. Assert that, or the
+# check fails the moment an area happens to already carry the key under test (it did, on bulk).
+owned_line <- function(l) any(vapply(FP_REGION_OWNED, function(k) grepl(paste0("^", k, ":"), l), logical(1)))
+untouchable <- before_lines[!vapply(before_lines, owned_line, logical(1))]
+ok("nothing outside the region-owned keys was re-emitted",
+   all(untouchable %in% after_lines), paste(length(untouchable), "non-owned line(s) checked"))
 
 # A changed value is edited in place, and its trailing comment stays with it.
 d <- copy_cfg("bulk")
