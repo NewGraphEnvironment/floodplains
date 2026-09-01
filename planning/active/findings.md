@@ -1,0 +1,101 @@
+# Findings — Record run provenance per area (#33)
+
+## Measured at plan time, 2026-09-01
+
+### `stac_cache_key()` is a fingerprint of the REQUEST, not the response
+
+`drift/R/dft_stac_fetch.R:210-227` hashes AOI WKB (in the target CRS), `res`, `target_crs`, `dt`,
+`aggregation`, `resampling`, `stac_url`, `collection`, `asset`, and `tile_size` when non-NULL.
+It hashes **nothing about the items returned**. So if Planetary Computer re-ingests
+`io-lulc-annual-v02`, the key is unchanged and the stale cache is served — the exact failure this
+issue was written to catch. It is also `@noRd`.
+
+`attr(result, "stac_items") <- items` (`R/dft_stac_fetch.R:192`) has been present since drift's
+first commit (`git log -S` → `361b7aa Add core pipeline`), so it is available in every drift
+version the repo supports. That is the content pin, and it needs no upstream change.
+
+Consequence for `NewGraphEnvironment/stac_floodplains_bc#17`: `nge:landcover_key` should be a hash
+over the resolved item ids, not drift's cache key. That issue names the cache key explicitly and
+needs a correction note.
+
+### io-lulc items carry `datetime = NULL`
+
+Probed live against `https://planetarycomputer.microsoft.com/api/stac/v1`, collection
+`io-lulc-annual-v02`, bbox `-127.5 53.8 -126.5 54.6`, 2017-01-01/2023-12-31:
+
+```
+09U-2023  datetime=NULL  start=2023-01-01T00:00:00Z  end=2024-01-01T00:00:00Z
+09U-2022  datetime=NULL  start=2022-01-01T00:00:00Z  end=2023-01-01T00:00:00Z
+...
+09U-2017  datetime=NULL  start=2017-01-01T00:00:00Z  end=2018-01-01T00:00:00Z
+```
+
+Grouping ids by `properties$datetime` would yield **empty groups, silently**. `start_datetime` is
+the field. Guard it with an absolute assertion that every requested year resolves to ≥1 id, since
+an empty group is otherwise indistinguishable from a year the AOI genuinely does not cover.
+
+### Planetary Computer returns no `numberMatched`
+
+Same probe: `names(doc)` is `type, links, features, numberReturned`. `numberMatched` is NULL and
+`numberReturned == length(features)`, so it cannot detect truncation. drift calls
+`rstac::get_request()` with no `items_fetch()` (`R/dft_stac_fetch.R:127-134`), so the result is
+**one page**. The only honest completeness test is the presence of a `rel="next"` link. For the
+probed AOI: `links rel: self, root, self` → no `next`, page complete.
+
+### The query returns years that are never read
+
+drift searches `paste0(min(years), "-01-01/", max(years), "-12-31")`, so a 2017/2020/2023 fetch
+gets 7 items back and reads 3. Recording all 7 would misrepresent what produced the output.
+
+### Item hrefs carry SAS credentials
+
+`rstac::items_sign(sign_fn = rstac::sign_planetary_computer())` runs at `R/dft_stac_fetch.R:134`
+**before** the attribute is attached, so every asset href in `attr(result, "stac_items")` carries a
+short-lived SAS token (`?st=…&se=…&sig=…`). Record ids and non-secret properties only.
+
+### `lnk_log_read()` is `SELECT *`, so version skew is not a blocker
+
+`link/R/lnk_log.R:428`. Installed link is **0.47.3**; the checkout is **0.49.0**. The installed
+signature is `function (conn, cfg, aoi = NULL, latest = TRUE)` — no `run_uid`, no `phase` — and the
+installed `cols_log` has 26 columns without `run_uid` or `bcfp_pin_source`. But because the read is
+`SELECT *`, a column the *database* has arrives regardless of what the installed package names. So
+reading the row wholesale is robust to the skew, and this is why link#264 is off the critical path.
+
+### `.lnk_pkg_git_sha()` resolves to NA for link/drift/flooded here
+
+Measured:
+
+```
+link     Version=0.47.3 RemoteType=local  RemoteSha=NULL
+fresh    Version=0.33.0 RemoteType=github RemoteSha=7f12d99115b7d20302d5ed043188cb870f90f83b
+drift    Version=0.8.0  RemoteType=local  RemoteSha=NULL
+flooded  Version=0.5.0  RemoteType=local  RemoteSha=NULL
+```
+
+Three of the four are local installs with no `RemoteSha`, and `find.package()` on a local install
+returns the *library* path, whose parent is not the checkout — so link's `.git` walk returns NA
+too. This is why every stamp in this repo reads `link: 0.47.3 (sha NA)`. `fp_pkg_stamp()` adds a
+`~/Projects/repo/<pkg>` tier and records `sha_source` so an NA is diagnosable rather than mute.
+
+### The MRDEM-30 URL is not resolvable from `formals()`
+
+`flooded::fl_dem_aoi` has `source = NULL` as its formal; the URL is built inside the body
+(`flooded/R/fl_dem_aoi.R:81-86`). Hardcoding it in this repo would duplicate package knowledge the
+core principle forbids, so `dem_source` is taken from `terra::sources(dem)` on the returned object
+— measuring the output rather than restating an input.
+
+By contrast, `drift::dft_stac_fetch`'s `res`/`crs`/`dt`/`aggregation`/`resampling` **are** formal
+defaults (`10`, `NULL`, `"P1Y"`, `"first"`, `"near"`) and `fp_lulc` passes none of them, so reading
+`formals()` records what actually ran.
+
+### `run_area.R` dispatches steps independently
+
+`scripts/run_area.R:130-141` — `run_area.R morr 3` is a normal invocation. So a single writer at
+the end of the run would have nothing to record for skipped steps, and would either blank or
+fabricate them. Each step writes its own section; the file is a merge.
+
+## Errors Encountered
+
+| Error | Resolution |
+|-------|------------|
+| `psql: connection to server on socket "/tmp/.s.PGSQL.5432" failed` | Postgres is not running on this machine. All DB-touching verification (the neexdzii A/B, a live `lnk_log_read`) is deferred; everything else is offline-verifiable. |
