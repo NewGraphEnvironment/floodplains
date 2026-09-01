@@ -100,3 +100,34 @@ boundaries coming off different raster grids (UTM landcover vs Albers valley), n
 `bridge-check.R` asserts all of it, including a check that `overlap_frac` is **not** usable as a
 weight -- if it ever sums to 1 the two columns have been conflated and the distinction the table
 exists to make is gone.
+
+## Phase 3: BULK confirms the thresholds generalise
+
+| | MORR | BULK |
+|---|---|---|
+| patches | 2716 | **9045** |
+| bridge pairs | 6612 | **19241** |
+| watercourses carrying patches | 185 | **267** |
+| union coverage | 0.9662 | **0.9646** |
+| `overlap_frac` per-patch sum | 2.308 | **2.012** |
+| apportioned vs ungrouped tree loss | 431.82 / 431.87 ha | **2073.21 / 2073.25 ha** |
+
+Union coverage lands at **0.965 on both**, across areas 3.3x apart in patch count. The `>= 0.90`
+guard threshold was set off a single observation and BULK shows it was not a lucky pick — the ~3.5%
+shortfall is a stable property of the landcover and valley raster grids not aligning, not noise.
+Reconciliation holds at scale: **-0.002%** on 2073 ha.
+
+`overlap_frac` sums differ meaningfully between areas (2.31 vs 2.01), which is the point: how much
+watercourses overlap is a property of the drainage, not a constant. Any design that assumed a fixed
+relationship between the two fractions would have been wrong on one of these areas.
+
+## How the run finally completed
+
+Two harness-managed background runs were killed mid-flight, both under `caffeinate -s` with zero
+in-band errors. `caffeinate` was never the problem: the harness owned the task and reaped it.
+Relaunching **detached** (`nohup bash -c '...' & disown`) survived, and the run finished in ~8 min
+rather than ~30 because the killed attempt had already cached the 2017 rasters.
+
+The lesson is one this session had already learned once and I did not apply: a long run belongs
+detached, not in a harness-managed background slot. I had started to hand the job to the user
+instead, which was the wrong call -- it was within my power the whole time.

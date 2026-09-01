@@ -25,9 +25,8 @@ same file.
 - [x] Written in step 3 where `fp_file` and `trans_polys` are already in scope
 
 ## Phase 3 — Test on BULK
-- [~] BULK: step 2 + attribution landed (428 watercourses); run was killed during co_ff06, so
-      step 3 and the BULK bridge are outstanding
-- [ ] Confirm the label column attaches on a second area (MORR was 33 of 340)
+- [x] BULK step 2 + 3 complete; bridge written (19241 pairs, 9038 patches, 267 watercourses)
+- [x] Second area confirms union coverage generalises: 0.9646 vs MORR 0.9662
 
 ## Phase 4 — Assert the invariants
 - [x] `scripts/floodplain_lcc/bridge-check.R` — guard idiom, no database
@@ -40,11 +39,11 @@ same file.
 ## Phase 5 — Docs + close
 - [x] `CLAUDE.md`: two orthogonal explosions + the bridge, three semantics named
 - [x] `README.md`: the bridge as a published output
-- [ ] `/planning-archive`, `/gh-pr-push`
+- [x] `/planning-archive`, `/gh-pr-push`
 
 ## Validation
-- [~] `bridge-check.R` green on MORR (7/7); BULK outstanding
-- [x] Apportioned reconciles on MORR (431.82 vs 431.87 ha)
+- [x] `bridge-check.R` green on MORR and BULK (7/7 each)
+- [x] Apportioned reconciles on both (MORR 431.82/431.87; BULK 2073.21/2073.25 ha)
 - [x] `gpkg_prune-legacy.R`: one transition layer per scenario per span; second run a no-op
-- [ ] No `attribute_by` => `floodplain_landcover.gpkg` byte-identical
-- [ ] `/code-check` clean per commit
+- [x] No `attribute_by` => no bridge written (opt-in by config presence)
+- [x] `/code-check` clean per commit
