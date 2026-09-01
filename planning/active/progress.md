@@ -8,4 +8,10 @@
   `provenance.json` per area, JSON only (#52 stays separate), forward-only (no backfill)
 - Created branch `33-record-run-provenance-per-area` off main
 - Scaffolded PWF baseline from issue #33 with approved phases
-- Next: Phase 1 — `fp_provenance.R` writer + `provenance-check.R` guard
+- **Phase 1 done** — `fp_provenance.R` + `provenance-check.R`, guard green with every assertion
+  shown able to fail
+- Three defects found by the guard while writing it, all fixed in the writer rather than the test:
+  a checkout SHA recorded for a different installed version, a version string accepted as a
+  RemoteSha, and duplicate keys from `c()`. A fourth — `$` partial-matching `link_log` to
+  `link_log_note` — is pinned by its own premise assertion.
+- Next: Phase 2 — step 1 network section

@@ -118,6 +118,7 @@ source(file.path(lcc_dir, "01_network_extract.R"))
 source(file.path(lcc_dir, "02_floodplain_model.R"))
 source(file.path(lcc_dir, "03_lulc_classify.R"))
 source(file.path(lcc_dir, "fp_disturbance.R"))     # fp_disturbance_tag (config-driven attribution)
+source(file.path(lcc_dir, "fp_provenance.R"))      # fp_prov_set (per-area run provenance, #33)
 
 # --- Resolve config ---
 cfg <- fp_read_config(area)

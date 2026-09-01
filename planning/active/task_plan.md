@@ -31,15 +31,15 @@ content pin.
 
 ## Phase 1: Writer + guard
 
-- [ ] `scripts/floodplain_lcc/fp_provenance.R` — `fp_prov_set()` (atomic read-modify-write),
+- [x] `scripts/floodplain_lcc/fp_provenance.R` — `fp_prov_set()` (atomic read-modify-write),
       `fp_prov_null_fill()`, `fp_pkg_stamp()` (three-tier SHA, `sha_source` names the tier,
       `dirty` never collapses `NA` to `FALSE`)
-- [ ] `scripts/floodplain_lcc/provenance-check.R` — determinism, declared keys, credential-leak
+- [x] `scripts/floodplain_lcc/provenance-check.R` — determinism, declared keys, credential-leak
       grep, `item_ids_complete`, `inputs`/`run` disjoint. Runs with no database.
-- [ ] Prove each assertion can fail: restore a run-event field into `inputs`, feed the leak grep a
+- [x] Prove each assertion can fail: restore a run-event field into `inputs`, feed the leak grep a
       fixture that contains a SAS token, drop a declared key
-- [ ] `jsonlite` added to `pkgs_cran` in `scripts/packages.R`
-- [ ] `fp_provenance.R` sourced from `scripts/run_area.R`
+- [x] `jsonlite` added to `pkgs_cran` in `scripts/packages.R`
+- [x] `fp_provenance.R` sourced from `scripts/run_area.R`
 
 ## Phase 2: Step 1 — network section
 

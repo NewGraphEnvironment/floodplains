@@ -12,7 +12,7 @@ if (!requireNamespace("pak", quietly = TRUE)) install.packages("pak")
 pkgs_cran <- c(
   "sf", "terra", "stars",          # spatial (terra >= 1.8-10 for drift's transition patches fix)
   "DBI", "RPostgres",              # fwapg
-  "here", "fs", "yaml",            # utils + config
+  "here", "fs", "yaml", "jsonlite", # utils + config (jsonlite: provenance.json, #33)
   "dplyr", "readr", "stringr"
 )
 

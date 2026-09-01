@@ -99,3 +99,36 @@ fabricate them. Each step writes its own section; the file is a merge.
 | Error | Resolution |
 |-------|------------|
 | `psql: connection to server on socket "/tmp/.s.PGSQL.5432" failed` | Postgres is not running on this machine. All DB-touching verification (the neexdzii A/B, a live `lnk_log_read`) is deferred; everything else is offline-verifiable. |
+
+## Found during Phase 1, by the guard itself
+
+Four defects, none visible by reading. Three were fixed in the **writer**, not the test.
+
+### A checkout SHA is not evidence about the installed package
+
+The first `fp_pkg_stamp("link")` returned `24b3bee…` from `~/Projects/repo/link` — which is
+**0.49.0**, while the installed link is **0.47.3**. That SHA describes code that did not run.
+A confident wrong SHA is strictly worse than `NA`: an `NA` prompts a question, a wrong SHA does
+not. `fp_pkg_stamp()` now compares the checkout's `DESCRIPTION` Version against the installed
+version and refuses the tier on a mismatch, naming both in `sha_source`.
+
+### A CRAN/PPPM install puts a version string in `RemoteSha`
+
+Measured: `packageDescription("sf")$RemoteSha` is `"1.1-2"`. Published as a git SHA that is a
+wrong-shaped value nothing downstream could resolve. Now shape-checked against `^[0-9a-f]{7,40}$`.
+
+### `c()` appends, so a key present in both halves lands twice
+
+`c(nul(KEYS), list(item_ids_complete = TRUE))` produced a list with `item_ids_complete` **twice**;
+`$` then returns the first (the `NA`), so a later assignment appears to take and does not. It
+surfaced as two unrelated-looking failures three checks apart. `fp_prov_write()` now refuses a
+duplicate key at the boundary via `fp_prov_assert_unique()`, so the symptom cannot recur silently.
+
+### `$` on a list partial-matches — `link_log` resolved to `link_log_note`
+
+The nastiest of the four, and directly relevant to any consumer of this file. With `link_log`
+absent and `link_log_note` present, `body$link_log` returns **the note**, so an
+`is.null()` guard reads as "the row is present" and then reports nine missing fields. The same
+trap sits on `inp$item_ids` → `item_ids_complete`. `provenance-check.R` reads every parsed-JSON
+body with `[[`, and carries a premise assertion pinning the partial match so the reason for the
+convention cannot be edited away by someone tidying.
