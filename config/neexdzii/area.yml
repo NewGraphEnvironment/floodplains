@@ -7,6 +7,17 @@ watershed_group: BULK          # link aoi — runs the whole WSG, then subset be
 species: co
 min_order: 3                   # minimum stream order for the floodplain-input network
 schema: neexdzii               # dedicated persist schema (never shared fresh.*)
+# network_source: GRAB from `fresh`, matching every other area (see skeena.yml for the rationale).
+# neexdzii is deliberately NOT in a region file, so this is hand-set here and survives -- run_region
+# never rewrites an area.yml it does not own (#44).
+#
+# NOTE FOR THE PARITY BASELINE: this changes the network AND flooded changed the delineation
+# (0.5.0 -- the bankfull units fix, every earlier floodplain over-mapped). So the old known-good
+# numbers (678.2 km network / 171.0 km2 co_ff04 / 943.13 ha tree loss) die for TWO reasons at once
+# and the movement cannot be attributed to either alone. They were produced by code now known wrong,
+# so there is nothing to preserve -- but the new baseline must be recorded as a fresh contract, not
+# as a delta from the old one.
+network_source: fresh
 primary_scenario: co_ff04      # headline scenario for LULC (03) + parity check (171.0 km²)
 # Neexdzii is a reach of BULK: keep only the network upstream of the Wedzin Kwa confluence.
 subset:

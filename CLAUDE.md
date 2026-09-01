@@ -135,12 +135,25 @@ Coexistence is data-layer only (steps 01/02/03).
 
 ## Areas
 
-- `neexdzii` — **parity fixture** (coho, BULK subset). The generalized pipeline must reproduce the
-  known-good numbers (coho-3 network 678.2 km, floodplain co_ff04 171.0 km², floodplain tree loss
-  943.13 ha, within ~0.004% VCA noise) before any new area is trusted. Verified.
-- `morr` — Morice watershed group (whole WSG). **Coho + chinook coexist** in `data/morr/` (#23):
-  coho floodplain co_ff04 411.1 km², tree loss 433.8 ha (burned to `restoration_wedzin_kwa` Mergin);
-  chinook ch_ff06 (valley bottom) 432.4 km², tree loss 482.4 ha. Fire attribution ~6% of loss (both).
+- `neexdzii` — **parity fixture** (coho, BULK subset). The pipeline must reproduce the known-good
+  numbers before any new area is trusted.
+  **Re-baselined 2026-09-01** — coho-3 network **673.5 km**, floodplain `co_ff04` **142.8 km²**,
+  floodplain tree loss **770.0 ha**. The previous contract (678.2 km / 171.0 km² / 943.13 ha) is
+  **dead, not merely superseded**: it was produced by flooded ≤ 0.4.1, whose bankfull regression was
+  fed hectares where Hall et al. specify km² and mm where they specify cm/yr — width 8.22× and depth
+  3.59× too large on every run the package ever did, so `ff04` was delineating ~14.4× bankfull depth
+  against Hall's field-validated 3. Two things moved at once (flooded 0.5.0 **and** the switch to
+  link's rebuilt `fresh` network), so the change cannot be attributed to either alone — but the
+  network moved 0.7% and the floodplain 16.5%, so the bankfull fix dominates.
+  **The retention corroborates independently:** neexdzii keeps **83.5%** of its old `co_ff04`, and
+  flooded's own NEWS reports **84.7%** for Parsnip on MRDEM-30 — a different watershed, same DEM,
+  within 1.2 points. Record the new numbers as a fresh contract, never as a delta from the old.
+- `morr` — Morice watershed group (whole WSG). **Coho + chinook coexist** in `data/morr/` (#23).
+  **Remodelled 2026-09-01** (flooded 0.5.0 + `fresh` network): coho `co_ff04` **357.7 km²**
+  (87.0% of the old 411.1), tree loss **308.7 ha**; chinook `ch_ff06` **371.6 km²** (85.9% of 432.4),
+  tree loss **342.6 ha**. `ch_ff06` and `co_ff06` are **identical** — MORR's coho and chinook
+  accessible networks are the same 4,877 segments, so species differs only in which scenario is
+  primary.
 - `ufra` — Upper Fraser (**chinook** — coho is unmodelled up there; `access_ch` exists). Run:
   floodplain ch_ff04 188.2 km², tree loss 544.5 ha. Burned to `sern_fraser_2024` Mergin.
 

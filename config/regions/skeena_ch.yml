@@ -9,4 +9,7 @@ region: skeena
 mergin_project: TBD              # doc-only; set when a Skeena field project exists
 min_order: 3
 species: [ch]                    # chinook
+# network_source: GRAB from `fresh` -- see skeena.yml for the full rationale and the guard caveat.
+# Provenance is per-WSG rows in `fresh.log`; read with link::lnk_log_read(conn, cfg, aoi = "KISP").
+network_source: fresh
 watershed_groups: [KISP]         # Kispiox River

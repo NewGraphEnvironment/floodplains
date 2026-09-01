@@ -4,3 +4,4 @@ species: bt
 min_order: 3
 schema: pars
 primary_scenario: bt_ff04
+network_source: fresh

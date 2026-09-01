@@ -17,5 +17,6 @@ targets:
 # or is it subset to a reach the way Neexdzii is subset from BULK? Default: whole WSG.
 subset: null
 attribute_by: blue_line_key
+network_source: fresh
 # flood_scenarios.csv / break_points.csv in this dir are copied from Neexdzii as a starting
 # template — review the flood_factor scenarios and (re)place the sub-basin break points for MORR.

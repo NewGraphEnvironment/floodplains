@@ -4,3 +4,4 @@ species: ch
 min_order: 3
 schema: bowr
 primary_scenario: ch_ff04
+network_source: fresh

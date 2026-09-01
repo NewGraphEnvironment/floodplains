@@ -4,3 +4,4 @@ species: bt
 min_order: 3
 schema: pcea
 primary_scenario: bt_ff04
+network_source: fresh
