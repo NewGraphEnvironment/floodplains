@@ -28,4 +28,9 @@ species: [bt]                    # bull trout only (ch unmodelled on the Arctic 
 # records the comparison, but a pass here is not evidence of freshness the way it is for columbia
 # (which grabs from `fresh_default`, a genuinely different schema).
 network_source: fresh
+# attribute_by (#40, #54): also write a per-watercourse floodplain and the patch<->watercourse
+# bridge for the primary scenario. blue_line_key rather than gnis_name -- on MORR, name-grouping
+# pooled 78% of the floodplain into one unnamed feature because a third of the Morice mainstem
+# itself carries no gnis_name. The name is carried as a label column instead (#48).
+attribute_by: blue_line_key
 watershed_groups: [PCEA, PARS, PINE]   # PINE built; see pre-pass caveat above

@@ -18,6 +18,8 @@ schema: neexdzii               # dedicated persist schema (never shared fresh.*)
 # so there is nothing to preserve -- but the new baseline must be recorded as a fresh contract, not
 # as a delta from the old one.
 network_source: fresh
+# attribute_by: hand-set here -- neexdzii is deliberately outside every region file (#44).
+attribute_by: blue_line_key
 primary_scenario: co_ff04      # headline scenario for LULC (03) + parity check (171.0 km²)
 # Neexdzii is a reach of BULK: keep only the network upstream of the Wedzin Kwa confluence.
 subset:

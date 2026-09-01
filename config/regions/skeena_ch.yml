@@ -12,4 +12,9 @@ species: [ch]                    # chinook
 # network_source: GRAB from `fresh` -- see skeena.yml for the full rationale and the guard caveat.
 # Provenance is per-WSG rows in `fresh.log`; read with link::lnk_log_read(conn, cfg, aoi = "KISP").
 network_source: fresh
+# attribute_by (#40, #54): also write a per-watercourse floodplain and the patch<->watercourse
+# bridge for the primary scenario. blue_line_key rather than gnis_name -- on MORR, name-grouping
+# pooled 78% of the floodplain into one unnamed feature because a third of the Morice mainstem
+# itself carries no gnis_name. The name is carried as a label column instead (#48).
+attribute_by: blue_line_key
 watershed_groups: [KISP]         # Kispiox River

@@ -189,7 +189,14 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
     if (!is.na(attr_lyr) && file.exists(fp_file) && attr_lyr %in% sf::st_layers(fp_file)$name) {
       key <- cfg$attribute_by
       wc  <- sf::st_read(fp_file, layer = attr_lyr, quiet = TRUE)[, key]
-      pat <- trans_polys[, c("patch_id", "area_ha")]
+      # patch_id is a PER-SUB-BASIN key, not a global one: dft_transition_vectors numbers patches
+      # within each sub-basin, so a multi-sub-basin area repeats ids across basins (neexdzii: 2032
+      # rows, 1973 distinct ids, 13 sub-basins). Every whole-WSG area has ONE sub-basin, which makes
+      # patch_id look globally unique and hides this until the first subset area runs. Grouping on it
+      # alone pools rows from different patches and silently mis-apportions -- the same
+      # per-tenant-key-against-a-multi-tenant-table trap code-check.md records for id_segment.
+      pat <- trans_polys[, c("patch_id", "name_basin", "area_ha")]
+      pat$patch_key <- paste(pat$name_basin, pat$patch_id, sep = "\u00a6")
       # The two layers are in DIFFERENT projected CRS -- the attribution layer inherits the stream
       # network's BC Albers, the transition layer the landcover raster's UTM -- so st_intersection
       # errors outright. Transform the watercourses TO the patches, not the reverse: area_ha was
@@ -205,6 +212,7 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
         ov_ha  <- as.numeric(sf::st_area(inter)) / 1e4
         bridge <- data.frame(
           patch_id     = inter$patch_id,
+          name_basin   = inter$name_basin,
           k            = inter[[key]],
           overlap_ha   = round(ov_ha, 4),
           # Capped at 1: a fully contained patch can overshoot by a float epsilon, and a fraction
@@ -220,9 +228,9 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
         #   apportion_weight  "what share of this patch is credited to it?"            (sums to 1)
         # Ship both: the first answers whether a patch belongs to a river, the second is the only
         # one that reconciles to an ungrouped total.
-        tot_ov <- tapply(bridge$overlap_ha, bridge$patch_id, sum)
-        bridge$apportion_weight <- round(
-          bridge$overlap_ha / tot_ov[as.character(bridge$patch_id)], 4)
+        pk <- paste(bridge$name_basin, bridge$patch_id, sep = "\u00a6")
+        tot_ov <- tapply(bridge$overlap_ha, pk, sum)
+        bridge$apportion_weight <- round(bridge$overlap_ha / tot_ov[pk], 4)
         names(bridge)[names(bridge) == "k"] <- key
         # A shared boundary yields a zero-area pair: a join artefact, not a relationship. Keeping it
         # would inflate the row count without changing any sum.
@@ -235,12 +243,12 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
         # whether ground was missed. max(overlap_frac) under ~0.97 means patch boundaries and
         # attribution boundaries are drifting apart (they come off different raster grids), and a
         # sharp drop would mean the join is quietly losing ground.
-        u <- tapply(bridge$overlap_frac, bridge$patch_id, max)
+        u <- tapply(bridge$overlap_frac, pk, max)
         message("  Layer: ", b_lyr, " (", nrow(bridge), " pairs over ",
-                length(unique(bridge$patch_id)), " patches and ",
+                length(unique(pk)), " patches and ",
                 length(unique(bridge[[key]])), " watercourses; union coverage ",
                 sprintf("%.3f", mean(u)),
-                ", unbridged patches ", sum(!pat$patch_id %in% bridge$patch_id), ")")
+                ", unbridged patches ", sum(!pat$patch_key %in% pk), ")")
       }
     }
   }
