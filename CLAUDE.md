@@ -97,6 +97,45 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   `gpkg_prune-legacy.R <area>` sweeps them: idempotent, `DRY=1` reports, and it removes **only** an
   explicit name pattern — a script that deletes layers it does not recognise is worse than the
   orphans it cleans.
+- **Run provenance per area (#33):** every run writes `data/<area>/provenance.json` — what produced
+  the outputs, for `stac_floodplains_bc` to publish as STAC item properties (`stac#17`). Three
+  sections written by the step that knows the facts, because steps run independently
+  (`run_area.R morr 3` is normal) and key differently: `network[<sp><order>]`,
+  `floodplain[<scenario>]`, `landcover[<scenario>]`. Each splits into **`inputs`** (a function of
+  the inputs, byte-stable across reruns, summarised by `inputs_hash`) and **`run`** (the run event,
+  free to vary) — #52's rule applied one level earlier, and the only reason the acceptance
+  criterion is checkable at all, since a whole-file comparison could never pass with a timestamp
+  in it. `provenance-check.R` enforces the split with no database, and every one of its 31
+  assertions is exercised against input built to break it.
+  **The network section records link's LOG ROW, read wholesale — it does not re-derive anything.**
+  link's `config_hash` is a hash over 17 files plus the config name and species list, so a
+  self-computed SHA of `config.yaml` would match nothing in `fresh.log` and the two records could
+  never be joined. `lnk_log_read()` is a `SELECT *`, so a column the DATABASE has arrives whether
+  or not the installed link names it — which is why link#264 is off this issue's critical path,
+  and why the row is never destructured into named fields.
+  **The landcover fingerprint is a digest of the classified rasters, NOT the STAC item ids.**
+  Both #33 and stac#17 originally named drift's `stac_cache_key()`, which hashes the AOI and the
+  request parameters and nothing about the response — so an upstream reprocess leaves it
+  unchanged, the exact drift the issue exists to catch. Item ids fail the same test and it is not
+  obvious: measured live, an io-lulc id is `<tile>-<year>`, the blob path is fixed, and there is
+  **no `created` and no `updated` property**, so an in-place re-derivation is byte-identical in
+  every id and href. `classified_<yr>.tif` is the landcover as it actually entered the model
+  (terra GeoTIFF writes are byte-deterministic; one changed cell moves the hash), so it measures
+  the output rather than restating the request — and it closes the cache-hit hole for free, where
+  the recorded items describe today's query while the raster came from a cache written weeks ago.
+  The ids stay, labelled an identity. **`nge:landcover_key` should be the raster digest.**
+  Two things that cannot be recorded, and are recorded as absent rather than guessed: the **DEM
+  URL** (`fl_dem_aoi()` builds it in its body, and `terra::sources()` on its cropped-and-projected
+  return is `""` in memory or a *random per-process temp path* when terra spills — a
+  plausible-looking string that would differ every run) and a **package git SHA** where the
+  checkout's version does not match the installed one (the link checkout is 0.49.0, installed
+  0.47.3, so its HEAD describes code that did not run — a confident wrong SHA is worse than NA).
+  `sha_source` names which tier answered so an NA is diagnosable.
+  **Forward-only** — an area carries a block once re-run; `run_region.R` treats a missing
+  `provenance.json` as cache-invalidating so a resumable region run backfills as it goes, rather
+  than the cache freezing the rollout out. Areas and species must run **sequentially**: the writer
+  is a read-modify-write over one file and detects a concurrent change by mtime rather than losing
+  it silently.
 - **Byte-deterministic gpkg writes (#45):** GDAL stamps `gpkg_contents.last_change` with wall-clock
   time, so two writes of identical data differ — a rerun was indistinguishable from a change, and
   `file:checksum` downstream would churn every build (GeoPackage is 72% of the published bucket by

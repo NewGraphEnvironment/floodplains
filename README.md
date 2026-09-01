@@ -89,7 +89,9 @@ floodplains/
 │       ├── 03_lulc_classify.R     # fp_lulc(cfg)  (classify + transition + disturbance tag)
 │       ├── fp_disturbance.R       # fp_disturbance_tag() — config-driven attribution
 │       ├── fp_region.R            # whole-WSG sub-basin + region/area config ownership
+│       ├── fp_provenance.R        # provenance.json writer (what produced these outputs)
 │       ├── gpkg_determinism-check.R   # guard: a full rebuild is byte-identical
+│       ├── provenance-check.R         # guard: the inputs/run split, and no leaked credentials
 │       └── region_config-check.R      # guard: a region run cannot destroy area config
 ├── config/
 │   ├── <area>/                 # area.yml + flood_scenarios.csv (+ optional break_points.csv)
@@ -157,6 +159,29 @@ fixed epoch (`scripts/fp_gpkg.R`), so a full rebuild from identical inputs is by
 asserts it. One stated limit: rewriting a single layer into an *existing* gpkg is not byte-stable
 (SQLite records write history in its header), so the guarantee covers a clean rebuild, not every
 rerun.
+
+## Run provenance
+
+Every run writes `data/<area>/provenance.json` recording **what produced the outputs**: the link
+log row for the network (`config_hash`, `run_uid`, `link_sha`, the bcfp pin), the VCA parameters
+and DEM geometry for the floodplain, and the resolved landcover source for the LULC. The publish
+layer carries it into STAC item properties.
+
+Each section splits into `inputs` and `run`. `inputs` is a function of the inputs and is
+byte-stable across reruns — `inputs_hash` is one scalar over it, so "did anything that matters
+change?" is a string comparison. `run` is the run event and is free to vary.
+
+The landcover fingerprint is a **digest of the classified rasters**, not the STAC item ids. An
+io-lulc item id is `<tile>-<year>` and the items carry no `created`/`updated`, so an in-place
+reprocess upstream leaves every id identical — the ids name what was read, but only the raster
+digest can fail when the upstream moves.
+
+```bash
+Rscript scripts/floodplain_lcc/provenance-check.R <area>   # no database needed
+```
+
+Forward-only: an area carries a block once it has been re-run. `run_region.R` treats a missing
+`provenance.json` as cache-invalidating, so a resumable region run backfills as it goes.
 
 ## Prerequisites (when running)
 
