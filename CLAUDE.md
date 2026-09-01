@@ -193,10 +193,16 @@ Computer STAC. (`drift` ≥ 0.6.0 because `fp_lulc` passes `tile_size` to `dft_s
   checking classified coverage ≈ floodplain area** before trusting numbers when scaling to new groups.
 - **Wrap long runs in `caffeinate -s`.** The big-floodplain STAC fetch is ~30 min and download-bound
   by default (it downloads the whole floodplain *bounding box* — ~10× the floodplain). drift 0.6.0
-  ships `dft_stac_fetch(tile_size=)` (drift#36) — the `filter_geom`-independent path that streams
-  only tiles intersecting the AOI, exposed as an **opt-in per-area `tile_size:` in `area.yml`**
-  (absent ⇒ unchanged bbox path). Speedup vs parity/accuracy is being benchmarked under issue #8
-  before broad adoption; the in-cube polygon-clip remains blocked upstream by gdalcubes#110. Long
+  ships `dft_stac_fetch(tile_size=)` (drift#36), exposed as an **opt-in per-area `tile_size:` in
+  `area.yml`** (absent ⇒ unchanged bbox path). **It was benchmarked under #8 and REJECTED — do not
+  reach for it to speed up a slow fetch.** Tiling is *slower* at every tile size on every AOI tested:
+  neexdzii full step-3 **6.3× slower** (66 min vs 10.5), FRAN direct fetch 0.79× at 20 km and 0.31×
+  at 10 km. The reason is geometric and robust — a floodplain is a thin diagonal corridor, the worst
+  case for square tiling: coarse tiles blanket the bbox with no download saving but N× per-tile
+  overhead, fine tiles hug the corridor but explode round-trips. Accuracy was never the issue
+  (≥ 99.999% agreement, no seam band). The knob stays wired but **off**; the bbox waste has to be
+  fixed **in-cube** (drift#36 `filter_geom`), still blocked by gdalcubes#110 (OPEN — segfault on
+  compute, 0.7.4 macOS arm64). Verdict: `research/20260711_lulc_tile-fetch-benchmark.md`. Long
   background jobs get killed by macOS idle sleep — `caffeinate -s Rscript scripts/run_region.R
   <region>` (the resumable runner picks up any interrupted group).
 
