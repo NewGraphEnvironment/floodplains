@@ -107,15 +107,22 @@ fp_floodplain <- function(cfg, scenarios = "run") {
   message("Fetching national MRDEM-30 for stream network + ", buf, " m buffer...")
   dem <- flooded::fl_dem_aoi(streams, buffer = buf, target_crs = sf::st_crs(streams))
   message("  DEM: ", terra::ncol(dem), " x ", terra::nrow(dem), " pixels")
-  # Provenance (#33): take the DEM identity from the OBJECT flooded returned, not from a URL
-  # restated here. fl_dem_aoi()'s MRDEM-30 path is built inside its body (source = NULL is the
-  # formal), so it is not resolvable from formals() and hardcoding it would duplicate package
-  # knowledge this repo's core principle forbids. A raster held in memory reports no source; that
-  # is recorded as NA, and the URL stays recoverable from flooded_version.
-  dem_source <- tryCatch({
-    src <- terra::sources(dem)
-    if (length(src) && nzchar(src[1])) src[1] else NA_character_
-  }, error = function(e) NA_character_)
+  # Provenance (#33): the DEM's identity is NOT recoverable here, and saying so is the honest
+  # record. fl_dem_aoi() builds the MRDEM-30 URL inside its body (source = NULL is the formal), so
+  # formals() does not expose it and restating it here would duplicate package knowledge the core
+  # principle forbids. terra::sources() does not help either -- fl_dem_aoi always crops and
+  # reprojects, so the returned object is DERIVED. Measured on terra 1.9.34: sources() on a crop or
+  # a project is "" when the result fits in memory, and a RANDOM PER-PROCESS TEMP PATH when terra
+  # spills to disk -- which is the large-AOI case, exactly where this matters. Recording that path
+  # would be a plausible-looking string that differs every run, silently breaking byte-stability.
+  #
+  # So: record the resolver and the raster's MEASURABLE geometry, which does distinguish MRDEM-30
+  # from a lidar COG should one ever be passed. The URL stays recoverable from flooded's version.
+  dem_geom <- tryCatch(list(
+    dem_crs_epsg = sf::st_crs(terra::crs(dem))$epsg,
+    dem_res_m    = round(as.numeric(terra::res(dem))[1], 6),
+    dem_ncell    = as.numeric(terra::ncell(dem))
+  ), error = function(e) list(dem_crs_epsg = NA, dem_res_m = NA, dem_ncell = NA))
 
   # --- Rasterize precipitation (shared across scenarios) ---
   message("  Rasterizing precipitation...")
@@ -206,8 +213,14 @@ fp_floodplain <- function(cfg, scenarios = "run") {
         size_threshold  = sc$size_threshold,
         hole_threshold  = sc$hole_threshold,
         anchor_order    = sc$anchor_order,
-        dem_source      = dem_source,
+        dem_resolver    = "flooded::fl_dem_aoi(source = NULL) default",
+        dem_crs_epsg    = dem_geom$dem_crs_epsg,
+        dem_res_m       = dem_geom$dem_res_m,
+        dem_ncell       = dem_geom$dem_ncell,
         dem_buffer_m    = buf,
+        # Names the artefact this scenario was delineated FROM, so the merged file is a chain and
+        # not three independent statements.
+        network_layer   = streams_lyr,
         attribute_by    = cfg$attribute_by,
         subbasin_source = subbasin_source,
         crs_epsg        = sf::st_crs(streams)$epsg,

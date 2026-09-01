@@ -120,11 +120,54 @@ fp_prov_sort <- function(x) {
 fp_prov_set <- function(cfg, section, key, value) {
   stopifnot(section %in% c("network", "floodplain", "landcover"),
             is.character(key), length(key) == 1L, nzchar(key))
+  path <- fp_prov_path(cfg)
+  before <- if (file.exists(path)) file.mtime(path) else NA
   prov <- fp_prov_read(cfg)
+
+  # One scalar per section over the STABLE half. It is what makes #33's second acceptance
+  # criterion -- "changing the config, bumping a package, or the landcover being reprocessed each
+  # produce a VISIBLY different block" -- a one-line assertion rather than a JSON diff, and it is
+  # the value stac#17 should publish. Computed here, once, so the three producers cannot disagree
+  # about how it is derived.
+  value$inputs_hash <- fp_prov_hash(value$inputs)
   prov[[section]][[key]] <- value
+
+  # Lost-update detection. Two `FP_SPECIES=... run_area.R <area>` processes against one data dir
+  # would both read the old file and both write it, and the second would silently drop the first's
+  # section. The window is small (read and write are adjacent) but the failure is silent, which is
+  # the kind this repo has been bitten by. Turn it into a loud one.
+  if (!is.na(before) && file.exists(path) && !identical(file.mtime(path), before)) {
+    stop("provenance: ", basename(path), " changed while this run was writing it -- another ",
+         "process is writing the same area. Run areas/species SEQUENTIALLY.", call. = FALSE)
+  }
   fp_prov_write(cfg, prov)
   message("Provenance: ", section, "[", key, "] -> ", basename(fp_prov_path(cfg)))
   invisible(prov)
+}
+
+# Canonical sha256 over a subtree: keys sorted at every level, no auto_unbox (so a length-1 and a
+# length-2 field cannot serialize to different SHAPES and hash apart for that reason alone),
+# digits = NA so no float is silently rounded before hashing.
+fp_prov_hash <- function(x) {
+  if (is.null(x)) return(NA_character_)
+  txt <- as.character(jsonlite::toJSON(fp_prov_sort(x), auto_unbox = FALSE, null = "null",
+                                       na = "null", digits = NA))
+  paste0("sha256:", digest::digest(txt, algo = "sha256", serialize = FALSE))
+}
+
+# --- File content digest -----------------------------------------------------------------------
+# The CONTENT pin. Measured: two terra writes of identical values 1.2 s apart are byte-identical,
+# and a single changed cell moves the hash -- so a digest of the classified raster answers "is this
+# the same landcover the published figures were computed from?", which the STAC item ids cannot.
+#
+# io-lulc item ids are `<tile>-<year>`, a deterministic function of tile and year, and the items
+# carry no `created` or `updated` property (verified live). So if Planetary Computer re-derives a
+# year IN PLACE, every id and every href is unchanged and an id-based hash is identical. The ids
+# still belong in the record -- they name what was read -- but they are an IDENTITY, not a
+# fingerprint, and only the raster digest can fail when the upstream moves.
+fp_file_sha256 <- function(path) {
+  if (!file.exists(path) || file.size(path) == 0) return(NA_character_)
+  paste0("sha256:", digest::digest(file = path, algo = "sha256"))
 }
 
 # --- Record absence as absence ---------------------------------------------------------------

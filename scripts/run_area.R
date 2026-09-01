@@ -19,8 +19,13 @@
 #   3 -> fp_lulc(cfg)         03_lulc_classify.R
 #
 # Parity contract: `run_area.R neexdzii` must reproduce the known-good Neexdzii numbers
-# (coho-3 network 678.2 km | floodplain co_ff04 171.0 km² | floodplain tree loss 943 ha)
+# (coho-3 network 673.5 km | floodplain co_ff04 142.8 km² | floodplain tree loss 770.0 ha)
 # before any new area's numbers are trusted.
+#
+# RE-BASELINED 2026-09-01 under flooded 0.5.0 + link's rebuilt `fresh` network. The previous
+# contract (678.2 / 171.0 / 943.13) is DEAD, not merely superseded: it was produced by a bankfull
+# regression fed hectares where Hall et al. specify km² and mm where they specify cm/yr. Record
+# the numbers above as a fresh contract, never as a delta from the old ones. See CLAUDE.md.
 
 # --- fp_read_config: area name -> one cfg list carrying everything the steps need ---
 `%||%` <- function(a, b) if (is.null(a)) b else a   # base R ships %||% only >= 4.4.0; define locally

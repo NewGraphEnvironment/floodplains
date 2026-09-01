@@ -83,6 +83,16 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
   # groups so their fetch path is byte-for-byte unchanged; set per-area for large
   # whole-WSG floodplains where the bbox waste dominates the ~30 min fetch.
   message("=== Whole floodplain ===")
+  # `years` derives from cfg$change_interval, a user-settable area.yml key -- change_interval
+  # [2017, 2025] asks for 2025, which io-lulc-annual-v02 does not have. Checked BEFORE the ~30 min
+  # fetch so the failure is immediate and names both sets, rather than surfacing as an empty cube
+  # half an hour in. (#33)
+  lc_available <- drift::dft_stac_config("io-lulc")$available_years
+  if (length(setdiff(years, lc_available))) {
+    stop("change_interval asks for year(s) io-lulc does not carry: ",
+         paste(setdiff(years, lc_available), collapse = ", "),
+         " (available: ", min(lc_available), "-", max(lc_available), ")", call. = FALSE)
+  }
   rasters_all <- dft_stac_fetch(floodplain, source = "io-lulc", years = years,
                                 tile_size = cfg$tile_size)
   # Landcover fingerprint (#33) -- captured HERE, written at the end of this function so a run that
@@ -90,6 +100,14 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
   # `rasters_all` itself: drift attaches the resolved items to the LIST, so the attribute is gone
   # the moment anything subsets or lapply()s over it.
   lc_items <- fp_prov_stac_items(attr(rasters_all, "stac_items"), years)
+  # A `next` link means drift's single get_request() was TRUNCATED, so the gdalcubes collection was
+  # built from a partial item set -- a wrong raster, not a partial record. Say so loudly; the guard
+  # treats item_ids_complete = FALSE as a failure, not as information.
+  if (isFALSE(lc_items$item_ids_complete)) {
+    warning("STAC item list was TRUNCATED (the response advertises another page). drift fetches ",
+            "one page, so the landcover raster for this AOI may be built from a partial item ",
+            "set. Do not publish this run.", call. = FALSE, immediate. = TRUE)
+  }
   classified_all <- dft_rast_classify(rasters_all, source = "io-lulc")
   trans_all <- dft_rast_transition(
     classified_all, from = as.character(yrs[1]), to = as.character(yrs[2]),
@@ -99,9 +117,13 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
   # Save rasters as tif
   fp_dir <- file.path(out_dir, "rasters", scenario_id)
   dir.create(fp_dir, recursive = TRUE, showWarnings = FALSE)
+  classified_hashes <- list()
   for (yr in names(classified_all)) {
-    terra::writeRaster(classified_all[[yr]], file.path(fp_dir, paste0("classified_", yr, ".tif")),
-                       overwrite = TRUE, datatype = "INT1U")
+    cls_tif <- file.path(fp_dir, paste0("classified_", yr, ".tif"))
+    terra::writeRaster(classified_all[[yr]], cls_tif, overwrite = TRUE, datatype = "INT1U")
+    # Hash the .tif only -- GDAL writes a .aux.xml statistics sidecar beside it on later reads,
+    # which is not the data and would make the digest depend on who has opened the file.
+    classified_hashes[[yr]] <- fp_file_sha256(cls_tif)
   }
   if (nrow(trans_all$summary) > 0) {
     terra::writeRaster(trans_all$raster, file.path(fp_dir, "transition.tif"),
@@ -329,10 +351,15 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
       years             = I(as.integer(years)),
       change_interval   = I(as.integer(yrs)),
       patch_area_min_m2 = patch_min_m2,
-      # Declared null today. drift computes a cache key but neither returns nor attaches it; if it
-      # ever does, this populates with no change here -- the same design-for-absence that takes
-      # link#264 off this issue's critical path.
-      cache_key         = attr(rasters_all, "cache_key") %||% NA,
+      # THE content pin, and the only field here that can move when Planetary Computer reprocesses
+      # a year. The item ids above are an IDENTITY of what was read -- `<tile>-<year>`, with no
+      # `created`/`updated` property on the item (verified live) -- so an in-place re-derivation
+      # leaves every id and every href byte-identical. A digest of the classified raster cannot:
+      # it is the landcover as it actually entered the model, measured on the output rather than
+      # restated from the request. It also closes the cache-hit hole, where the recorded items
+      # describe today's query while the raster came from a cache written weeks ago.
+      classified_sha256 = classified_hashes,
+      floodplain_layer  = scenario_id,
       drift             = fp_pkg_stamp("drift")),
       lc_items),
     run = fp_prov_run()))

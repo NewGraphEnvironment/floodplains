@@ -162,3 +162,104 @@ path) came back MATCH and served as the positive control. The second parsed the 
 
 Both drafts failed loudly, which was luck. A scanner wrong in the reassuring direction would have
 reported MATCH for nothing — hence the positive control now shipped alongside the check.
+
+## Plan review: what was verified, and what was done
+
+The Plan agent raised 7 blockers. Two were verified and are genuine — including one against the
+design decision I had recommended to the user.
+
+### B1 CONFIRMED — STAC item ids cannot detect an upstream reprocess
+
+Measured live against `io-lulc-annual-v02`:
+
+```
+id                : 09U-2023
+property keys     : datetime, end_datetime, io:tile_id, proj:bbox, proj:epsg,
+                    proj:shape, proj:transform, start_datetime, supercell
+created? FALSE      updated? FALSE
+unsigned href     : .../io-annual-lulc-v02/09U_20230101-20240101.tif
+```
+
+The id is `<tile>-<year>` — a deterministic function of tile and year — the blob path is fixed, and
+there is no `created` or `updated`. **If Microsoft re-derives 2023 in place, every id and every
+href is byte-identical and so is any hash over them.** `stac_cache_key()` fails the same test;
+item ids were a second request-side fingerprint, not a content pin.
+
+**Fix: digest the classified rasters.** `rasters/<scenario>/classified_<yr>.tif` is the landcover
+as it actually entered the model — measuring the output rather than restating the request. Verified
+deterministic: two terra writes of identical values 1.2 s apart are byte-identical, and one changed
+cell moves the hash. It also closes B7 for free, because the digest describes the bytes that were
+read regardless of whether they came from a cache hit.
+
+The item ids stay — they name what was read — but they are now labelled an identity, and
+`classified_sha256` is the field that can fail. **stac#17's `nge:landcover_key` should be this.**
+
+### B2 CONFIRMED — `terra::sources()` cannot return the DEM URL
+
+`fl_dem_aoi()` always crops and reprojects, so the returned raster is derived. Measured on terra
+1.9.34:
+
+```
+sources(rast(file))                     -> /…/file.tif
+sources(crop(...))                      -> ""    inMemory TRUE
+sources(project(...))                   -> ""    inMemory TRUE
+sources(crop(...)) with todisk=TRUE     -> /private/tmp/…/spat_d54416755d68_54596_Sskvi….tif
+```
+
+Both branches are unusable and the disk branch is worse: a **random per-process temp path** that
+differs every run, recorded as `dem_source` — a plausible-looking string that would silently break
+byte-stability on exactly the large AOIs where it matters. Replaced with `dem_resolver` naming the
+package default plus the raster's measurable geometry (`dem_crs_epsg`, `dem_res_m`, `dem_ncell`);
+the URL stays recoverable from `flooded`'s version. Exposing it belongs upstream in `flooded`.
+
+### B3 — already handled
+
+`fp_prov_write()` already pins `null = "null"`, `na = "null"` and `digits = NA`, and the reader uses
+`simplifyVector = FALSE`. Verified: `{"wsg_upstream": null}`, not `{}`.
+
+### B4 — mitigated, not restructured
+
+Per-section files would remove the read-modify-write entirely, but the merged file was the user's
+explicit choice. Mitigated instead: a corrupt file aborts and names itself rather than silently
+starting fresh; the write is atomic via same-directory tempfile plus a checked `file.rename()`; and
+a **lost-update check** compares the file's mtime across the read-modify-write, turning a silent
+overwrite into a loud abort. Areas and species must be run sequentially, which is what
+`run_region.R` and the documented `FP_SPECIES` workflow already do.
+
+### B5 CONFIRMED and fixed
+
+`run_region.R:152-156` skips a cached group entirely, so its provenance stays whatever the last real
+run wrote while the group reports `ok(cached)` and still reaches the publish hint. Now an **absent**
+`provenance.json` invalidates the cache — so the forward-only rollout self-heals on the next region
+run instead of being frozen out by the very cache — and a present one has its date printed and
+carried into the coverage CSV.
+
+The scenario lookup reads whichever landcover section exists rather than guessing `<sp>_ff04`;
+MORR's chinook is `ch_ff06`, so the guess would have reported "date unread" for a group with a
+perfectly good record.
+
+### B6 — fixed
+
+The disjointness check passed when `run` was absent (set arithmetic on nothing is silent), so it
+now asserts `run` exists, is non-empty and carries `datetime_utc` **before** testing the
+intersection. `item_ids_complete = FALSE` is now a FAILURE rather than a note — a `next` link means
+drift's single-page fetch was truncated, so the raster was built from a partial item set, which is
+a wrong raster and not a metadata caveat. The declared-key check is now a **whitelist**: an
+undeclared key is reported, which a denylist grep for secret shapes can always be outrun by.
+
+### Not adopted, with reasons
+
+- **Reuse the existing `lnk_config("default")` at `01:231` for the log read.** Deliberately kept
+  separate. Setting `$pipeline$schema <- read_schema` on the object passed to `lnk_stamp()` would
+  change what the *stamp* describes — the "records the working-tree config, not the schema it
+  grabbed from" gap #52 lists. Two objects, two purposes.
+- **Per-section files instead of the merged file.** The user chose the merged shape; mitigated
+  above rather than overridden.
+
+### Corrected: the schema this repo GRABs from is `fresh`, not `fresh_default`
+
+16 of 19 areas set `network_source: fresh`, including the neexdzii parity fixture and morr; only
+kotl, larl and sloc use `fresh_default`. Issue #33 §4/§5 says `fresh_default` throughout, so its
+caveat that `run_uid` will be null "because the schema predates link#262" is probably false for
+most areas — `fresh` was rebuilt 2026-08-31/09-01. Null-filling stays correct either way; the
+acceptance criterion that *expects* null does not. The issue needs a correction note.

@@ -46,12 +46,13 @@ KEYS_LINK_LOG       <- c("run_uid", "config_hash", "link_sha", "link_dirty", "fw
                          "bcfp_model_version", "bcfp_pin_source", "date_start", "date_end")
 KEYS_FLOODPLAIN     <- c("wsg", "species", "scenario", "flood_factor", "slope_threshold",
                          "max_width", "cost_threshold", "size_threshold", "hole_threshold",
-                         "anchor_order", "dem_source", "dem_buffer_m", "attribute_by",
-                         "subbasin_source", "crs_epsg", "flooded")
+                         "anchor_order", "dem_resolver", "dem_crs_epsg", "dem_res_m", "dem_ncell",
+                         "dem_buffer_m", "attribute_by", "subbasin_source", "crs_epsg",
+                         "network_layer", "flooded")
 KEYS_LANDCOVER      <- c("source", "stac_url", "collection", "asset", "res", "crs", "dt",
                          "aggregation", "resampling", "tile_size", "years", "change_interval",
                          "patch_area_min_m2", "item_ids", "item_hash", "item_ids_complete",
-                         "cache_key", "drift")
+                         "classified_sha256", "floodplain_layer", "drift")
 
 # --- Property implementations ------------------------------------------------------------------
 # Each takes a parsed provenance list and returns a character vector of problems (empty = pass), so
@@ -76,7 +77,15 @@ viol_split <- function(prov) {
   unlist(lapply(prov_sections(prov), function(e) {
     inp <- names(e$body[["inputs"]] %||% list())
     run <- names(e$body[["run"]] %||% list())
-    c(if (length(intersect(inp, RUN_FIELDS)))
+    # ABSOLUTE assertion first. An intersection test alone passes when `run` is absent, empty or
+    # renamed -- a section that lost its whole run block is exactly the defect this check is for,
+    # and set arithmetic on nothing is silent about it.
+    c(if (!length(run)) sprintf("%s[%s] has no `run` block", e$section, e$key),
+      if (length(run) && !"datetime_utc" %in% run)
+        sprintf("%s[%s].run has no datetime_utc", e$section, e$key),
+      if (!length(inp)) sprintf("%s[%s] has no `inputs` block", e$section, e$key),
+      if (is.null(e$body[["inputs_hash"]])) sprintf("%s[%s] has no inputs_hash", e$section, e$key),
+      if (length(intersect(inp, RUN_FIELDS)))
         sprintf("%s[%s].inputs carries run-event field(s): %s", e$section, e$key,
                 paste(intersect(inp, RUN_FIELDS), collapse = ", ")),
       if (length(intersect(inp, run)))
@@ -89,7 +98,12 @@ viol_keys <- function(prov) {
   want <- list(network = KEYS_NETWORK_INPUTS, floodplain = KEYS_FLOODPLAIN,
                landcover = KEYS_LANDCOVER)
   unlist(lapply(prov_sections(prov), function(e) {
-    miss <- setdiff(want[[e$section]], names(e$body[["inputs"]] %||% list()))
+    have <- names(e$body[["inputs"]] %||% list())
+    miss <- setdiff(want[[e$section]], have)
+    # WHITELIST, not just a completeness check: an UNDECLARED key is reported too. A denylist grep
+    # for secret-shaped strings can always be outrun by a new field; "only these keys may appear"
+    # cannot.
+    undeclared <- setdiff(have, want[[e$section]])
     extra <- if (identical(e$section, "network")) {
       ll <- e$body[["link_log"]]
       # link_log NULL is legitimate (no log table in the source schema) but must say so.
@@ -104,6 +118,8 @@ viol_keys <- function(prov) {
     }
     c(if (length(miss)) sprintf("%s[%s].inputs missing: %s", e$section, e$key,
                                 paste(miss, collapse = ", ")),
+      if (length(undeclared)) sprintf("%s[%s].inputs has UNDECLARED key(s): %s", e$section, e$key,
+                                      paste(undeclared, collapse = ", ")),
       extra)
   }))
 }
@@ -124,6 +140,13 @@ viol_coverage <- function(prov) {
     ids <- inp[["item_ids"]]
     c(if (is.null(inp[["item_ids_complete"]]))
         sprintf("landcover[%s] has no item_ids_complete", e$key),
+      # FALSE means drift's single-page fetch was truncated, so the raster was built from a
+      # partial item set. That is a wrong raster, not a metadata note -- fail on it.
+      if (isFALSE(inp[["item_ids_complete"]]))
+        sprintf("landcover[%s] item list was TRUNCATED (item_ids_complete = false)", e$key),
+      if (all(is.na(unlist(inp[["classified_sha256"]] %||% NA))))
+        sprintf("landcover[%s] has no classified raster digest -- the only field that can move ",
+                e$key),
       if (!is.null(ids) && length(ids))
         unlist(lapply(names(ids), function(y)
           if (!length(ids[[y]])) sprintf("landcover[%s] year %s resolved 0 item ids", e$key, y))))
@@ -142,11 +165,11 @@ good_prov <- function() {
   list(
     area = "fixture", wsg = "TEST", schema_version = FP_PROV_SCHEMA_VERSION,
     network = list(co3 = list(
-      inputs = nul(KEYS_NETWORK_INPUTS),
+      inputs = nul(KEYS_NETWORK_INPUTS), inputs_hash = "sha256:aa",
       link_log = nul(KEYS_LINK_LOG),
       run = list(datetime_utc = "2026-09-01T00:00:00Z"))),
     floodplain = list(co_ff04 = list(
-      inputs = nul(KEYS_FLOODPLAIN),
+      inputs = nul(KEYS_FLOODPLAIN), inputs_hash = "sha256:bb",
       run = list(datetime_utc = "2026-09-01T00:00:00Z"))),
     landcover = list(co_ff04 = list(
       # modifyList, NOT c(): `c()` APPENDS, so a key present in both halves lands twice and `$`
@@ -154,7 +177,9 @@ good_prov <- function() {
       inputs = utils::modifyList(
         nul(KEYS_LANDCOVER),
         list(item_ids = list(`2017` = list("09U-2017"), `2023` = list("09U-2023")),
-             item_ids_complete = TRUE)),
+             item_ids_complete = TRUE,
+             classified_sha256 = list(`2017` = "sha256:11", `2023` = "sha256:22"))),
+      inputs_hash = "sha256:cc",
       run = list(datetime_utc = "2026-09-01T00:00:00Z"))))
 }
 
@@ -182,6 +207,19 @@ cat("\n1. Determinism — `inputs` is byte-stable across two writes\n")
   fp_prov_set(cfg, "landcover", "co_ff04", drifted)
   c2 <- readLines(fp_prov_path(cfg), warn = FALSE)
   check(!identical(c1, c2), "must-fail: a run-event field in `inputs` DOES break byte stability")
+  # ISSUE ACCEPTANCE CRITERION 2, and it has no other test: "changing the config, bumping a
+  # package, or the remote landcover being reprocessed each produce a VISIBLY different block".
+  # Byte-stability alone is satisfied by a writer that records nothing at all, so the positive
+  # direction has to be asserted too.
+  base <- fp_prov_hash(g$landcover$co_ff04$inputs)
+  perturb <- function(f) { h <- g$landcover$co_ff04$inputs; fp_prov_hash(f(h)) }
+  check(perturb(function(h) { h$res <- 20; h }) != base,
+        "criterion 2: changing a model parameter MOVES inputs_hash")
+  check(perturb(function(h) { h$drift <- list(version = "9.9.9"); h }) != base,
+        "criterion 2: bumping a package version MOVES inputs_hash")
+  check(perturb(function(h) { h$classified_sha256$`2017` <- "sha256:ff"; h }) != base,
+        "criterion 2: a reprocessed landcover raster MOVES inputs_hash")
+  check(perturb(function(h) h) == base, "an unchanged input does NOT move inputs_hash")
 }
 
 # --- 2. inputs/run split ---------------------------------------------------------------------------
@@ -199,6 +237,15 @@ cat("\n2. Split — `inputs` carries no run-event field\n")
   b2 <- g
   b2$network$co3$inputs$run_id <- "x"; b2$network$co3$run$run_id <- "x"
   check(length(viol_split(b2)) >= 1, "must-fail: an overlapping inputs/run key IS reported")
+  # The absolute assertions: set arithmetic on an ABSENT run block is silent, so test it directly.
+  b3 <- g; b3$floodplain$co_ff04$run <- NULL
+  check(any(grepl("no `run` block", viol_split(b3))),
+        "must-fail: a section that LOST its whole run block IS reported")
+  b4 <- g; b4$network$co3$run <- list(host = "m1")
+  check(any(grepl("no datetime_utc", viol_split(b4))),
+        "must-fail: a run block without datetime_utc IS reported")
+  b5 <- g; b5$landcover$co_ff04$inputs_hash <- NULL
+  check(any(grepl("no inputs_hash", viol_split(b5))), "must-fail: a missing inputs_hash IS reported")
 }
 
 # --- 3. Declared keys -------------------------------------------------------------------------------
@@ -217,6 +264,9 @@ cat("\n3. Declared keys — present, null where absent\n")
   n <- g; n$network$co3$link_log <- NULL
   check(any(grepl("link_log_note", viol_keys(n))),
         "must-fail: a null link_log with no note IS reported")
+  x <- g; x$floodplain$co_ff04$inputs$surprise <- 1
+  check(any(grepl("UNDECLARED", viol_keys(x))),
+        "must-fail: an UNDECLARED key IS reported (whitelist, not just completeness)")
   n2 <- n; n2$network$co3$link_log_note <- "no log table in source schema"
   check(length(viol_keys(n2)) == 0, "a null link_log WITH a note passes")
   # Pins the `$` partial-matching trap: read with `$`, `link_log` resolves to `link_log_note` and
@@ -253,6 +303,12 @@ cat("\n5. Coverage — completeness flag and non-empty year groups\n")
   e <- g; e$landcover$co_ff04$inputs$item_ids[["2020"]] <- list()
   check(any(grepl("year 2020 resolved 0", viol_coverage(e))),
         "must-fail: an EMPTY year group IS reported (the `datetime` vs `start_datetime` trap)")
+  tr <- g; tr$landcover$co_ff04$inputs$item_ids_complete <- FALSE
+  check(any(grepl("TRUNCATED", viol_coverage(tr))),
+        "must-fail: item_ids_complete = FALSE is a FAILURE, not a note")
+  nh <- g; nh$landcover$co_ff04$inputs$classified_sha256 <- list(`2017` = NA, `2023` = NA)
+  check(any(grepl("classified raster digest", viol_coverage(nh))),
+        "must-fail: a landcover section with NO content digest IS reported")
 }
 
 # --- 6. Producer/guard key drift -----------------------------------------------------------------

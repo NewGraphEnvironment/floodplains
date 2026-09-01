@@ -18,4 +18,15 @@
 - Added a producer-vs-guard key-drift check to `provenance-check.R`, parsing the step scripts
   rather than grepping them, so a renamed or dropped field fails in seconds instead of after a
   30-minute pipeline run. Verified red on a one-character typo and green when restored.
+- Plan review returned 7 blockers; written to `planning/active/review-33.md`. Two verified as
+  genuine and fixed, including one against the fingerprint design I had recommended:
+  - **B1** item ids are `<tile>-<year>` with no `created`/`updated`, so an in-place reprocess
+    leaves any id-hash identical. Replaced with a digest of the classified rasters -- the
+    landcover as it actually entered the model.
+  - **B2** `terra::sources()` on a cropped raster is `""` or a random per-run temp path, never the
+    DEM URL. Replaced with the resolver name plus measurable raster geometry.
+  - Also fixed: run_region's resume cache reporting stale provenance as `ok`, three guard
+    assertions that failed toward pass, and the dead parity contract in run_area.R's header.
+- Added `inputs_hash` per section, which gives issue acceptance criterion 2 its only test.
+- Guard now at 31 assertions, all green, each shown able to fail.
 - Next: Phase 5 — verification, docs, PR
