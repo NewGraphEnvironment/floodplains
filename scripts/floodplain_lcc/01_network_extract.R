@@ -65,6 +65,14 @@ fp_network <- function(cfg) {
   # data or a deliberately different config -- with the stamp sidecar recording the override.
   guard       <- if (is.null(cfg$network_guard)) "strict" else cfg$network_guard
 
+  # lnk_config for the schema we will READ from. Needed on BOTH branches: the provenance lookup
+  # below calls lnk_log_read(), which resolves its schema from cfg$pipeline$schema, and on a GRAB
+  # that is the SOURCE schema, not this area's. Built here rather than inside the else-branch
+  # (where the pipeline's own copy lives) so a GRAB run can look up the row too -- which is the
+  # only way most published areas get a config_hash at all, since they GRAB and never build. (#33)
+  lnk_cfg_read <- lnk_config("default")
+  lnk_cfg_read$pipeline$schema <- read_schema
+
   if (grab) {
     message("Network source: GRAB from '", read_schema, "' (skipping link pipeline build).")
   } else {
@@ -237,6 +245,58 @@ fp_network <- function(cfg) {
   stamp_name <- paste0("aquatic_network_", species, min_order, ".stamp.md")
   writeLines(stamp_md, file.path(out_dir, stamp_name))
   message("Wrote provenance sidecar: ", stamp_name)
+
+  # --- Machine-readable provenance (#33) ---
+  # The stamp above is markdown for a human; this is the block stac_floodplains_bc (#17) publishes
+  # as STAC item properties. It records the LINK LOG ROW rather than re-deriving anything: link's
+  # config_hash is a hash over 17 files plus the config name and species list, so a self-computed
+  # SHA of config.yaml would match nothing in fresh.log and the two records could never be joined.
+  #
+  # Read the row WHOLESALE. lnk_log_read() is a `SELECT *`, so a column the DATABASE has arrives
+  # whether or not the installed link names it -- measured, the installed link here is 0.47.3
+  # whose cols_log has neither run_uid nor bcfp_pin_source, while the checkout is 0.49.0. That is
+  # why link#264 (the RemoteSha SHA tier) is off this issue's critical path: naming fields we
+  # expect would couple us to a version, and reading the row does not.
+  link_log <- tryCatch({
+    row <- link::lnk_log_read(conn, lnk_cfg_read, aoi = aoi_wsg)
+    if (nrow(row) == 0) NULL else as.list(row[1, ])
+  }, error = function(e) structure(list(), note = conditionMessage(e)))
+  link_log_note <- NULL
+  if (is.null(link_log)) {
+    link_log_note <- paste0("no log row for ", aoi_wsg, " in schema '", read_schema, "'")
+  } else if (!length(link_log)) {
+    link_log <- NULL
+    link_log_note <- paste0("log unreadable in schema '", read_schema, "'")
+  } else {
+    # Null-fill the declared set. `run_uid` is absent from any schema predating link#262 -- record
+    # that as an explicit null, never by omission: an absent key reads as "not implemented", a
+    # null one reads as "we looked and there was not one", and only the second is true. (#33)
+    link_log <- fp_prov_null_fill(link_log, c(
+      "run_uid", "config_hash", "link_sha", "link_dirty", "fwapg_sha",
+      "bcfp_model_version", "bcfp_pin_source", "date_start", "date_end"))
+    # text[] columns (species, wsg_upstream) arrive as a list; timestamps as POSIXct. Flatten both
+    # to JSON-safe scalars so the serialized bytes cannot depend on the session's timezone.
+    link_log <- lapply(link_log, fp_prov_scalar)
+  }
+  if (!is.null(link_log_note)) message("  provenance: ", link_log_note)
+
+  fp_prov_set(cfg, "network", paste0(species, min_order), list(
+    inputs = list(
+      watershed_group  = aoi_wsg,
+      species          = species,
+      min_order        = min_order,
+      network_source   = net_source,
+      read_schema      = read_schema,
+      subset           = cfg$subset,
+      link_config_name = "default",
+      link             = fp_pkg_stamp("link"),
+      fresh            = fp_pkg_stamp("fresh")),
+    link_log = link_log,
+    link_log_note = link_log_note,
+    # freshness and the guard setting are OBSERVATIONS of this run, not inputs: the guard can be
+    # overridden per-run by FP_NETWORK_GUARD, and the measured km moves whenever the source schema
+    # is rebuilt. Keeping them out of `inputs` is what lets the determinism check mean something.
+    run = fp_prov_run(network_guard = guard, freshness = fresh_note)))
 
   invisible(out_gpkg)
 }

@@ -150,10 +150,35 @@ for (i in seq_len(nrow(runnable))) {
   # Resumable: a group whose lulc_summary.rds already exists is complete — skip it so a
   # re-run after an interruption picks up where it left off. FORCE=1 redoes everything.
   summary_rds <- file.path(here::here("data", area), "lulc_summary.rds")
-  cached <- file.exists(summary_rds) && !nzchar(Sys.getenv("FORCE"))
+  # A cached group never runs the child, so its provenance record (#33) is whatever the last real
+  # run wrote -- and the group still reports `ok` and still reaches the publish hint. Publishing a
+  # stale block as the provenance of a current release is worse than publishing none, because
+  # every presence check downstream passes. So an ABSENT provenance.json invalidates the cache:
+  # the forward-only rollout then self-heals on the next region run instead of being frozen out by
+  # the very cache. A PRESENT one is reported with its date, so staleness is a number on screen.
+  prov_json <- file.path(here::here("data", area), "provenance.json")
+  # Read whichever landcover section is there rather than guessing the scenario id: MORR's chinook
+  # is ch_ff06, not ch_ff04, so a `<sp>_ff04` lookup would silently miss and report "date unread"
+  # for a group that has a perfectly good record. jsonlite is namespaced and this file does not
+  # source packages.R, so an absent jsonlite degrades to "date unread" rather than aborting a
+  # region run.
+  prov_date <- NA_character_
+  if (file.exists(prov_json)) {
+    prov_date <- tryCatch({
+      lc <- jsonlite::read_json(prov_json, simplifyVector = FALSE)[["landcover"]]
+      dts <- vapply(lc, function(e) as.character(e[["run"]][["datetime_utc"]] %||% NA), character(1))
+      if (length(dts)) max(dts, na.rm = TRUE) else NA_character_
+    }, error = function(e) NA_character_, warning = function(w) NA_character_)
+  }
+  cached <- file.exists(summary_rds) && file.exists(prov_json) && !nzchar(Sys.getenv("FORCE"))
   if (cached) {
-    message("\n### ", w, " -> ", sp, ": complete (lulc_summary.rds present) — SKIP (FORCE=1 to redo) ###")
+    message("\n### ", w, " -> ", sp, ": complete (lulc_summary.rds present) — SKIP (FORCE=1 to redo)",
+            " [provenance ", if (is.na(prov_date)) "present, date unread" else prov_date, "] ###")
     rc <- 0L
+  } else if (file.exists(summary_rds) && !file.exists(prov_json)) {
+    message("\n### ", w, " -> ", sp, ": outputs present but NO provenance.json — re-running (#33) ###")
+    rc <- system2("Rscript", c(here::here("scripts", "run_area.R"), area, steps),
+                  stdout = log, stderr = log)
   } else {
     message("\n### ", w, " -> ", sp, " (steps ", steps, ") -> ", basename(log), " ###")
     rc <- system2("Rscript", c(here::here("scripts", "run_area.R"), area, steps),
@@ -175,6 +200,9 @@ for (i in seq_len(nrow(runnable))) {
   if (!status %in% c("ok", "ok(cached)")) message("  ⚠ ", w, ": ", status, " — see ", basename(log))
   results[[i]] <- data.frame(wsg = w, species = sp, status = status,
                              network_km = round(km, 1), floodplain_km2 = round(fp_km2, 1),
+                             # Carried into the coverage CSV so a reader can see WHEN a cached
+                             # group's provenance was written without opening the file (#33).
+                             provenance = prov_date,
                              log = if (cached) "" else basename(log), stringsAsFactors = FALSE)
 }
 
