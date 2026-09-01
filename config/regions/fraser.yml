@@ -7,4 +7,25 @@ region: fraser
 mergin_project: newgraph/sern_fraser_2024
 min_order: 3
 species: [ch, bt]          # ordered: chinook, then bull trout
+# network_source (#52): GRAB from `fresh` -- link's province-wide rebuild, 2026-08-31/09-01.
+# The per-WSG schemas (morr/bulk/necr/pars) hold July networks and were NOT touched by that rebuild
+# (streams last analyzed 2026-07-09..19), so BUILDing there would ignore the rebuild entirely.
+#
+# Provenance is per-WSG ROWS in `fresh.log`, keyed by watershed_group_code -- not a log table inside
+# each persist schema. Read it with `link::lnk_log_read(conn, lnk_config("default"), aoi = "<WSG>")`,
+# which is authoritative; introspecting information_schema for per-schema log tables finds nothing
+# and reads as "no provenance", which is wrong. All four target WSGs return one row each carrying
+# `config_hash` (sha256:19e3a...), the value #52's provenance table records.
+#
+# CAVEAT ON THE GUARD: the freshness guard compares grabbed km against `fresh.streams_vw_bcfp`
+# (01_network_extract.R:143). Grabbing FROM `fresh` makes that a schema compared against a view over
+# itself -- it passes at ~0% deviation and verifies nothing. Left at the default so the stamp still
+# records the comparison, but a pass here is not evidence of freshness the way it is for columbia
+# (which grabs from `fresh_default`, a genuinely different schema).
+network_source: fresh
+# attribute_by (#40, #54): also write a per-watercourse floodplain and the patch<->watercourse
+# bridge for the primary scenario. blue_line_key rather than gnis_name -- on MORR, name-grouping
+# pooled 78% of the floodplain into one unnamed feature because a third of the Morice mainstem
+# itself carries no gnis_name. The name is carried as a label column instead (#48).
+attribute_by: blue_line_key
 watershed_groups: [LCHL, LSAL, WILL, TABR, UFRA, NECR, MORK, FRAN, BOWR, MCGR]

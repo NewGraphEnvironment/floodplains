@@ -13,5 +13,7 @@ min_order: 3
 schema: kisp                   # dedicated persist schema
 primary_scenario: ch_ff04      # headline scenario for LULC (03)
 subset: null                   # whole WSG — the FWA group polygon is the single sub-basin
+network_source: fresh
+attribute_by: blue_line_key
 # flood_scenarios.csv carries the chinook scenario set (ch_ff02/04/06 run=TRUE).
 # No break_points.csv — whole-WSG single sub-basin.

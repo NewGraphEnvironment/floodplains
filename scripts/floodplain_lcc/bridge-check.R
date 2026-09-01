@@ -30,8 +30,18 @@ if (!b_lyr %in% lyrs)     stop("no bridge layer ", b_lyr, " -- run step 3 with a
 
 tp <- sf::st_read(lc, layer = t_lyr, quiet = TRUE)
 br <- sf::st_read(lc, layer = b_lyr, quiet = TRUE)
-key <- setdiff(names(br), c("patch_id","overlap_ha","overlap_frac","apportion_weight",
+key <- setdiff(names(br), c("patch_id","name_basin","overlap_ha","overlap_frac","apportion_weight",
                             "wsg","species","scenario"))
+# patch_id is per-sub-basin. Join on the PAIR or a multi-sub-basin area silently mis-reconciles:
+# match() takes the first row sharing an id, so a patch in basin A is credited basin B's area.
+# Older bridges predate the name_basin column; fall back so the check still runs against them.
+# Decide the scheme ONCE, from the bridge (the older artifact), and apply it to both sides. Deciding
+# per object is the bug it looks like a fix for: the transition layer always carries name_basin while
+# a pre-fix bridge does not, so the two sides key differently and match nothing.
+use_basin <- "name_basin" %in% names(br)
+pk_of <- function(x) if (use_basin)
+  paste(x$name_basin, x$patch_id, sep = "\u00a6") else as.character(x$patch_id)
+tp_pk <- NULL; br_pk <- NULL
 message("Area: ", area, " | ", t_lyr, " (", nrow(tp), " patches) | ", b_lyr, " (", nrow(br),
         " pairs, key = ", key, ")")
 
@@ -43,28 +53,31 @@ ok <- function(label, cond, detail = "") {
 }
 
 # --- the invariant that makes apportionment meaningful ---
-w <- tapply(br$apportion_weight, br$patch_id, sum)
+tp_pk <- pk_of(tp); br_pk <- pk_of(br)
+w <- tapply(br$apportion_weight, br_pk, sum)
 ok("apportion_weight sums to 1 per patch", max(abs(w - 1)) < 0.01,
    sprintf("max deviation %.4f", max(abs(w - 1))))
 
 # --- reconciliation: the check that caught the original spec error ---
-tl  <- tp[tp$from_class == "Trees" & tp$to_class != "Trees", ]
-bl  <- br[br$patch_id %in% tl$patch_id, ]
-bl$loss <- tl$area_ha[match(bl$patch_id, tl$patch_id)]
+tl     <- tp[tp$from_class == "Trees" & tp$to_class != "Trees", ]
+tl_pk  <- pk_of(tl)
+keep   <- br_pk %in% tl_pk
+bl     <- br[keep, ]; bl_pk <- br_pk[keep]
+bl$loss <- tl$area_ha[match(bl_pk, tl_pk)]
 tot <- sum(tl$area_ha); ap <- sum(bl$loss * bl$apportion_weight)
 ok("apportioned tree loss reconciles to the ungrouped total",
    abs(ap - tot) / tot < 0.005, sprintf("%.2f vs %.2f ha (%.3f%%)", ap, tot, 100*(ap-tot)/tot))
 
 # overlap_frac must NOT be usable as a weight -- if it ever sums to 1 the two columns have been
 # conflated somewhere upstream and the distinction this table exists to make has been lost.
-f <- mean(tapply(br$overlap_frac, br$patch_id, sum))
+f <- mean(tapply(br$overlap_frac, br_pk, sum))
 ok("overlap_frac is distinct from apportion_weight (sums > 1, as the rows overlap)", f > 1.05,
    sprintf("mean per-patch sum %.3f", f))
 
 # --- union coverage: how much of a patch any watercourse reaches ---
-u <- tapply(br$overlap_frac, br$patch_id, max)
+u <- tapply(br$overlap_frac, br_pk, max)
 ok("union coverage >= 0.90 mean", mean(u) >= 0.90, sprintf("%.4f", mean(u)))
-unbridged <- sum(!tp$patch_id %in% br$patch_id)
+unbridged <- sum(!tp_pk %in% br_pk)
 ok("few patches reach no watercourse at all", unbridged / nrow(tp) < 0.01,
    paste(unbridged, "of", nrow(tp)))
 

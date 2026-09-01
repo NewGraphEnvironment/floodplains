@@ -4,3 +4,5 @@ species: ch
 min_order: 3
 schema: will
 primary_scenario: ch_ff04
+network_source: fresh
+attribute_by: blue_line_key
