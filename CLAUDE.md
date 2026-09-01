@@ -75,6 +75,28 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   loss previously in the "noise" bucket (BULK: fire 5% / harvest 36% / residual 62%). The transition
   layer now carries N disturbance attrs → the STAC schema must too (stac_floodplains_bc#6).
 - `data/<area>/` — outputs (gitignored)
+- **Two orthogonal explosions, and the bridge between them (#54):** the floodplain is exploded two
+  incompatible ways. `<scenario>_by_<attribute_by>` is one row per watercourse and rows **overlap**
+  by design (#40); `transition_<scenario>_<span>` is one row per change patch and rows are
+  **disjoint**. Neither answers "how much tree loss belongs to *this* river" alone, and the naive
+  spatial join overcounts by up to 94% (MORR attribution rows sum to 795.8 km² over a 411.1 km²
+  floodplain). Step 3 writes a non-spatial `patch_watercourse_<scenario>_<span>` table beside the
+  patches: one row per (patch, watercourse) pair. **Two fractions, and only one is additive** —
+  `overlap_frac` ("what share of this patch does this watercourse cover?", sums to ~2.3 per patch
+  because the rows overlap) and `apportion_weight` ("what share is credited to it?", sums to exactly
+  1). Weighting by `overlap_frac` overstated MORR tree loss by 83%; `apportion_weight` reconciles to
+  431.82 vs 431.87 ha. Three consumer semantics: **inclusive** (every patch touching a river),
+  **apportioned** (weight, additive), **exclusive** (`overlap_frac == 1`). Coverage is checked as a
+  **union** (`max(overlap_frac)`, 0.966 on MORR) — summing overlap would report ~2.3× and mean
+  nothing. `bridge-check.R` asserts it. Absent `attribute_by` ⇒ no bridge, step 3 unchanged.
+- **Legacy layers do not clean themselves up (#55).** #23 made gpkg writes per-layer so a second
+  species cannot wipe the first — which means a layer whose *name* goes obsolete is never removed.
+  Disturbance attribution used to write `_disturbance` / `_fire` siblings and now writes onto the
+  main transition layer, stranding 6 orphans across morr and bulk with matching row counts (BULK's
+  were 9,045 each, same as the current layer, which is why they went unnoticed).
+  `gpkg_prune-legacy.R <area>` sweeps them: idempotent, `DRY=1` reports, and it removes **only** an
+  explicit name pattern — a script that deletes layers it does not recognise is worse than the
+  orphans it cleans.
 - **Byte-deterministic gpkg writes (#45):** GDAL stamps `gpkg_contents.last_change` with wall-clock
   time, so two writes of identical data differ — a rerun was indistinguishable from a change, and
   `file:checksum` downstream would churn every build (GeoPackage is 72% of the published bucket by
@@ -171,10 +193,16 @@ Computer STAC. (`drift` ≥ 0.6.0 because `fp_lulc` passes `tile_size` to `dft_s
   checking classified coverage ≈ floodplain area** before trusting numbers when scaling to new groups.
 - **Wrap long runs in `caffeinate -s`.** The big-floodplain STAC fetch is ~30 min and download-bound
   by default (it downloads the whole floodplain *bounding box* — ~10× the floodplain). drift 0.6.0
-  ships `dft_stac_fetch(tile_size=)` (drift#36) — the `filter_geom`-independent path that streams
-  only tiles intersecting the AOI, exposed as an **opt-in per-area `tile_size:` in `area.yml`**
-  (absent ⇒ unchanged bbox path). Speedup vs parity/accuracy is being benchmarked under issue #8
-  before broad adoption; the in-cube polygon-clip remains blocked upstream by gdalcubes#110. Long
+  ships `dft_stac_fetch(tile_size=)` (drift#36), exposed as an **opt-in per-area `tile_size:` in
+  `area.yml`** (absent ⇒ unchanged bbox path). **It was benchmarked under #8 and REJECTED — do not
+  reach for it to speed up a slow fetch.** Tiling is *slower* at every tile size on every AOI tested:
+  neexdzii full step-3 **6.3× slower** (66 min vs 10.5), FRAN direct fetch 0.79× at 20 km and 0.31×
+  at 10 km. The reason is geometric and robust — a floodplain is a thin diagonal corridor, the worst
+  case for square tiling: coarse tiles blanket the bbox with no download saving but N× per-tile
+  overhead, fine tiles hug the corridor but explode round-trips. Accuracy was never the issue
+  (≥ 99.999% agreement, no seam band). The knob stays wired but **off**; the bbox waste has to be
+  fixed **in-cube** (drift#36 `filter_geom`), still blocked by gdalcubes#110 (OPEN — segfault on
+  compute, 0.7.4 macOS arm64). Verdict: `research/20260711_lulc_tile-fetch-benchmark.md`. Long
   background jobs get killed by macOS idle sleep — `caffeinate -s Rscript scripts/run_region.R
   <region>` (the resumable runner picks up any interrupted group).
 
