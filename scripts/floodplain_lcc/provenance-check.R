@@ -255,12 +255,70 @@ cat("\n5. Coverage — completeness flag and non-empty year groups\n")
         "must-fail: an EMPTY year group IS reported (the `datetime` vs `start_datetime` trap)")
 }
 
-# --- 6. A real area, when one is named -----------------------------------------------------------------
+# --- 6. Producer/guard key drift -----------------------------------------------------------------
+# The guard's declared key sets are only worth their maintenance if they match what the STEPS
+# actually write. A typo on either side would otherwise surface as a failure after a 30-minute
+# pipeline run, and a key the producer stopped writing would surface as nothing at all.
+#
+# Parses the step scripts rather than grepping them. The first regex version of this reported 1 key
+# where there are 9 -- loudly wrong, which was lucky; a scanner wrong in the reassuring direction
+# would have reported MATCH for nothing. Hence the positive control below: the scanner must be
+# shown able to FIND keys before "no mismatch" means anything.
+cat("\n6. Producer/guard key drift\n")
+find_calls <- function(expr, fname, acc = list()) {
+  if (!is.call(expr)) return(acc)
+  if (identical(as.character(expr[[1]])[1], fname)) acc[[length(acc) + 1L]] <- expr
+  parts <- as.list(expr)
+  for (i in seq_along(parts)) {
+    # `row[1, ]` puts R EMPTY SYMBOL in the arg list. Binding it to a variable makes that
+    # variable a MISSING ARGUMENT, so every later touch -- is.null(), is.call(), even the
+    # tryCatch guard -- errors with "argument is missing". deparse() is the one operation that
+    # handles it, returning "".
+    if (!nzchar(paste(deparse(parts[[i]]), collapse = ""))) next
+    if (is.call(parts[[i]])) acc <- find_calls(parts[[i]], fname, acc)
+  }
+  acc
+}
+prov_keys <- function(file, section) {
+  calls <- unlist(lapply(parse(file), find_calls, fname = "fp_prov_set"), recursive = FALSE)
+  for (cl in calls) {
+    if (!identical(as.character(cl[[3]]), section)) next
+    body <- cl[[5]]                                  # the list(inputs = ..., ...)
+    inputs <- body[["inputs"]]
+    # inputs may be `list(...)` or `c(list(...), other)`
+    lists <- find_calls(inputs, "list")
+    nm <- unlist(lapply(lists, function(l) names(as.list(l))))
+    return(sort(unique(nm[nzchar(nm)])))
+  }
+  character(0)
+}
+{
+  step <- function(f) file.path(dirname(sub("^--file=", "",
+    grep("^--file=", commandArgs(FALSE), value = TRUE)[1])), f)
+  net <- prov_keys(step("01_network_extract.R"), "network")
+  fpl <- prov_keys(step("02_floodplain_model.R"), "floodplain")
+  # item_ids / item_hash / item_ids_complete are supplied by fp_prov_stac_items(), spliced into
+  # `inputs` at the call site, so they are not literals in the step script.
+  lcv <- sort(unique(c(prov_keys(step("03_lulc_classify.R"), "landcover"),
+                       c("item_ids", "item_hash", "item_ids_complete"))))
+  check(length(net) > 3, "premise: the scanner resolves keys at all (positive control)")
+  drift1 <- function(label, got, want) {
+    d <- c(setdiff(want, got), setdiff(got, want))
+    check(length(d) == 0, sprintf("%s producer writes exactly the %d declared key(s)%s",
+      label, length(want),
+      if (length(d)) paste0(" -- differs: ", paste(d, collapse = ", ")) else ""))
+  }
+  drift1("network", net, KEYS_NETWORK_INPUTS)
+  drift1("floodplain", fpl, KEYS_FLOODPLAIN)
+  drift1("landcover", lcv, KEYS_LANDCOVER)
+}
+
+# --- 7. A real area, when one is named -----------------------------------------------------------------
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) >= 1 && nzchar(args[1])) {
   area <- args[1]
   path <- file.path("data", area, "provenance.json")
-  cat("\n6. Real area: ", path, "\n", sep = "")
+  cat("\n7. Real area: ", path, "\n", sep = "")
   if (!file.exists(path)) {
     # Absence is reported as absence, never as a pass. Forward-only (#33) means an area not yet
     # re-run legitimately has none -- but "there was nothing to check" must not read as "clean".

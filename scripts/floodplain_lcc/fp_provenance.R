@@ -137,6 +137,36 @@ fp_prov_null_fill <- function(x, keys) {
   x
 }
 
+# --- JSON-safe scalars ------------------------------------------------------------------------
+# A DBI row is not JSON. Two columns in link's log need care:
+#
+#   timestamptz -> POSIXct. Serialized as-is, jsonlite formats it in the SESSION's timezone, so
+#   the same row would produce different bytes on two machines and the determinism check would
+#   fail for a reason that is not a content change. Forced to UTC ISO 8601, matching #33's
+#   "run datetime in UTC (absolute, not relative)".
+#
+#   text[] (species, wsg_upstream) -> a one-element list holding a character vector. Unwrapped to
+#   the vector so it serializes as a JSON array rather than a nested one.
+#
+# `auto_unbox` would turn a length-1 vector into a scalar and a length-2 into an array, so a
+# single-species area and a two-species area would disagree on the SHAPE of the same field. The
+# array-valued fields are marked with I() to hold the array shape at every length.
+fp_prov_scalar <- function(x) {
+  if (inherits(x, c("POSIXct", "POSIXt"))) {
+    return(if (is.na(x)) NA_character_ else format(x, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))
+  }
+  if (inherits(x, "Date")) return(if (is.na(x)) NA_character_ else format(x, "%Y-%m-%d"))
+  if (is.list(x)) {
+    if (length(x) == 1L && !is.list(x[[1]])) {
+      inner <- x[[1]]
+      return(if (length(inner) == 0L) NA else I(as.character(inner)))
+    }
+    return(lapply(x, fp_prov_scalar))
+  }
+  if (length(x) > 1L) return(I(x))
+  x
+}
+
 # --- Package version + git SHA ---------------------------------------------------------------
 # Four tiers, and `sha_source` names which one answered so an NA is DIAGNOSABLE rather than mute.
 # Mirrors link's .lnk_pkg_git_sha() (link/R/lnk_stamp.R:264) and adds the tier that actually
@@ -239,6 +269,66 @@ fp_git_state <- function(dir) {
   list(sha = sha[1],
        dirty = if (is.null(st)) NA else length(st) > 0,
        source = "git")
+}
+
+# --- Landcover fingerprint from the resolved STAC items ---------------------------------------
+# THE point of #33. `stac_cache_key()` -- which the issue originally named -- hashes the AOI and
+# the request parameters and NOTHING about the items returned, so it is a fingerprint of the
+# REQUEST: if Planetary Computer re-ingests io-lulc-annual-v02 the key is unchanged and the stale
+# cache is served. That is precisely the drift this issue exists to catch. The resolved item ids
+# are the content pin, and drift has attached them as `attr(result, "stac_items")` since its first
+# commit, so this needs no upstream change.
+#
+# Three things this has to get right, each measured against the live collection:
+#
+#   1. GROUP BY start_datetime, NOT datetime. io-lulc items carry properties$datetime = NULL and
+#      use start_datetime/end_datetime. Grouping by `datetime` yields empty groups SILENTLY, and
+#      an empty group is indistinguishable from a year the AOI does not cover. provenance-check.R
+#      reports a zero-id year for exactly this reason.
+#   2. KEEP ONLY THE REQUESTED YEARS. drift searches min(years)-01-01/max(years)-12-31, so a
+#      2017/2020/2023 fetch returns seven items and reads three. Recording all seven would claim
+#      inputs that never reached the output.
+#   3. RECORD WHETHER THE LIST IS COMPLETE. drift calls get_request() with no items_fetch(), so
+#      this is ONE PAGE. Planetary Computer returns no numberMatched (measured: the response
+#      carries type/links/features/numberReturned only), so the only honest completeness test is
+#      the presence of a rel="next" link. A partial list published as complete is worse than none.
+#
+# NO HREFS, EVER. drift signs the items (rstac::items_sign) before attaching them, so every asset
+# href carries a short-lived SAS token. Ids and the year only; provenance-check.R greps for a
+# credential-shaped query parameter and fails if one reaches the file.
+fp_prov_stac_items <- function(items, years) {
+  years <- as.character(sort(unique(as.integer(years))))
+  blank <- list(item_ids = stats::setNames(rep(list(character(0)), length(years)), years),
+                item_hash = NA_character_, item_ids_complete = NA)
+  feats <- items$features
+  if (is.null(feats) || !length(feats)) return(blank)
+
+  yr <- vapply(feats, function(f) {
+    p <- f$properties
+    dt <- p[["start_datetime"]] %||% p[["datetime"]] %||% ""
+    if (nzchar(dt)) substr(dt, 1, 4) else NA_character_
+  }, character(1))
+  ids <- vapply(feats, function(f) as.character(f$id %||% NA_character_), character(1))
+
+  by_year <- lapply(years, function(y) sort(unique(ids[!is.na(yr) & yr == y & !is.na(ids)])))
+  names(by_year) <- years
+
+  # One scalar a consumer can compare. Sorted and year-labelled so the hash is a function of the
+  # content, never of the order the API happened to return.
+  payload <- paste(unlist(lapply(years, function(y)
+    paste0(y, "=", paste(by_year[[y]], collapse = ",")))), collapse = "\n")
+
+  list(item_ids = lapply(by_year, function(v) if (length(v)) I(v) else character(0)),
+       item_hash = paste0("sha256:", digest::digest(payload, algo = "sha256", serialize = FALSE)),
+       item_ids_complete = !fp_stac_has_next(items))
+}
+
+# TRUE when the response advertises another page. Treated as "incomplete" only on a positive
+# signal: an absent links array means no next link, which is a complete single page.
+fp_stac_has_next <- function(items) {
+  lk <- items$links
+  if (is.null(lk) || !length(lk)) return(FALSE)
+  any(vapply(lk, function(l) identical(l[["rel"]], "next"), logical(1)))
 }
 
 # --- Run-event block ---------------------------------------------------------------------------

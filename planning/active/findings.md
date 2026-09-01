@@ -132,3 +132,33 @@ absent and `link_log_note` present, `body$link_log` returns **the note**, so an
 trap sits on `inp$item_ids` → `item_ids_complete`. `provenance-check.R` reads every parsed-JSON
 body with `[[`, and carries a premise assertion pinning the partial match so the reason for the
 convention cannot be edited away by someone tidying.
+
+## Found during Phases 2-4
+
+### `lakes` / `wetlands` / `wetland_filter` are CSV columns step 2 never reads
+
+`grep` over `02_floodplain_model.R` returns nothing for all three. They are in
+`flood_scenarios.csv` and in the plan's field list, but recording them would claim an input that
+did not affect the output. Omitted deliberately.
+
+### A DBI row is not JSON
+
+`link`'s log carries `timestamptz` (POSIXct) and `text[]` (a one-element list holding a character
+vector). Serialized as-is, jsonlite formats the timestamp in the **session's** timezone, so the
+same row would produce different bytes on two machines and the determinism check would fail for a
+reason that is not a content change. `fp_prov_scalar()` forces UTC ISO 8601 and unwraps the array,
+and marks array-valued fields with `I()` so a single-species area and a two-species area agree on
+the field's *shape* rather than `auto_unbox` collapsing the length-1 case to a scalar. Verified by
+serializing the same row under `TZ=America/Vancouver` and `TZ=UTC` and comparing bytes.
+
+### The key-drift scanner was wrong on its first two drafts
+
+The first was a regex/indentation scan and reported **1** key where there are 9 — a MISMATCH for
+every section, which read as a real defect until the `link_log` row (extracted by a different
+path) came back MATCH and served as the positive control. The second parsed the AST but died on
+`row[1, ]`: R's **empty symbol** in an argument list, which makes any variable bound to it a
+*missing argument*, so `is.null()`, `is.call()` and even the `tryCatch` guard all error with
+"argument is missing". `deparse()` is the one operation that handles it, returning `""`.
+
+Both drafts failed loudly, which was luck. A scanner wrong in the reassuring direction would have
+reported MATCH for nothing — hence the positive control now shipped alongside the check.

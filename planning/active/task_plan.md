@@ -43,36 +43,36 @@ content pin.
 
 ## Phase 2: Step 1 — network section
 
-- [ ] Construct `lnk_config("default")` on **both** GRAB and BUILD branches (today it exists only
+- [x] Construct `lnk_config("default")` on **both** GRAB and BUILD branches (today it exists only
       in the BUILD branch, `01:85-86`), with `$pipeline$schema <- read_schema`
-- [ ] `lnk_log_read()` read **wholesale** (`SELECT *`, so it works against the installed link
+- [x] `lnk_log_read()` read **wholesale** (`SELECT *`, so it works against the installed link
       0.47.3 even though the checkout is 0.49.0), `tryCatch` → `null` + `link_log_note`
-- [ ] Null-fill the declared key set: `run_uid`, `config_hash`, `link_sha`, `link_dirty`,
+- [x] Null-fill the declared key set: `run_uid`, `config_hash`, `link_sha`, `link_dirty`,
       `fwapg_sha`, `bcfp_model_version`, `bcfp_pin_source`, `date_start`, `date_end`
-- [ ] Write `network[<species><min_order>]` with `inputs` / `link_log` / `run`
+- [x] Write `network[<species><min_order>]` with `inputs` / `link_log` / `run`
 
 ## Phase 3: Step 2 — floodplain section
 
-- [ ] `inputs`: item key, VCA scenario parameters, `dem_buffer_m`, `attribute_by`,
+- [x] `inputs`: item key, VCA scenario parameters, `dem_buffer_m`, `attribute_by`,
       `subbasin_source`, `crs_epsg`, `fp_pkg_stamp("flooded")`
-- [ ] `dem_source` from `terra::sources(dem)` — measure the output, do not hardcode the MRDEM-30
+- [x] `dem_source` from `terra::sources(dem)` — measure the output, do not hardcode the MRDEM-30
       URL (it is built inside `fl_dem_aoi()`'s body, not a formal default). Empty ⇒ `null` + note.
-- [ ] Write `floodplain[<scenario_id>]`, one per scenario in the loop
+- [x] Write `floodplain[<scenario_id>]`, one per scenario in the loop
 
 ## Phase 4: Step 3 — landcover section
 
-- [ ] Read `attr(rasters_all, "stac_items")` immediately after the fetch — the attribute is on the
+- [x] Read `attr(rasters_all, "stac_items")` immediately after the fetch — the attribute is on the
       list and is lost by any subsetting
-- [ ] Group ids by **`start_datetime`**, not `datetime` (io-lulc items carry `datetime = NULL`;
+- [x] Group ids by **`start_datetime`**, not `datetime` (io-lulc items carry `datetime = NULL`;
       grouping by it yields empty groups silently). Assert every requested year resolves to ≥1 id.
-- [ ] Keep only the requested years — the query spans `min(years)`–`max(years)`, so unused years
+- [x] Keep only the requested years — the query spans `min(years)`–`max(years)`, so unused years
       come back and must not be recorded as inputs
-- [ ] `item_ids_complete` from the presence of a `rel="next"` link (Planetary Computer returns no
+- [x] `item_ids_complete` from the presence of a `rel="next"` link (Planetary Computer returns no
       `numberMatched`, so that is the only honest test)
-- [ ] `item_hash` = sha256 over the sorted flattened ids
-- [ ] Resolved fetch parameters from `dft_stac_config()` + `formals(dft_stac_fetch)`; `cache_key`
+- [x] `item_hash` = sha256 over the sorted flattened ids
+- [x] Resolved fetch parameters from `dft_stac_config()` + `formals(dft_stac_fetch)`; `cache_key`
       declared as `null`
-- [ ] **No hrefs** — `items` arrives `items_sign()`ed, so every asset href carries a SAS token
+- [x] **No hrefs** — `items` arrives `items_sign()`ed, so every asset href carries a SAS token
 
 ## Phase 5: Verify and hand off
 

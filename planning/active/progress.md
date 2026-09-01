@@ -14,4 +14,8 @@
   a checkout SHA recorded for a different installed version, a version string accepted as a
   RemoteSha, and duplicate keys from `c()`. A fourth — `$` partial-matching `link_log` to
   `link_log_note` — is pinned by its own premise assertion.
-- Next: Phase 2 — step 1 network section
+- **Phases 2-4 done** — network / floodplain / landcover sections written by steps 1 / 2 / 3
+- Added a producer-vs-guard key-drift check to `provenance-check.R`, parsing the step scripts
+  rather than grepping them, so a renamed or dropped field fails in seconds instead of after a
+  30-minute pipeline run. Verified red on a one-character typo and green when restored.
+- Next: Phase 5 — verification, docs, PR

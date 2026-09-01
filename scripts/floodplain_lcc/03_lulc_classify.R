@@ -85,6 +85,11 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
   message("=== Whole floodplain ===")
   rasters_all <- dft_stac_fetch(floodplain, source = "io-lulc", years = years,
                                 tile_size = cfg$tile_size)
+  # Landcover fingerprint (#33) -- captured HERE, written at the end of this function so a run that
+  # fails downstream never leaves provenance for an output that does not exist. Read from
+  # `rasters_all` itself: drift attaches the resolved items to the LIST, so the attribute is gone
+  # the moment anything subsets or lapply()s over it.
+  lc_items <- fp_prov_stac_items(attr(rasters_all, "stac_items"), years)
   classified_all <- dft_rast_classify(rasters_all, source = "io-lulc")
   trans_all <- dft_rast_transition(
     classified_all, from = as.character(yrs[1]), to = as.character(yrs[2]),
@@ -297,6 +302,40 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
   # last -- read the per-scenario file for a specific species/scenario (#23).
   saveRDS(lulc_summary, file.path(out_dir, paste0("lulc_summary_", scenario_id, ".rds")))
   saveRDS(lulc_summary, file.path(out_dir, "lulc_summary.rds"))
+
+  # --- Machine-readable provenance (#33) ---
+  # The sharp edge this issue exists for: io-lulc-annual-v02 is a REMOTE collection that can be
+  # reprocessed upstream, and drift caches by request hash -- so a stale cache keeps serving the
+  # old raster while a fresh machine gets the new one, with no error on either side. The recorded
+  # item ids are what make that visible.
+  #
+  # res/crs/dt/aggregation/resampling are read from formals(): fp_lulc passes NONE of them, so the
+  # defaults ARE what ran, and reading them keeps the record honest if drift ever changes one.
+  # stac_url/collection/asset come from drift's own exported resolver rather than being restated.
+  dft_defaults <- formals(drift::dft_stac_fetch)
+  lc_cfg <- drift::dft_stac_config("io-lulc")
+  fp_prov_set(cfg, "landcover", scenario_id, list(
+    inputs = c(list(
+      source            = "io-lulc",
+      stac_url          = lc_cfg$stac_url,
+      collection        = lc_cfg$collection,
+      asset             = lc_cfg$asset,
+      res               = eval(dft_defaults$res),
+      crs               = eval(dft_defaults$crs),
+      dt                = eval(dft_defaults$dt),
+      aggregation       = eval(dft_defaults$aggregation),
+      resampling        = eval(dft_defaults$resampling),
+      tile_size         = cfg$tile_size,
+      years             = I(as.integer(years)),
+      change_interval   = I(as.integer(yrs)),
+      patch_area_min_m2 = patch_min_m2,
+      # Declared null today. drift computes a cache key but neither returns nor attaches it; if it
+      # ever does, this populates with no change here -- the same design-for-absence that takes
+      # link#264 off this issue's critical path.
+      cache_key         = attr(rasters_all, "cache_key") %||% NA,
+      drift             = fp_pkg_stamp("drift")),
+      lc_items),
+    run = fp_prov_run()))
 
   message("\nDone. Scenario: ", scenario_id, " -- outputs in ", out_dir)
   invisible(out_lc_gpkg)

@@ -54,8 +54,10 @@ fp_floodplain <- function(cfg, scenarios = "run") {
   if (is.null(cfg$break_points) || nrow(cfg$break_points) == 0) {
     message("  whole-WSG sub-basin (", cfg$watershed_group, " group polygon; no break points)")
     subbasins <- fp_wsg_subbasin(conn, cfg$watershed_group, cfg$name)
+    subbasin_source <- "fwa_watershed_groups_poly"
   } else {
     subbasins <- fresh::frs_watershed_split(conn, cfg$break_points)
+    subbasin_source <- "break_points"
   }
   sb_path <- file.path(out_dir, "subbasins.gpkg")
   sf::st_write(subbasins, sb_path, layer = "subbasins", delete_dsn = TRUE, quiet = TRUE)
@@ -105,6 +107,15 @@ fp_floodplain <- function(cfg, scenarios = "run") {
   message("Fetching national MRDEM-30 for stream network + ", buf, " m buffer...")
   dem <- flooded::fl_dem_aoi(streams, buffer = buf, target_crs = sf::st_crs(streams))
   message("  DEM: ", terra::ncol(dem), " x ", terra::nrow(dem), " pixels")
+  # Provenance (#33): take the DEM identity from the OBJECT flooded returned, not from a URL
+  # restated here. fl_dem_aoi()'s MRDEM-30 path is built inside its body (source = NULL is the
+  # formal), so it is not resolvable from formals() and hardcoding it would duplicate package
+  # knowledge this repo's core principle forbids. A raster held in memory reports no source; that
+  # is recorded as NA, and the URL stays recoverable from flooded_version.
+  dem_source <- tryCatch({
+    src <- terra::sources(dem)
+    if (length(src) && nzchar(src[1])) src[1] else NA_character_
+  }, error = function(e) NA_character_)
 
   # --- Rasterize precipitation (shared across scenarios) ---
   message("  Rasterizing precipitation...")
@@ -177,6 +188,31 @@ fp_floodplain <- function(cfg, scenarios = "run") {
     sf::st_write(valleys_poly, out_gpkg, layer = sc$scenario_id,
                  append = file.exists(out_gpkg), delete_layer = TRUE, quiet = TRUE)
     message("  Saved: ", basename(out_raster), " + layer ", sc$scenario_id, " in ", basename(out_gpkg))
+
+    # --- Machine-readable provenance (#33) ---
+    # One entry per scenario, keyed the same way the gpkg layer and the STAC item are. Every field
+    # here is a function of the INPUTS -- the VCA parameter set, the DEM, the sub-basin source --
+    # so two runs over an unchanged config must produce identical bytes. Nothing about this run
+    # (when, how long, which host) belongs here; provenance-check.R fails if one appears.
+    fp_prov_set(cfg, "floodplain", sc$scenario_id, list(
+      inputs = list(
+        wsg             = cfg$watershed_group,
+        species         = cfg$species,
+        scenario        = sc$scenario_id,
+        flood_factor    = sc$flood_factor,
+        slope_threshold = sc$slope_threshold,
+        max_width       = sc$max_width,
+        cost_threshold  = sc$cost_threshold,
+        size_threshold  = sc$size_threshold,
+        hole_threshold  = sc$hole_threshold,
+        anchor_order    = sc$anchor_order,
+        dem_source      = dem_source,
+        dem_buffer_m    = buf,
+        attribute_by    = cfg$attribute_by,
+        subbasin_source = subbasin_source,
+        crs_epsg        = sf::st_crs(streams)$epsg,
+        flooded         = fp_pkg_stamp("flooded")),
+      run = fp_prov_run()))
 
     # --- Per-watercourse attribution (#40) ---
     # Which part of this floodplain belongs to which river? flooded::fl_valley_attribute() applies
