@@ -71,6 +71,7 @@ fp_prov_read <- function(cfg) {
 fp_prov_write <- function(cfg, prov) {
   path <- fp_prov_path(cfg)
   fp_prov_assert_unique(prov, "provenance")
+  fp_prov_assert_serializable(prov, "provenance")
   txt <- jsonlite::toJSON(fp_prov_sort(prov), auto_unbox = TRUE, pretty = TRUE,
                           null = "null", na = "null", digits = NA)
   tmp <- tempfile("provenance", tmpdir = dirname(path), fileext = ".json")
@@ -99,6 +100,27 @@ fp_prov_assert_unique <- function(x, path) {
     for (k in nm) fp_prov_assert_unique(x[[k]], paste0(path, "$", k))
   } else {
     for (i in seq_along(x)) fp_prov_assert_unique(x[[i]], sprintf("%s[[%d]]", path, i))
+  }
+  invisible(NULL)
+}
+
+# jsonlite reports an unserializable value as "No method asJSON S3 class: <class>" with no path,
+# which for a nested document is a scavenger hunt. Name the key instead. Cheap, and it is how the
+# pq__text failure above would have announced itself in one line rather than three probes.
+fp_prov_assert_serializable <- function(x, path) {
+  if (is.null(x)) return(invisible(NULL))
+  if (is.list(x)) {
+    nm <- names(x)
+    for (i in seq_along(x)) {
+      fp_prov_assert_serializable(x[[i]], if (!is.null(nm) && nzchar(nm[i]))
+                                            paste0(path, "$", nm[i]) else sprintf("%s[[%d]]", path, i))
+    }
+    return(invisible(NULL))
+  }
+  ok <- is.atomic(x) || inherits(x, "AsIs")
+  if (!ok) {
+    stop("provenance: value at ", path, " has class <", paste(class(x), collapse = "/"),
+         "> which jsonlite cannot serialize. Coerce it in fp_prov_scalar().", call. = FALSE)
   }
   invisible(NULL)
 }
@@ -188,8 +210,13 @@ fp_prov_null_fill <- function(x, keys) {
 #   fail for a reason that is not a content change. Forced to UTC ISO 8601, matching #33's
 #   "run datetime in UTC (absolute, not relative)".
 #
-#   text[] (species, wsg_upstream) -> a one-element list holding a character vector. Unwrapped to
-#   the vector so it serializes as a JSON array rather than a nested one.
+#   text[] (species, wsg_upstream) -> class `pq__text`, which is NOT a list: `is.list()` is FALSE
+#   and `length()` is 1, so every type branch below skips it and jsonlite aborts the whole write
+#   with "No method asJSON S3 class: pq__text". MEASURED against fresh.log, not assumed -- the
+#   first draft of this function asserted in a comment that text[] arrives as a one-element list,
+#   which is what the DBI docs suggest and not what RPostgres does. RPostgres names every array
+#   type this way (`pq__int4`, `pq__float8`, ...), so match the prefix rather than the one class
+#   that happened to appear. `x[[1]]` is the character vector inside.
 #
 # `auto_unbox` would turn a length-1 vector into a scalar and a length-2 into an array, so a
 # single-species area and a two-species area would disagree on the SHAPE of the same field. The
@@ -199,6 +226,13 @@ fp_prov_scalar <- function(x) {
     return(if (is.na(x)) NA_character_ else format(x, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))
   }
   if (inherits(x, "Date")) return(if (is.na(x)) NA_character_ else format(x, "%Y-%m-%d"))
+  # RPostgres array column. Both edge cases below occur in fresh.log today (2 rows with an empty
+  # array, 1 with SQL NULL), so neither is hypothetical.
+  if (any(grepl("^pq__", class(x)))) {
+    inner <- tryCatch(x[[1]], error = function(e) NULL)
+    if (is.null(inner) || length(inner) == 0L || all(is.na(inner))) return(NA)
+    return(fp_pg_array(as.character(inner)))
+  }
   if (is.list(x)) {
     if (length(x) == 1L && !is.list(x[[1]])) {
       inner <- x[[1]]
@@ -208,6 +242,34 @@ fp_prov_scalar <- function(x) {
   }
   if (length(x) > 1L) return(I(x))
   x
+}
+
+# Parse a Postgres array LITERAL into a character vector.
+#
+# RPostgres hands `text[]` back unparsed: `x[[1]]` is the single string `"{BT,CH,CO}"`, braces and
+# all. Measured -- the first fix here unwrapped the pq__text correctly and then serialized
+# `["{BT,CH,CO}"]`, a JSON array of one literal-brace string. It no longer errored, which is why
+# it needed the values looked at rather than the absence of an exception trusted.
+#
+# Elements are comma-separated; any element containing a comma, brace, quote or space is
+# double-quoted with backslash escaping. Our data is identifier codes, but split on unquoted
+# commas anyway -- a naive strsplit would silently corrupt the first element that is not.
+fp_pg_array <- function(txt) {
+  if (length(txt) != 1L || is.na(txt)) return(NA)
+  if (!grepl("^\\{.*\\}$", txt)) return(I(txt))         # not an array literal; pass through
+  body <- substr(txt, 2, nchar(txt) - 1)
+  if (!nzchar(body)) return(NA)                          # `{}` -- an empty array is an absence
+  out <- character(0); cur <- ""; inq <- FALSE; esc <- FALSE
+  for (ch in strsplit(body, "", fixed = TRUE)[[1]]) {
+    if (esc)            { cur <- paste0(cur, ch); esc <- FALSE }
+    else if (ch == "\\") esc <- TRUE
+    else if (ch == "\"") inq <- !inq
+    else if (ch == "," && !inq) { out <- c(out, cur); cur <- "" }
+    else                 cur <- paste0(cur, ch)
+  }
+  out <- c(out, cur)
+  out[out == "NULL"] <- NA_character_                    # an unquoted NULL element
+  I(out)
 }
 
 # --- Package version + git SHA ---------------------------------------------------------------

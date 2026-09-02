@@ -311,6 +311,54 @@ cat("\n5. Coverage — completeness flag and non-empty year groups\n")
         "must-fail: a landcover section with NO content digest IS reported")
 }
 
+# --- 5b. Database-shaped values -------------------------------------------------------------------
+# NONE of the checks above could reach the bug that actually shipped. Every fixture here is
+# hand-built, so no DBI value ever entered them, and `pq__text` -- the class RPostgres gives a
+# `text[]` column -- was serialized by nothing until step 1 met a real log row. It failed with
+# "No method asJSON S3 class: pq__text" AFTER the network had been built.
+#
+# So construct the database shapes offline. This is the fixture axis the rest of the file does not
+# vary, and it is the one that matters: the guard runs without a database precisely because most
+# runs of it will not have one.
+cat("\n5b. Database-shaped values\n")
+{
+  # A pq__text column is NOT a list: is.list() is FALSE and length() is 1, which is why every
+  # earlier type branch skipped it. The value inside is the RAW Postgres array literal.
+  pq <- structure(list("{BT,CH,CO}"), class = "pq__text")
+  check(!is.list(unclass(pq)[[1]]) && !is.list(pq[[1]]),
+        "premise: the inner value is the raw array literal, not a vector")
+  got <- fp_prov_scalar(pq)
+  check(identical(as.character(got), c("BT", "CH", "CO")),
+        "a pq__text column parses to a character vector, not one brace-wrapped string")
+  check(is.na(fp_prov_scalar(structure(list("{}"), class = "pq__text"))),
+        "an EMPTY pg array is recorded as absent, not as the literal \"{}\"")
+
+  check(identical(as.character(fp_pg_array('{A,"with,comma",C}')), c("A", "with,comma", "C")),
+        "a quoted element containing a comma survives the split")
+  check(identical(as.character(fp_pg_array("{KISP}")), "KISP") &&
+          inherits(fp_pg_array("{KISP}"), "AsIs"),
+        "a one-element array keeps ARRAY shape (auto_unbox would collapse it to a scalar)")
+
+  # timestamptz -> the session timezone must not reach the bytes.
+  tz <- Sys.getenv("TZ"); on.exit(Sys.setenv(TZ = tz), add = TRUE)
+  ts <- as.POSIXct("2026-09-02 00:18:57", tz = "UTC")
+  Sys.setenv(TZ = "America/Vancouver"); a <- fp_prov_scalar(ts)
+  Sys.setenv(TZ = "UTC");               b <- fp_prov_scalar(ts)
+  check(identical(a, b) && grepl("Z$", a), "a timestamp serializes in UTC regardless of session TZ")
+
+  # And the backstop: anything still unserializable is named by PATH, not by jsonlite's
+  # class-only message.
+  err <- tryCatch({ fp_prov_assert_serializable(list(inputs = list(nested = new.env())),
+                                                "provenance"); "" },
+                  error = function(e) conditionMessage(e))
+  check(grepl("provenance\\$inputs\\$nested", err),
+        "must-fail: an unserializable value IS reported, naming its path")
+  check(tryCatch({ fp_prov_assert_serializable(
+           list(inputs = list(a = 1, b = I(c("x", "y")), c = NA)), "provenance"); TRUE },
+         error = function(e) FALSE),
+        "a clean object is not a false alarm")
+}
+
 # --- 6. Producer/guard key drift -----------------------------------------------------------------
 # The guard's declared key sets are only worth their maintenance if they match what the STEPS
 # actually write. A typo on either side would otherwise surface as a failure after a 30-minute
