@@ -127,10 +127,27 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
     # which is not the data and would make the digest depend on who had opened the file.
     classified_hashes[[yr]] <- fp_raster_content_sha256(cls_tif)
   }
+  # The transition raster is THE ANSWER of this step, so it is what `outputs` digests (#65). It is
+  # written only when there is a transition to write; the path form of the digest returns NA for an
+  # absent file, so the empty case records an honest absence rather than erroring or fabricating a
+  # hash. NOTE the asymmetry with `classified_content_sha256`, which stays in `inputs`: the
+  # classified rasters are the landcover AS IT ENTERED the model, and an upstream reprocess moving
+  # them is an INGREDIENT change. The transition is what we computed FROM them.
+  trans_tif <- file.path(fp_dir, "transition.tif")
   if (nrow(trans_all$summary) > 0) {
-    terra::writeRaster(trans_all$raster, file.path(fp_dir, "transition.tif"),
-                       overwrite = TRUE, datatype = "INT4S")
+    terra::writeRaster(trans_all$raster, trans_tif, overwrite = TRUE, datatype = "INT4S")
+    transition_sha <- fp_raster_content_sha256(trans_tif)
+  } else {
+    # A zero-transition run writes no raster -- and `fp_dir` is never cleaned, so digesting the path
+    # unconditionally would fingerprint the PREVIOUS run's transition.tif and publish a populated
+    # hash beside a zero patch count. Remove the stale file for the same reason #55 removes an
+    # orphaned bridge layer: it describes a result this run did not produce.
+    if (file.exists(trans_tif)) unlink(trans_tif)
+    transition_sha <- NA_character_
   }
+  # Initialised BEFORE the vector branch below, which is what actually counts patches. Without it,
+  # a zero-transition run would reach the provenance write with the variable undefined.
+  n_transition_patches <- 0L
   message("Floodplain rasters saved to ", fp_dir)
 
   # --- Vectorize to floodplain_landcover.gpkg ---
@@ -196,6 +213,11 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
 
     sf::st_write(trans_polys, out_lc_gpkg, layer = lyr,
                  append = file.exists(out_lc_gpkg), delete_layer = TRUE, quiet = TRUE)
+    # The patch count comes from the POLYGONS, which is what a patch is. `trans_all$summary` is one
+    # row per (from_class, to_class) PAIR -- 48 on neexdzii against 2032 actual patches, measured,
+    # 42x low. It sat inside `outputs_hash` and was headed for STAC publication, invisible to every
+    # guard property here because they are all about the key set and never about a value.
+    n_transition_patches <- nrow(trans_polys)
     message("  Layer: ", lyr, " (", nrow(trans_polys),
             " change patches >= ", patch_min_m2 / 1e4, " ha)")
 
@@ -411,6 +433,13 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
       floodplain_layer  = scenario_id,
       drift             = fp_pkg_stamp("drift")),
       lc_items),
+    outputs = list(
+      # NA, not a filename, when the run produced no transition -- the raster is unlinked above, so
+      # naming it would be round-2's defect with the halves swapped: an honest NA digest beside a
+      # filename for a file that does not exist.
+      transition_raster         = if (n_transition_patches > 0) basename(trans_tif) else NA_character_,
+      transition_content_sha256 = transition_sha,
+      transition_patches        = n_transition_patches),
     run = fp_prov_run(toolchain = fp_toolchain())))
 
   message("\nDone. Scenario: ", scenario_id, " -- outputs in ", out_dir)

@@ -11,7 +11,18 @@
 #
 #   1. INVENTORY   both files carry every entry the area's config asks for
 #   2. STABILITY   `inputs_hash` is IDENTICAL per entry across the two runs
+#   2b. STABILITY  `outputs_hash` too (#65) -- and its expectation is DERIVED FROM THE SECTION,
+#                  not from what the two files happen to share. A regression that stopped writing
+#                  `outputs` loses it on BOTH sides, where an "if either has one, both must" rule
+#                  degrades to a note; the same shared-absence blind spot 1 exists to close.
 #   3. LIVENESS    `run.datetime_utc` MOVED per entry -- proving the second run actually ran
+#
+# An `outputs_hash` mismatch is a HARD FAILURE, and that is right for this script's job: two runs on
+# ONE machine, where any difference in what was produced is a defect. ONE case can differ
+# legitimately and it is worth knowing before you read a red line as a bug -- a CROSS-MACHINE
+# comparison of `network[*].outputs`, which is digested AFTER the reach subset (st_transform +
+# st_intersects, i.e. PROJ and GEOS) and so can move on a subset area with no data change. The
+# network `inputs` digest is taken pre-subset precisely so that it cannot.
 #
 # 3 is not decoration. Without it a comparison of a file against an untouched copy of itself passes
 # 2 perfectly, which is exactly what a run that crashed before writing produces.
@@ -64,6 +75,11 @@ fp_root <- local({
 # has config/<area>/, so a wrong-tree invocation never reaches the "no config" branch -- it quietly
 # derives the expected entry set from the other tree's area.yml and reports against the wrong set.
 if (!is.na(area)) cat("repo root resolved from this script: ", fp_root, "\n", sep = "")
+
+# FP_SECTIONS_WITH_OUTPUTS comes from the WRITER, never re-declared here. A second copy of that list
+# would be a literal pinned to nothing, and it is what decides whether a missing `outputs_hash` is a
+# failure or a legitimate absence.
+source(file.path(fp_root, "scripts", "floodplain_lcc", "fp_provenance.R"))
 
 FAILS <- 0L
 ok  <- function(m) cat("  ok    ", m, "\n")
@@ -122,14 +138,20 @@ if (!is.na(area)) {
 keys <- union(names(ea), names(eb))
 if (!length(keys)) bad("neither file has any section -- nothing was compared")
 
-cat("\n", sprintf("%-30s %-8s %-8s %s", "entry", "inputs", "datetime", "detail"), "\n", sep = "")
+cat("\n", sprintf("%-30s %-8s %-8s %-8s %s", "entry", "inputs", "outputs", "datetime", "detail"),
+    "\n", sep = "")
 for (k in keys) {
   x <- ea[[k]]; y <- eb[[k]]
   if (is.null(x) || is.null(y)) {
     bad(sprintf("%-30s absent from %s", k, if (is.null(x)) la else lb)); next
   }
   hx <- x[["inputs_hash"]]; hy <- y[["inputs_hash"]]
+  ox <- x[["outputs_hash"]]; oy <- y[["outputs_hash"]]
   dx <- x[["run"]][["datetime_utc"]]; dy <- y[["run"]][["datetime_utc"]]
+  # Which section this entry belongs to, so the outputs expectation comes from the SECTION rather
+  # than from what the two files happen to agree about. Entry keys are "<section>[<key>]".
+  sect <- sub("\\[.*$", "", k)
+  wants_outputs <- sect %in% FP_SECTIONS_WITH_OUTPUTS
   # A field ABSENT from BOTH sides must not read as agreement. `identical(NULL, NULL)` is TRUE, so
   # a key that upstream renamed or dropped would compare "same" and the whole A/B would pass having
   # compared nothing -- the loudest possible pass on the emptiest possible evidence. Require the
@@ -141,21 +163,39 @@ for (k in keys) {
   # counted a second time. Measured: one missing hash reported as two problems.
   scalar <- function(v) is.character(v) && length(v) == 1L && !is.na(v) && nzchar(v)
   hx_ok <- scalar(hx); hy_ok <- scalar(hy); dx_ok <- scalar(dx); dy_ok <- scalar(dy)
+  ox_ok <- scalar(ox); oy_ok <- scalar(oy)
   same  <- hx_ok && hy_ok && identical(hx, hy)
+  osame <- ox_ok && oy_ok && identical(ox, oy)
   moved <- dx_ok && dy_ok && !identical(dx, dy)
   if (!hx_ok || !hy_ok)
     bad(sprintf("%s: inputs_hash absent or not a scalar string in %s", k,
                 paste(c(la, lb)[c(!hx_ok, !hy_ok)], collapse = " and ")))
-  else if (!same) FAILS <- FAILS + 1L
+  else if (!same) bad(sprintf("%s: inputs_hash DIFFERS (%s vs %s)", k, hx, hy))
+  if (wants_outputs) {
+    if (!ox_ok || !oy_ok)
+      bad(sprintf("%s: outputs_hash absent or not a scalar string in %s -- the %s section is declared to publish one",
+                  k, paste(c(la, lb)[c(!ox_ok, !oy_ok)], collapse = " and "), sect))
+    else if (!osame) bad(sprintf("%s: outputs_hash DIFFERS (%s vs %s)", k, ox, oy))
+  } else if (ox_ok || oy_ok) {
+    bad(sprintf("%s: carries an outputs_hash but the %s section is not declared to publish one",
+                k, sect))
+  }
   if (!dx_ok || !dy_ok)
     bad(sprintf("%s: run.datetime_utc absent or not a scalar string in %s", k,
                 paste(c(la, lb)[c(!dx_ok, !dy_ok)], collapse = " and ")))
-  else if (!moved) FAILS <- FAILS + 1L
-  hx_s <- if (hx_ok) hx else "<absent>"; hy_s <- if (hy_ok) hy else "<absent>"
-  cat(sprintf("%-30s %-8s %-8s %s\n", k,
-              if (same) "same" else "DIFFER", if (moved) "moved" else "SAME",
-              if (same) substr(hx_s, 1, 24)
-              else paste0(substr(hx_s, 1, 16), " vs ", substr(hy_s, 1, 16))))
+  else if (!moved) bad(sprintf("%s: run.datetime_utc did NOT move -- did the second run write?", k))
+  # A PER-HASH detail. One shared detail column showed the inputs_hash diff whatever had actually
+  # differed, so an operator reading a DIFFER in the outputs column was handed the values of the
+  # hash that matched -- detect and explain on different quantities.
+  cell <- function(o, a, b, a_ok, b_ok) if (o) substr(if (a_ok) a else "<absent>", 1, 20) else
+    paste0(substr(if (a_ok) a else "<absent>", 1, 12), " vs ",
+           substr(if (b_ok) b else "<absent>", 1, 12))
+  cat(sprintf("%-30s %-8s %-8s %-8s %s\n", k,
+              if (same) "same" else "DIFFER",
+              if (!wants_outputs) "n/a" else if (osame) "same" else "DIFFER",
+              if (moved) "moved" else "SAME",
+              paste0("in=", cell(same, hx, hy, hx_ok, hy_ok),
+                     if (wants_outputs) paste0("  out=", cell(osame, ox, oy, ox_ok, oy_ok)) else "")))
 }
 cat("\n")
 check(TRUE, sprintf("compared %d entr(ies) across %s and %s", length(keys), la, lb))
@@ -165,8 +205,8 @@ check(TRUE, sprintf("compared %d entr(ies) across %s and %s", length(keys), la, 
 # happen -- the same class as announcing a delete nobody verified.
 cat("\n", if (FAILS != 0L) sprintf("FAIL — %d problem(s).\n", FAILS)
     else if (!is.na(area))
-      "PASS — every config-derived entry present in both, inputs_hash identical, run.datetime_utc moved.\n"
+      "PASS — every config-derived entry present in both, inputs_hash and outputs_hash identical, run.datetime_utc moved.\n"
     else
-      "PASS — inputs_hash identical and run.datetime_utc moved for the shared entries. NO INVENTORY CHECKED (no area given): an entry missing from BOTH files is invisible here.\n",
+      "PASS — inputs_hash and outputs_hash identical and run.datetime_utc moved for the shared entries. NO INVENTORY CHECKED (no area given): an entry missing from BOTH files is invisible here.\n",
     sep = "")
 quit(status = if (FAILS == 0L) 0L else 1L)

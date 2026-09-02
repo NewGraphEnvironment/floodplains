@@ -207,6 +207,74 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   the `-nt` mtime gate passed too because step 2 writes before step 3 runs. `provenance-check.R`
   now derives the expected entry set from the area config and asserts it. **Neither gate is
   sufficient alone; the in-band error count is the only one that caught the abort.**
+- **`inputs` answers "same ingredients?", `outputs` answers "same answer?" — and one hash cannot
+  do both (#65).** Provenance recorded the recipe and not the cake: two of the three sections
+  hashed a *description of the job*. The network's hashed set held the watershed group, the
+  species, the schema name and package versions — nothing derived from the network's content, and
+  `link_log` is a **sibling** of `inputs`, so even `config_hash` and `run_uid` sat outside the
+  hash. The floodplain's was VCA parameters plus `dem_ncell`/`dem_res_m`, which pin the **grid**,
+  not the elevations: NRCan re-derives MRDEM at the same footprint and resolution, we cut a
+  different floodplain, and not one character moves. So every section now carries `outputs` +
+  `outputs_hash` beside `inputs` + `inputs_hash`, and **`outputs` is never folded into
+  `inputs_hash`** — "same answer from different data" (the change fell outside our AOI) is worth
+  knowing separately from "different answer", which is worth knowing louder.
+  **The network's input digest is taken PRE-subset and its output digest POST-subset**, because
+  the reach subset is `st_transform` + `st_intersects` — PROJ and GEOS. A post-subset digest in
+  `inputs` would make `inputs_hash` a function of the sf build, which is the cross-machine churn
+  #64 removed arriving one field over; 01 already sites the freshness guard pre-subset for the
+  same reason. **Measured, and it is the cheapest test in the repo:** neexdzii and bulk are both
+  `fresh` GRABs on WSG BULK, one subset and one whole group, so neexdzii's *pre*-subset digest
+  must equal bulk's whole-WSG digest and its *post*-subset digest must not. Both hold to the byte
+  (`37edc39d…` shared, `fa4d47ea…` neexdzii's own), and both reproduce the pre-change artefacts
+  exactly.
+  **The key is `(blue_line_key, downstream_route_measure)`, NOT `id_segment`** — a deliberate
+  departure from #65's own wording. `id_segment` is numbered per watershed group *during
+  generation*, so a link rebuild that renumbers would churn the digest on every BUILD and destroy
+  the byte-stability the field exists to provide. The composite is FWA-native and is already what
+  `cfg$subset` keys on. The value columns are what step 2 **consumes** — `upstream_area_ha` feeds
+  the bankfull regression and `map_upstream` the precipitation raster — so a network with the same
+  accessible segments and different upstream areas cannot hash the same.
+  **`link_config_name` was a hardcoded lie on every GRAB.** 01 asserted the literal `"default"`;
+  measured live, neexdzii recorded `default` beside a log row saying `bcfishpass`, and the two
+  differ in the natural-barrier set (`bcfishpass` opts in `subsurfaceflow`, the default bundle
+  leaves it off). The published provenance therefore claimed the NewGraph methodology for a network
+  built under the config this repo explicitly declines to use. It is now resolved from the log row,
+  **on the `grab` predicate and not on log presence** — falling back to the build literal "when
+  there is no log row" reproduces the defect exactly where it lives, since that is what a GRAB
+  source with no log table looks like. `link_config_name_source` names the tier. The `.stamp.md`
+  sidecar carried the identical wrong claim and now states the resolved config plus, on a GRAB, an
+  explicit note that the config block above describes the **local** bundle.
+  **A guard whose two halves are assigned from each other is not a guard.** Asserting
+  `inputs$link_config_name == link_log$config_name` cannot disagree once one is derived from the
+  other, and whether it fired would depend on statement order. The arm with an external reference
+  is *a GRAB may never report `link_config_name_source = "built_literal"`* — it is claiming a
+  methodology this machine did not run. The BUILD branch is pinned the other way, by parsing 01's
+  own `LNK_BUILD_CONFIG` literal.
+  **`sha_source` was free text carrying a `$HOME` path into the hashed half.** Every floodplain
+  and landcover entry read `"unresolved (checkout at /Users/…/flooded is 0.6.0, installed is
+  0.5.0)"` — machine-local, and #63 measured m1 and m4 disagreeing on that string alone while
+  every substantive field matched. It makes the cross-machine criterion **unreadable**: a real
+  content difference and a sibling checkout being one release ahead are the same observation. Now
+  a closed vocabulary, with the detail sent to the console where naming a path is free.
+  **Signed zero moves a digest, and `identical(-0, 0)` is TRUE.** Written as a premise — the
+  obvious assumption is that it cannot matter — and the assertion went **red**: `digest()` hashes
+  *serialized bytes*, which the two zeros do not share. Unreachable for the Int8 landcover and live
+  for the float rasters #65 adds, the floodplain mask being half zeros. `fp_norm_block()` gains a
+  third line; `provenance-check.R` §5d pins it with the un-normalized case as the must-fail.
+  **`schema_version` was asserted nowhere** and is rewritten on every read, so a bump plus a
+  partial re-run labels v1 sections v2 — and the publish layer is downstream of that label. The
+  version check alone cannot see it; it is deliberately **paired** with the declared-key check,
+  which reports the missing `outputs` block. Neither is sufficient alone.
+  **`02` now pins `datatype = "FLT4S"`** on the floodplain write. Unpinned, a terra version
+  choosing a different on-disk type moves the nodata sentinel and the digest with zero cells
+  changed — #64 with a new cause. Measured byte-identical with and without the argument, so no
+  shipped artefact changed. **Vector outputs stay out** (#72): a GeoPackage layer has no
+  guaranteed row order and carries floats, so it needs an ordering and precision contract we would
+  then have to keep forever. The network's output digest is exempt only because it is taken over
+  the same non-geometric key its input digest uses.
+  **Forward-only, so the fields do not exist until a step runs again** — `stac_floodplains_bc`
+  needs its own change for `schema_version = 2` and the `outputs` sibling, and the coupling stays
+  one-way.
 - **Byte-deterministic gpkg writes (#45):** GDAL stamps `gpkg_contents.last_change` with wall-clock
   time, so two writes of identical data differ — a rerun was indistinguishable from a change, and
   `file:checksum` downstream would churn every build (GeoPackage is 72% of the published bucket by

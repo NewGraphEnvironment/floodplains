@@ -124,6 +124,38 @@ fp_floodplain <- function(cfg, scenarios = "run") {
     dem_ncell    = as.numeric(terra::ncell(dem))
   ), error = function(e) list(dem_crs_epsg = NA, dem_res_m = NA, dem_ncell = NA))
 
+  # ... and the ELEVATIONS themselves (#65). The three fields above pin the GRID, not the heights:
+  # NRCan re-derives MRDEM, we get the same tile at the same footprint on the same 30 m grid with
+  # different values, we produce a different floodplain, and not one character of the record moves.
+  # Combined with the DEM URL being unrecoverable here (see above), NOTHING in the record described
+  # the elevation data the published floodplain was cut from.
+  #
+  # Digested from the OBJECT, not a path: fl_dem_aoi() returns the cropped DEM in memory and never
+  # writes it, so a path-only digest would mean writing 6.5M cells out just to read them back --
+  # putting an encoder back in the path #64 removed. Measured: the object and path forms agree.
+  #
+  # ONCE, here, outside the scenario loop: every scenario is delineated from this same DEM, so
+  # digesting per scenario would repeat identical work three times for an identical answer.
+  #
+  # AND IT GOES IN `inputs` DESPITE BEING WARP OUTPUT -- which looks like the opposite of the call
+  # 01 makes one file over, so state the difference rather than let a reader find the contradiction.
+  # fl_dem_aoi() crops and reprojects internally, so these cells (and the header's ext/res) are
+  # GDAL/PROJ output. For the NETWORK there was a toolchain-free alternative -- digest pre-subset --
+  # and taking it cost nothing. For the DEM there is none: the un-warped source is not obtainable
+  # here, fl_dem_aoi() builds its URL in its own body, and terra::sources() on the return is "" or a
+  # random temp path. So the choice is not "warp-dependent digest" vs "clean digest", it is
+  # warp-dependent digest vs NOTHING AT ALL about the elevations, which is the status quo this issue
+  # exists to end. The header formats ext/res at %.9f, a tolerance well above the ~1e-15 ULP of a
+  # double near 30, so ULP-level warp noise cannot move it.
+  #
+  # OPEN, and named rather than assumed: cross-machine agreement of these CELL VALUES has never been
+  # measured. #63 compared the DEM's geometry across m1 and m4 and found it identical; it never
+  # compared the heights. If a two-machine run shows this digest moving with the data unchanged, the
+  # right response is to move it to `outputs` -- diagnostic rather than required to match -- not to
+  # delete it. That check needs a second machine and is filed rather than claimed.
+  message("  Digesting DEM content for provenance...")
+  dem_sha <- fp_raster_content_sha256(dem)
+
   # --- Rasterize precipitation (shared across scenarios) ---
   message("  Rasterizing precipitation...")
   precip_r <- fl_stream_rasterize(streams, dem, field = "map_upstream")
@@ -186,7 +218,12 @@ fp_floodplain <- function(cfg, scenarios = "run") {
 
     # --- Write outputs ---
     out_raster <- file.path(out_dir, paste0("floodplain_", sc$scenario_id, ".tif"))
-    terra::writeRaster(valleys, out_raster, overwrite = TRUE)
+    # datatype PINNED (#65). Unpinned, terra chooses the on-disk type from the in-memory object, so a
+    # version that chose differently would change the nodata sentinel and move the output digest with
+    # zero cells changed -- the #64 failure with a new cause. FLT4S is exactly what terra picks today
+    # for this 0/1 double mask: measured, writing the same raster with and without the argument
+    # produces BYTE-IDENTICAL files, so the pin changes no shipped artefact. 03 already pins INT1U.
+    terra::writeRaster(valleys, out_raster, overwrite = TRUE, datatype = "FLT4S")
     # Item key (#30): scenario-layer names (co_ff04, ch_ff04) are identical across every area, so
     # these columns are the only way a merged multi-area floodplain.gpkg stays separable.
     valleys_poly$wsg      <- cfg$watershed_group
@@ -217,6 +254,8 @@ fp_floodplain <- function(cfg, scenarios = "run") {
         dem_crs_epsg    = dem_geom$dem_crs_epsg,
         dem_res_m       = dem_geom$dem_res_m,
         dem_ncell       = dem_geom$dem_ncell,
+        # The only field in this block derived from the elevation DATA rather than its grid (#65).
+        dem_content_sha256 = dem_sha,
         dem_buffer_m    = buf,
         # Names the artefact this scenario was delineated FROM, so the merged file is a chain and
         # not three independent statements.
@@ -225,6 +264,16 @@ fp_floodplain <- function(cfg, scenarios = "run") {
         subbasin_source = subbasin_source,
         crs_epsg        = sf::st_crs(streams)$epsg,
         flooded         = fp_pkg_stamp("flooded")),
+      # What this scenario PRODUCED (#65) -- "did the answer change?", which `inputs_hash` cannot
+      # answer and must not try to. Digested from the WRITTEN FILE rather than from `valleys` in
+      # memory, deliberately and asymmetrically with the DEM above: the path form returns NA when
+      # the file is absent or empty, so this doubles as evidence the artefact actually reached disk.
+      # The vector layer is NOT digested here -- a GeoPackage layer has no guaranteed row order and
+      # carries floating-point coordinates, which is #72.
+      outputs = list(
+        floodplain_raster         = basename(out_raster),
+        floodplain_content_sha256 = fp_raster_content_sha256(out_raster),
+        valley_cells              = n_valley),
       run = fp_prov_run(toolchain = fp_toolchain())))
 
     # --- Per-watercourse attribution (#40) ---
