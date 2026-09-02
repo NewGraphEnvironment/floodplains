@@ -182,9 +182,26 @@ viol_coverage <- function(prov) {
       # partial item set. That is a wrong raster, not a metadata note -- fail on it.
       if (isFALSE(inp[["item_ids_complete"]]))
         sprintf("landcover[%s] item list was TRUNCATED (item_ids_complete = false)", e$key),
-      if (all(is.na(unlist(inp[["classified_content_sha256"]] %||% NA))))
-        sprintf("landcover[%s] has no classified raster digest -- the only field that can move ",
-                e$key),
+      # PER YEAR, like the item_ids arm below. `all(is.na(unlist(x)))` cannot see ONE missing year:
+      # all() needs every year absent, and unlist() DROPS a JSON null outright, so a year written as
+      # null is not even a counted NA. Reachable -- fp_raster_content_sha256() returns NA whenever
+      # the file is absent or 0 bytes, which is exactly "the writer produced nothing and the record
+      # says it did". The old §5 fixture set every year to NA, so it could not tell all from any.
+      if (is.null(inp[["classified_content_sha256"]]))
+        sprintf("landcover[%s] has no classified raster digest at all", e$key),
+      unlist(lapply(names(inp[["classified_content_sha256"]] %||% list()), function(y) {
+        dy <- inp[["classified_content_sha256"]][[y]]
+        if (is.null(dy) || !length(unlist(dy)) || all(is.na(unlist(dy))))
+          sprintf("landcover[%s] year %s has no classified raster digest", e$key, y)
+      })),
+      # The digest year set must match the years actually modelled, or 2 digests for a 3-year run
+      # passes every check above by being internally consistent.
+      if (!is.null(inp[["years"]]) && !is.null(inp[["classified_content_sha256"]]) &&
+          !setequal(as.character(unlist(inp[["years"]])),
+                    names(inp[["classified_content_sha256"]])))
+        sprintf("landcover[%s] digest years {%s} do not match modelled years {%s}", e$key,
+                paste(names(inp[["classified_content_sha256"]]), collapse = ","),
+                paste(unlist(inp[["years"]]), collapse = ",")),
       if (!is.null(ids) && length(ids))
         unlist(lapply(names(ids), function(y)
           if (!length(ids[[y]])) sprintf("landcover[%s] year %s resolved 0 item ids", e$key, y))))
@@ -216,6 +233,9 @@ good_prov <- function() {
         nul(KEYS_LANDCOVER),
         list(item_ids = list(`2017` = list("09U-2017"), `2023` = list("09U-2023")),
              item_ids_complete = TRUE,
+             # `years` must agree with the digest year set, or the fixture is not a clean one --
+             # it was NA here, which made the new year-set assertion fire on the good fixture.
+             years = list(2017L, 2023L),
              classified_content_sha256 = list(`2017` = "sha256:11", `2023` = "sha256:22"))),
       inputs_hash = "sha256:cc",
       run = list(datetime_utc = "2026-09-01T00:00:00Z", toolchain = TOOLCHAIN_FIXTURE))))
@@ -306,10 +326,19 @@ cat("\n2. Split — `inputs` carries no run-event field\n")
     as.list(rep(NA_character_, length(KEYS_TOOLCHAIN))), KEYS_TOOLCHAIN)
   check(any(grepl("entirely NA", viol_split(b8))),
         "must-fail: an all-NA toolchain IS reported (an absence wearing a key)")
-  # ... and the network section, which writes no raster, must NOT be required to carry one.
-  b9 <- g; b9$network$co3$run$toolchain <- NULL
-  check(!any(grepl("toolchain", viol_split(b9))),
+  # ... and the network section, which writes no raster, must NOT be required to carry one. Setting
+  # its toolchain to NULL is a NO-OP -- the fixture never had one, so that mutant is identical() to
+  # the clean fixture and the check restates the clean-fixture assertion instead of exercising the
+  # exemption. Exercise the exemption by moving the SCOPE, which is the thing that grants it.
+  check(!any(grepl("toolchain", viol_split(g))),
         "the network section is not required to carry a toolchain (it writes no raster)")
+  local({
+    keep <- SECTIONS_WITH_RASTERS
+    SECTIONS_WITH_RASTERS <<- c(keep, "network")
+    fired <- any(grepl("network\\[co3\\] run has no toolchain", viol_split(g)))
+    SECTIONS_WITH_RASTERS <<- keep
+    check(fired, "must-fail: had network been in scope, its missing toolchain WOULD be reported")
+  })
 }
 
 # --- 3. Declared keys -------------------------------------------------------------------------------
@@ -373,6 +402,29 @@ cat("\n5. Coverage — completeness flag and non-empty year groups\n")
   nh <- g; nh$landcover$co_ff04$inputs$classified_content_sha256 <- list(`2017` = NA, `2023` = NA)
   check(any(grepl("classified raster digest", viol_coverage(nh))),
         "must-fail: a landcover section with NO content digest IS reported")
+  # ONE year, not all. The arm used to be all(is.na(unlist(x))), which needs EVERY year absent --
+  # and unlist() drops a JSON null outright, so on a real file (fp_prov_write serializes NA as null)
+  # even any() would have missed it. The fixture above sets every year NA, so it could not tell the
+  # two apart; these two can.
+  n1 <- g
+  n1$landcover$co_ff04$inputs$classified_content_sha256 <- list(`2017` = "sha256:11", `2023` = NA)
+  check(any(grepl("year 2023 has no classified raster digest", viol_coverage(n1))),
+        "must-fail: ONE year missing its digest IS reported (not just all years)")
+  # A NULL VALUE keeps its name -- list(a = 1, b = NULL) has length 2 -- so that shape is caught by
+  # the per-year arm, not the year-set arm. It is the shape a JSON null parses back to, and the one
+  # unlist() would have silently dropped.
+  n2 <- g
+  n2$landcover$co_ff04$inputs$classified_content_sha256 <- list(`2017` = "sha256:11", `2023` = NULL)
+  check(any(grepl("year 2023 has no classified raster digest", viol_coverage(n2))),
+        "must-fail: a NULL-valued year IS reported (unlist() would have dropped it)")
+  # A year genuinely ABSENT from the map is what the year-set arm is for.
+  n2b <- g
+  n2b$landcover$co_ff04$inputs$classified_content_sha256 <- list(`2017` = "sha256:11")
+  check(any(grepl("do not match modelled years", viol_coverage(n2b))),
+        "must-fail: a year DROPPED from the digest map IS reported")
+  n3 <- g; n3$landcover$co_ff04$inputs$years <- list(2017L, 2020L, 2023L)
+  check(any(grepl("do not match modelled years", viol_coverage(n3))),
+        "must-fail: 2 digests for a 3-year run IS reported")
 }
 
 # --- 5b. Database-shaped values -------------------------------------------------------------------
@@ -606,14 +658,10 @@ prov_keys <- function(file, section, part = "inputs") {
 # literal set here would match the producers by coincidence and stop covering a section added
 # later -- the scope-by-coincidence shape code-check.md warns about, in the guard for the one field
 # that has no other protection.
-prov_sections_writing_toolchain <- function(step_files) {
-  out <- character(0)
-  for (f in names(step_files)) {
-    for (sec in step_files[[f]]) {
-      if ("toolchain" %in% prov_keys(f, sec, part = "run")) out <- c(out, sec)
-    }
-  }
-  sort(unique(out))
+prov_sections_writing_toolchain <- function(section_files) {
+  secs <- names(section_files)
+  secs[vapply(secs, function(sec)
+    "toolchain" %in% prov_keys(section_files[[sec]], sec, part = "run"), logical(1))]
 }
 {
   step <- function(f) file.path(dirname(sub("^--file=", "",
@@ -639,10 +687,23 @@ prov_sections_writing_toolchain <- function(step_files) {
   # the one field #64 adds and the only one with no declared-key protection -- could be deleted from
   # both producers with every check still green. Measured: it was. The record would then quietly
   # return to the state #64 calls undiagnosable.
+  # Every section fp_prov_set accepts, not just the two that write rasters today. Round 2 moved this
+  # scope one level instead of removing it: the derivation was real but its CANDIDATE list was still
+  # hand-written, so a network section that started writing a raster would have been invisible to
+  # both this check and viol_split. fp_prov_set's own stopifnot closes the section set to these
+  # three, so enumerating them is a complete candidate list rather than another coincidence.
   writers <- prov_sections_writing_toolchain(list(
-    "02_floodplain_model.R" = "floodplain",
-    "03_lulc_classify.R"    = "landcover"
-  ) |> (\(x) stats::setNames(as.list(unname(x)), vapply(names(x), step, "")))())
+    network    = step("01_network_extract.R"),
+    floodplain = step("02_floodplain_model.R"),
+    landcover  = step("03_lulc_classify.R")))
+  # And what the block CONTAINS, not just which sections write one. Round 2 pinned the sibling
+  # literal on the next line and left this one matched to its producer by coincidence -- measured,
+  # renaming `gdal` to `gdal_version` in fp_toolchain(), or deleting it outright, left the whole
+  # offline suite green. viol_split's "toolchain missing" arm only fires against a parsed file, i.e.
+  # after a real area has already been re-run and the record written without it.
+  check(setequal(names(fp_toolchain()), KEYS_TOOLCHAIN),
+        sprintf("KEYS_TOOLCHAIN matches what fp_toolchain() returns (%s)",
+                paste(names(fp_toolchain()), collapse = ", ")))
   check(setequal(writers, SECTIONS_WITH_RASTERS),
         sprintf("every raster-writing producer still records run$toolchain (found: %s)",
                 if (length(writers)) paste(writers, collapse = ", ") else "NONE"))

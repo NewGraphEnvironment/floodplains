@@ -91,8 +91,8 @@ second machine.
 - [x] File an issue in `stac_floodplains_bc` to point `nge:landcover_key` at the raster digest.
       **File it, do not wire it** — the coupling is one-way by design
 - [x] CLAUDE.md: name which digest, and record that the published key is still `item_hash`
-- [ ] Note in #64 that #33 is forward-only, so an area picks the new field up on its next run
-- [ ] `/code-check` per commit, `/planning-archive`, `/gh-pr-push`
+- [x] Note in #64 that #33 is forward-only, so an area picks the new field up on its next run
+- [x] `/code-check` per commit, `/planning-archive`, `/gh-pr-push`
 
 ## Validation
 

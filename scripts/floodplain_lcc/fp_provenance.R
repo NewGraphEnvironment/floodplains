@@ -238,8 +238,10 @@ fp_norm_block <- function(v) {
 # double even when there is nothing to assign. Measured -- deleting the cast breaks no assertion,
 # and §5d says so rather than pretending otherwise. The cast stays because the invariant should not
 # depend on a subassignment side effect: change the sentinel to a logical `NA` some day and the
-# coercion silently disappears with it. What IS independently provable is the second line, and §5d
-# fails three checks without it.
+# coercion silently disappears with it. What IS independently provable is the second line: deleting
+# it fails 2 of §5d's checks, deleting the cast fails none, and deleting both fails 3. (Measured --
+# an earlier version of this comment said "three" for the second line alone, which is the
+# both-deleted figure. The file's persuasiveness rests on its numbers being checkable.)
 
 fp_raster_content_sha256 <- function(path, block_rows = 512L) {
   if (!file.exists(path) || file.size(path) == 0) return(NA_character_)

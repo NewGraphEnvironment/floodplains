@@ -249,3 +249,36 @@ still strictly better than a silent collision between two different projections,
 unreachable for the rasters this pipeline writes (gdalcubes attaches an authority code; EPSG:32609
 measured on every classified raster). Said so in the code, with the right fix if it ever is reached:
 make it an error, not more text.
+
+## Review round 3 — the same class, one axis over
+
+Round 3 found five, and the headline one is the class round 2 had just fixed, **moved one axis**:
+
+- Round 2 pinned `SECTIONS_WITH_RASTERS` (which sections write a toolchain) against the producers.
+- Round 3 found `KEYS_TOOLCHAIN` on the **line above** was still matched by coincidence — nothing
+  pinned it to `fp_toolchain()`. Measured: renaming `gdal` to `gdal_version`, or deleting it
+  outright, left the **whole offline suite green**. `viol_split`'s "toolchain missing" arm only
+  fires against a parsed file, so the loss surfaces only *after* an area has been re-run and the
+  record written without it — and GDAL is the field the whole #64 investigation turned on.
+
+This is the `gq#77` recurrence pattern in CLAUDE.md exactly: each fix correct, the class reappearing
+one axis over. It terminated the same way — by enumerating the closed candidate set rather than
+asserting completeness. `fp_prov_set`'s own `stopifnot` closes the section set to three, so the
+candidate list now names all three and the residual is gone rather than documented.
+
+| finding | resolution |
+|---|---|
+| `KEYS_TOOLCHAIN` unpinned | `setequal(names(fp_toolchain()), KEYS_TOOLCHAIN)`; verified red on both mutants |
+| the digest coverage arm could not see ONE missing year — `all()` needs every year, and `unlist()` **drops a JSON null outright**, so even `any()` would miss what `fp_prov_write` writes | per-year arm plus a year-set check against `years`; four must-fail cases |
+| `prov_sections_writing_toolchain()`'s **argument** was itself a hand-written literal — scope moved, not removed | candidate list now covers all three sections `fp_prov_set` accepts |
+| the network-exemption check was a **no-op mutation** (the fixture never had a toolchain, so the mutant was `identical()` to the clean one) | exercise the exemption by moving the scope, which is the thing that grants it |
+| "§5d fails three checks without it" — three is the both-deleted figure; the second line alone gives two | corrected, with all three figures stated |
+
+Two of my own fixtures had to be corrected in the same pass, both the same shape: a `list(a=1, b=NULL)`
+keeps its name (length 2), so a NULL-valued year is caught by the per-year arm and **not** the
+year-set arm — the fixture was asserting the wrong arm's message. And the clean fixture's `years`
+was `NA` while its digests named 2017/2023, so the new year-set assertion fired on the good input.
+
+Final state: **74 assertions**, offline and against the real area, both green; cross-machine
+agreement holds on m4's rasters; parity unmoved; `bridge-check`, `region_config-check` and
+`gpkg_determinism-check` all unaffected.
