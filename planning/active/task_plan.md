@@ -67,17 +67,17 @@ Two full `run_area.R neexdzii 1,2,3` passes under `caffeinate -s`, logged to the
 the wrapper's exit code** — a crash before the write makes the A/B compare a stale file against
 itself and pass.
 
-- [ ] Pass 1: assert `grep -c 'Execution halted\|^Error' == 0`; snapshot `provenance.json` to scratch
-- [ ] Pass 2: assert 0 errors **and** `provenance.json -nt` the snapshot
-- [ ] `inputs_hash` **identical** across passes for all **five entries** — `network[co3]`,
+- [x] Pass 1: assert `grep -c 'Execution halted\|^Error' == 0`; snapshot `provenance.json` to scratch
+- [x] Pass 2: assert 0 errors **and** `provenance.json -nt` the snapshot
+- [x] `inputs_hash` **identical** across passes for all **five entries** — `network[co3]`,
       `floodplain[co_ff02|co_ff04|co_ff06]`, `landcover[co_ff04]`. Three *sections*, five *entries*;
       the earlier "all three sections" wording would have accepted a file missing two of them
-- [ ] `run.datetime_utc` **differs** in every entry
-- [ ] Both files carry the full config-derived inventory (the mtime gate alone cannot see this:
+- [x] `run.datetime_utc` **differs** in every entry
+- [x] Both files carry the full config-derived inventory (the mtime gate alone cannot see this:
       step 2 bumps the mtime, so a run that dies in step 3 still satisfies `-nt`. Measured.)
-- [ ] `Rscript scripts/floodplain_lcc/provenance-check.R neexdzii` exits 0
-- [ ] Parity unmoved: **673.5 km / 142.8 km² / 770.0 ha**
-- [ ] `link_log` non-null; `config_hash` matches `fresh.log` for BULK; `run_uid` populated;
+- [x] `Rscript scripts/floodplain_lcc/provenance-check.R neexdzii` exits 0
+- [x] Parity unmoved: **673.5 km / 142.8 km² / 770.0 ha**
+- [x] `link_log` non-null; `config_hash` matches `fresh.log` for BULK; `run_uid` populated;
       `link_log$link_sha` populated (written by link at pipeline time — distinct from
       `fp_pkg_stamp("link")`, which the issue body conflated with it)
 
@@ -86,13 +86,13 @@ the provenance block as the artifact that explains it, and do not silently re-ba
 
 ## Phase 3: link 0.50.0 reinstall, step-1-only pass
 
-- [ ] Install link 0.50.0 from `~/Projects/repo/link` (clean at 2b5a435), matching the version that
+- [x] Install link 0.50.0 from `~/Projects/repo/link` (clean at 2b5a435), matching the version that
       built tonight's `fresh`
-- [ ] `Rscript scripts/run_area.R neexdzii 1` (GRAB — fast)
-- [ ] `fp_pkg_stamp("link")` now resolves: `sha` = the checkout HEAD, `sha_source` == `"git"`
+- [x] `Rscript scripts/run_area.R neexdzii 1` (GRAB — fast)
+- [x] `fp_pkg_stamp("link")` now resolves: `sha` = the checkout HEAD, `sha_source` == `"git"`
       (`fp_git_state` returns that one literal — it does not name which walk answered), `dirty`
       FALSE — where it previously read `unresolved (checkout … is 0.50.0, installed is 0.47.3)`
-- [ ] Network `inputs_hash` **changed** (correct — different code is a different input) while the
+- [x] Network `inputs_hash` **changed** (correct — different code is a different input) while the
       `floodplain` and `landcover` blocks are **byte-identical**, not merely equal in `inputs_hash`.
       The writer re-serializes the whole document, so comparing the inert hash strings would pass
       even if the surrounding blocks round-tripped differently
@@ -103,14 +103,14 @@ m4 points at **m1's database over tailscale** — sharing the DB isolates the ma
 instead of confounding it with a different restore. m4 is currently far behind: floodplains at
 f0d6fb3 (pre-#33), link 0.40.2, flooded 0.3.0, drift 0.6.0, no `PG*` in `~/.Renviron`.
 
-- [ ] Bring m4's floodplains to `main`; mirror the four package checkouts to m1's SHAs
+- [x] Bring m4's floodplains to `main`; mirror the four package checkouts to m1's SHAs
       (link 2b5a435, flooded 1eaaaa0, drift b61f002, fresh dc48ca4)
-- [ ] Install to match m1's **installed** set: link 0.50.0 (from checkout), flooded 0.5.0, drift 0.8.0
-- [ ] Point m4 at m1's postgres. Copy `PG*` **through a pipe that never prints the value** —
+- [x] Install to match m1's **installed** set: link 0.50.0 (from checkout), flooded 0.5.0, drift 0.8.0
+- [x] Point m4 at m1's postgres. Copy `PG*` **through a pipe that never prints the value** —
       reading a secret clamps the rest of a session, so this phase is sequenced last and verified
       only by a connection test
-- [ ] Full `run_area.R neexdzii 1,2,3` on m4, same error/mtime gating
-- [ ] Compare `inputs_hash` per section against m1's post-Phase-3 file, and **classify** every
+- [x] Full `run_area.R neexdzii 1,2,3` on m4, same error/mtime gating
+- [x] Compare `inputs_hash` per section against m1's post-Phase-3 file, and **classify** every
       divergence: (a) genuine code difference, (b) install-route / checkout-state artifact,
       (c) real determinism bug
 
@@ -122,12 +122,12 @@ what makes this leg an equality test rather than a guaranteed mismatch. If it ho
 
 ## Phase 5: Record, and close
 
-- [ ] Committed evidence log `scripts/floodplain_lcc/logs/20260902_provenance_live-verify_neexdzii.md`
+- [x] Committed evidence log `scripts/floodplain_lcc/logs/20260902_provenance_live-verify_neexdzii.md`
       (curated evidence lives directly under `logs/`; `logs/runs/` is gitignored bulk)
-- [ ] **Edit the #63 body** so it reads correctly top to bottom with every checkbox answered —
+- [x] **Edit the #63 body** so it reads correctly top to bottom with every checkbox answered —
       including the `link_sha` conflation, which the body currently states wrongly
-- [ ] CLAUDE.md only if a durable, generalisable lesson lands (a (b)/(c) finding)
-- [ ] File follow-up issues for the provenance holes the run exposed — the likely outcome of #63 is
+- [x] CLAUDE.md only if a durable, generalisable lesson lands (a (b)/(c) finding)
+- [x] File follow-up issues for the provenance holes the run exposed — the likely outcome of #63 is
       a clean A/B **plus** named design defects, which the original plan had no slot for:
       **(i)** on a GRAB, `inputs.link_config_name` is hardcoded `"default"` while the source was
       built under `bcfishpass`; **(ii)** `inputs_hash` pins nothing about the grabbed network's
@@ -136,14 +136,14 @@ what makes this leg an equality test rather than a guaranteed mismatch. If it ho
       with `classified_sha256`); **(iii)** `sha_source` bakes an absolute `$HOME` path into the
       hash; **(iv)** `link_log` is not whitelisted, so `host` and `run_id` ride into a file destined
       for public STAC properties
-- [ ] File a follow-up issue for anything genuinely unrunnable — but establish it is really blocked
-      first; #63 is the cautionary example of an issue filed on a false premise
+- [x] Nothing was genuinely unrunnable — m4 came online, so the second-machine leg ran rather than
+      being deferred. Five follow-ups filed (#64–#68), all for design holes the run exposed
 - [ ] `/planning-archive` with **Measurement** and **Evidence** sections; `/gh-pr-push`
 
 ## Validation
 
-- [ ] Every long run gated on in-band error count + output mtime, never exit code
-- [ ] `provenance-check.R neexdzii` exits 0
-- [ ] `/code-check` clean on each commit
-- [ ] PWF checkboxes match landed work
+- [x] Every long run gated on in-band error count + output mtime, never exit code
+- [x] `provenance-check.R neexdzii` exits 0
+- [x] `/code-check` clean on each commit
+- [x] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion

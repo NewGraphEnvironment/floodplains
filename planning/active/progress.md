@@ -27,3 +27,20 @@
 - Landed `provenance_ab-compare.R` so the A/B is re-derivable rather than a scratchpad artifact.
 - Relaunched pass 1 from a clean state (partial `provenance.json` moved aside, not deleted).
 - Next: pass 2, then Phase 3 (link reinstall), then Phase 4 (m4).
+
+## Session 2026-09-02 (final)
+
+- **Phase 2 PASS** — 5 of 5 entries, `inputs_hash` identical, `run.datetime_utc` moved, parity
+  unmoved (673.5 / 142.8 / 770.0). First attempt aborted; the wrapper exited 0 and the mtime gate
+  passed, so only the in-band error count caught it.
+- **Phase 3** — link 0.50.0 installed; stamp resolves, network hash moves, floodplain/landcover
+  blocks byte-identical, `link_log` unchanged at 30 columns across the version change.
+- **Phase 4** — m4 ran the identical commit against m1's database. Science identical on both;
+  `network[co3]` hash identical across machines; `classified_sha256` differs on 28.3M cells with
+  **zero** differing values (TIFF tag 42112, terra 1.9.11 vs 1.9.34).
+- Three code-check rounds, 4 + 3 + 5 findings, all fixed. Round 3 caught round 2's fix reproducing
+  the class it fixed (`st_delete` returns TRUE for a failed delete) — verified independently before
+  acting on it.
+- Five follow-ups filed: #64–#68. #63 body rewritten to read correctly top to bottom.
+- Evidence log committed at `scripts/floodplain_lcc/logs/20260902_provenance_live-verify_neexdzii.md`.
+- Next: archive, PR.
