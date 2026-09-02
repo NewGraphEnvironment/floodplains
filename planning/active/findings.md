@@ -78,3 +78,87 @@ first probe reported them missing when they are installed. `bash -lc` is the fix
 |-------|------------|
 | `psql: ERROR: function round(double precision, integer) does not exist` | `length_metre` is `double precision`; cast before rounding — `sum(length_metre)::numeric/1000.0` |
 | `ssh m4 'pg_isready'` → `command not found` | Non-login shell has no `/opt/homebrew/bin`; use `ssh m4 'bash -lc "…"'` |
+
+## Phase 2 — live results (m1, pass 1)
+
+### `lnk_log_read()` wholesale read: confirmed against a live row
+
+Installed link is **0.47.3**, whose `cols_log` names 26 columns. The row that reached
+`provenance.json` carries **30**, including `run_uid`, `bcfp_pin_source`, `crate_version`,
+`bcfp_model_run_id`, `host`, `run_id` and `fresh_sha_source` — fields the installed link does not
+name. This is the claim the whole design rests on (`SELECT *`, never destructured into named
+fields) and it had never been exercised against a database.
+
+### The `pq__text` fix works against a real driver value
+
+`species` reached the JSON as a proper array — `["BT","CH","CO","PK","SK","ST"]` — not as the raw
+Postgres literal `"{BT,CH,CO,PK,SK,ST}"` and not as an aborted write. `wsg_upstream` likewise
+(`["KISP","KLUM","LSKE","ZYMO"]`). 2406548 is confirmed live on the exact code path that could
+only ever be reached with a database attached.
+
+### Three of the issue's checkboxes, answered
+
+- `link_log` non-null, `link_log_note` absent (null)
+- `config_hash` = `sha256:19e3a05688…`, **identical** to what `fresh.log` holds for BULK
+- `run_uid` = `20260901_234743-6628379d` — **populated**, contradicting #33 §5's prediction
+- `link_log$link_sha` = `689146867a…`, `link_dirty` false — **populated**, and distinct from
+  `fp_pkg_stamp("link")`, which correctly reads
+  `unresolved (checkout at /Users/airvine/Projects/repo/link is 0.50.0, installed is 0.47.3)`.
+  The issue body conflated the two.
+
+Freshness guard, as predicted: `grabbed 2206 km vs bcfp 2206 km = 0.0% dev (tol 2%, guard=strict)`.
+
+### FINDING — on a GRAB, `inputs.link_config_name` records a config that did not build the network
+
+`01_network_extract.R:290` hardcodes `link_config_name = "default"`. That is correct on a BUILD,
+where the repo deliberately uses the `default` bundle (natural barriers = gradient + falls only,
+`subsurfaceflow` OFF — the documented NewGraph methodology decision).
+
+It is **wrong on a GRAB**. The link log row for BULK reports `config_name = bcfishpass`, and every
+row in `fresh.log` is `bcfishpass` — so the network neexdzii actually reads was built under the
+config the repo explicitly chose *not* to use. The two configs differ in the natural-barrier set,
+which is a material difference, not a label.
+
+Three things make this the "a value nothing reads is wrong silently" shape:
+
+- Nothing cross-checks `link_config_name` against `link_log$config_name`, though both sit in the
+  same section of the same file, one nested inside the other.
+- The guard cannot catch it: `provenance-check.R` asserts the key is *present*, which it is.
+- It reaches the most-published case. Per CLAUDE.md the GRAB path "is the only way most published
+  areas get a config_hash at all, since they GRAB and never build" — so the areas most likely to be
+  published are exactly the ones carrying the wrong config name.
+
+Corroborated independently: CLAUDE.md records that a `default` build runs a median **+0.7%** over
+the bcfp reference, while this GRAB measured **0.0%** — consistent with `fresh` being a bcfishpass
+build, not a default one.
+
+Not fixed in this issue (it is a #33 design defect, not a verification failure) — filed as a
+follow-up.
+
+## Phase 4 — m4 preparation
+
+Brought m4 to m1's post-Phase-3 package state. Reproducing a `fp_pkg_stamp` means reproducing the
+**install route**, not just the version, because the resolver answers in tiers.
+
+| pkg | m4 after prep | matches m1 (post-Phase-3)? |
+|---|---|---|
+| link | 0.50.0, sha 2b5a435…, source `git`, dirty FALSE | ✓ (once m1 is reinstalled) |
+| drift | 0.8.0, `unresolved (checkout … drift is 0.10.0, installed is 0.8.0)` | ✓ identical string |
+| fresh | 0.33.0, sha 7f12d99…, source `RemoteSha` | ✓ |
+| flooded | 0.5.0, `unresolved (checkout … flooded is 0.3.1, installed is 0.5.0)` | ✗ — m1 says `is 0.6.0` |
+
+R is 4.5.2 on both machines.
+
+**The flooded row is the predicted (b)-class artifact, now concrete rather than hypothetical.**
+m4's `flooded` checkout carries uncommitted work, so it was deliberately left where it was
+(stash → install from the v0.5.0 tag → return to the original commit → pop; WIP restored byte-for-
+byte, stash list empty). Both machines therefore run **byte-identical flooded 0.5.0 code** while
+their `inputs.flooded` stamps differ — because the string names a checkout that did not run. The
+floodplain section's `inputs_hash` must differ between the machines for that reason alone, and the
+substantive comparison has to be done field-by-field with the package stamps set aside.
+
+## Errors Encountered (cont.)
+
+| Error | Resolution |
+|-------|------------|
+| m4 `git checkout v0.5.0` → `local changes would be overwritten` | Uncommitted WIP in the checkout. `git stash push -u`, install from the tag, return to the **original** commit, `git stash pop` — returning to the original commit rather than m1's HEAD is what keeps the pop conflict-free |
