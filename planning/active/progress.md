@@ -60,3 +60,43 @@ argued.
 
 Three runs are now in flight against the FINAL code — neexdzii twice for the A/B, then bulk. `scripts/`
 must not be edited until they finish, or pass 1 and pass 2 would be running different code.
+
+### Phase 6 complete — neexdzii x2 + bulk, all clean
+
+Three runs against final code, each gated on the in-band error count AND the output mtime:
+
+```
+[19:37:59Z] start neex_p1   [19:43:25Z] OK (errors=0, provenance rewritten)
+[19:43:26Z] start neex_p2   [19:48:49Z] OK
+[19:48:50Z] start bulk_p1   [20:46:08Z] OK
+```
+
+- **A/B** on the two neexdzii passes: all 5 entries, `inputs_hash` AND `outputs_hash` identical,
+  `run.datetime_utc` moved. PASS.
+- **Guard incl. 7c** green on both areas — every published `outputs` value re-derives from the
+  artefact it names (`n_segments` 1915/6858, `valley_cells`, `transition_patches` 2032/7161 against
+  ogr feature counts, all digests).
+- **Split test**: `fcfd9d31…` shared between neexdzii's pre-subset and bulk's whole-WSG digest, from
+  two independent runs; neexdzii's post-subset is `1f88bf8b…`, its own.
+- **Output-neutral**: every raster digest on both areas is byte-identical to the baseline captured
+  before any run. Parity 673.5 km / 142.82 km².
+- **The defect isolated**: pre-#65 the hash is identical for two different networks; post-#65 a 1 cm
+  change to one segment moves it. Recorded that the issue's own `fresh` vs `fresh_default` criterion
+  is NOT discriminating — `read_schema` is in `inputs` and differs between those two GRABs.
+
+### Three review rounds
+
+| round | bugs | headline |
+|---|---|---|
+| 1 | 2 | digest depended on DB row order; `$` partial-match defeated the new refusal guard |
+| 2 | 2 | `transition_patches` 42x wrong (48 vs 2032); zero-transition run digested the previous run's raster |
+| 3 | 1 + the mechanism | `channel_width` missing from the digest (+1.9% of floodplain invisible); and every guard property read a key set, never a value — 8 mutated values all passed |
+
+Round 3's structural answer, `7c RECONCILE`, is implemented. Round 3 explicitly declined to call the
+branch terminal, and named `fl_valley_attribute` as the one place it did not enumerate — carried
+into the PR rather than dropped.
+
+### Phase 7
+
+- #65's body edited (five departures + the non-discriminating criterion), not commented.
+- #73 filed for the remaining 18-area rollout.

@@ -85,25 +85,25 @@ Outcome: a digest of the input **data** inside `inputs`, and a new `outputs` blo
 
 ## Phase 6: Live verification (neexdzii + bulk)
 
-- [ ] Steps 1–3 on each, sequentially, gated on in-band errors + output mtime
-- [ ] `provenance-check.R neexdzii` and `... bulk` pass
-- [ ] A/B two passes on neexdzii: hashes identical, `datetime_utc` moved
-- [ ] Split test: neexdzii and bulk share a network `inputs` digest and differ on `outputs`
-- [ ] The issue's test: BULK from `fresh` vs `fresh_default` — network `inputs_hash` differs
-- [ ] Parity unmoved: 673.5 km / 142.8 km² / 770.0 ha
-- [ ] DEM digest cross-machine decision point recorded
-- [ ] Evidence log under `scripts/floodplain_lcc/logs/`
+- [x] Steps 1–3 on each, sequentially, gated on in-band errors + output mtime
+- [x] `provenance-check.R neexdzii` and `... bulk` pass
+- [x] A/B two passes on neexdzii: hashes identical, `datetime_utc` moved
+- [x] Split test: neexdzii and bulk share a network `inputs` digest and differ on `outputs`
+- [x] The issue's test: BULK from `fresh` vs `fresh_default` — network `inputs_hash` differs
+- [x] Parity unmoved: 673.5 km / 142.8 km² / 770.0 ha
+- [x] DEM digest cross-machine decision point recorded
+- [x] Evidence log under `scripts/floodplain_lcc/logs/`
 
 ## Phase 7: Bookkeeping
 
-- [ ] Edit #65's body for the four deviations
-- [ ] File the 18-area rollout issue
-- [ ] Note `stac_floodplains_bc`'s own change (schema_version 2 + `outputs`)
+- [x] Edit #65's body for the four deviations
+- [x] File the 18-area rollout issue
+- [x] Note `stac_floodplains_bc`'s own change (schema_version 2 + `outputs`)
 
 ## Validation
 
-- [ ] `provenance-check.R` passes with every new property shown able to fail
-- [ ] `/code-check` clean on each commit
-- [ ] PWF checkboxes match landed work
-- [ ] CLAUDE.md updated
+- [x] `provenance-check.R` passes with every new property shown able to fail
+- [x] `/code-check` clean on each commit
+- [x] PWF checkboxes match landed work
+- [x] CLAUDE.md updated
 - [ ] `/planning-archive` on completion

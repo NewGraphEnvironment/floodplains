@@ -51,16 +51,19 @@ of itself passes the hash check perfectly, which is what a run that crashed befo
 
 neexdzii and bulk are both `network_source: fresh` GRABs on watershed group **BULK**, species co,
 min_order 3 — one subset to a reach, one whole group. So the split predicts an identity and a
-difference, and both hold:
+difference, from two INDEPENDENT runs of two different areas, and both hold to the byte:
 
-| | neexdzii | bulk |
+| | `inputs` (pre-subset) | `outputs` (post-subset) |
 |---|---|---|
-| `inputs.network_content_sha256` (pre-subset) | `1f88bf8b…`* | see §6 |
-| `outputs.streams_content_sha256` (post-subset) | `1f88bf8b…`* | see §6 |
+| neexdzii (subset) | `fcfd9d31…` | `1f88bf8b…` |
+| bulk (whole WSG)  | `fcfd9d31…` | `fcfd9d31…` |
 
-\* Values re-derived after `channel_width`/`waterbody_key` joined the digest; the identity itself
-was first observed on the earlier column set (`37edc39d…` shared between the two areas) and is
-restated here on the final one.
+- pre-subset digests **identical** across the two areas — they read the same network
+- neexdzii's post-subset **differs** from its pre-subset — the subset removed something
+- bulk's pre == post — a whole-WSG area has no subset to apply
+
+`7c` asserts the last of these directly for any whole-WSG area, so it is a standing check rather
+than a one-off observation.
 
 Nothing had to be built to get this test — it falls out of two areas that already existed.
 
@@ -101,7 +104,45 @@ Both neexdzii and bulk GRAB from `fresh`, and every row in `fresh.log` reports `
 
 ## 6. bulk
 
-__BULK_BLOCK__
+```
+[19:48:50Z] start bulk_p1 (bulk)
+[20:46:08Z] OK    bulk_p1 (errors=0, provenance rewritten after marker)
+```
+
+57 minutes, dominated by the per-watercourse attribution (#40 records it at 12–14x the delineation)
+and a step-3 STAC fetch that hit drift's cache. All five entries present, guard PASS including 7c:
+
+```
+network[co3]        n_segments 6858 == 6858        streams_content_sha256 re-derives
+                    whole-WSG: pre- and post-subset digests agree
+floodplain[co_ff02] valley_cells 370201            digest re-derives
+floodplain[co_ff04] valley_cells 415100            digest re-derives
+floodplain[co_ff06] valley_cells 445227            digest re-derives
+landcover[co_ff04]  transition_patches 7161 == 7161 (feature count)  digest re-derives
+```
+
+Every floodplain raster digest is byte-identical to the baseline captured before any run
+(`68fc02c0…`, `aceae254…`, `d373bc67…`), so bulk is output-neutral too. `link_config_name` reads
+**`bcfishpass`** (source `link_log`) where it read `default`.
+
+**bulk was published to STAC recently**, which is why it was chosen: it is the area whose provenance
+a consumer is most likely to be reading right now, and it was the one asserting the wrong
+methodology.
+
+## 7. The guard the verification produced
+
+Round 3 measured that every property in `provenance-check.R` was about a KEY SET and none about a
+VALUE: all eight published `outputs` values were mutated one at a time in a real record and the
+guard printed PASS on all eight. That is how `transition_patches` shipped at 48 against 2032.
+
+`7c RECONCILE` closes the class — it re-derives every published `outputs` value from the artefact it
+names. Its own positive control is in this branch's history: run against the record written one
+commit earlier, it is **red on exactly the one stale value** (the network digest, whose column set
+had just changed) and green on the other fourteen.
+
+Two arms are honest about being weaker than they look: the digest comparisons are semi-circular,
+verifying "the record describes THIS file" rather than "this file is correct". That is still the
+property that broke when a zero-transition run digested the previous run's raster.
 
 ## What is NOT verified
 
