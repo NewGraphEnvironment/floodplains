@@ -434,7 +434,10 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
       drift             = fp_pkg_stamp("drift")),
       lc_items),
     outputs = list(
-      transition_raster         = basename(trans_tif),
+      # NA, not a filename, when the run produced no transition -- the raster is unlinked above, so
+      # naming it would be round-2's defect with the halves swapped: an honest NA digest beside a
+      # filename for a file that does not exist.
+      transition_raster         = if (n_transition_patches > 0) basename(trans_tif) else NA_character_,
       transition_content_sha256 = transition_sha,
       transition_patches        = n_transition_patches),
     run = fp_prov_run(toolchain = fp_toolchain())))

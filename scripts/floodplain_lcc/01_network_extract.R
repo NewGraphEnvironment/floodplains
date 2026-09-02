@@ -167,11 +167,20 @@ fp_network <- function(cfg) {
   # difference could arise is a CROSS-MACHINE comparison of this digest on a subset area, and
   # provenance_ab-compare.R says so in its header rather than quietly tolerating it.
   NETWORK_DIGEST_KEY <- c("blue_line_key", "downstream_route_measure")
-  # The VALUE columns are what step 2 actually consumes: fl_valley_confine() reads
-  # `upstream_area_ha` for the bankfull regression and `map_upstream` for precipitation. A network
-  # with the same accessible segment set but different upstream areas produces a DIFFERENT
-  # floodplain and must not hash the same.
-  NETWORK_DIGEST_VAL <- c("length_metre", "stream_order", "upstream_area_ha", "map_upstream")
+  # The VALUE columns are EVERY COLUMN STEP 2 CONSUMES, enumerated against flooded's own body
+  # rather than from memory. fl_valley_confine() reads `upstream_area_ha` for the bankfull
+  # regression, `map_upstream` for precipitation, and -- the one this list originally missed --
+  # `channel_width`: it auto-enables `channel_buffer` whenever that column is present on an sf
+  # streams object and burns st_buffer(streams, channel_width / 2) into the valley mask. Measured:
+  # tripling every width left both network digests BYTE-IDENTICAL while adding >= 2.7 km2 (+1.9%)
+  # of ground to neexdzii's co_ff04. `waterbody_key` selects the waterbodies layer, which is
+  # rasterized into the same mask, so it belongs here for the same reason.
+  #
+  # The test for this list is not "does it look complete" but "name the flooded argument each
+  # column feeds". A column that feeds nothing is noise; one that feeds the delineation and is
+  # absent is the defect this whole issue is about, one column over.
+  NETWORK_DIGEST_VAL <- c("length_metre", "stream_order", "upstream_area_ha", "map_upstream",
+                          "channel_width", "waterbody_key")
   network_sha_input <- fp_table_content_sha256(streams, NETWORK_DIGEST_KEY, NETWORK_DIGEST_VAL)
 
   # --- Freshness guard (grab only) ---

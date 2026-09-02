@@ -927,6 +927,25 @@ if (requireNamespace("terra", quietly = TRUE) && requireNamespace("digest", quie
   check(!identical(fp_raster_content_sha256(robj), fp_raster_content_sha256(terra::rast(cc))),
         "must-fail: the object form still MOVES on a changed cell (it is not a constant)")
 
+  # THE PRECONDITION, stated because the assertion above over-claimed without it. The two forms
+  # agree when the file ROUND-TRIPS THE VALUES EXACTLY, and the Int8 fixture above cannot show that
+  # is a condition rather than a law. Exercised on a float, which is what the DEM actually is:
+  fa <- file.path(d, "f8.tif")
+  rf <- terra::rast(nrows = 40, ncols = 50, xmin = 0, xmax = 500, ymin = 0, ymax = 400,
+                    crs = "EPSG:3005")
+  terra::values(rf) <- c(runif(terra::ncell(rf) - 2, 100, 900), NA, NaN)
+  terra::writeRaster(rf, fa, overwrite = TRUE, datatype = "FLT8S")
+  fobj <- terra::rast(fa); terra::values(fobj) <- terra::values(fobj)
+  check(identical(fp_raster_content_sha256(fa), fp_raster_content_sha256(fobj)),
+        "float: the two forms agree at FLT8S, where the file round-trips float64 exactly")
+  # ... and where it does NOT round-trip, they legitimately differ. That is a LOSSY WRITE, not a
+  # digest defect, and the distinction matters: the DEM is only ever digested as an OBJECT, so this
+  # case cannot arise in production -- but the claim in fp_provenance.R has to be true as written.
+  f4 <- file.path(d, "f4.tif")
+  terra::writeRaster(rf, f4, overwrite = TRUE, datatype = "FLT4S")
+  check(!identical(fp_raster_content_sha256(f4), fp_raster_content_sha256(rf)),
+        "must-fail: at FLT4S the file and the float64 object DIFFER -- the agreement has a precondition")
+
   # ONE absence contract across both forms. viol_coverage reads a path-form NA as "the writer
   # produced nothing", so the object form must not invent a second meaning for NA.
   check(is.na(fp_raster_content_sha256(NULL)), "NULL digests to NA (the object form's absence)")
@@ -1348,6 +1367,118 @@ if (length(args) >= 1 && nzchar(args[1])) {
       if (length(extra)) ok(paste0("note: entries not in the current config: ",
                                    paste(extra, collapse = ", ")))
     }
+    # --- 7c. RECONCILE: every published `outputs` value, re-derived from the artefact it names ----
+    # THE GAP ROUND 3 MEASURED, and it is a property of the whole guard rather than of any one
+    # check: every assertion above is about a KEY SET, a SHAPE or a VOCABULARY, and none reads a
+    # VALUE. Measured -- all eight published `outputs` values in a real record were mutated one at a
+    # time and this script printed PASS on all eight. That is exactly how `transition_patches`
+    # shipped at 48 against 2032 actual patches: 42x wrong, inside `outputs_hash`, and invisible.
+    # Three hand-written assertions would close three holes; this closes the class, because it
+    # re-derives each value from the thing it claims to describe.
+    #
+    # HONEST ABOUT WHAT EACH ARM IS WORTH. The count and name arms are independent -- nothing in the
+    # record produced the feature count. The DIGEST arms are semi-circular: they verify "the record
+    # describes THIS file", not "this file is correct". That is still worth having, because it is
+    # precisely what broke when a zero-transition run digested the previous run's raster.
+    #
+    # TWO VALUES CANNOT BE RECONCILED and are skipped rather than faked: `dem_content_sha256` (the
+    # DEM is never written to disk) and, on a SUBSET area, `inputs.network_content_sha256` (taken
+    # pre-subset, and only the post-subset layer is written). Both are reported as skipped so a
+    # reader is not left thinking they were checked.
+    if (requireNamespace("terra", quietly = TRUE) && requireNamespace("sf", quietly = TRUE)) {
+      cat("\n7c. Reconcile — published `outputs` values against the artefacts they name\n")
+      dd <- file.path(fp_root, "data", area)
+      # The digest column lists are PARSED OUT OF 01, never copied. A literal here would be a second
+      # copy pinned to nothing, and it is the list round 3 found incomplete.
+      dig_cols <- function(nm) {
+        for (e in parse(file.path(fp_root, "scripts", "floodplain_lcc", "01_network_extract.R"))) {
+          f <- function(x) {
+            if (!is.call(x)) return(NULL)
+            if (identical(as.character(x[[1]])[1], "<-") && identical(as.character(x[[2]]), nm))
+              return(as.character(as.list(x[[3]])[-1]))
+            for (i in seq_along(as.list(x))) {
+              pi <- as.list(x)[[i]]
+              if (!nzchar(paste(deparse(pi), collapse = ""))) next
+              if (is.call(pi)) { r <- f(pi); if (!is.null(r)) return(r) }
+            }
+            NULL
+          }
+          r <- f(e); if (!is.null(r)) return(r)
+        }
+        character(0)
+      }
+      KEYC <- dig_cols("NETWORK_DIGEST_KEY"); VALC <- dig_cols("NETWORK_DIGEST_VAL")
+      check(length(KEYC) > 0 && length(VALC) > 0,
+            sprintf("premise: the digest column lists parse out of 01 (key=%d, value=%d)",
+                    length(KEYC), length(VALC)))
+      eq <- function(got, want, what) check(isTRUE(all.equal(got, want)),
+        sprintf("%s: recorded %s, artefact %s", what, format(got), format(want)))
+
+      for (e in prov_sections(prov)) {
+        o <- e$body[["outputs"]]; if (is.null(o)) next
+        if (identical(e$section, "network")) {
+          g <- file.path(dd, "aquatic_network.gpkg")
+          lyr <- as.character(o[["streams_layer"]])
+          if (!file.exists(g)) { bad(sprintf("network[%s]: no %s to reconcile against", e$key, basename(g)))
+          } else if (!lyr %in% sf::st_layers(g)$name) {
+            bad(sprintf("network[%s].outputs names layer '%s', which is not in %s",
+                        e$key, lyr, basename(g)))
+          } else {
+            x <- sf::st_read(g, layer = lyr, quiet = TRUE)
+            eq(as.integer(o[["n_segments"]]), nrow(x), sprintf("network[%s] n_segments", e$key))
+            eq(as.character(o[["streams_content_sha256"]]),
+               fp_table_content_sha256(x, KEYC, VALC),
+               sprintf("network[%s] streams_content_sha256", e$key))
+          }
+          if (is.null(e$body[["inputs"]][["subset"]]))
+            eq(as.character(e$body[["inputs"]][["network_content_sha256"]]),
+               as.character(o[["streams_content_sha256"]]),
+               sprintf("network[%s] whole-WSG area: pre- and post-subset digests agree", e$key))
+          else
+            ok(sprintf("network[%s] inputs.network_content_sha256 not reconcilable (pre-subset, never written)", e$key))
+        }
+        if (identical(e$section, "floodplain")) {
+          f <- file.path(dd, as.character(o[["floodplain_raster"]]))
+          if (!file.exists(f)) { bad(sprintf("floodplain[%s].outputs names %s, which does not exist",
+                                             e$key, basename(f)))
+          } else {
+            r <- terra::rast(f)
+            eq(as.numeric(o[["valley_cells"]]), sum(terra::values(r) == 1, na.rm = TRUE),
+               sprintf("floodplain[%s] valley_cells", e$key))
+            eq(as.character(o[["floodplain_content_sha256"]]), fp_raster_content_sha256(f),
+               sprintf("floodplain[%s] floodplain_content_sha256", e$key))
+          }
+          ok(sprintf("floodplain[%s] dem_content_sha256 not reconcilable (the DEM is never written)", e$key))
+        }
+        if (identical(e$section, "landcover")) {
+          np <- as.integer(o[["transition_patches"]])
+          tr <- o[["transition_raster"]]
+          # The NA/name pair must agree with the patch count in BOTH directions -- a named file on a
+          # zero-patch run and an NA on a populated one are different defects.
+          if (is.na(np) || np == 0L) {
+            check(is.null(tr) || is.na(tr),
+                  sprintf("landcover[%s] zero patches -> transition_raster is null, not a filename", e$key))
+          } else {
+            f <- file.path(dd, "rasters", e$key, as.character(tr))
+            if (!file.exists(f)) bad(sprintf("landcover[%s].outputs names %s, which does not exist",
+                                             e$key, f))
+            else eq(as.character(o[["transition_content_sha256"]]), fp_raster_content_sha256(f),
+                    sprintf("landcover[%s] transition_content_sha256", e$key))
+            span <- unlist(e$body[["inputs"]][["change_interval"]])
+            g <- file.path(dd, "floodplain_landcover.gpkg")
+            lyr <- paste0("transition_", e$key, "_", span[1], "_", span[2])
+            if (!file.exists(g) || !lyr %in% sf::st_layers(g)$name)
+              bad(sprintf("landcover[%s]: no layer %s to reconcile transition_patches against",
+                          e$key, lyr))
+            else eq(np, nrow(sf::st_read(g, layer = lyr, quiet = TRUE)),
+                    sprintf("landcover[%s] transition_patches", e$key))
+          }
+        }
+      }
+    } else {
+      bad("terra/sf unavailable -- `outputs` values were NOT reconciled (a skip is not a pass)")
+    }
+
     if (n > 0) check(TRUE, "real file checked against all properties")
   }
 }
