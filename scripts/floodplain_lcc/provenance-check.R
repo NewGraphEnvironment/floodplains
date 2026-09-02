@@ -658,6 +658,21 @@ prov_keys <- function(file, section, part = "inputs") {
 # literal set here would match the producers by coincidence and stop covering a section added
 # later -- the scope-by-coincidence shape code-check.md warns about, in the guard for the one field
 # that has no other protection.
+# The link_log declared set has the same shape as every other literal here: a copy of a list that
+# lives in the producer, with nothing comparing the two. 01 null-fills link_log from its own literal
+# `c("run_uid", "config_hash", ...)`, so a field added there and not here is simply not required, and
+# one removed there leaves the guard demanding a key nothing writes. Read the producer's list.
+prov_link_log_keys <- function(file) {
+  calls <- unlist(lapply(parse(file), find_calls, fname = "fp_prov_null_fill"), recursive = FALSE)
+  for (cl in calls) {
+    keys <- unlist(lapply(find_calls(cl, "c"), function(x) as.list(x)[-1]))
+    keys <- vapply(keys, function(k) if (is.character(k)) k else NA_character_, "")
+    keys <- keys[!is.na(keys)]
+    if (length(keys)) return(sort(unique(keys)))
+  }
+  character(0)
+}
+
 prov_sections_writing_toolchain <- function(section_files) {
   secs <- names(section_files)
   secs[vapply(secs, function(sec)
@@ -701,6 +716,14 @@ prov_sections_writing_toolchain <- function(section_files) {
   # renaming `gdal` to `gdal_version` in fp_toolchain(), or deleting it outright, left the whole
   # offline suite green. viol_split's "toolchain missing" arm only fires against a parsed file, i.e.
   # after a real area has already been re-run and the record written without it.
+  ll <- prov_link_log_keys(step("01_network_extract.R"))
+  check(length(ll) > 0, "premise: the link_log null-fill list is readable from the producer")
+  check(setequal(ll, KEYS_LINK_LOG),
+        sprintf("KEYS_LINK_LOG matches 01's null-fill list%s",
+                if (setequal(ll, KEYS_LINK_LOG)) ""
+                else paste0(" -- differs: ",
+                            paste(union(setdiff(ll, KEYS_LINK_LOG),
+                                        setdiff(KEYS_LINK_LOG, ll)), collapse = ", "))))
   check(setequal(names(fp_toolchain()), KEYS_TOOLCHAIN),
         sprintf("KEYS_TOOLCHAIN matches what fp_toolchain() returns (%s)",
                 paste(names(fp_toolchain()), collapse = ", ")))

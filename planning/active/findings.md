@@ -282,3 +282,34 @@ was `NA` while its digests named 2017/2023, so the new year-set assertion fired 
 Final state: **74 assertions**, offline and against the real area, both green; cross-machine
 agreement holds on m4's rasters; parity unmoved; `bridge-check`, `region_config-check` and
 `gpkg_determinism-check` all unaffected.
+
+## Terminating the recurrence by enumeration
+
+Three rounds each found the same class — a literal in the guard matched to its producer by
+coincidence — one axis over each time. Rather than run a fourth round hoping for silence, I
+enumerated **every** literal key set in `provenance-check.R` and checked what pins each:
+
+| literal | pinned by | when |
+|---|---|---|
+| `KEYS_NETWORK_INPUTS` | §6 `drift1()` against 01's `inputs` | pre-existing (#33) |
+| `KEYS_FLOODPLAIN` | §6 `drift1()` against 02's `inputs` | pre-existing |
+| `KEYS_LANDCOVER` | §6 `drift1()` against 03's `inputs` | pre-existing |
+| `SECTIONS_WITH_RASTERS` | derived from the producers' `run` blocks | round 2 |
+| `KEYS_TOOLCHAIN` | `setequal(names(fp_toolchain()), …)` | round 3 |
+| **`KEYS_LINK_LOG`** | **`prov_link_log_keys()` against 01's null-fill list** | **found by the enumeration** |
+
+`KEYS_LINK_LOG` was the fourth instance — a copy of the literal at `01_network_extract.R:274-276`
+with nothing comparing the two, so a field added there was simply not required, and one removed
+there left the guard demanding a key nothing writes. Pre-existing since #33, same class. Verified
+red both ways: dropping `date_end` reports `differs: date_end`; renaming `fwapg_sha` reports both
+names.
+
+**Two literals remain, and both are correct as literals:**
+
+- `RUN_FIELDS` mirrors no producer — it is a *judgement* about what constitutes a run event, and
+  deriving it from the data would make the guard agree with itself by construction. This is the
+  "keep the list literal where membership is a judgement" case.
+- `TOOLCHAIN_FIXTURE` is test data, and it fails loudly in the safe direction: a member added to
+  `KEYS_TOOLCHAIN` and not to the fixture makes the clean-fixture check go red.
+
+So nothing sits above its source, which is the condition that ends this rather than another round.
