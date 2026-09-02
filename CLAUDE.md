@@ -105,7 +105,9 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   the inputs, byte-stable across reruns, summarised by `inputs_hash`) and **`run`** (the run event,
   free to vary) — #52's rule applied one level earlier, and the only reason the acceptance
   criterion is checkable at all, since a whole-file comparison could never pass with a timestamp
-  in it. `provenance-check.R` enforces the split with no database, and every one of its 31
+  in it. `scripts/floodplain_lcc/fp_provenance.R` is the writer (`fp_prov_set` merges one
+  section per step, atomically); `provenance-check.R` enforces the split with no database, and
+  every one of its 31
   assertions is exercised against input built to break it.
   **The network section records link's LOG ROW, read wholesale — it does not re-derive anything.**
   link's `config_hash` is a hash over 17 files plus the config name and species list, so a
@@ -257,6 +259,29 @@ Computer STAC. (`drift` ≥ 0.6.0 because `fp_lulc` passes `tile_size` to `dft_s
   compute, 0.7.4 macOS arm64). Verdict: `research/20260711_lulc_tile-fetch-benchmark.md`. Long
   background jobs get killed by macOS idle sleep — `caffeinate -s Rscript scripts/run_region.R
   <region>` (the resumable runner picks up any interrupted group).
+
+## Working conventions
+
+### A verification that cannot run becomes its own issue — the parent still closes
+
+Much of this repo's verification needs a live fwapg: `link::lnk_log_read()`, the neexdzii parity
+fixture, any step 1 or 2. The database is **frequently not running** on a dev machine, so work
+here regularly outruns what can be checked locally.
+
+When that happens, file the unrun check as its own issue carrying the exact commands, the gating,
+and the specific questions it should answer — then let the parent issue close and name the
+follow-up in the PR body and the merge report.
+
+**Why:** the two alternatives are both worse. Holding the parent open misrepresents finished
+design as unfinished and blocks whatever depends on it — #33 gates
+`stac_floodplains_bc#17`. Merging silently is worse still, because a closed issue reads as
+verified. #63 is the worked example, filed off #33.
+
+**How to apply:** do everything that *is* offline-verifiable first and say what it covered — #33
+shipped a 31-assertion guard and a live-STAC A/B with no database at all, so the gap was narrow
+and nameable rather than "untested". Gate any run on the **in-band error count and the output
+mtime**, never on the wrapper's exit code: a run that crashed before writing makes an A/B compare
+a stale file against itself and pass.
 
 ## Conventions
 
