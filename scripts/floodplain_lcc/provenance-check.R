@@ -24,9 +24,25 @@
 
 suppressWarnings(suppressMessages({
   library(jsonlite)
+  library(yaml)
 }))
 source(file.path(dirname(sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE)[1])),
                  "fp_provenance.R"))
+
+# Root every path on THIS SCRIPT's own location, never on the working directory. This is a
+# DELIBERATE divergence from the here::here() the rest of the repo uses, and the reason is the
+# worktree-per-session convention: here::here() answers from the CWD's project root, so invoking
+# one checkout's guard from inside another silently verifies the OTHER tree's provenance.json and
+# passes, while the run you meant to check is never looked at. The script's own path is the one
+# thing that cannot move out from under it. Measured: from /tmp, here::here() resolved to /tmp and
+# the guard reported a missing file -- which reads as "that area has no provenance", not as "you
+# are in the wrong place". The resolved root is printed below so a wrong-tree invocation is
+# visible rather than silent.
+fp_root <- local({
+  f <- grep("^--file=", commandArgs(FALSE), value = TRUE)
+  if (length(f)) normalizePath(file.path(dirname(sub("^--file=", "", f[1])), "..", ".."),
+                               mustWork = FALSE) else here::here()
+})
 
 FAILS <- 0L
 ok   <- function(msg) cat("  ok   ", msg, "\n")
@@ -421,8 +437,9 @@ prov_keys <- function(file, section) {
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) >= 1 && nzchar(args[1])) {
   area <- args[1]
-  path <- file.path("data", area, "provenance.json")
+  path <- file.path(fp_root, "data", area, "provenance.json")
   cat("\n7. Real area: ", path, "\n", sep = "")
+  cat("   (repo root resolved from this script: ", fp_root, ")\n", sep = "")
   if (!file.exists(path)) {
     # Absence is reported as absence, never as a pass. Forward-only (#33) means an area not yet
     # re-run legitimately has none -- but "there was nothing to check" must not read as "clean".
@@ -441,6 +458,57 @@ if (length(args) >= 1 && nzchar(args[1])) {
       v <- f(prov); if (length(v)) for (m in v) bad(m)
     }
     v <- viol_creds(txt); if (!is.null(v)) bad(v)
+
+    # --- 7b. INVENTORY: every entry the config says should exist, does -----------------------------
+    # The properties above are all of the form "every entry PRESENT is well-formed". None of them can
+    # see an entry that is simply ABSENT, so a run that died partway -- after step 2 had written its
+    # sections and before step 3 wrote its own -- produces a file every one of them passes. Measured:
+    # a neexdzii run that aborted in step 3 left 3 entries of an expected 5 and this script exited 0.
+    #
+    # That also breaks the A/B's mtime gate, which is why this is an assertion and not a nicety: step
+    # 2 bumps provenance.json's mtime, so `-nt` is satisfied by a run that never reached step 3. The
+    # in-band error count catches it; nothing else did.
+    #
+    # The expectation is DERIVED FROM THE CONFIG, not hardcoded: a literal list would silently stop
+    # covering a scenario the moment one was added. Mirrors run_area.R's own resolution, including the
+    # FP_SPECIES / FP_PRIMARY_SCENARIO env overrides, so a non-default-species run asserts its own set.
+    cfg_dir <- file.path(fp_root, "config", area)
+    if (!dir.exists(cfg_dir)) {
+      bad(sprintf("no config/%s -- cannot derive the expected entry set", area))
+    } else {
+      ay  <- yaml::read_yaml(file.path(cfg_dir, "area.yml"))
+      sp  <- Sys.getenv("FP_SPECIES", "");           if (!nzchar(sp)) sp <- ay$species
+      ps  <- Sys.getenv("FP_PRIMARY_SCENARIO", "");  if (!nzchar(ps)) ps <- ay$primary_scenario
+      if (is.null(ps) || !nzchar(ps)) ps <- paste0(sp, "_ff04")
+      # Read it with the PRODUCER's reader. utils::read.csv and readr::read_csv disagree on a cell
+      # like " TRUE" -- readr trims it to logical TRUE, read.csv's type.convert leaves a string -- so a
+      # guard using the other reader derives a different expected set from the same file, and then
+      # excuses the surplus as an "extra". One fact, one derivation.
+      sc <- readr::read_csv(file.path(cfg_dir, "flood_scenarios.csv"), show_col_types = FALSE)
+      # 02 runs run==TRUE rows OF THIS SPECIES (#23); 03 runs the primary scenario only.
+      # Mirror 02_floodplain_model.R: run == TRUE rows OF THIS SPECIES (#23). which() drops NA rows
+      # rather than subsetting them in as NA ids.
+      sel <- sc$run == TRUE & sc$species == sp
+      run_ids <- sc$scenario_id[which(sel)]
+      # paste0 recycles a ZERO-LENGTH vector against its constants and returns "floodplain[]" --
+      # length one, not zero. Unguarded, a config with no matching row would expect a phantom entry
+      # and the failure would name the wrong cause.
+      if (!length(run_ids))
+        bad(sprintf("no run==TRUE '%s' rows in config/%s/flood_scenarios.csv", sp, area))
+      want <- c(paste0("network[", sp, ay$min_order, "]"),
+                if (length(run_ids)) paste0("floodplain[", run_ids, "]"),
+                paste0("landcover[", ps, "]"))
+      got  <- vapply(prov_sections(prov), function(e) paste0(e$section, "[", e$key, "]"), "")
+      miss <- setdiff(want, got)
+      check(length(miss) == 0,
+            sprintf("all %d config-derived entries present%s", length(want),
+                    if (length(miss)) paste0(" -- MISSING: ", paste(miss, collapse = ", ")) else ""))
+      # Not an error, but say so: an entry nothing in the config asks for means the config moved and
+      # the file still carries the old run's work.
+      extra <- setdiff(got, want)
+      if (length(extra)) ok(paste0("note: entries not in the current config: ",
+                                   paste(extra, collapse = ", ")))
+    }
     if (n > 0) check(TRUE, "real file checked against all properties")
   }
 }
