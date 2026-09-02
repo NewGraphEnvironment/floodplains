@@ -235,8 +235,22 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
       # st_intersects + pairwise indexing: st_intersection takes no `by_feature` argument, so such a
       # call silently computes a cross product of the paired vectors instead.
       inter <- suppressWarnings(sf::st_intersection(pat, wc))
+      # A shared boundary yields a zero-area pair -- and so does a SLIVER, because overlap_ha is
+      # rounded to 4 dp and a 9.9e-5 m2 intersection lands on exactly 0.0000 ha. Either way it is a
+      # join artefact, not a relationship, and keeping it would inflate the row count without
+      # changing any sum. Drop it HERE, before anything is derived from it.
+      #
+      # Filtering the assembled frame further down instead is what aborted step 3 on the first
+      # neexdzii run to carry both #54 commits (#63): the patch key is hoisted into a standalone
+      # vector, so dropping one row from `bridge` left `pk` one element longer, and every later use
+      # of it -- the apportionment lookup, the coverage tapply, the unbridged-patch count -- was a
+      # length mismatch against the frame. A key that lives outside the frame it indexes goes stale
+      # the instant that frame is filtered, and nothing says so until the lengths are compared.
+      ov_ha <- as.numeric(sf::st_area(inter)) / 1e4
+      keep  <- round(ov_ha, 4) > 0
+      inter <- inter[keep, , drop = FALSE]
+      ov_ha <- ov_ha[keep]
       if (nrow(inter) > 0) {
-        ov_ha  <- as.numeric(sf::st_area(inter)) / 1e4
         bridge <- data.frame(
           patch_id     = inter$patch_id,
           name_basin   = inter$name_basin,
@@ -259,9 +273,6 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
         tot_ov <- tapply(bridge$overlap_ha, pk, sum)
         bridge$apportion_weight <- round(bridge$overlap_ha / tot_ov[pk], 4)
         names(bridge)[names(bridge) == "k"] <- key
-        # A shared boundary yields a zero-area pair: a join artefact, not a relationship. Keeping it
-        # would inflate the row count without changing any sum.
-        bridge <- bridge[bridge$overlap_ha > 0, , drop = FALSE]
         b_lyr <- sub("^transition_", "patch_watercourse_", lyr)
         sf::st_write(bridge, out_lc_gpkg, layer = b_lyr,
                      append = file.exists(out_lc_gpkg), delete_layer = TRUE, quiet = TRUE)

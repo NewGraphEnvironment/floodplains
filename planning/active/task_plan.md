@@ -36,11 +36,29 @@ Measurement method: `sum(st_length(streams_co3))/1000`; `sum(st_area(co_ff04))/1
 
 ## Phase 1: Baseline capture and pre-flight
 
-- [ ] Back up `data/neexdzii/` to the scratchpad so a moved number is diffable, not just reported
-- [ ] Record pre-run state to `findings.md`: parity numbers, `fresh.log` BULK row, installed vs
+- [x] Back up `data/neexdzii/` to the scratchpad so a moved number is diffable, not just reported
+- [x] Record pre-run state to `findings.md`: parity numbers, `fresh.log` BULK row, installed vs
       checkout versions/SHAs for link/flooded/drift/fresh on m1
-- [ ] `Rscript scripts/floodplain_lcc/provenance-check.R` green offline (no area arg) before any run
-- [ ] Confirm no other session is writing `data/neexdzii/` (the writer is read-modify-write over one file)
+- [x] `Rscript scripts/floodplain_lcc/provenance-check.R` green offline (no area arg) before any run
+- [x] Confirm no other session is writing `data/neexdzii/` (the writer is read-modify-write over one file)
+- [x] No `*_GIT_SHA` / `*_DIR` overrides in `~/.Renviron`; all four package checkouts clean —
+      both feed `fp_pkg_stamp`, so both must hold on **each** machine for Phase 4 to be an equality test
+
+## Phase 1b: Fix what the first pass hit (unplanned, in scope — the A/B cannot run without it)
+
+- [x] **Bug: the #54 bridge aborts step 3 on a rounded-to-zero sliver.** `pk` is hoisted into a
+      standalone vector before the zero-area filter and reused after it, so dropping one row leaves
+      it one element long — `tapply(bridge$overlap_frac, pk, max)`: *arguments must have same
+      length*. Introduced by 36145d3 (itself the fix for #54's per-tenant key), which landed
+      **one minute after** the last neexdzii run, so it had never executed here. Trigger measured:
+      a single 9.9e-5 m² sliver pair rounding to `0.0000` ha. Fixed by filtering `inter`/`ov_ha`
+      before anything is derived; restored-bug reproduces the error, patched gives 4311 rows —
+      byte-for-byte the prior committed output
+- [x] **Guard gap: `provenance-check.R` exits 0 on an incomplete file.** Every property is
+      "every entry PRESENT is well-formed", so the aborted run's 3-of-5 file passed. Added a §7b
+      inventory assertion deriving the expected entry set from the area config
+- [x] **`provenance_ab-compare.R`** — the A/B instrument now lives in the repo, not the scratchpad,
+      so the result is re-derivable. Exercised against four inputs built to break it
 
 ## Phase 2: m1 end-to-end A/B (the core deliverable)
 
@@ -51,9 +69,12 @@ itself and pass.
 
 - [ ] Pass 1: assert `grep -c 'Execution halted\|^Error' == 0`; snapshot `provenance.json` to scratch
 - [ ] Pass 2: assert 0 errors **and** `provenance.json -nt` the snapshot
-- [ ] `inputs_hash` **identical** across passes for all three sections, compared per section key —
-      not by whole-file diff
-- [ ] `run.datetime_utc` **differs** in all three sections
+- [ ] `inputs_hash` **identical** across passes for all **five entries** — `network[co3]`,
+      `floodplain[co_ff02|co_ff04|co_ff06]`, `landcover[co_ff04]`. Three *sections*, five *entries*;
+      the earlier "all three sections" wording would have accepted a file missing two of them
+- [ ] `run.datetime_utc` **differs** in every entry
+- [ ] Both files carry the full config-derived inventory (the mtime gate alone cannot see this:
+      step 2 bumps the mtime, so a run that dies in step 3 still satisfies `-nt`. Measured.)
 - [ ] `Rscript scripts/floodplain_lcc/provenance-check.R neexdzii` exits 0
 - [ ] Parity unmoved: **673.5 km / 142.8 km² / 770.0 ha**
 - [ ] `link_log` non-null; `config_hash` matches `fresh.log` for BULK; `run_uid` populated;
@@ -68,10 +89,13 @@ the provenance block as the artifact that explains it, and do not silently re-ba
 - [ ] Install link 0.50.0 from `~/Projects/repo/link` (clean at 2b5a435), matching the version that
       built tonight's `fresh`
 - [ ] `Rscript scripts/run_area.R neexdzii 1` (GRAB — fast)
-- [ ] `fp_pkg_stamp("link")` now resolves: `sha` populated, `sha_source` naming the git-walk tier,
-      `dirty` FALSE — where it previously read `unresolved (checkout … is 0.50.0, installed is 0.47.3)`
-- [ ] Network `inputs_hash` **changed** (correct — different code is a different input) while
-      `floodplain` and `landcover` are untouched, confirming the forward-only per-section merge
+- [ ] `fp_pkg_stamp("link")` now resolves: `sha` = the checkout HEAD, `sha_source` == `"git"`
+      (`fp_git_state` returns that one literal — it does not name which walk answered), `dirty`
+      FALSE — where it previously read `unresolved (checkout … is 0.50.0, installed is 0.47.3)`
+- [ ] Network `inputs_hash` **changed** (correct — different code is a different input) while the
+      `floodplain` and `landcover` blocks are **byte-identical**, not merely equal in `inputs_hash`.
+      The writer re-serializes the whole document, so comparing the inert hash strings would pass
+      even if the surrounding blocks round-tripped differently
 
 ## Phase 4: m4 cross-machine leg
 
@@ -103,6 +127,15 @@ what makes this leg an equality test rather than a guaranteed mismatch. If it ho
 - [ ] **Edit the #63 body** so it reads correctly top to bottom with every checkbox answered —
       including the `link_sha` conflation, which the body currently states wrongly
 - [ ] CLAUDE.md only if a durable, generalisable lesson lands (a (b)/(c) finding)
+- [ ] File follow-up issues for the provenance holes the run exposed — the likely outcome of #63 is
+      a clean A/B **plus** named design defects, which the original plan had no slot for:
+      **(i)** on a GRAB, `inputs.link_config_name` is hardcoded `"default"` while the source was
+      built under `bcfishpass`; **(ii)** `inputs_hash` pins nothing about the grabbed network's
+      content — `config_hash`/`run_uid`/`link_sha` sit in `link_log`, a *sibling* of `inputs`, so
+      rebuilding `fresh` differently does not move the hash (the landcover half solved exactly this
+      with `classified_sha256`); **(iii)** `sha_source` bakes an absolute `$HOME` path into the
+      hash; **(iv)** `link_log` is not whitelisted, so `host` and `run_id` ride into a file destined
+      for public STAC properties
 - [ ] File a follow-up issue for anything genuinely unrunnable — but establish it is really blocked
       first; #63 is the cautionary example of an issue filed on a false premise
 - [ ] `/planning-archive` with **Measurement** and **Evidence** sections; `/gh-pr-push`
