@@ -262,20 +262,43 @@ Computer STAC. (`drift` ≥ 0.6.0 because `fp_lulc` passes `tile_size` to `dft_s
 
 ## Working conventions
 
-### A verification that cannot run becomes its own issue — the parent still closes
+### The database is a Docker container — check the right transport before declaring it down
 
-Much of this repo's verification needs a live fwapg: `link::lnk_log_read()`, the neexdzii parity
-fixture, any step 1 or 2. The database is **frequently not running** on a dev machine, so work
-here regularly outruns what can be checked locally.
+`fwapg` runs as the **`fresh-db` container** (postgis), published on `0.0.0.0:5432`. Two ways to
+conclude wrongly that it is down, both hit on 2026-09-01:
 
-When that happens, file the unrun check as its own issue carrying the exact commands, the gating,
-and the specific questions it should answer — then let the parent issue close and name the
-follow-up in the PR body and the merge report.
+- **`pg_isready` with no `-h` tests the unix socket** at `/tmp`, which a containerised server does
+  not create. It answers `/tmp:5432 - no response` while `pg_isready -h localhost` answers
+  `accepting connections`.
+- **The `PG*` variables live in `~/.Renviron`,** which R reads and **bash does not**. So a `psql`
+  probe from an agent shell has no host, port, or database and falls back to the same socket —
+  while the R pipeline, three lines away, connects fine.
+
+Both failures are about the probe, not the server, and both look identical to a real outage. Check
+`docker ps` and `pg_isready -h localhost` before concluding anything; to use `psql` from bash,
+export the vars first:
+
+```bash
+eval "$(grep -E '^PG(HOST|PORT|DATABASE|USER|PASSWORD)=' ~/.Renviron | sed 's/^/export /')"
+```
+
+The cost of getting this wrong is not just a wasted check. It sent a genuine step-1 bug — a
+`text[]` column aborting the provenance write — into `main`, because the one code path that would
+have caught it was believed to be unreachable.
+
+### A verification that genuinely cannot run becomes its own issue — the parent still closes
+
+When a check truly cannot be run (an in-flight `link` rebuild writing to the schema this repo
+GRABs from, a machine without the container), file it as its own issue carrying the exact
+commands, the gating, and the specific questions it should answer — then let the parent issue
+close and name the follow-up in the PR body and the merge report.
 
 **Why:** the two alternatives are both worse. Holding the parent open misrepresents finished
 design as unfinished and blocks whatever depends on it — #33 gates
 `stac_floodplains_bc#17`. Merging silently is worse still, because a closed issue reads as
-verified. #63 is the worked example, filed off #33.
+verified. #63 is the worked example — and also the cautionary one: it was filed on a false
+premise, so **establish that the check is really blocked before filing**, or the issue documents
+your diagnostic error as a project constraint.
 
 **How to apply:** do everything that *is* offline-verifiable first and say what it covered — #33
 shipped a 31-assertion guard and a live-STAC A/B with no database at all, so the gap was narrow
