@@ -162,3 +162,97 @@ substantive comparison has to be done field-by-field with the package stamps set
 | Error | Resolution |
 |-------|------------|
 | m4 `git checkout v0.5.0` → `local changes would be overwritten` | Uncommitted WIP in the checkout. `git stash push -u`, install from the tag, return to the **original** commit, `git stash pop` — returning to the original commit rather than m1's HEAD is what keeps the pop conflict-free |
+
+## Phase 2 — the A/B, and what the first attempt cost
+
+**The first pass 1 aborted, and the wrapper still exited 0.** `caffeinate -s Rscript …` reported
+success over an `Execution halted`. This is the trap `CLAUDE.md` records, met live: the gate has to
+be the in-band error count, not the wrapper's status.
+
+It also broke the *other* half of the gate. The run died in step 3, but step 2 had already written
+its sections — so `provenance.json` was newer than the run-start marker and the `-nt` test passed
+on a run that never finished. The mtime gate is necessary and **not sufficient**.
+
+### The bug that aborted it
+
+`tapply(bridge$overlap_frac, pk, max)` — *arguments must have same length*. `pk` is the composite
+patch key, hoisted into a standalone vector before the zero-area filter and reused after it, so
+dropping one row left it one element too long.
+
+- **Trigger, measured:** a single intersection pair of **9.9e-5 m²** (0.1 mm²). `overlap_ha` is
+  `round(ov_ha, 4)`, so it lands on exactly `0.0000` and the filter drops it. 4312 pairs in, 4311 out.
+- **Introduced by 36145d3** — itself the fix for #54's per-tenant `patch_id`, which hoisted the key
+  out of the frame. Before it, the call read `bridge$patch_id` off the *filtered* frame and the
+  lengths could not disagree.
+- **Why it had never fired:** 36145d3 landed 2026-09-01 07:46:33, and the last neexdzii run wrote
+  its outputs at 07:45. One minute. The area that exercises this code is the only multi-sub-basin
+  area in the repo.
+
+Fixed by filtering `inter`/`ov_ha` before anything is derived, keeping the rounded test so output is
+unchanged. Verified in both directions: **restored bug reproduces the error exactly**; patched gives
+**4311 rows — the prior committed output**, and `bridge-check.R` passes all seven assertions
+(apportioned tree loss reconciles 770.02 vs 770.02 ha).
+
+One number moved, and it moved to the truth: `unbridged patches` went **0 → 1**. The old count was
+computed against the stale pre-filter key, so the sliver patch was reported as bridged when the row
+representing it had been dropped.
+
+### The A/B result
+
+Two full passes, both 0 in-band errors, output rewritten between them.
+
+| entry | inputs_hash | run.datetime_utc |
+|---|---|---|
+| `network[co3]` | same | moved |
+| `floodplain[co_ff02]` | same | moved |
+| `floodplain[co_ff04]` | same | moved |
+| `floodplain[co_ff06]` | same | moved |
+| `landcover[co_ff04]` | same | moved |
+
+`classified_sha256` — the digest of the three classified GeoTIFFs, the field most likely to move —
+is **identical across passes**, as is `item_hash`. `item_ids_complete` is `true`, so no STAC
+pagination hole. **Parity unmoved: 673.5 km / 142.8 km² / 770.0 ha**, all three to the digit.
+
+### The guard could not have gated this, and now can
+
+Every property in `provenance-check.R` was of the form *"every entry PRESENT is well-formed"*. The
+aborted run left **4 of 5** entries and the script exited **0**. Added a §7b inventory assertion
+that derives the expected set from `config/<area>/` (`area.yml` + `flood_scenarios.csv`, honouring
+the `FP_SPECIES` / `FP_PRIMARY_SCENARIO` overrides) and asserts each is present. Demonstrated
+against the real aborted file: `FAIL — MISSING: landcover[co_ff04]`.
+
+`provenance_ab-compare.R` now lives in the repo so the A/B is re-derivable, and carries the same
+inventory check — a comparison over the *union* of two files is blind to an entry missing from
+**both**, which is exactly the shape a partial run leaves on both sides of a re-run.
+
+## Phase 3 — link 0.50.0
+
+Installed link 0.50.0 from the clean checkout at 2b5a435, then `run_area.R neexdzii 1`.
+
+| | pass 2 (link 0.47.3) | step 1 (link 0.50.0) |
+|---|---|---|
+| `inputs.link.version` | 0.47.3 | 0.50.0 |
+| `inputs.link.sha` | `null` | `2b5a435de9c7a5cc…` |
+| `inputs.link.sha_source` | `unresolved (checkout … is 0.50.0, installed is 0.47.3)` | `git` |
+| `inputs.link.dirty` | `null` | `false` |
+| network `inputs_hash` | `sha256:a42b4a3f…` | `sha256:6bf36027…` — **moved, correctly** |
+
+- `sha_source` is the literal `"git"`. `fp_git_state` returns that one string; it does **not**
+  name which of the two walk tiers answered, so an assertion expecting "git-walk tier" would fail.
+- **The `floodplain` and `landcover` blocks are byte-identical** after the step-1-only re-run —
+  checked as a serialized comparison of the sub-objects, not by comparing the inert `inputs_hash`
+  strings, which would have compared equal even if the surrounding blocks had re-serialized
+  differently. `fp_prov_set`'s forward-only per-section merge is confirmed at the byte level.
+- **`link_log` is byte-identical across the version change, 30 columns both times.** This is the
+  strongest available evidence for the wholesale-read design: installed link went 0.47.3 → 0.50.0,
+  its `cols_log` changed, and the recorded row did not — because `lnk_log_read()` is a `SELECT *`
+  and the row is never destructured. It also settles the link#262 `log_recompute` question for
+  BULK: no recompute row shadows the model row here.
+
+## Errors Encountered (cont.)
+
+| Error | Resolution |
+|-------|------------|
+| `caffeinate` wrapper exit 0 over `Execution halted` | Gate on the in-band error count; the wrapper reports its own status, not the job's |
+| `-nt` mtime gate satisfied by a run that died in step 3 | Step 2 writes provenance before step 3 runs. Necessary, not sufficient — pair it with the inventory assertion |
+| `ERROR: column " @ " does not exist` from an `Rscript -e` over ssh | Three shells of quoting. Write the R to a file and `scp` it — the rule already in CLAUDE.md |
