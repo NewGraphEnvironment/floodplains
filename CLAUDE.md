@@ -597,6 +597,19 @@ one.
     heredoc: `grep -n ', ,\|(( ))\|  |' file` finds the empty spans a swallowed
     code span leaves behind.
 - Pass-through-ssh args: `printf '%q'` escapes per-arg so workload paths with spaces / quotes / metacharacters survive the local-shell → ssh-argv → remote-shell round-trip. Without it, `ssh host 'cmd' "$path"` joins args with spaces on remote and re-parses, losing argument boundaries.
+- **A plain `git commit -m "…"` runs command substitution too, and unlike the heredoc cases it
+  SUCCEEDS.** The rules above are about forms that fail loudly. This one does not: backticks in a
+  double-quoted `-m` string execute, bash prints `something: command not found` to **stderr**, and
+  the commit lands anyway with the span replaced by empty output. Seen 2026-09-02 in floodplains:
+  a message reading ``prov_keys() now takes a `part` argument`` committed as "now takes a
+  argument". The only signal was one stderr line scrolling past above a successful commit.
+  - Markdown code spans are exactly what a good commit message is full of — function names,
+    arguments, file paths — so the failure targets careful messages, not sloppy ones.
+  - Fix is the one already prescribed for multi-line bodies, applied to single-line ones too:
+    write the message to a file and `git commit -F`, or use single quotes when the text has no
+    apostrophes. `git commit --amend -F msg.txt` repairs it after the fact.
+  - Detection, since the commit is already made: `git log -1 --format=%B | grep -n "  \|takes a $"`
+    finds the collapsed double spaces an eaten span leaves behind.
 - `git commit -m "$(cat <<'EOF' ... EOF)"` chokes on apostrophes in prose bodies in some contexts — the bash parser surfaces an unmatched-quote error even though heredoc bodies should be quote-neutral. Resilient default for multi-line commit messages: write the body to `/tmp/msg.txt` and use `git commit -F /tmp/msg.txt`.
 - **The same trap has a silent variant: `Rscript -e` / `python -c` carrying backslash escapes.** The heredoc case above fails loudly, which costs a retry. Passing a regex inline does not: `\\b` reaches the interpreter mangled, so `grepl()` returns 0 matches against text it matches perfectly from a file. Nothing errors. Seen 2026-07-31 in rfp#93 — the 0 read as "my regex is wrong" and nearly triggered a rewrite of working code; the identical regex scored 4 matches the moment it ran from `/tmp/x.R`.
   - Rule: anything carrying a regex, nested quotes or backslashes gets written to a file and run (`Rscript /tmp/x.R`). Inline `-e` is for trivial one-liners only.
@@ -3699,6 +3712,64 @@ so `(?<=href *= *)` will not compile — match the attribute name and strip it a
 Cheap enough to run on every build, and it belongs there rather than in a checklist: a
 check that must be remembered has the same failure mode as the script that had to be
 remembered.
+
+### A guard's error message must not recommend a remedy that walks back through it
+
+A guard refuses bad input and, if it is a good one, names the fix. That remedy is
+**code the caller will run**, and nothing checks it. So it is the one part of a
+guard that can reintroduce the exact defect the guard exists to stop — and it does
+so with the guard's own authority behind it.
+
+The shape: the guard tests some **property of the shape** of the input, and the
+recommended remedy *coerces to that shape*. Coercion always succeeds, so the
+second attempt passes. The caller did as they were told, the error is gone, and
+the data is wrong.
+
+Measured 2026-09-01 in fly#37, where `fly_footprint()` silently returned 100 rows
+from 20 because `sf::st_coordinates()` yields one row per *vertex* for non-POINT
+geometry. The guard refused non-POINT and suggested `sf::st_cast(x, "POINT")`:
+
+```
+following the guard's own advice on a POLYGON column
+  rows 20 -> 100      guard on result: ACCEPT      duplicated id: 80
+```
+
+That is the original bug, reproduced by obeying the error written to prevent it.
+On a mixed column the same advice instead moved each polygon to its first ring
+vertex — 1,940 m — with the row count unchanged, so nothing looked wrong at all.
+
+**Reordering the guard's clauses does not fix it.** Three review rounds were spent
+there: ordering decides *which sentence* carries the advice, and every sentence
+carried it. The fix is to make the recommendation conditional on the case where it
+is safe, which means computing that rather than reasoning about which types
+qualify.
+
+**And compute it per item, not in aggregate.** The obvious condition is a total —
+"the coordinate count already equals the feature count" — and a total is blind to
+a redistribution that conserves it. One frame digitised twice plus one frame with
+no location satisfies it exactly, and taking the offered cast then shifted every
+frame's geometry one place against its attributes: **18 of 19 wrong by up to
+20.4 km**, row count preserved, no duplicate ids, guard accepting. Prefer a
+condition with a closure argument over one with a list of cases — here, excluding
+empty features, since a non-empty feature contributes at least one coordinate, so
+"no empties" plus "total equals the count" forces exactly one each.
+
+Two checks, and the second is the one that was missing:
+
+- **Run the remedy.** For every input a clause can receive, execute the advice it
+  gives and assert the result is what the caller meant. A table of input against
+  what-the-advice-does is the whole test.
+- **Do not assert the guard's own predicate.** The natural assertion — the remedy
+  keeps the row count — is the condition the guard already checks, so it validates
+  the guard against itself and passes on the input that breaks it. Measured: the
+  row-count assertion passed the case above; a displacement assertion against
+  independent ground truth failed it at 20,374 m. Same family as *"a reference
+  generated by feeding your artifact to the consumer is circular"*, one level in.
+
+Generalises past geometry to any guard whose message names a fix: an encoding
+coercion, a `--force` flag, a schema migration, "re-run with `--fix`". Ask what
+the input looks like *after* the suggested fix, and whether the guard would still
+object.
 
 
 # NGE Feature Workflow
