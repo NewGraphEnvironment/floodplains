@@ -41,19 +41,19 @@ Outcome: a digest of the input **data** inside `inputs`, and a new `outputs` blo
 
 ## Phase 1: Digest primitives + guard scaffolding (offline)
 
-- [ ] `fp_raster_content_sha256()` accepts a SpatRaster or a path; type dispatch before the
+- [x] `fp_raster_content_sha256()` accepts a SpatRaster or a path; type dispatch before the
       `file.exists()` guard; object-form NA contract defined
-- [ ] `fp_table_content_sha256()` — fixed-format text digest, `na.last = TRUE`, row-count and
+- [x] `fp_table_content_sha256()` — fixed-format text digest, `na.last = TRUE`, row-count and
       column-name prefix, no `paste`/`as.character` on numerics
-- [ ] `fp_prov_set()` assigns `outputs_hash` only when `outputs` is present; `stopifnot` on `inputs`
-- [ ] `fp_pkg_stamp()` `sha_source` becomes a closed vocabulary; detail to `message()`
-- [ ] `FP_PROV_SCHEMA_VERSION` → 2
-- [ ] `KEYS_BODY` body-level whitelist in `provenance-check.R`
-- [ ] `viol_split` gains all four `outputs` arms
-- [ ] §1 gains the outputs/inputs hash independence assertion, routed through `fp_prov_set`
-- [ ] §5c SpatRaster-vs-path agreement + object NA contract; §5d float premises
-- [ ] §5e table digest, with must-fails
-- [ ] `fp_pkg_stamp` closed-vocabulary assertion
+- [x] `fp_prov_set()` assigns `outputs_hash` only when `outputs` is present; `stopifnot` on `inputs`
+- [x] `fp_pkg_stamp()` `sha_source` becomes a closed vocabulary; detail to `message()`
+- [x] `FP_PROV_SCHEMA_VERSION` → 2
+- [x] `KEYS_BODY` body-level whitelist in `provenance-check.R`
+- [x] `viol_split` gains all four `outputs` arms
+- [x] §1 gains the outputs/inputs hash independence assertion, routed through `fp_prov_set`
+- [x] §5c SpatRaster-vs-path agreement + object NA contract; §5d float premises
+- [x] §5e table digest, with must-fails
+- [x] `fp_pkg_stamp` closed-vocabulary assertion
 
 ## Phase 2: Network section (01) — every `inputs` change in one commit
 

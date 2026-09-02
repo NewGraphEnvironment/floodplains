@@ -54,6 +54,21 @@ check <- function(cond, msg) if (isTRUE(cond)) ok(msg) else bad(msg)
 # harder to spot because it looks like provenance rather than an artefact.
 RUN_FIELDS <- c("datetime_utc", "run_date", "elapsed", "host", "operator", "run_id")
 
+# Declared keys ONE LEVEL UP, at the body. Until #65 there was no check here at all -- viol_keys
+# whitelists `inputs` and nothing whitelists `inputs`'s SIBLINGS. That gap is how defect #1
+# happened: `link_log` sits beside `inputs`, outside the hash and outside every property, and a
+# live file was measured carrying 30 columns in it including `host` and `run_id` -- two members of
+# RUN_FIELDS, invisible to the run-field guard because that guard reads names(inputs). Adding
+# `outputs` as a third unguarded sibling would ratify the pattern, so close it in the same change.
+KEYS_BODY <- c("inputs", "inputs_hash", "outputs", "outputs_hash", "run",
+               "link_log", "link_log_note")
+
+# The closed vocabulary fp_pkg_stamp() may report (#65). It used to interpolate the checkout PATH
+# and the checkout VERSION into this string, inside hashed `inputs` -- measured live in
+# data/neexdzii, and measured DIFFERING between m1 and m4 under #63 while every substantive field
+# matched. A free-text field in the byte-stable half makes the cross-machine criterion unreadable.
+SHA_SOURCES <- c("env", "RemoteSha", "git", "unresolved", "unresolved_version_mismatch")
+
 # Declared keys for `run$toolchain`. The raster toolchain is the one thing #64 adds and the ONLY
 # provenance field with no drift protection: the producer/guard drift check (§6) parses the
 # `inputs = ...` argument of fp_prov_set and never looks at `run`, and viol_split only requires that
@@ -117,6 +132,26 @@ viol_split <- function(prov) {
     # ABSOLUTE assertion first. An intersection test alone passes when `run` is absent, empty or
     # renamed -- a section that lost its whole run block is exactly the defect this check is for,
     # and set arithmetic on nothing is silent about it.
+    out <- names(e$body[["outputs"]] %||% list())
+    # FOUR arms, not one. `outputs` must not overlap `inputs` (which would fold an answer into the
+    # ingredients question), must not overlap `run`, must not carry a run-event field (a timestamp
+    # in `outputs` churns outputs_hash every run and the A/B then fails for a reason nobody can
+    # read), and must be accompanied by its hash in BOTH directions -- a hash with no block is as
+    # broken as a block with no hash, and only one of those is the obvious one.
+    out_problem <- c(
+      if (length(out) && is.null(e$body[["outputs_hash"]]))
+        sprintf("%s[%s] has an `outputs` block but no outputs_hash", e$section, e$key),
+      if (!length(out) && !is.null(e$body[["outputs_hash"]]))
+        sprintf("%s[%s] has an outputs_hash with no `outputs` block", e$section, e$key),
+      if (length(intersect(out, RUN_FIELDS)))
+        sprintf("%s[%s].outputs carries run-event field(s): %s", e$section, e$key,
+                paste(intersect(out, RUN_FIELDS), collapse = ", ")),
+      if (length(intersect(out, inp)))
+        sprintf("%s[%s] inputs/outputs key sets overlap: %s", e$section, e$key,
+                paste(intersect(out, inp), collapse = ", ")),
+      if (length(intersect(out, run)))
+        sprintf("%s[%s] outputs/run key sets overlap: %s", e$section, e$key,
+                paste(intersect(out, run), collapse = ", ")))
     c(if (!length(run)) sprintf("%s[%s] has no `run` block", e$section, e$key),
       if (length(run) && !"datetime_utc" %in% run)
         sprintf("%s[%s].run has no datetime_utc", e$section, e$key),
@@ -128,7 +163,35 @@ viol_split <- function(prov) {
       if (length(intersect(inp, run)))
         sprintf("%s[%s] inputs/run key sets overlap: %s", e$section, e$key,
                 paste(intersect(inp, run), collapse = ", ")),
-      tc_problem)
+      out_problem, tc_problem)
+  }))
+}
+
+# The body-level whitelist. Same reasoning as viol_keys' undeclared-key arm, one level up: a
+# denylist for "fields that should not be here" can always be outrun by a new one; "only these may
+# appear" cannot.
+viol_body <- function(prov) {
+  unlist(lapply(prov_sections(prov), function(e) {
+    und <- setdiff(names(e$body %||% list()), KEYS_BODY)
+    if (length(und)) sprintf("%s[%s] has UNDECLARED body key(s): %s", e$section, e$key,
+                             paste(und, collapse = ", "))
+  }))
+}
+
+# Every package stamp inside `inputs` reports a sha_source from the closed vocabulary. Walks the
+# nested stamps rather than naming link/fresh/flooded/drift, so a section that starts stamping a
+# fifth package is covered without an edit here.
+viol_sha_source <- function(prov) {
+  unlist(lapply(prov_sections(prov), function(e) {
+    inp <- e$body[["inputs"]] %||% list()
+    unlist(lapply(names(inp), function(k) {
+      v <- inp[[k]]
+      if (!is.list(v) || is.null(v[["sha_source"]])) return(NULL)
+      src <- as.character(v[["sha_source"]])
+      if (!src %in% SHA_SOURCES)
+        sprintf("%s[%s].inputs.%s.sha_source is free text, not one of {%s}: %s",
+                e$section, e$key, k, paste(SHA_SOURCES, collapse = ", "), substr(src, 1, 70))
+    }))
   }))
 }
 
@@ -284,6 +347,43 @@ cat("\n1. Determinism — `inputs` is byte-stable across two writes\n")
   check(perturb(function(h) { h[["classified_content_sha256"]][["2017"]] <- "sha256:ff"; h }) != base,
         "criterion 2: a reprocessed landcover raster MOVES inputs_hash")
   check(perturb(function(h) h) == base, "an unchanged input does NOT move inputs_hash")
+
+  # --- outputs_hash is a SECOND hash, not part of the first (#65) -----------------------------
+  # Routed through fp_prov_set and read back off DISK, deliberately. Perturbing fp_prov_hash()
+  # directly could not fail: that function is handed `value$inputs` and structurally cannot see
+  # `outputs`, so the assertion would be true of a writer that folded outputs in as happily as of
+  # one that did not. The mutant this guards is somebody writing `fp_prov_hash(value)` in
+  # fp_prov_set, and only the written file can see it.
+  cfg2 <- fixture_cfg()
+  ent <- g$floodplain$co_ff04
+  ent$outputs <- list(floodplain_content_sha256 = "sha256:aaa")
+  fp_prov_set(cfg2, "floodplain", "co_ff04", ent)
+  w1 <- jsonlite::read_json(fp_prov_path(cfg2), simplifyVector = FALSE)$floodplain$co_ff04
+  ent$outputs <- list(floodplain_content_sha256 = "sha256:bbb")
+  fp_prov_set(cfg2, "floodplain", "co_ff04", ent)
+  w2 <- jsonlite::read_json(fp_prov_path(cfg2), simplifyVector = FALSE)$floodplain$co_ff04
+  check(!is.null(w1[["outputs_hash"]]) && !is.null(w2[["outputs_hash"]]),
+        "premise: fp_prov_set actually wrote an outputs_hash for both")
+  check(identical(w1[["inputs_hash"]], w2[["inputs_hash"]]),
+        "a changed OUTPUT does NOT move inputs_hash (the two questions stay separate)")
+  check(!identical(w1[["outputs_hash"]], w2[["outputs_hash"]]),
+        "a changed OUTPUT DOES move outputs_hash")
+
+  # ... and absence stays absence. An unconditional assignment would stamp every entry with a null
+  # outputs_hash -- fp_prov_hash(NULL) is NA_character_ -- and viol_split's "outputs_hash with no
+  # outputs" arm could then never fire.
+  cfg3 <- fixture_cfg()
+  fp_prov_set(cfg3, "floodplain", "co_ff04", g$floodplain$co_ff04)
+  w3 <- jsonlite::read_json(fp_prov_path(cfg3), simplifyVector = FALSE)$floodplain$co_ff04
+  check(!"outputs_hash" %in% names(w3),
+        "an entry with no `outputs` gets NO outputs_hash key at all, not a null one")
+
+  # An outputs-only write would blank `inputs` -- fp_prov_set REPLACES the whole entry -- and set
+  # inputs_hash to NA. That is the shape #72's vector digest will arrive in, so refuse it now.
+  check(tryCatch({ fp_prov_set(cfg3, "floodplain", "x", list(outputs = list(a = 1),
+                                                             run = list(datetime_utc = "z")))
+                   FALSE }, error = function(e) grepl("no `inputs` block", conditionMessage(e))),
+        "must-fail: an outputs-only write IS refused (it would blank the inputs half)")
 }
 
 # --- 2. inputs/run split ---------------------------------------------------------------------------
@@ -339,6 +439,54 @@ cat("\n2. Split — `inputs` carries no run-event field\n")
     SECTIONS_WITH_RASTERS <<- keep
     check(fired, "must-fail: had network been in scope, its missing toolchain WOULD be reported")
   })
+
+  # --- The `outputs` sibling (#65) -----------------------------------------------------------
+  # Built LOCALLY rather than added to good_prov(): the declared outputs key sets arrive with their
+  # producers in later phases, and a fixture carrying a block nothing declares yet would make §3
+  # fail for a reason that is not a defect.
+  o <- g
+  o$floodplain$co_ff04$outputs <- list(floodplain_content_sha256 = "sha256:dd")
+  check(any(grepl("no outputs_hash", viol_split(o))),
+        "must-fail: an `outputs` block with no outputs_hash IS reported")
+  o2 <- g; o2$floodplain$co_ff04$outputs_hash <- "sha256:dd"
+  check(any(grepl("outputs_hash with no `outputs`", viol_split(o2))),
+        "must-fail: an outputs_hash with no `outputs` block IS reported (the inverse)")
+  o3 <- o; o3$floodplain$co_ff04$outputs_hash <- "sha256:dd"
+  check(length(viol_split(o3)) == 0, "a well-formed outputs/outputs_hash pair passes")
+  o4 <- o3; o4$floodplain$co_ff04$outputs$datetime_utc <- "2026-09-01T00:00:00Z"
+  check(any(grepl("outputs carries run-event field", viol_split(o4))),
+        "must-fail: a run-event field in `outputs` IS reported")
+  o5 <- o3; o5$floodplain$co_ff04$outputs$flood_factor <- 4
+  check(any(grepl("inputs/outputs key sets overlap", viol_split(o5))),
+        "must-fail: a key in BOTH inputs and outputs IS reported")
+  o6 <- o3; o6$floodplain$co_ff04$outputs$toolchain <- list()
+  check(any(grepl("outputs/run key sets overlap", viol_split(o6))),
+        "must-fail: a key in BOTH outputs and run IS reported")
+
+  # The body-level whitelist. `inputs` has had an undeclared-key rule since #33; its SIBLINGS never
+  # did, which is the gap that let `link_log` carry two RUN_FIELDS unnoticed.
+  check(length(viol_body(g)) == 0, "clean fixture declares every BODY key")
+  bb <- g; bb$landcover$co_ff04$notes <- "a field nobody declared"
+  check(any(grepl("UNDECLARED body key", viol_body(bb))),
+        "must-fail: an undeclared SIBLING of `inputs` IS reported")
+  check(length(viol_body(o3)) == 0, "outputs/outputs_hash are declared body keys")
+
+  # sha_source is a closed vocabulary, and the check has an EXTERNAL reference: the live
+  # fp_pkg_stamp() must itself report a value the constant admits, so the producer and the
+  # vocabulary cannot drift apart silently.
+  check(fp_pkg_stamp("terra")$sha_source %in% SHA_SOURCES,
+        sprintf("fp_pkg_stamp() reports a declared sha_source (got: %s)",
+                fp_pkg_stamp("terra")$sha_source))
+  sg <- g; sg$floodplain$co_ff04$inputs$flooded <- list(version = "0.5.0", sha = NA,
+                                                        sha_source = "unresolved_version_mismatch")
+  check(length(viol_sha_source(sg)) == 0, "a closed-vocabulary sha_source passes")
+  sb <- g
+  # The EXACT string measured in data/neexdzii before the fix -- a $HOME path and a sibling
+  # checkout version, inside the half that is hashed.
+  sb$floodplain$co_ff04$inputs$flooded <- list(version = "0.5.0", sha = NA, sha_source =
+    "unresolved (checkout at /Users/someone/Projects/repo/flooded is 0.6.0, installed is 0.5.0)")
+  check(any(grepl("free text", viol_sha_source(sb))),
+        "restored defect: the OLD free-text sha_source IS reported (why the vocabulary closed)")
 }
 
 # --- 3. Declared keys -------------------------------------------------------------------------------
@@ -566,6 +714,26 @@ if (requireNamespace("terra", quietly = TRUE) && requireNamespace("digest", quie
   check(identical(sv_before, sv_after),
         "the digest is pinned to serializeVersion 2 -- a session option cannot move it")
 
+  # --- The SpatRaster form (#65) --------------------------------------------------------------
+  # flooded::fl_dem_aoi() returns the cropped DEM in memory and never writes it, so a path-only
+  # digest would mean writing 6.5M cells out just to read them back -- putting an encoder back in
+  # the path #64 removed. The premise is asserted INLINE: forcing the values into memory is what
+  # makes this a different code path from reading the file, and if a future terra stops honouring
+  # that, the premise fails and names the real cause rather than this passing for nothing.
+  robj <- terra::rast(a); terra::values(robj) <- terra::values(robj)
+  check(terra::inMemory(robj)[1] && !terra::inMemory(terra::rast(a))[1],
+        "premise: one fixture is in memory and the other is file-backed (two real code paths)")
+  check(identical(fp_raster_content_sha256(a), fp_raster_content_sha256(robj)),
+        "the SpatRaster form AGREES with the path form (the #65 property)")
+  check(!identical(fp_raster_content_sha256(robj), fp_raster_content_sha256(terra::rast(cc))),
+        "must-fail: the object form still MOVES on a changed cell (it is not a constant)")
+
+  # ONE absence contract across both forms. viol_coverage reads a path-form NA as "the writer
+  # produced nothing", so the object form must not invent a second meaning for NA.
+  check(is.na(fp_raster_content_sha256(NULL)), "NULL digests to NA (the object form's absence)")
+  check(is.na(fp_raster_content_sha256(file.path(d, "nope.tif"))), "an absent path digests to NA")
+  check(is.na(fp_raster_content_sha256(NA_character_)), "an NA path digests to NA, it does not error")
+
   unlink(d, recursive = TRUE)
   check(!dir.exists(d), "the fixture directory is cleaned up (on.exit would not have fired here)")
 } else {
@@ -610,10 +778,105 @@ check(!identical(digest::digest(c(1L, 2L, 3L), algo = "sha256", serializeVersion
 check(identical(fp_norm_block(c(1L, 2L, 3L)), fp_norm_block(c(1, 2, 3))),
       "an all-present integer block normalizes to the same thing as its double twin")
 
+# The FLOAT axis (#65). Everything above comes from an Int8 file, where the integer/double split is
+# supplied by GDAL's PAM sidecar. The DEM digest reads Float32 with NaN nodata, which returns double
+# either way -- so none of the premises above say anything about it, and a reader would assume they
+# do. The operative line for a float raster is the SECOND one, and only the second.
+check(identical(fp_norm_block(c(1, NaN, 3)), fp_norm_block(c(1, NA_real_, 3))),
+      "float: NaN and NA_real_ collapse (the Float32 nodata case the DEM actually hits)")
+check(!identical(only_storage(c(1, NaN, 3)), only_storage(c(1, NA_real_, 3))),
+      "must-fail: without the collapse, a float NaN and NA_real_ still digest apart")
+# THE ONE THAT WENT RED. `identical(-0, 0)` is TRUE, so the natural assumption is that a signed zero
+# cannot reach the digest -- and it does, because digest() hashes serialized BYTES and the two zeros
+# do not share them. Written as a premise, measured as a defect, fixed with a third line in
+# fp_norm_block. Unreachable for the Int8 landcover; live for the float rasters #65 adds.
+check(identical(-0, 0), "premise: R treats -0 and 0 as identical() VALUES (which is why this looked safe)")
+check(!identical(digest::digest(only_storage(c(-0, 1)), algo = "sha256", serializeVersion = 2L),
+                 digest::digest(only_storage(c(0, 1)), algo = "sha256", serializeVersion = 2L)),
+      "must-fail: un-normalized, a signed zero DOES move the digest (why the third line exists)")
+check(identical(digest::digest(fp_norm_block(c(-0, 1)), algo = "sha256", serializeVersion = 2L),
+                digest::digest(fp_norm_block(c(0, 1)), algo = "sha256", serializeVersion = 2L)),
+      "float: normalized, a signed zero does NOT move the digest")
+# ... and the collapse must not have eaten the ability to see a real zero-vs-something change.
+check(!identical(fp_norm_block(c(0, 1)), fp_norm_block(c(1e-12, 1))),
+      "must-fail: the zero collapse does NOT swallow a near-zero value")
+
 # The serialization pin is asserted in §5c, against the real function. Hand-pinning two digest()
 # calls here and comparing them would only prove that two identical vectors digest identically --
 # which §5d has already proved twice -- while `fp_raster_content_sha256()` itself went unexercised.
 # Measured: that version of this check stayed GREEN with the pin stripped from the function.
+
+# --- 5e. The table content digest (the network segment set) --------------------------------------
+# fp_table_content_sha256 is the non-geometric sibling of the raster digest (#65). Everything here
+# runs with no database, no GDAL and no raster -- it is a property of a data frame and a format.
+cat("\n5e. Table content digest\n")
+{
+  K <- c("blue_line_key", "downstream_route_measure")
+  V <- c("length_metre", "stream_order", "upstream_area_ha", "map_upstream")
+  df <- data.frame(blue_line_key = c(3L, 1L, 2L),
+                   downstream_route_measure = c(10.5, 0, 7.25),
+                   length_metre = c(100.1, 200.2, 300.3),
+                   stream_order = c(3L, 4L, 5L),
+                   upstream_area_ha = c(1.5, 2.5, NA),   # NA on purpose: the render must be explicit
+                   map_upstream = c(500, 600, 700))
+  h <- fp_table_content_sha256(df, K, V)
+
+  # The digest is a function of the SET, not of the order a query happened to return rows in.
+  check(identical(h, fp_table_content_sha256(df[c(3, 1, 2), ], K, V)),
+        "row order does NOT move the digest (it is a set, not a sequence)")
+
+  # ... and it must still be able to fail, in every direction that is a real change.
+  check(!identical(h, fp_table_content_sha256(
+          transform(df, length_metre = length_metre + 1e-5), K, V)),
+        "must-fail: a 1e-5 m length change MOVES the digest")
+  check(!identical(h, fp_table_content_sha256(df[1:2, ], K, V)),
+        "must-fail: a DROPPED segment MOVES the digest")
+  check(!identical(h, fp_table_content_sha256(rbind(df, df[1, ]), K, V)),
+        "must-fail: an ADDED segment MOVES the digest")
+  check(!identical(h, fp_table_content_sha256(
+          transform(df, upstream_area_ha = upstream_area_ha * 2), K, V)),
+        "must-fail: a changed upstream_area_ha MOVES it (it feeds the VCA, so it is not decoration)")
+  check(!identical(h, fp_table_content_sha256(df, K, V[1:2])),
+        "must-fail: a different COLUMN SET digests differently (the header carries it)")
+
+  # An empty table is a real answer -- a species modelled nowhere in the group -- and must be
+  # distinguishable from a one-row table, not collapse to the digest of an empty string.
+  check(!identical(fp_table_content_sha256(df[0, ], K, V),
+                   fp_table_content_sha256(df[1, ], K, V)),
+        "an EMPTY table digests distinguishably from a one-row table")
+
+  # `options(scipen)` decides whether a large number renders in scientific notation, so a digest
+  # built with paste()/as.character() would depend on a .Rprofile -- the same class as the
+  # serializeVersion trap in 5c. Exercised in BOTH directions: the naive render really does move,
+  # and the shipped one does not.
+  # NOT on.exit(): this is the top level of a script, so the handler would be registered against
+  # the global environment and never called -- the same trap 5c documents. Restored explicitly
+  # below. -9 rather than -10 because R clamps the range and warns.
+  old <- getOption("scipen")
+  big <- data.frame(blue_line_key = 1.23e15, downstream_route_measure = 0,
+                    length_metre = 1, stream_order = 1L, upstream_area_ha = 1, map_upstream = 1)
+  options(scipen = -9); naive_a <- as.character(big$blue_line_key); hb <- fp_table_content_sha256(big, K, V)
+  options(scipen = 100);  naive_b <- as.character(big$blue_line_key); hc <- fp_table_content_sha256(big, K, V)
+  options(scipen = old)
+  check(!identical(naive_a, naive_b),
+        sprintf("premise: as.character() IS scipen-dependent (%s vs %s)", naive_a, naive_b))
+  check(identical(hb, hc), "the digest is scipen-immune (sprintf, never as.character)")
+
+  # The ordering is radix, i.e. C-locale, so two machines with different LC_COLLATE cannot sort the
+  # same rows differently. Currently DEFENSIVE rather than reachable -- every key column renders to
+  # digits under "%.6f", and digits collate identically in every locale. The premise below pins why
+  # the argument is there, so nobody deletes it as noise.
+  check(!identical(order(c("a", "B", "b"), method = "radix"),
+                   order(c("a", "B", "b"), method = "auto")) ||
+          identical(Sys.getenv("LC_COLLATE"), "C"),
+        "premise: radix and locale ordering CAN disagree (why method = 'radix' is pinned)")
+
+  # An NA renders as the literal "NA", never as an empty string -- otherwise a missing
+  # upstream_area_ha and a zero-length one would be indistinguishable.
+  na1 <- fp_table_content_sha256(transform(df, upstream_area_ha = c(1.5, 2.5, NA)), K, V)
+  na2 <- fp_table_content_sha256(transform(df, upstream_area_ha = c(1.5, 2.5, 0)), K, V)
+  check(!identical(na1, na2), "an NA value is distinguishable from a zero")
+}
 
 # --- 6. Producer/guard key drift -----------------------------------------------------------------
 # The guard's declared key sets are only worth their maintenance if they match what the STEPS
@@ -753,7 +1016,7 @@ if (length(args) >= 1 && nzchar(args[1])) {
     # indistinguishable, so zero gets its own branch.
     if (n == 0) bad("provenance.json has ZERO sections — nothing was checked") else
       ok(sprintf("%d section(s) to check", n))
-    for (f in list(viol_split, viol_keys, viol_coverage)) {
+    for (f in list(viol_split, viol_keys, viol_body, viol_sha_source, viol_coverage)) {
       v <- f(prov); if (length(v)) for (m in v) bad(m)
     }
     v <- viol_creds(txt); if (!is.null(v)) bad(v)

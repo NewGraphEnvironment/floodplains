@@ -13,9 +13,10 @@
 # SHAPE -- one file, three sections, each written by the step that knows the facts:
 #
 #   { "area", "wsg", "schema_version",
-#     "network":    { "<sp><order>": { inputs, link_log, run } },
-#     "floodplain": { "<scenario>":  { inputs, run } },
-#     "landcover":  { "<scenario>":  { inputs, run } } }
+#     "network":    { "<sp><order>": { inputs, inputs_hash, outputs, outputs_hash,
+#                                      link_log, link_log_note, run } },
+#     "floodplain": { "<scenario>":  { inputs, inputs_hash, outputs, outputs_hash, run } },
+#     "landcover":  { "<scenario>":  { inputs, inputs_hash, outputs, outputs_hash, run } } }
 #
 # Steps run INDEPENDENTLY (`run_area.R morr 3` is normal) and key differently -- step 1 by
 # species+order, steps 2/3 by scenario. So each step read-modify-writes only its own section; a
@@ -27,10 +28,28 @@
 # what makes the acceptance criterion ("re-running with an unchanged config reproduces the same
 # values") checkable at all -- a whole-file comparison could never pass with a timestamp in it.
 # provenance-check.R enforces the split, so it is a control and not a convention.
+#
+# `outputs` is the THIRD half, added by #65, and it is not a filing convenience either. Before it,
+# two of the three sections hashed a DESCRIPTION OF THE JOB and called it evidence about the
+# result: the network's hashed set contained nothing derived from the network's content, and the
+# floodplain's was entirely VCA parameters plus the DEM's grid -- so NRCan re-deriving MRDEM at the
+# same resolution moved not one character. Two questions need two hashes:
+#
+#   did the INGREDIENTS change?  -> a digest of the input DATA, inside `inputs`  -> inputs_hash
+#   did the ANSWER change?       -> a digest of what we PRODUCED, in `outputs`   -> outputs_hash
+#
+# You want both, because "same answer from different data" is worth knowing (the change fell
+# outside our AOI, or we got lucky) and "different answer" is worth knowing louder. One hash cannot
+# tell you which happened, which is why `outputs` is never folded into `inputs_hash`.
 
 `%||%` <- function(a, b) if (is.null(a)) b else a
 
-FP_PROV_SCHEMA_VERSION <- 1L
+# 2 (#65): every section may now carry an `outputs` sibling with its own `outputs_hash`, and
+# `sha_source` became a closed vocabulary. Bumping this is only half of a schema change -- see
+# provenance-check.R, which asserts the version and the field set TOGETHER. `fp_prov_read` stamps
+# the current version on every read, so a bump plus a partial re-run would otherwise label v1
+# sections v2 and `stac_floodplains_bc` is downstream of that label.
+FP_PROV_SCHEMA_VERSION <- 2L
 
 fp_prov_path <- function(cfg) file.path(cfg$dir_out, "provenance.json")
 
@@ -142,6 +161,15 @@ fp_prov_sort <- function(x) {
 fp_prov_set <- function(cfg, section, key, value) {
   stopifnot(section %in% c("network", "floodplain", "landcover"),
             is.character(key), length(key) == 1L, nzchar(key))
+  # The write below is a WHOLE-ENTRY replace, so a caller passing only `outputs` -- the natural
+  # shape once #72 adds a vector digest from a second producer -- would blank `inputs` and set
+  # `inputs_hash` to NA via fp_prov_hash(NULL). Refuse it here rather than discover it in a
+  # published record.
+  if (is.null(value$inputs)) {
+    stop("provenance: ", section, "[", key, "] was written with no `inputs` block. fp_prov_set ",
+         "REPLACES the whole entry, so an outputs-only write would blank the inputs half.",
+         call. = FALSE)
+  }
   path <- fp_prov_path(cfg)
   before <- if (file.exists(path)) file.mtime(path) else NA
   prov <- fp_prov_read(cfg)
@@ -152,6 +180,17 @@ fp_prov_set <- function(cfg, section, key, value) {
   # the value stac#17 should publish. Computed here, once, so the three producers cannot disagree
   # about how it is derived.
   value$inputs_hash <- fp_prov_hash(value$inputs)
+  # `outputs` (#65) is the SECOND question, and it needs its own scalar because one hash cannot
+  # answer both. "Same ingredients?" is `inputs_hash`; "same answer?" is `outputs_hash`. Folding a
+  # digest of what we produced into `inputs_hash` would muddle the single clean question that hash
+  # exists to answer -- and "same answer from different data" is worth knowing (the change fell
+  # outside our AOI) separately from "different answer", which is worth knowing louder.
+  #
+  # Assigned ONLY when `outputs` is present, deliberately. fp_prov_hash(NULL) returns NA_character_,
+  # so an unconditional assignment would stamp every entry with a null `outputs_hash` -- and a guard
+  # asserting "this section has no outputs_hash" could then never fire. An absent key has to stay
+  # absent for absence to mean anything.
+  if (!is.null(value$outputs)) value$outputs_hash <- fp_prov_hash(value$outputs)
   prov[[section]][[key]] <- value
 
   # Lost-update detection. Two `FP_SPECIES=... run_area.R <area>` processes against one data dir
@@ -230,6 +269,14 @@ fp_prov_hash <- function(x) {
 # `provenance-check.R` §5c did.
 fp_norm_block <- function(v) {
   v <- as.double(v)             # integer and double serialize differently
+  # THIRD line, added by #65 and MEASURED rather than reasoned about. `identical(-0, 0)` is TRUE in
+  # R, so the obvious assumption is that a signed zero cannot matter -- and the assertion written to
+  # state that premise went RED: digest() hashes serialized BYTES, and the two zeros do not share
+  # them. That is a live axis for the float rasters #65 adds (a warped DEM interpolating to exactly
+  # sea level, a 0/1 valley mask) and unreachable for the Int8 landcover, which is why it went
+  # unnoticed until a float raster entered the record. `which()` rather than a logical index because
+  # `v == 0` is NA where v is NA, and R refuses an NA subscript in an assignment.
+  v[which(v == 0)] <- 0
   v[is.na(v)] <- NA_real_       # is.na() is TRUE for NaN too, so this collapses NaN and NA_real_
   v
 }
@@ -243,9 +290,29 @@ fp_norm_block <- function(v) {
 # an earlier version of this comment said "three" for the second line alone, which is the
 # both-deleted figure. The file's persuasiveness rests on its numbers being checkable.)
 
-fp_raster_content_sha256 <- function(path, block_rows = 512L) {
-  if (!file.exists(path) || file.size(path) == 0) return(NA_character_)
-  r <- terra::rast(path)
+# `x` is a PATH or a SpatRaster (#65). The object form exists because flooded::fl_dem_aoi() returns
+# the cropped DEM in memory and never writes it, so a path-only digest would mean writing 6.5M cells
+# out just to read them back -- putting an encoder back in the path #64 removed. Measured: path,
+# file-backed object and forced-in-memory object all produce the SAME digest, and the path form is
+# byte-identical to the pre-#65 implementation, so every landcover digest already recorded stays
+# valid.
+fp_raster_content_sha256 <- function(x, block_rows = 512L) {
+  # ABSENCE FIRST, and it is ONE contract for both forms: NA means "there was no raster to digest".
+  # viol_coverage already reads a path-form NA that way ("the writer produced nothing"), so the
+  # object form must not invent a second meaning. NULL is the object form's absence -- what a
+  # producer holds when the step it came from was skipped. A SpatRaster itself cannot be empty;
+  # terra refuses to construct one ("[rast] ncols < 1"), measured, so there is no 0-cell case to
+  # guard and pretending otherwise would be an unreachable branch dressed as care.
+  if (is.null(x)) return(NA_character_)
+  # TYPE DISPATCH BEFORE THE FILE GUARD. file.exists() on an S4 SpatRaster is not a graceful FALSE,
+  # so the absent-file test cannot stay at the top once this accepts an object.
+  if (inherits(x, "SpatRaster")) {
+    r <- x
+  } else {
+    if (!is.character(x) || length(x) != 1L || is.na(x)) return(NA_character_)
+    if (!file.exists(x) || file.size(x) == 0) return(NA_character_)
+    r <- terra::rast(x)
+  }
   # Geometry is part of the content: the same values on a different grid are not the same
   # landcover. Fixed precision so a float's printed representation cannot move the hash.
   # An absent authority code must not hash as the literal string "NA": two genuinely different
@@ -285,6 +352,60 @@ fp_raster_content_sha256 <- function(path, block_rows = 512L) {
     i <- i + n
   }
   paste0("sha256:", digest::digest(paste0(hdr, "|", paste(parts, collapse = "")),
+                                   algo = "sha256", serialize = FALSE))
+}
+
+# --- Table content digest (the network's segment set) --------------------------------------------
+# The non-geometric sibling of fp_raster_content_sha256 (#65). The network is a vector layer, and
+# hashing vector GEOMETRY is deferred to #72 for good reasons -- a GeoPackage layer has no
+# guaranteed row order and carries floating-point coordinates, so a naive digest churns for reasons
+# that are not real changes. None of that applies to a digest over ATTRIBUTES with an explicit
+# ordering and an explicit number format, which is what this is.
+#
+# THE KEY IS NOT `id_segment`, and that is a deliberate departure from #65's own wording. CLAUDE.md
+# flags id_segment by name as a value "numbered per group during generation": if link renumbers on
+# a rebuild, this digest churns on every BUILD and the byte-stability the field exists to provide is
+# gone. `(blue_line_key, downstream_route_measure)` is FWA-native, generation-independent, and is
+# already the key `cfg$subset` uses to name a reach. Measured on neexdzii: 1915 rows, 1915 distinct
+# composites, no NAs.
+#
+# The VALUE columns are the ones step 2 actually consumes -- `fl_valley_confine()` reads
+# `upstream_area_ha` for the bankfull regression and `map_upstream` for precipitation. A network
+# with the same accessible segment set but different upstream areas produces a DIFFERENT floodplain,
+# and must not hash the same.
+#
+# FIXED-FORMAT TEXT, never R serialization and never paste()/as.character(). Two session options
+# would otherwise reach the digest, which is the same class as the serializeVersion pin above:
+#   `options(scipen)` decides whether a large number renders as scientific notation, and
+#   RPostgres` `bigint=` decides whether an int8 column arrives as integer, double or integer64 --
+#   three different as.character() paths for one value.
+# One rule for every numeric, "%.6f", so there is no integer-vs-double branch to get wrong.
+#
+# ORDERING IS RADIX, i.e. C-locale. The default order() on character collates in the session
+# locale, so two machines with different LC_COLLATE would sort the same rows differently and digest
+# apart with identical data -- machine dependence, in a function that exists to remove it.
+fp_table_content_sha256 <- function(df, key_cols, value_cols) {
+  cols <- c(key_cols, value_cols)
+  miss <- setdiff(cols, names(df))
+  if (length(miss)) {
+    stop("fp_table_content_sha256: column(s) not in the table: ", paste(miss, collapse = ", "),
+         call. = FALSE)
+  }
+  fmt <- function(v) {
+    out <- if (is.character(v) || is.factor(v)) as.character(v) else sprintf("%.6f", as.numeric(v))
+    out[is.na(v)] <- "NA"     # explicit, so an NA cannot render as the empty string
+    out
+  }
+  # df[[col]] rather than df[cols]: an sf object's geometry column is STICKY under [ , so
+  # subsetting an sf by column names hands back geometry nobody asked for.
+  key <- do.call(paste, c(lapply(key_cols,   function(k) fmt(df[[k]])), sep = "\x1f"))
+  val <- do.call(paste, c(lapply(value_cols, function(k) fmt(df[[k]])), sep = "\x1f"))
+  line <- paste(key, val, sep = "\x1f")[order(key, method = "radix", na.last = TRUE)]
+  # The header carries the row count and the column set, so an EMPTY table digests to something
+  # distinguishable rather than to the digest of an empty string, and so a digest taken over a
+  # different column set can never collide with this one.
+  hdr <- paste0("n=", nrow(df), "|cols=", paste(cols, collapse = ","))
+  paste0("sha256:", digest::digest(paste0(hdr, "\n", paste(line, collapse = "\n")),
                                    algo = "sha256", serialize = FALSE))
 }
 
@@ -415,9 +536,19 @@ fp_pkg_stamp <- function(pkg) {
         return(list(version = ver, sha = st$sha, sha_source = st$source, dirty = st$dirty))
       }
     } else if (!is.na(repo_ver)) {
+      # A CLOSED VOCABULARY, and the reason is #65 rather than tidiness. This used to interpolate
+      # the checkout PATH and the checkout's VERSION into the string -- both machine-local, both
+      # inside the half that is hashed. Measured live: every floodplain and landcover entry in
+      # data/neexdzii carried "unresolved (checkout at /Users/<user>/Projects/repo/flooded is
+      # 0.6.0, installed is 0.5.0)", and #63 measured m1 and m4 disagreeing on that string alone
+      # while every substantive field matched. It makes the cross-machine criterion UNREADABLE: a
+      # genuine content difference and a sibling checkout being one release ahead produce the same
+      # observation. The diagnostic is still worth having -- it goes to the console, where naming a
+      # path costs nothing.
+      message("  provenance: ", pkg, " checkout at ", repo, " is ", repo_ver, ", installed is ",
+              ver, " -- SHA unresolved (versions disagree)")
       return(list(version = ver, sha = NA, dirty = NA,
-                  sha_source = paste0("unresolved (checkout at ", repo, " is ", repo_ver,
-                                      ", installed is ", ver, ")")))
+                  sha_source = "unresolved_version_mismatch"))
     }
   }
   list(version = ver, sha = NA, sha_source = "unresolved", dirty = NA)
