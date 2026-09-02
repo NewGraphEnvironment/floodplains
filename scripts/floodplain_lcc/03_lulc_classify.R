@@ -213,6 +213,20 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
     # No attribute_by => no attribution layer => no bridge, and step 3 output is unchanged.
     attr_lyr <- if (!is.null(cfg$attribute_by))
       paste0(scenario_id, "_by_", cfg$attribute_by) else NA_character_
+    # b_lyr and the flag live OUTSIDE the gate below. Three different things mean "no bridge this
+    # run" -- attribute_by unset, the attribution layer missing, or every pair filtered out as a
+    # sliver -- and only the last is reachable from inside the gate. Since #23 made these writes
+    # per-layer, any of the three leaves an earlier run's bridge sitting beside a freshly written
+    # transition layer, describing a relation this run did not find (#55's orphan class). The
+    # cleanup therefore sits where all three reach it.
+    #
+    # There is a FOURTH path this does not close, and it is deliberately out of scope here: the
+    # whole block is inside `if (nrow(trans_all$summary) > 0)`, so a run yielding no change patches
+    # writes neither a transition layer nor a bridge and leaves BOTH stale -- while still stamping
+    # fresh landcover provenance over them. That is a wider mismatch than the bridge and is tracked
+    # separately (#68); do not read this comment as claiming it is handled.
+    b_lyr <- sub("^transition_", "patch_watercourse_", lyr)
+    wrote_bridge <- FALSE
     if (!is.na(attr_lyr) && file.exists(fp_file) && attr_lyr %in% sf::st_layers(fp_file)$name) {
       key <- cfg$attribute_by
       wc  <- sf::st_read(fp_file, layer = attr_lyr, quiet = TRUE)[, key]
@@ -250,17 +264,6 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
       keep  <- round(ov_ha, 4) > 0
       inter <- inter[keep, , drop = FALSE]
       ov_ha <- ov_ha[keep]
-      b_lyr <- sub("^transition_", "patch_watercourse_", lyr)
-      if (nrow(inter) == 0 && file.exists(out_lc_gpkg) &&
-          b_lyr %in% sf::st_layers(out_lc_gpkg)$name) {
-        # Nothing survived the filter, so nothing will be written -- and #23 made these writes
-        # per-layer, which means an earlier run's bridge would otherwise sit beside a freshly
-        # written transition layer, describing a relation this run did not find. That is #55's
-        # orphan class arriving through a skip rather than a rename. Drop it explicitly; the same
-        # shape 01 uses when a species' run yields no waterbodies.
-        sf::st_delete(out_lc_gpkg, layer = b_lyr, quiet = TRUE)
-        message("  Removed stale ", b_lyr, " -- no watercourse overlap this run")
-      }
       if (nrow(inter) > 0) {
         bridge <- data.frame(
           patch_id     = inter$patch_id,
@@ -297,6 +300,29 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
                 length(unique(bridge[[key]])), " watercourses; union coverage ",
                 sprintf("%.3f", mean(u)),
                 ", unbridged patches ", sum(!pat$patch_key %in% pk), ")")
+        wrote_bridge <- TRUE
+      }
+    }
+    if (!wrote_bridge && file.exists(out_lc_gpkg) && b_lyr %in% sf::st_layers(out_lc_gpkg)$name) {
+      # MEASURE THE OUTPUT, not the return value. st_delete is
+      # invisible(CPL_delete_ogr(...) == 0), and that return is the library reporting what it
+      # believes it did. Measured on sf 1.1.2 with the containing directory read-only: GDAL prints
+      # "Deleting layer failed" plus four errors, the layer is STILL THERE, and st_delete returns
+      # TRUE. So `isTRUE(st_delete(...))` announces a removal that did not happen -- the same
+      # affirmative-claim-never-checked class this branch exists to avoid. The only arm that return
+      # does catch is "dsn cannot be opened", which the file.exists() and st_layers() calls one line
+      # above have already ruled out. Re-reading the layer list is the file telling us what happened.
+      sf::st_delete(out_lc_gpkg, layer = b_lyr, quiet = TRUE)
+      if (!b_lyr %in% sf::st_layers(out_lc_gpkg)$name) {
+        message("  Removed stale ", b_lyr, " -- no bridge written this run")
+      } else {
+        # immediate. = TRUE, because a deferred warning is invisible in exactly the run that needs
+        # it: under Rscript's default warn = 0 it prints after "Done. Scenario:", and past ten
+        # pending warnings R collapses the lot to "There were N warnings". The failing delete emits
+        # four GDAL warnings of its own, so the failure case is the one most likely to be collapsed.
+        warning("could not remove stale layer ", b_lyr, " from ", basename(out_lc_gpkg),
+                " -- it describes a relation this run did not find",
+                call. = FALSE, immediate. = TRUE)
       }
     }
   }

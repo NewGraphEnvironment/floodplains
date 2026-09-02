@@ -256,3 +256,84 @@ Installed link 0.50.0 from the clean checkout at 2b5a435, then `run_area.R neexd
 | `caffeinate` wrapper exit 0 over `Execution halted` | Gate on the in-band error count; the wrapper reports its own status, not the job's |
 | `-nt` mtime gate satisfied by a run that died in step 3 | Step 2 writes provenance before step 3 runs. Necessary, not sufficient — pair it with the inventory assertion |
 | `ERROR: column " @ " does not exist` from an `Rscript -e` over ssh | Three shells of quoting. Write the R to a file and `scp` it — the rule already in CLAUDE.md |
+
+## Phase 4 — the cross-machine leg, and what it caught
+
+m4 ran the identical commit (d320330) against **m1's database over tailscale**, so the machine is
+the only variable. 0 in-band errors, output rewritten, 6m55s wall clock.
+
+**The science is identical on both machines**, to every digit measured:
+
+| | m1 | m4 |
+|---|---|---|
+| network | 673.48 km | 673.48 km |
+| floodplain `co_ff04` | 142.823 km² | 142.823 km² |
+| floodplain tree loss | 770.02 ha | 770.02 ha |
+| change patches | 2032 | 2032 |
+
+And yet **three of the five `inputs_hash` values differ.** Two classes, and only one is a defect.
+
+### (b) Predicted artifact — a stamp that names a checkout, not the code that ran
+
+`floodplain[*]` differs in exactly one field, `inputs.flooded`, and the two machines are running
+**byte-identical flooded 0.5.0**:
+
+```
+m1: sha_source "unresolved (checkout at /Users/airvine/Projects/repo/flooded is 0.6.0, installed is 0.5.0)"
+m4: sha_source "unresolved (checkout at /Users/airvine/Projects/repo/flooded is 0.3.1, installed is 0.5.0)"
+```
+
+Every substantive field — `dem_ncell`, `dem_res_m`, `dem_crs_epsg`, the thresholds, `crs_epsg`,
+`subbasin_source` — is identical. So `inputs_hash` moved because of a **sibling repo's checkout
+state**, which is not an input to anything. `network[co3]`'s hash, by contrast, is **identical
+across the two machines** — the strongest single result in this issue, and only possible because
+both machines' link checkouts sit at the same commit.
+
+### (c) Real defect — `classified_sha256` is a container hash, not a content hash
+
+`landcover[co_ff04]` differs in `classified_sha256`, and this one is not about checkouts.
+
+```
+2017  geometry_identical=TRUE  cells=28291615  differing=0  bytes m1=969220 m4=979248  delta=+10028
+2020  geometry_identical=TRUE  cells=28291615  differing=0  bytes m1=981296 m4=991324  delta=+10028
+2023  geometry_identical=TRUE  cells=28291615  differing=0  bytes m1=974362 m4=984390  delta=+10028
+```
+
+**28.3 million cells per year, zero differing**, identical dimensions, extent, CRS, resolution,
+compression (LZW), block size and 256-entry palette — and a different digest. The byte delta is
+*exactly* +10028 on all three years, which is the signature of a fixed metadata block rather than
+compression noise.
+
+Root cause, read out of the TIFF directory: **tag 42112 (`GDAL_METADATA`)** is 382 bytes on m1 and
+5396 on m4. The tag sets are otherwise identical. m4's terra (1.9.11) carries the NetCDF-side
+attributes of the gdalcubes intermediate — `crs#GeoTransform`, `crs#spatial_ref`,
+`data#add_offset`, `data#grid_mapping`, `data#scale_factor` — into the GeoTIFF header; m1's terra
+(1.9.34) drops them. Same GDAL 3.8.5 on both.
+
+**Why this matters more than it looks.** #33 chose the raster digest over the STAC item ids for a
+good reason — ids restate the request, the digest measures the output — and CLAUDE.md records the
+supporting claim as *"terra GeoTIFF writes are byte-deterministic; one changed cell moves the
+hash"*. The first half holds **within one toolchain** and fails across two. The consequence is that
+`nge:landcover_key`, published as a STAC property, is machine-specific: a consumer diffing two
+builds sees churn with no content change, which is precisely the false-positive #45 removed from
+the GeoPackage. CLAUDE.md already states the right principle one artifact over — *"byte equality
+answers 'same build?', not 'same content?'; the latter needs a content hash over normalized
+geometry"* — the landcover digest inherited the conflation without the caveat.
+
+**And it would be undiagnosable from the file.** `terra` and `sf` are not in the provenance stamps
+at all — only link, flooded, drift and fresh — so the one toolchain difference that moved the
+digest is the one thing the record does not carry. m1 runs terra 1.9.34 / sf 1.1.2, m4 terra 1.9.11
+/ sf 1.1.0.
+
+Filed as a follow-up; not fixed here, because the remedy is a design decision (hash cell values +
+geometry rather than file bytes, and/or record the writer toolchain) rather than a verification
+step.
+
+### What the cross-machine leg proves, stated exactly
+
+- The pipeline is **reproducible across machines in its outputs** — every published number agrees.
+- `inputs_hash` is **not** reproducible across machines today, for two distinct reasons, one
+  cosmetic (a sibling checkout's version) and one substantive (a container digest standing in for a
+  content digest).
+- The failure #33 exists to detect — *two machines, same code, different answers* — did not occur
+  in the science. It occurred in the detector.

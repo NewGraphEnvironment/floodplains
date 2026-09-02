@@ -30,6 +30,9 @@ suppressWarnings(suppressMessages({
 a <- commandArgs(trailingOnly = TRUE)
 if (length(a) < 2) stop("usage: provenance_ab-compare.R <a.json> <b.json> [area] [label_a] [label_b]",
                         call. = FALSE)
+# The two JSON arguments are user-supplied CLI paths and stay CWD-relative, which is what a caller
+# typing them expects. Only `area` -- which names a config INSIDE this checkout -- resolves against
+# fp_root. Different roots, deliberately, because they answer different questions.
 for (f in a[1:2]) if (!file.exists(f)) stop("no such file: ", f, call. = FALSE)
 area <- if (length(a) >= 3 && nzchar(a[3])) a[3] else NA_character_
 la   <- if (length(a) >= 4) a[4] else "A"
@@ -41,16 +44,26 @@ lb   <- if (length(a) >= 5) a[5] else "B"
 A <- jsonlite::read_json(a[1], simplifyVector = FALSE)
 B <- jsonlite::read_json(a[2], simplifyVector = FALSE)
 
-# Root every path on THIS SCRIPT's own location, never on the working directory. here::here()
-# answers from the CWD's project root, so an invocation from another tree -- an ssh one-liner, a
-# sibling repo, /tmp -- silently resolves data/<area> under a different root and then reports a
-# MISSING FILE, which reads as "that area has no provenance" rather than "you are in the wrong
-# place". The script's own path is the one thing that cannot move out from under it.
+# Root every path on THIS SCRIPT's own location, never on the working directory. This is a
+# DELIBERATE divergence from the here::here() the rest of the repo uses, and the reason is the
+# worktree-per-session convention: here::here() answers from the CWD's project root, so invoking
+# one checkout's guard from inside another silently verifies the OTHER tree's provenance.json and
+# passes, while the run you meant to check is never looked at. The script's own path is the one
+# thing that cannot move out from under it. Measured: from /tmp, here::here() resolved to /tmp and
+# the guard reported a missing file -- which reads as "that area has no provenance", not as "you
+# are in the wrong place". The resolved root is printed below so a wrong-tree invocation is
+# visible rather than silent.
 fp_root <- local({
   f <- grep("^--file=", commandArgs(FALSE), value = TRUE)
   if (length(f)) normalizePath(file.path(dirname(sub("^--file=", "", f[1])), "..", ".."),
                                mustWork = FALSE) else here::here()
 })
+
+# Print the resolved root. This is the mitigation the script-relative rooting rests on, and it
+# matters more here than in provenance-check.R: under worktree-per-session the OTHER checkout also
+# has config/<area>/, so a wrong-tree invocation never reaches the "no config" branch -- it quietly
+# derives the expected entry set from the other tree's area.yml and reports against the wrong set.
+if (!is.na(area)) cat("repo root resolved from this script: ", fp_root, "\n", sep = "")
 
 FAILS <- 0L
 ok  <- function(m) cat("  ok    ", m, "\n")
@@ -147,7 +160,13 @@ for (k in keys) {
 cat("\n")
 check(TRUE, sprintf("compared %d entr(ies) across %s and %s", length(keys), la, lb))
 
-cat("\n", if (FAILS == 0L)
-  "PASS — every config-derived entry present in both, inputs_hash identical, run.datetime_utc moved.\n"
-  else sprintf("FAIL — %d problem(s).\n", FAILS), sep = "")
+# Say what was actually checked. Without `area` no inventory ran, and claiming "every
+# config-derived entry present" would be an affirmative statement about a check that did not
+# happen -- the same class as announcing a delete nobody verified.
+cat("\n", if (FAILS != 0L) sprintf("FAIL — %d problem(s).\n", FAILS)
+    else if (!is.na(area))
+      "PASS — every config-derived entry present in both, inputs_hash identical, run.datetime_utc moved.\n"
+    else
+      "PASS — inputs_hash identical and run.datetime_utc moved for the shared entries. NO INVENTORY CHECKED (no area given): an entry missing from BOTH files is invisible here.\n",
+    sep = "")
 quit(status = if (FAILS == 0L) 0L else 1L)

@@ -29,11 +29,15 @@ suppressWarnings(suppressMessages({
 source(file.path(dirname(sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE)[1])),
                  "fp_provenance.R"))
 
-# Root every path on THIS SCRIPT's own location, never on the working directory. here::here()
-# answers from the CWD's project root, so an invocation from another tree -- an ssh one-liner, a
-# sibling repo, /tmp -- silently resolves data/<area> under a different root and then reports a
-# MISSING FILE, which reads as "that area has no provenance" rather than "you are in the wrong
-# place". The script's own path is the one thing that cannot move out from under it.
+# Root every path on THIS SCRIPT's own location, never on the working directory. This is a
+# DELIBERATE divergence from the here::here() the rest of the repo uses, and the reason is the
+# worktree-per-session convention: here::here() answers from the CWD's project root, so invoking
+# one checkout's guard from inside another silently verifies the OTHER tree's provenance.json and
+# passes, while the run you meant to check is never looked at. The script's own path is the one
+# thing that cannot move out from under it. Measured: from /tmp, here::here() resolved to /tmp and
+# the guard reported a missing file -- which reads as "that area has no provenance", not as "you
+# are in the wrong place". The resolved root is printed below so a wrong-tree invocation is
+# visible rather than silent.
 fp_root <- local({
   f <- grep("^--file=", commandArgs(FALSE), value = TRUE)
   if (length(f)) normalizePath(file.path(dirname(sub("^--file=", "", f[1])), "..", ".."),
@@ -435,6 +439,7 @@ if (length(args) >= 1 && nzchar(args[1])) {
   area <- args[1]
   path <- file.path(fp_root, "data", area, "provenance.json")
   cat("\n7. Real area: ", path, "\n", sep = "")
+  cat("   (repo root resolved from this script: ", fp_root, ")\n", sep = "")
   if (!file.exists(path)) {
     # Absence is reported as absence, never as a pass. Forward-only (#33) means an area not yet
     # re-run legitimately has none -- but "there was nothing to check" must not read as "clean".

@@ -88,7 +88,17 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   431.82 vs 431.87 ha. Three consumer semantics: **inclusive** (every patch touching a river),
   **apportioned** (weight, additive), **exclusive** (`overlap_frac == 1`). Coverage is checked as a
   **union** (`max(overlap_frac)`, 0.966 on MORR) — summing overlap would report ~2.3× and mean
-  nothing. `bridge-check.R` asserts it. Absent `attribute_by` ⇒ no bridge, step 3 unchanged.
+  nothing. `bridge-check.R` asserts it. Absent `attribute_by` ⇒ no bridge **and any existing
+  `patch_watercourse_*` layer is removed** — it would otherwise describe a relation the current
+  config does not produce (#55's orphan class). That matters because `attribute_by` is
+  region-owned: dropping the line from a region file clears it in every group, and the next step-3
+  run deletes every group's bridge. Not "step 3 unchanged", which is what this said before #63.
+  **The bridge writer had never run on a subset area.** #54's per-tenant-key fix hoisted the patch
+  key into a standalone vector *before* the zero-area filter and reused it after, so a single
+  sliver pair — 9.9e-5 m², which `round(ov_ha, 4)` sends to `0.0000` ha — left the key one element
+  longer than the frame and aborted step 3. It landed one minute after the last neexdzii run, and
+  neexdzii is the only multi-sub-basin area, so nothing exercised it until #63. A key that lives
+  outside the frame it indexes goes stale the instant that frame is filtered.
 - **Legacy layers do not clean themselves up (#55).** #23 made gpkg writes per-layer so a second
   species cannot wipe the first — which means a layer whose *name* goes obsolete is never removed.
   Disturbance attribution used to write `_disturbance` / `_fire` siblings and now writes onto the
@@ -125,10 +135,21 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   obvious: measured live, an io-lulc id is `<tile>-<year>`, the blob path is fixed, and there is
   **no `created` and no `updated` property**, so an in-place re-derivation is byte-identical in
   every id and href. `classified_<yr>.tif` is the landcover as it actually entered the model
-  (terra GeoTIFF writes are byte-deterministic; one changed cell moves the hash), so it measures
-  the output rather than restating the request — and it closes the cache-hit hole for free, where
-  the recorded items describe today's query while the raster came from a cache written weeks ago.
-  The ids stay, labelled an identity. **`nge:landcover_key` should be the raster digest.**
+  (one changed cell moves the hash), so it measures the output rather than restating the request —
+  and it closes the cache-hit hole for free, where the recorded items describe today's query while
+  the raster came from a cache written weeks ago. The ids stay, labelled an identity.
+  **`nge:landcover_key` should be the raster digest — but NOT this one (#64).** The
+  byte-determinism claim this rested on holds **within one toolchain and fails across two**, so the
+  digest is a *container* hash and not a *content* hash. Measured 2026-09-02 across two machines
+  running the identical commit against the same database: 28,291,615 cells per year, **zero
+  differing**, identical extent/CRS/resolution/LZW/block size/palette — and a different digest, by
+  exactly +10,028 bytes in all three years. It is TIFF tag **42112 (`GDAL_METADATA`)**, 382 bytes
+  under terra 1.9.34 and 5,396 under 1.9.11, the older terra carrying the gdalcubes NetCDF
+  attributes (`crs#GeoTransform`, `data#scale_factor`, …) into the header. Same GDAL 3.8.5 both
+  sides. So a published `nge:landcover_key` is machine-specific and churns with no content change —
+  the false positive #45 removed from the GeoPackage, where the rule is already written down: *byte
+  equality answers "same build?", not "same content?"*. **And it is undiagnosable from the record,
+  because `terra` and `sf` are not among the stamped packages** — only link, flooded, drift, fresh.
   Two things that cannot be recorded, and are recorded as absent rather than guessed: the **DEM
   URL** (`fl_dem_aoi()` builds it in its body, and `terra::sources()` on its cropped-and-projected
   return is `""` in memory or a *random per-process temp path* when terra spills — a
@@ -141,6 +162,24 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   than the cache freezing the rollout out. Areas and species must run **sequentially**: the writer
   is a read-modify-write over one file and detects a concurrent change by mtime rather than losing
   it silently.
+  **VERIFIED LIVE 2026-09-02 (#63)** — neexdzii A/B on m1 plus the same pipeline on m4 reading m1's
+  database. `inputs_hash` identical per entry across two passes, `run.datetime_utc` moving, parity
+  unmoved at 673.5 km / 142.8 km² / 770.0 ha, and `provenance_ab-compare.R` in-repo so it is
+  re-derivable. Evidence: `scripts/floodplain_lcc/logs/20260902_provenance_live-verify_neexdzii.md`.
+  Four things the offline half could not have reached:
+  **(a)** `lnk_log_read()` returned **30 columns against an installed link naming 26**, unchanged
+  across a 0.47.3 → 0.50.0 reinstall — the wholesale-read design demonstrated rather than asserted;
+  **(b)** #33 §5 predicted `run_uid` null and it is **populated**, and the issue conflated
+  `link_log$link_sha` (written by link at pipeline time, populated) with `fp_pkg_stamp("link")`
+  (describes the *installed* package, correctly NA while install and checkout disagreed);
+  **(c)** the network `inputs_hash` matched **across two machines** — but see #65, it would have
+  matched even if they had read different networks, because `link_log` is a *sibling* of `inputs`
+  and so `config_hash`/`run_uid`/`link_sha` are excluded from the hash;
+  **(d)** the guard could not gate completeness. Every property was *"every entry PRESENT is
+  well-formed"*, so the file left by a run that aborted in step 3 — **4 of 5 entries** — passed, and
+  the `-nt` mtime gate passed too because step 2 writes before step 3 runs. `provenance-check.R`
+  now derives the expected entry set from the area config and asserts it. **Neither gate is
+  sufficient alone; the in-band error count is the only one that caught the abort.**
 - **Byte-deterministic gpkg writes (#45):** GDAL stamps `gpkg_contents.last_change` with wall-clock
   time, so two writes of identical data differ — a rerun was indistinguishable from a change, and
   `file:checksum` downstream would churn every build (GeoPackage is 72% of the published bucket by
