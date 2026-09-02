@@ -202,3 +202,50 @@ set rather than written out.
 | Guard green with the fix deleted | The fixture varied the container but not the storage type. Assert the property on vectors, not through a raster |
 | `must-fail: an all-NA toolchain` FAILED | Fixture listed 3 of 5 keys, so a different arm fired first. Derive the fixture from `KEYS_TOOLCHAIN` |
 | `provenance-check.R neexdzii` exit 1 after adding geos/proj | The on-disk record predated the new keys. A change to code that writes data is not done until the data is reconciled — re-ran steps 2,3 |
+
+## Review round 2 — three findings, all inside round 1's fixes
+
+### The serializeVersion guard could not fail
+
+Round 1 added a check for the pin. It hardcoded `serializeVersion = 2L` in its **own** two
+`digest()` calls, never touched `fp_raster_content_sha256()`, and compared two vectors §5d had
+already proved identical. Measured: **strip the pin from the function and the guard stays green.**
+Worse, it went red when the *other* normalization was removed — it was a third copy of the §5d
+assertion wearing the pin's name.
+
+Moved into §5c, where a raster fixture exists, and written to call the function across the option.
+Verified both ways: green as shipped, **red with the pin stripped**.
+
+The pin is genuinely load-bearing — measured on the production raster, `options(serializeVersion=3)`
+moves an unpinned digest, because version 3 embeds the native encoding in the header.
+
+### The toolchain guard did not close what its comment claimed
+
+The comment said an edit dropping `toolchain = fp_toolchain()` "would be silent" and that the new
+check closed it. It did not: §6's producer scanner reads only the `inputs` argument of
+`fp_prov_set`, so removing the toolchain from **both** producers left the guard passing offline
+*and* against the real area (whose on-disk record still carried the field from an earlier run).
+
+Fixed by extending `prov_keys()` to take a `part` argument and scan `run` as well, then asserting
+the derived set of raster-writing producers against `SECTIONS_WITH_RASTERS`. Exercised against both
+shapes:
+
+```
+both producers stripped -> FAIL ... (found: NONE)
+one producer stripped   -> FAIL ... (found: landcover)
+```
+
+### `SECTIONS_WITH_RASTERS` was a literal scope with no source of truth
+
+It matched the producers by coincidence — the scope-by-coincidence shape `code-check.md` warns
+about, in the guard for the one field that has no other protection. The `setequal` assertion above
+now pins the literal against the parse, so the two cannot drift apart silently.
+
+### And a limitation named rather than hidden
+
+The WKT fallback for a code-less CRS is a ~1.4 kB, 38-line string PROJ renders, so it *could* make
+the digest PROJ-version-dependent — the machine dependence this function exists to remove. It is
+still strictly better than a silent collision between two different projections, and it is
+unreachable for the rasters this pipeline writes (gdalcubes attaches an authority code; EPSG:32609
+measured on every classified raster). Said so in the code, with the right fix if it ever is reached:
+make it an error, not more text.

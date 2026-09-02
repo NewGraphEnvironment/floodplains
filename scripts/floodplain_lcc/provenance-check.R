@@ -501,6 +501,19 @@ if (requireNamespace("terra", quietly = TRUE) && requireNamespace("digest", quie
                    fp_raster_content_sha256(a, block_rows = 16L)),
         "premise: block_rows really does change the digest (sizes that actually split 40 rows)")
 
+  # The serialization pin, exercised through the FUNCTION. digest() hashes R's serialized bytes and
+  # `serializeVersion` is a base option any .Rprofile can set; version 3 embeds the native encoding
+  # in the header, so an unpinned digest is locale- and R-version-dependent -- machine dependence,
+  # in the one function that exists to remove it. Verified both ways: green as shipped, red with the
+  # pin stripped from fp_raster_content_sha256().
+  sv_before <- fp_raster_content_sha256(a)
+  old_sv <- getOption("serializeVersion")
+  options(serializeVersion = 3L)
+  sv_after <- fp_raster_content_sha256(a)
+  if (is.null(old_sv)) options(serializeVersion = NULL) else options(serializeVersion = old_sv)
+  check(identical(sv_before, sv_after),
+        "the digest is pinned to serializeVersion 2 -- a session option cannot move it")
+
   unlink(d, recursive = TRUE)
   check(!dir.exists(d), "the fixture directory is cleaned up (on.exit would not have fired here)")
 } else {
@@ -545,13 +558,10 @@ check(!identical(digest::digest(c(1L, 2L, 3L), algo = "sha256", serializeVersion
 check(identical(fp_norm_block(c(1L, 2L, 3L)), fp_norm_block(c(1, 2, 3))),
       "an all-present integer block normalizes to the same thing as its double twin")
 
-# And the serialization format is pinned, not inherited from a session option.
-old_sv <- getOption("serializeVersion")
-options(serializeVersion = 3L)
-check(identical(digest::digest(fp_norm_block(vd), algo = "sha256", serializeVersion = 2L),
-                digest::digest(fp_norm_block(vi), algo = "sha256", serializeVersion = 2L)),
-      "digest is pinned to serializeVersion 2 -- a session option cannot move it")
-if (is.null(old_sv)) options(serializeVersion = NULL) else options(serializeVersion = old_sv)
+# The serialization pin is asserted in §5c, against the real function. Hand-pinning two digest()
+# calls here and comparing them would only prove that two identical vectors digest identically --
+# which §5d has already proved twice -- while `fp_raster_content_sha256()` itself went unexercised.
+# Measured: that version of this check stayed GREEN with the pin stripped from the function.
 
 # --- 6. Producer/guard key drift -----------------------------------------------------------------
 # The guard's declared key sets are only worth their maintenance if they match what the STEPS
@@ -577,18 +587,33 @@ find_calls <- function(expr, fname, acc = list()) {
   }
   acc
 }
-prov_keys <- function(file, section) {
+prov_keys <- function(file, section, part = "inputs") {
   calls <- unlist(lapply(parse(file), find_calls, fname = "fp_prov_set"), recursive = FALSE)
   for (cl in calls) {
     if (!identical(as.character(cl[[3]]), section)) next
-    body <- cl[[5]]                                  # the list(inputs = ..., ...)
-    inputs <- body[["inputs"]]
-    # inputs may be `list(...)` or `c(list(...), other)`
-    lists <- find_calls(inputs, "list")
+    body <- cl[[5]]                                  # the list(inputs = ..., run = ..., ...)
+    target <- body[[part]]
+    if (is.null(target)) return(character(0))
+    # may be `list(...)`, `c(list(...), other)`, or `fp_prov_run(...)`
+    lists <- c(find_calls(target, "list"), find_calls(target, "fp_prov_run"))
     nm <- unlist(lapply(lists, function(l) names(as.list(l))))
     return(sort(unique(nm[nzchar(nm)])))
   }
   character(0)
+}
+
+# Which sections actually WRITE a raster, read off the producers rather than listed by hand. A
+# literal set here would match the producers by coincidence and stop covering a section added
+# later -- the scope-by-coincidence shape code-check.md warns about, in the guard for the one field
+# that has no other protection.
+prov_sections_writing_toolchain <- function(step_files) {
+  out <- character(0)
+  for (f in names(step_files)) {
+    for (sec in step_files[[f]]) {
+      if ("toolchain" %in% prov_keys(f, sec, part = "run")) out <- c(out, sec)
+    }
+  }
+  sort(unique(out))
 }
 {
   step <- function(f) file.path(dirname(sub("^--file=", "",
@@ -609,6 +634,18 @@ prov_keys <- function(file, section) {
   drift1("network", net, KEYS_NETWORK_INPUTS)
   drift1("floodplain", fpl, KEYS_FLOODPLAIN)
   drift1("landcover", lcv, KEYS_LANDCOVER)
+
+  # The `run` half. Until now this scanner read only `inputs`, which meant the toolchain block --
+  # the one field #64 adds and the only one with no declared-key protection -- could be deleted from
+  # both producers with every check still green. Measured: it was. The record would then quietly
+  # return to the state #64 calls undiagnosable.
+  writers <- prov_sections_writing_toolchain(list(
+    "02_floodplain_model.R" = "floodplain",
+    "03_lulc_classify.R"    = "landcover"
+  ) |> (\(x) stats::setNames(as.list(unname(x)), vapply(names(x), step, "")))())
+  check(setequal(writers, SECTIONS_WITH_RASTERS),
+        sprintf("every raster-writing producer still records run$toolchain (found: %s)",
+                if (length(writers)) paste(writers, collapse = ", ") else "NONE"))
 }
 
 # --- 7. A real area, when one is named -----------------------------------------------------------------

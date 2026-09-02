@@ -248,8 +248,15 @@ fp_raster_content_sha256 <- function(path, block_rows = 512L) {
   # landcover. Fixed precision so a float's printed representation cannot move the hash.
   # An absent authority code must not hash as the literal string "NA": two genuinely different
   # code-less CRSs would then collide, and the header exists precisely to make grid identity part
-  # of the content. Fall back to the full WKT rather than guessing -- same reasoning as
-  # fp_pkg_stamp's "a confident wrong SHA is worse than NA", one field over.
+  # of the content. Fall back to the full WKT -- same reasoning as fp_pkg_stamp's "a confident wrong
+  # SHA is worse than NA", one field over.
+  #
+  # Naming the tradeoff rather than hiding it: WKT is a ~1.4 kB, 39-line string that PROJ renders,
+  # so a code-less CRS COULD make the digest PROJ-version-dependent -- the machine dependence this
+  # function exists to remove. It is still strictly better than a silent collision between two
+  # different projections, and it is unreachable for the rasters this pipeline writes (gdalcubes
+  # attaches an authority code; measured EPSG:32609 on every classified raster). If a code-less CRS
+  # ever does turn up here, the right fix is to make it an error, not to hash more text.
   code <- terra::crs(r, describe = TRUE)$code
   crs_id <- if (length(code) == 1L && !is.na(code) && nzchar(code)) paste0("EPSG:", code)
             else paste0("WKT:", terra::crs(r))
