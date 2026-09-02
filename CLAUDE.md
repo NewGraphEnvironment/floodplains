@@ -107,8 +107,11 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   criterion is checkable at all, since a whole-file comparison could never pass with a timestamp
   in it. `scripts/floodplain_lcc/fp_provenance.R` is the writer (`fp_prov_set` merges one
   section per step, atomically); `provenance-check.R` enforces the split with no database, and
-  every one of its 31
-  assertions is exercised against input built to break it.
+  every one of its 39
+  assertions is exercised against input built to break it — including §5b, which constructs the
+  DATABASE value shapes offline (`pq__text`, an empty pg array, a quoted comma, timezone
+  stability), because no hand-built fixture contains a driver value and that is how a `text[]`
+  column reached `main` able to abort step 1 on its first real run.
   **The network section records link's LOG ROW, read wholesale — it does not re-derive anything.**
   link's `config_hash` is a hash over 17 files plus the config name and species list, so a
   self-computed SHA of `config.yaml` would match nothing in `fresh.log` and the two records could
@@ -301,7 +304,8 @@ premise, so **establish that the check is really blocked before filing**, or the
 your diagnostic error as a project constraint.
 
 **How to apply:** do everything that *is* offline-verifiable first and say what it covered — #33
-shipped a 31-assertion guard and a live-STAC A/B with no database at all, so the gap was narrow
+shipped a guard with every assertion exercised against input built to break it, plus a live-STAC
+A/B, with no database at all — so the gap was narrow
 and nameable rather than "untested". Gate any run on the **in-band error count and the output
 mtime**, never on the wrapper's exit code: a run that crashed before writing makes an A/B compare
 a stale file against itself and pass.
