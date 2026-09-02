@@ -501,6 +501,16 @@ cat("\n1. Determinism — `inputs` is byte-stable across two writes\n")
                                                              run = list(datetime_utc = "z")))
                    FALSE }, error = function(e) grepl("no `inputs` block", conditionMessage(e))),
         "must-fail: an outputs-only write IS refused (it would blank the inputs half)")
+  # ... and the shape that DEFEATED that guard while it read with `$`. Partial matching resolves
+  # `value$inputs` to `inputs_hash`, so an entry carrying the hash and no inputs block sailed
+  # through the refusal written for exactly it. The premise is asserted so nobody tidies `[[` back.
+  hash_only <- list(inputs_hash = "sha256:x", outputs = list(a = 1),
+                    run = list(datetime_utc = "z"))
+  check(is.null(hash_only[["inputs"]]) && !is.null(hash_only$inputs),
+        "premise: `$` DOES partial-match inputs -> inputs_hash (why fp_prov_set uses `[[`)")
+  check(tryCatch({ fp_prov_set(cfg3, "floodplain", "y", hash_only); FALSE },
+                 error = function(e) grepl("no `inputs` block", conditionMessage(e))),
+        "restored defect: an entry with ONLY an inputs_hash IS refused, not partial-matched")
 }
 
 # --- 2. inputs/run split ---------------------------------------------------------------------------
@@ -1065,6 +1075,44 @@ cat("\n5e. Table content digest\n")
   na1 <- fp_table_content_sha256(transform(df, upstream_area_ha = c(1.5, 2.5, NA)), K, V)
   na2 <- fp_table_content_sha256(transform(df, upstream_area_ha = c(1.5, 2.5, 0)), K, V)
   check(!identical(na1, na2), "an NA value is distinguishable from a zero")
+
+  # A DUPLICATE composite key, and it is not hypothetical: uniqueness is measured on ONE area, which
+  # is the unrepresentative-sample shape CLAUDE.md warns about for a key numbered per group. Sorting
+  # by the key alone left ties in whatever order the query returned them -- and 01's SELECT has no
+  # ORDER BY -- so the digest was a function of DATABASE ROW ORDER. Sorting the whole line removes
+  # the need to be right about uniqueness at all.
+  dup <- data.frame(blue_line_key = c(1L, 1L), downstream_route_measure = c(0, 0),
+                    length_metre = c(10, 20), stream_order = c(3L, 4L),
+                    upstream_area_ha = c(1, 2), map_upstream = c(5, 6))
+  check(anyDuplicated(paste(dup$blue_line_key, dup$downstream_route_measure)) > 0,
+        "premise: the fixture really does carry a duplicate composite key")
+  check(identical(fp_table_content_sha256(dup, K, V),
+                  fp_table_content_sha256(dup[2:1, ], K, V)),
+        "row order does not move the digest even when the KEY is duplicated")
+  check(!identical(fp_table_content_sha256(dup, K, V),
+                   fp_table_content_sha256(transform(dup, length_metre = c(10, 21)), K, V)),
+        "must-fail: ... and duplicate keys do not make it blind to a changed value")
+
+  # A text column is REFUSED, not rendered by a second branch. RPostgres' `bigint=` has four modes
+  # and one of them is "character", so a connection setting could otherwise take the other arm and
+  # move the digest with no data change and nothing to see.
+  chr <- transform(df, blue_line_key = as.character(blue_line_key))
+  check(tryCatch({ fp_table_content_sha256(chr, K, V); FALSE },
+                 error = function(e) grepl("not numeric", conditionMessage(e))),
+        "must-fail: a text column IS refused (a driver setting must not pick the rendering)")
+
+  # The HEADER, and the one case it uniquely buys. Both checks above pass without it -- a different
+  # column set already produces different LINES. What only the header catches is two column sets
+  # whose rendered lines are IDENTICAL, which is what happens when the swapped columns carry the
+  # same values. Measured: without the `cols=` header these two digest the same.
+  same_vals <- data.frame(blue_line_key = 1L, downstream_route_measure = 0,
+                          length_metre = 7, stream_order = 7L,
+                          upstream_area_ha = 7, map_upstream = 7)
+  check(identical(fmt_probe <- c(same_vals$length_metre, same_vals$stream_order), c(7, 7)),
+        "premise: the two columns being swapped carry identical values")
+  check(!identical(fp_table_content_sha256(same_vals, K, c("length_metre", "stream_order")),
+                   fp_table_content_sha256(same_vals, K, c("stream_order", "length_metre"))),
+        "two column sets with IDENTICAL rendered values digest apart (only the header sees this)")
 }
 
 # --- 6. Producer/guard key drift -----------------------------------------------------------------

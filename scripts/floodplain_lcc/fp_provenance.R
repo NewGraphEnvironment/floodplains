@@ -173,7 +173,10 @@ fp_prov_set <- function(cfg, section, key, value) {
   # shape once #72 adds a vector digest from a second producer -- would blank `inputs` and set
   # `inputs_hash` to NA via fp_prov_hash(NULL). Refuse it here rather than discover it in a
   # published record.
-  if (is.null(value$inputs)) {
+  # `[[`, NEVER `$`. Measured: `$` PARTIAL-MATCHES, so `value$inputs` on an entry carrying
+  # `inputs_hash` and no `inputs` returns the HASH -- and this guard, written to refuse exactly that
+  # entry, waves it through. The same trap is pinned with a premise assertion in provenance-check.R.
+  if (is.null(value[["inputs"]])) {
     stop("provenance: ", section, "[", key, "] was written with no `inputs` block. fp_prov_set ",
          "REPLACES the whole entry, so an outputs-only write would blank the inputs half.",
          call. = FALSE)
@@ -187,7 +190,7 @@ fp_prov_set <- function(cfg, section, key, value) {
   # produce a VISIBLY different block" -- a one-line assertion rather than a JSON diff, and it is
   # the value stac#17 should publish. Computed here, once, so the three producers cannot disagree
   # about how it is derived.
-  value$inputs_hash <- fp_prov_hash(value$inputs)
+  value$inputs_hash <- fp_prov_hash(value[["inputs"]])
   # `outputs` (#65) is the SECOND question, and it needs its own scalar because one hash cannot
   # answer both. "Same ingredients?" is `inputs_hash`; "same answer?" is `outputs_hash`. Folding a
   # digest of what we produced into `inputs_hash` would muddle the single clean question that hash
@@ -198,7 +201,7 @@ fp_prov_set <- function(cfg, section, key, value) {
   # so an unconditional assignment would stamp every entry with a null `outputs_hash` -- and a guard
   # asserting "this section has no outputs_hash" could then never fire. An absent key has to stay
   # absent for absence to mean anything.
-  if (!is.null(value$outputs)) value$outputs_hash <- fp_prov_hash(value$outputs)
+  if (!is.null(value[["outputs"]])) value$outputs_hash <- fp_prov_hash(value[["outputs"]])
   prov[[section]][[key]] <- value
 
   # Lost-update detection. Two `FP_SPECIES=... run_area.R <area>` processes against one data dir
@@ -293,10 +296,18 @@ fp_norm_block <- function(v) {
 # double even when there is nothing to assign. Measured -- deleting the cast breaks no assertion,
 # and §5d says so rather than pretending otherwise. The cast stays because the invariant should not
 # depend on a subassignment side effect: change the sentinel to a logical `NA` some day and the
-# coercion silently disappears with it. What IS independently provable is the second line: deleting
-# it fails 2 of §5d's checks, deleting the cast fails none, and deleting both fails 3. (Measured --
-# an earlier version of this comment said "three" for the second line alone, which is the
-# both-deleted figure. The file's persuasiveness rests on its numbers being checkable.)
+# coercion silently disappears with it. What IS independently provable is the second line, and the
+# third. RE-MEASURED after #65 added the signed-zero line and the float premises -- the old figures
+# (2 and 3) described the pre-#65 guard and were stale the moment those assertions landed, which is
+# the standing hazard of putting numbers in a comment:
+#
+#   delete the NA collapse        -> 3 FAILs
+#   delete the signed-zero line   -> 1 FAIL
+#   delete the as.double() cast   -> 0 FAILs   (subsumed; see above)
+#   delete all three              -> 5 FAILs
+#
+# The file's persuasiveness rests on these being checkable, so they are re-measured rather than
+# carried forward. Reproduce with a mutated copy of this file against provenance-check.R.
 
 # `x` is a PATH or a SpatRaster (#65). The object form exists because flooded::fl_dem_aoi() returns
 # the cropped DEM in memory and never writes it, so a path-only digest would mean writing 6.5M cells
@@ -399,16 +410,34 @@ fp_table_content_sha256 <- function(df, key_cols, value_cols) {
     stop("fp_table_content_sha256: column(s) not in the table: ", paste(miss, collapse = ", "),
          call. = FALSE)
   }
-  fmt <- function(v) {
-    out <- if (is.character(v) || is.factor(v)) as.character(v) else sprintf("%.6f", as.numeric(v))
+  # NUMERIC ONLY, and it is a refusal rather than a fallback. A character branch would silently
+  # take the other path if a driver setting changed a column's R type -- RPostgres' `bigint=` has
+  # four modes and one of them is "character" -- and the digest would move with no data change and
+  # nothing to see. A caller that genuinely wants to digest text should decide the rendering
+  # deliberately rather than inherit one from a connection option.
+  fmt <- function(nm, v) {
+    if (!is.numeric(v)) {
+      stop("fp_table_content_sha256: column '", nm, "' is <", paste(class(v), collapse = "/"),
+           ">, not numeric. This digest renders every field with sprintf(\"%.6f\") so that no ",
+           "session or driver option can move it; a text column has no such guarantee.",
+           call. = FALSE)
+    }
+    out <- sprintf("%.6f", as.numeric(v))
     out[is.na(v)] <- "NA"     # explicit, so an NA cannot render as the empty string
     out
   }
   # df[[col]] rather than df[cols]: an sf object's geometry column is STICKY under [ , so
   # subsetting an sf by column names hands back geometry nobody asked for.
-  key <- do.call(paste, c(lapply(key_cols,   function(k) fmt(df[[k]])), sep = "\x1f"))
-  val <- do.call(paste, c(lapply(value_cols, function(k) fmt(df[[k]])), sep = "\x1f"))
-  line <- paste(key, val, sep = "\x1f")[order(key, method = "radix", na.last = TRUE)]
+  key <- do.call(paste, c(lapply(key_cols,   function(k) fmt(k, df[[k]])), sep = "\x1f"))
+  val <- do.call(paste, c(lapply(value_cols, function(k) fmt(k, df[[k]])), sep = "\x1f"))
+  # Sort the WHOLE LINE, not the key. Ordering by key alone leaves ties in whatever order the query
+  # returned them, so two rows sharing a composite key would digest differently depending on
+  # database row order -- and the SELECT in 01 has no ORDER BY. Uniqueness is measured on ONE area
+  # (neexdzii, 1915/1915), which is exactly the unrepresentative-sample shape CLAUDE.md warns about
+  # for per-tenant keys; sorting the line removes the need to be right about it. For a genuinely
+  # unique key the permutation is identical, so this changes no digest already recorded -- measured
+  # against neexdzii and bulk.
+  line <- sort(paste(key, val, sep = "\x1f"), method = "radix", na.last = TRUE)
   # The header carries the row count and the column set, so an EMPTY table digests to something
   # distinguishable rather than to the digest of an empty string, and so a digest taken over a
   # different column set can never collide with this one.
