@@ -250,6 +250,17 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
       keep  <- round(ov_ha, 4) > 0
       inter <- inter[keep, , drop = FALSE]
       ov_ha <- ov_ha[keep]
+      b_lyr <- sub("^transition_", "patch_watercourse_", lyr)
+      if (nrow(inter) == 0 && file.exists(out_lc_gpkg) &&
+          b_lyr %in% sf::st_layers(out_lc_gpkg)$name) {
+        # Nothing survived the filter, so nothing will be written -- and #23 made these writes
+        # per-layer, which means an earlier run's bridge would otherwise sit beside a freshly
+        # written transition layer, describing a relation this run did not find. That is #55's
+        # orphan class arriving through a skip rather than a rename. Drop it explicitly; the same
+        # shape 01 uses when a species' run yields no waterbodies.
+        sf::st_delete(out_lc_gpkg, layer = b_lyr, quiet = TRUE)
+        message("  Removed stale ", b_lyr, " -- no watercourse overlap this run")
+      }
       if (nrow(inter) > 0) {
         bridge <- data.frame(
           patch_id     = inter$patch_id,
@@ -273,7 +284,6 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
         tot_ov <- tapply(bridge$overlap_ha, pk, sum)
         bridge$apportion_weight <- round(bridge$overlap_ha / tot_ov[pk], 4)
         names(bridge)[names(bridge) == "k"] <- key
-        b_lyr <- sub("^transition_", "patch_watercourse_", lyr)
         sf::st_write(bridge, out_lc_gpkg, layer = b_lyr,
                      append = file.exists(out_lc_gpkg), delete_layer = TRUE, quiet = TRUE)
         # Coverage worth printing is the UNION one -- how much of a patch any watercourse reaches.

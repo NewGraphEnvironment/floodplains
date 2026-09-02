@@ -41,6 +41,17 @@ lb   <- if (length(a) >= 5) a[5] else "B"
 A <- jsonlite::read_json(a[1], simplifyVector = FALSE)
 B <- jsonlite::read_json(a[2], simplifyVector = FALSE)
 
+# Root every path on THIS SCRIPT's own location, never on the working directory. here::here()
+# answers from the CWD's project root, so an invocation from another tree -- an ssh one-liner, a
+# sibling repo, /tmp -- silently resolves data/<area> under a different root and then reports a
+# MISSING FILE, which reads as "that area has no provenance" rather than "you are in the wrong
+# place". The script's own path is the one thing that cannot move out from under it.
+fp_root <- local({
+  f <- grep("^--file=", commandArgs(FALSE), value = TRUE)
+  if (length(f)) normalizePath(file.path(dirname(sub("^--file=", "", f[1])), "..", ".."),
+                               mustWork = FALSE) else here::here()
+})
+
 FAILS <- 0L
 ok  <- function(m) cat("  ok    ", m, "\n")
 bad <- function(m) { FAILS <<- FAILS + 1L; cat("  FAIL  ", m, "\n") }
@@ -58,7 +69,7 @@ ea <- entries(A); eb <- entries(B)
 # Derived from the config, never hardcoded: a literal list stops covering a scenario the moment one
 # is added, and does so silently.
 if (!is.na(area)) {
-  cfg_dir <- file.path("config", area)
+  cfg_dir <- file.path(fp_root, "config", area)
   if (!dir.exists(cfg_dir)) {
     bad(sprintf("no config/%s -- cannot derive the expected entry set", area))
   } else {
@@ -66,10 +77,14 @@ if (!is.na(area)) {
     sp <- Sys.getenv("FP_SPECIES", "");          if (!nzchar(sp)) sp <- ay$species
     ps <- Sys.getenv("FP_PRIMARY_SCENARIO", ""); if (!nzchar(ps)) ps <- ay$primary_scenario
     if (is.null(ps) || !nzchar(ps)) ps <- paste0(sp, "_ff04")
-    sc <- utils::read.csv(file.path(cfg_dir, "flood_scenarios.csv"), stringsAsFactors = FALSE)
-    # `&` on an NA cell yields NA, which subsets to an NA element -- drop it with which() rather
-    # than letting an NA scenario id reach the expected set.
-    sel <- toupper(as.character(sc$run)) == "TRUE" & sc$species == sp
+    # Read it with the PRODUCER's reader. utils::read.csv and readr::read_csv disagree on a cell
+    # like " TRUE" -- readr trims it to logical TRUE, read.csv's type.convert leaves a string -- so a
+    # guard using the other reader derives a different expected set from the same file, and then
+    # excuses the surplus as an "extra". One fact, one derivation.
+    sc <- readr::read_csv(file.path(cfg_dir, "flood_scenarios.csv"), show_col_types = FALSE)
+    # Mirror 02_floodplain_model.R: run == TRUE rows OF THIS SPECIES (#23). which() drops NA rows
+    # rather than subsetting them in as NA ids.
+    sel <- sc$run == TRUE & sc$species == sp
     run_ids <- sc$scenario_id[which(sel)]
     # paste0 recycles a ZERO-LENGTH vector against its constants and returns "floodplain[]" --
     # length one, not zero. Unguarded, a config with no matching row would expect a phantom entry
@@ -106,21 +121,28 @@ for (k in keys) {
   # a key that upstream renamed or dropped would compare "same" and the whole A/B would pass having
   # compared nothing -- the loudest possible pass on the emptiest possible evidence. Require the
   # value to actually be there before its equality means anything.
+  #
+  # Resolve presence ONCE, into flags, before anything is reassigned for display. Re-calling the
+  # predicate further down reads as harmless and is not: substituting "<absent>" for a missing hash
+  # so the table prints makes that same predicate answer TRUE afterwards, and the defect gets
+  # counted a second time. Measured: one missing hash reported as two problems.
   scalar <- function(v) is.character(v) && length(v) == 1L && !is.na(v) && nzchar(v)
-  same  <- scalar(hx) && scalar(hy) && identical(hx, hy)
-  moved <- scalar(dx) && scalar(dy) && !identical(dx, dy)
-  if (!scalar(hx) || !scalar(hy))
+  hx_ok <- scalar(hx); hy_ok <- scalar(hy); dx_ok <- scalar(dx); dy_ok <- scalar(dy)
+  same  <- hx_ok && hy_ok && identical(hx, hy)
+  moved <- dx_ok && dy_ok && !identical(dx, dy)
+  if (!hx_ok || !hy_ok)
     bad(sprintf("%s: inputs_hash absent or not a scalar string in %s", k,
-                paste(c(la, lb)[c(!scalar(hx), !scalar(hy))], collapse = " and ")))
-  if (!scalar(dx) || !scalar(dy))
+                paste(c(la, lb)[c(!hx_ok, !hy_ok)], collapse = " and ")))
+  else if (!same) FAILS <- FAILS + 1L
+  if (!dx_ok || !dy_ok)
     bad(sprintf("%s: run.datetime_utc absent or not a scalar string in %s", k,
-                paste(c(la, lb)[c(!scalar(dx), !scalar(dy))], collapse = " and ")))
-  hx <- if (scalar(hx)) hx else "<absent>"; hy <- if (scalar(hy)) hy else "<absent>"
+                paste(c(la, lb)[c(!dx_ok, !dy_ok)], collapse = " and ")))
+  else if (!moved) FAILS <- FAILS + 1L
+  hx_s <- if (hx_ok) hx else "<absent>"; hy_s <- if (hy_ok) hy else "<absent>"
   cat(sprintf("%-30s %-8s %-8s %s\n", k,
               if (same) "same" else "DIFFER", if (moved) "moved" else "SAME",
-              if (same) substr(hx, 1, 24) else paste0(substr(hx, 1, 16), " vs ", substr(hy, 1, 16))))
-  if (!same)  FAILS <- FAILS + 1L
-  if (!moved) FAILS <- FAILS + 1L
+              if (same) substr(hx_s, 1, 24)
+              else paste0(substr(hx_s, 1, 16), " vs ", substr(hy_s, 1, 16))))
 }
 cat("\n")
 check(TRUE, sprintf("compared %d entr(ies) across %s and %s", length(keys), la, lb))

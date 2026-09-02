@@ -29,6 +29,17 @@ suppressWarnings(suppressMessages({
 source(file.path(dirname(sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE)[1])),
                  "fp_provenance.R"))
 
+# Root every path on THIS SCRIPT's own location, never on the working directory. here::here()
+# answers from the CWD's project root, so an invocation from another tree -- an ssh one-liner, a
+# sibling repo, /tmp -- silently resolves data/<area> under a different root and then reports a
+# MISSING FILE, which reads as "that area has no provenance" rather than "you are in the wrong
+# place". The script's own path is the one thing that cannot move out from under it.
+fp_root <- local({
+  f <- grep("^--file=", commandArgs(FALSE), value = TRUE)
+  if (length(f)) normalizePath(file.path(dirname(sub("^--file=", "", f[1])), "..", ".."),
+                               mustWork = FALSE) else here::here()
+})
+
 FAILS <- 0L
 ok   <- function(msg) cat("  ok   ", msg, "\n")
 bad  <- function(msg) { FAILS <<- FAILS + 1L; cat("  FAIL ", msg, "\n") }
@@ -422,7 +433,7 @@ prov_keys <- function(file, section) {
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) >= 1 && nzchar(args[1])) {
   area <- args[1]
-  path <- file.path("data", area, "provenance.json")
+  path <- file.path(fp_root, "data", area, "provenance.json")
   cat("\n7. Real area: ", path, "\n", sep = "")
   if (!file.exists(path)) {
     # Absence is reported as absence, never as a pass. Forward-only (#33) means an area not yet
@@ -456,7 +467,7 @@ if (length(args) >= 1 && nzchar(args[1])) {
     # The expectation is DERIVED FROM THE CONFIG, not hardcoded: a literal list would silently stop
     # covering a scenario the moment one was added. Mirrors run_area.R's own resolution, including the
     # FP_SPECIES / FP_PRIMARY_SCENARIO env overrides, so a non-default-species run asserts its own set.
-    cfg_dir <- file.path("config", area)
+    cfg_dir <- file.path(fp_root, "config", area)
     if (!dir.exists(cfg_dir)) {
       bad(sprintf("no config/%s -- cannot derive the expected entry set", area))
     } else {
@@ -464,13 +475,15 @@ if (length(args) >= 1 && nzchar(args[1])) {
       sp  <- Sys.getenv("FP_SPECIES", "");           if (!nzchar(sp)) sp <- ay$species
       ps  <- Sys.getenv("FP_PRIMARY_SCENARIO", "");  if (!nzchar(ps)) ps <- ay$primary_scenario
       if (is.null(ps) || !nzchar(ps)) ps <- paste0(sp, "_ff04")
-      # read.csv, not readr: readr's trim_ws default silently strips meaningful whitespace, and the
-      # `run` column must be compared as the literal the file carries.
-      sc  <- utils::read.csv(file.path(cfg_dir, "flood_scenarios.csv"), stringsAsFactors = FALSE)
+      # Read it with the PRODUCER's reader. utils::read.csv and readr::read_csv disagree on a cell
+      # like " TRUE" -- readr trims it to logical TRUE, read.csv's type.convert leaves a string -- so a
+      # guard using the other reader derives a different expected set from the same file, and then
+      # excuses the surplus as an "extra". One fact, one derivation.
+      sc <- readr::read_csv(file.path(cfg_dir, "flood_scenarios.csv"), show_col_types = FALSE)
       # 02 runs run==TRUE rows OF THIS SPECIES (#23); 03 runs the primary scenario only.
-      # `&` on an NA cell yields NA, which subsets to an NA element -- filter it out rather than
-      # letting an NA scenario id reach the expected set as a phantom entry.
-      sel <- toupper(as.character(sc$run)) == "TRUE" & sc$species == sp
+      # Mirror 02_floodplain_model.R: run == TRUE rows OF THIS SPECIES (#23). which() drops NA rows
+      # rather than subsetting them in as NA ids.
+      sel <- sc$run == TRUE & sc$species == sp
       run_ids <- sc$scenario_id[which(sel)]
       # paste0 recycles a ZERO-LENGTH vector against its constants and returns "floodplain[]" --
       # length one, not zero. Unguarded, a config with no matching row would expect a phantom entry
