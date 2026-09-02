@@ -334,6 +334,16 @@ Coexistence is data-layer only (steps 01/02/03).
   primary.
 - `ufra` — Upper Fraser (**chinook** — coho is unmodelled up there; `access_ch` exists). Run:
   floodplain ch_ff04 188.2 km², tree loss 544.5 ha. Burned to `sern_fraser_2024` Mergin.
+- `bulk` — whole Bulkley watershed group (coho, `network_source: fresh`, `attribute_by:
+  blue_line_key`). **The whole group neexdzii is a subset of**, which makes the pair the cheapest
+  standing test in the repo: same WSG, species and min_order, one subset and one not, so a
+  provenance field taken *before* the subset must agree across the two areas and one taken *after*
+  must not (#65 uses exactly this, and `provenance-check.R` 7c asserts the whole-WSG half of it).
+  **Re-run 2026-09-02** under #65: coho-3 network **2205.7 km / 6,858 segments**; floodplain
+  `co_ff02` **344.7 km²**, `co_ff04` **386.5 km²**, `co_ff06` **414.6 km²**; 7,161 change patches,
+  gross floodplain tree loss **1,565.1 ha** 2017→2023. Published to STAC, which is why it was the
+  second area chosen for #65's live verification — the one whose provenance a consumer is most
+  likely to be reading.
 
 Whole-WSG areas use the **FWA group polygon** as the single sub-basin (`fp_wsg_subbasin`; no
 `break_points.csv` needed). The earlier single-outlet break point does NOT generalize — delineating
