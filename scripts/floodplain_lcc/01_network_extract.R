@@ -160,7 +160,12 @@ fp_network <- function(cfg) {
   # The subset must NOT be inside this digest. It is st_transform + st_intersects -- PROJ and GEOS --
   # so a post-subset digest would make `inputs_hash` a function of the sf build, reintroducing one
   # field over exactly the cross-machine churn #64 removed. The subset set is digested separately
-  # into `outputs`, where varying with the toolchain is diagnostic rather than fatal.
+  # into `outputs`. Being outside `inputs_hash` is what matters: a toolchain difference there
+  # does not churn the question "same ingredients?". It is NOT a licence to vary -- the A/B treats
+  # an `outputs_hash` mismatch as a hard failure, correctly, because that script compares two runs
+  # on ONE machine where any difference is a real defect. The one case where a legitimate
+  # difference could arise is a CROSS-MACHINE comparison of this digest on a subset area, and
+  # provenance_ab-compare.R says so in its header rather than quietly tolerating it.
   NETWORK_DIGEST_KEY <- c("blue_line_key", "downstream_route_measure")
   # The VALUE columns are what step 2 actually consumes: fl_valley_confine() reads
   # `upstream_area_ha` for the bankfull regression and `map_upstream` for precipitation. A network

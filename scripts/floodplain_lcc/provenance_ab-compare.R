@@ -17,6 +17,13 @@
 #                  degrades to a note; the same shared-absence blind spot 1 exists to close.
 #   3. LIVENESS    `run.datetime_utc` MOVED per entry -- proving the second run actually ran
 #
+# An `outputs_hash` mismatch is a HARD FAILURE, and that is right for this script's job: two runs on
+# ONE machine, where any difference in what was produced is a defect. ONE case can differ
+# legitimately and it is worth knowing before you read a red line as a bug -- a CROSS-MACHINE
+# comparison of `network[*].outputs`, which is digested AFTER the reach subset (st_transform +
+# st_intersects, i.e. PROJ and GEOS) and so can move on a subset area with no data change. The
+# network `inputs` digest is taken pre-subset precisely so that it cannot.
+#
 # 3 is not decoration. Without it a comparison of a file against an untouched copy of itself passes
 # 2 perfectly, which is exactly what a run that crashed before writing produces.
 #

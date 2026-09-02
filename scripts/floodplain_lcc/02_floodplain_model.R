@@ -136,6 +136,23 @@ fp_floodplain <- function(cfg, scenarios = "run") {
   #
   # ONCE, here, outside the scenario loop: every scenario is delineated from this same DEM, so
   # digesting per scenario would repeat identical work three times for an identical answer.
+  #
+  # AND IT GOES IN `inputs` DESPITE BEING WARP OUTPUT -- which looks like the opposite of the call
+  # 01 makes one file over, so state the difference rather than let a reader find the contradiction.
+  # fl_dem_aoi() crops and reprojects internally, so these cells (and the header's ext/res) are
+  # GDAL/PROJ output. For the NETWORK there was a toolchain-free alternative -- digest pre-subset --
+  # and taking it cost nothing. For the DEM there is none: the un-warped source is not obtainable
+  # here, fl_dem_aoi() builds its URL in its own body, and terra::sources() on the return is "" or a
+  # random temp path. So the choice is not "warp-dependent digest" vs "clean digest", it is
+  # warp-dependent digest vs NOTHING AT ALL about the elevations, which is the status quo this issue
+  # exists to end. The header formats ext/res at %.9f, a tolerance well above the ~1e-15 ULP of a
+  # double near 30, so ULP-level warp noise cannot move it.
+  #
+  # OPEN, and named rather than assumed: cross-machine agreement of these CELL VALUES has never been
+  # measured. #63 compared the DEM's geometry across m1 and m4 and found it identical; it never
+  # compared the heights. If a two-machine run shows this digest moving with the data unchanged, the
+  # right response is to move it to `outputs` -- diagnostic rather than required to match -- not to
+  # delete it. That check needs a second machine and is filed rather than claimed.
   message("  Digesting DEM content for provenance...")
   dem_sha <- fp_raster_content_sha256(dem)
 
