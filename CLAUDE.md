@@ -1698,6 +1698,50 @@ polygon", assume they disagree at the boundary until measured. Count the cells.
 ### sf: reproject the polygon to get a lat/lon bbox, never transform the projected bbox corners
 - To hand a geographic (EPSG:4326) bounding box to a bbox-filtered query (WFS/OGC features, `?bbox=`), reproject the whole AOI **geometry** then take its bbox: `sf::st_bbox(sf::st_transform(aoi, 4326))`. Do **not** compute the bbox in the projected CRS and transform its two corner points — a projected rectangle's edges bow under reprojection, so the corner-transformed box is skewed and generally too short on one axis. The pre-filter then silently under-covers the true extent: features inside the AOI but outside the shrunken box are never fetched, and a downstream clip can only *remove*, never recover them. Symptom: counts a few percent low near the north/south extremes of an area, with no error. A native-CRS bbox filter (e.g. ogr2ogr `-spat <bounds> -spat_srs EPSG:3005`) is unaffected — only the reproject-the-corners step is the bug. (rfp#12)
 
+### A database driver's value is not a base R type — and it fails twice
+
+A column fetched through DBI does not arrive as the base type its SQL type suggests. RPostgres
+returns `text[]` as class **`pq__text`**, for which `is.list()` is **FALSE**, `length()` is **1**,
+and the single element is the **raw Postgres array literal** — `"{BT,CH,CO}"`, braces and all.
+
+That shape defeats a type-dispatching coercion twice over, and the second failure is the dangerous
+one:
+
+```r
+x <- row$species                    # class pq__text
+is.list(x)                          # FALSE  -> the list branch is skipped
+length(x)                           # 1      -> the vector branch is skipped
+                                    # falls through unchanged
+jsonlite::toJSON(x)                 # Error: No method asJSON S3 class: pq__text
+x[[1]]                              # "{BT,CH,CO}"  <- unwrapping is NOT enough
+jsonlite::toJSON(I(as.character(x[[1]])))
+                                    # ["{BT,CH,CO}"] <- valid JSON, wrong value, NO error
+```
+
+- **First it errors**, which is survivable. **Then the obvious fix stops the error and emits a
+  plausible wrong value** — one brace-wrapped string where an array was meant. Nothing downstream
+  can tell. The literal needs parsing, splitting on *unquoted* commas: an element containing a
+  comma is double-quoted, and a naive `strsplit` corrupts it silently.
+- **Subsetting drops the class.** `row$col[i]` returns a plain character; `as.list(row[1, ])`
+  preserves `pq__text`. So a probe written the first way exercises a **different branch** than the
+  code it is meant to be testing, and reports a pass the production path does not earn. Measure on
+  the exact expression the caller uses, and assert the class as a premise.
+- **No hand-built fixture contains one.** This is the fixture-cannot-reach-the-failure-mode rule
+  arriving through a *type* rather than through data: a guard can be thorough, exercised against
+  input built to break it, and still never construct a driver value. Build the driver shapes
+  explicitly — `structure(list("{A,B}"), class = "pq__text")` needs no database.
+
+Caught 2026-09-01 in floodplains#33: it would have aborted a pipeline step on its first real run,
+after the expensive work had completed. It reached `main` because the database was wrongly believed
+to be down (see `code-check-infra.md`, "The database is down is usually the probe"), so the only
+code path that touches a driver value was never executed.
+
+Generalises past Postgres arrays — `blob`, `json`/`jsonb`, `hstore`, `numeric` via `bit64`,
+and every driver's own vector classes. **Whenever a DBI row crosses into a serializer, print
+`class()` of each column once and write the coercion against what you see**, not against the SQL
+type. And give the serializer a guard that names the offending *path*: jsonlite reports the class
+with no location, which in a nested document is a scavenger hunt.
+
 ### arrow dplyr backend: no grouped slice — bridge to duckdb
 - arrow's dplyr backend errors on grouped `slice_max`/`slice_min` (`arrow_not_supported("Slicing grouped data")`). The working pattern for any "latest per group" over parquet/S3: `arrow::open_dataset(...) |> dplyr::filter(...) |> arrow::to_duckdb() |> dplyr::group_by(...) |> dplyr::slice_max(...)`.
 - The `to_duckdb()` bridge is also a return-type contract: helpers that return the lazy query should keep the bridge even when they no longer need it internally, or downstream callers using grouped verbs break. (water-temp-bc#17, #23)
@@ -2385,6 +2429,35 @@ genuine long-lived defect usually has a *reason* nobody noticed it (a guard that
 cannot see it, a code path nothing exercises), and you can name that reason. If
 you cannot say why it went unnoticed, you have not found it yet.
 
+
+#### And a probe reporting that EVERYTHING is broken is the same thing, louder
+
+The sibling case, and it is easier to catch because the failure rate gives it
+away: if a check reports *every* case failing while the printed values are
+visibly equal, the comparator is wrong, not the world.
+
+In R the usual cause is integer-versus-double, because `length()`, `nrow()` and
+`sum()` return integer while a bare literal is double:
+
+```r
+identical(length(x), 1)     # FALSE — `length()` is integer, `1` is double
+identical(length(x), 1L)    # TRUE
+length(x) == 1              # TRUE — `==` coerces, `identical()` does not
+```
+
+Measured 2026-09-01 in rfp#242: an attack matrix of 13 shapes printed
+`want=1 got=1` on every row and reported **13 of 13 mismatches**, because the
+comparison was `identical(got, want)` with `got` from `length()`. Nothing was
+wrong with the code under test.
+
+The reconciliation habit from the rule above works here too, pointed the other
+way: **a 100% failure rate is as implausible as a 50% one in long-shipped code.**
+Before writing up a finding, print one case you know is good and confirm the
+probe agrees; if it does not, the probe is the subject.
+
+Same shape outside R wherever equality is type-strict — JavaScript `===` across
+number and string, Python between `Decimal` and `float`.
+
 ### Restore the bug and confirm the test fails
 - The rule above says a fixture that cannot reach the failure mode is worthless. This is the thirty-second check that tells you which kind you just wrote: **put the defect back, run the test, watch it go red.** A test that stays green against the code it was written to reject is decoration, and reading it will not tell you that — every case below looked correct on the page.
 - Cheapest form when the fix is inside a package: patch the binding rather than editing the source back and forth. For a data-shaped bug, feed the function the input the fix was about and assert the old answer is gone.
@@ -2984,6 +3057,43 @@ Two habits that make this cheap:
   When a result is surprisingly clean, suspect the instrument before the world —
   the same prior the broken-probe rule applies to surprising *failures*.
 
+### A guard nothing corroborates has to count, not match
+
+The "empty result set is not a pass" rule above says a scan finding nothing must
+not read as a scan finding nothing wrong. How much that costs depends on what sits
+*downstream*: where a second, independent check would disagree later, a missed scan
+is survivable. Where the guard is the only opinion, a miss is silent and permanent.
+
+So ask what would notice if the guard matched nothing, and when the answer is
+"nothing would", make it **report how much it checked** and compare that against
+how much the caller went on to use. `all(grepl(ok, v))` is `TRUE` for
+`v = character(0)`; `length(v) < n_consumed` is not.
+
+```r
+checked <- scan_the_file(path)          # returns what it saw, not a verdict
+if (length(checked) < sum(!is.na(parsed$time))) {
+  abort("values were used without being checked")
+}
+```
+
+Measured 2026-09-01 in trap#18. The Mergin track reader carries `clock_delta`
+columns that would disagree if a bad timestamp got through; the GPX reader cannot
+— a GPX `<trk>` has no second clock — so its UTC-offset refusal is the only line
+of defence. It is written as a count, and that was not theoretical: the xpath it
+used needed `xml2::xml_ns_strip()` to see a default-namespaced document at all, and
+without that line it found **0 of 600**. The count turned every test in the file
+red. A `grepl()` over the empty set would have gone green.
+
+**Then check the direction the count does not cover: too little scanned aborts,
+too much scanned aborts for the wrong reason.** The same guard first scanned the
+whole file rather than the elements it protects, and refused a real file over a
+stray `<trk><time>2024/08/22 09:07:35+00</time>` that `sf` had written and nothing
+would ever parse. The abort was correct in outcome and wrong in message: it
+reported an ambiguous timezone and buried the actual defect, which was that the
+file had no per-point clock at all. Scope a scan to what is actually consumed —
+a wider one is not a stricter guard, it is a guard that misdiagnoses.
+
+
 ### A paged API's default `limit` reads as absence
 
 Asking a paged endpoint for "everything" and searching the response finds only
@@ -3477,6 +3587,48 @@ tolerant comparison was added deliberately, for the real reason that one side is
 Python and the other a JSON number, and it went into only one of the two places. Found by
 running the guard against a restored defect, not by reading it: an empty-message failure looks
 like a passing guard in a diff.
+
+### A link to a repo-hosted artifact must be *tracked*, not merely present
+
+When the published site **is** the repository — GitHub Pages serving `docs/`, or a
+`raw.githubusercontent.com` URL — the question "does this file exist" is the wrong
+predicate. The right one is "is it in the repository", because that is what a reader
+gets. A file written by a script and never `git add`ed exists for exactly one person:
+whoever last ran the script.
+
+The failure is invisible from the inside. The build succeeds, the page renders, the
+link opens locally, and it 404s for everybody else. It surfaces only on a fresh clone
+or a real visit.
+
+```r
+in_git <- repo_path %in% system2("git", "ls-files", stdout = TRUE)
+```
+
+Three instances in one project, each with a different cause and the same symptom:
+
+- an interactive map written by a manual script, never committed — the appendix
+  linking it 404'd on the published site for months
+- 32 generated popup pages whose build script was in no build chain
+- photo URLs built from the wrong id column, pointing at directories that had been
+  renamed upstream
+
+Note this is the *inverse* of the deploy-predicate case above, where untracked
+outputs are noise and `--untracked-files=no` is right. The distinction is whether the
+repo is the input to a build or is itself the artifact being served. Both predicates
+are correct for their own subject and wrong for the other.
+
+**Corollary — the DOM is not the whole document.** Harvesting `href`/`src` with an
+HTML parser misses anything a script tag reconstructs at runtime. A leaflet map
+serialises its popups as JSON, so every link inside them is invisible to
+`xml2::xml_find_all(doc, "//@href")`. A DOM-only pass over a report with 51 dead links
+found 2. Scan the raw text as well, and be permissive about the shape: markup built by
+`paste0('<a href =', x, '.html ', 'target="_blank">')` emits `href =…` with a space
+and no quotes, which most href patterns skip. In PCRE, lookbehind must be fixed width,
+so `(?<=href *= *)` will not compile — match the attribute name and strip it after.
+
+Cheap enough to run on every build, and it belongs there rather than in a checklist: a
+check that must be remembered has the same failure mode as the script that had to be
+remembered.
 
 
 # NGE Feature Workflow
