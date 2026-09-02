@@ -98,7 +98,7 @@ fabricate them. Each step writes its own section; the file is a merge.
 
 | Error | Resolution |
 |-------|------------|
-| `psql: connection to server on socket "/tmp/.s.PGSQL.5432" failed` | Postgres is not running on this machine. All DB-touching verification (the neexdzii A/B, a live `lnk_log_read`) is deferred; everything else is offline-verifiable. |
+| `psql: connection to server on socket "/tmp/.s.PGSQL.5432" failed` | **Misdiagnosed as "postgres is down". It was up the whole time** — `fresh-db`, a postgis container, healthy on `0.0.0.0:5432`. `pg_isready` with no `-h` tests the unix socket a container never creates, and the `PG*` vars live in `~/.Renviron`, which R reads and bash does not. Use `docker ps` + `pg_isready -h localhost`, and `eval "$(grep -E '^PG(HOST\|PORT\|DATABASE\|USER\|PASSWORD)=' ~/.Renviron \| sed 's/^/export /')"` before `psql`. |
 
 ## Found during Phase 1, by the guard itself
 
@@ -263,3 +263,36 @@ kotl, larl and sloc use `fresh_default`. Issue #33 §4/§5 says `fresh_default` 
 caveat that `run_uid` will be null "because the schema predates link#262" is probably false for
 most areas — `fresh` was rebuilt 2026-08-31/09-01. Null-filling stays correct either way; the
 acceptance criterion that *expects* null does not. The issue needs a correction note.
+
+
+## The misdiagnosis, and what it cost — corrected 2026-09-02
+
+The single most expensive thing in this issue was not a design decision. It was concluding, from
+one bad probe, that the database was down.
+
+`pg_isready` with no `-h` tests the **unix socket** at `/tmp`; the fwapg container publishes TCP on
+`0.0.0.0:5432` and creates no socket. And the `PG*` variables live in `~/.Renviron`, which R reads
+and bash does not — so a `psql` probe from an agent shell had no host either, while `fp_network()`
+would have connected fine three lines away.
+
+That false premise propagated into a PR body, an issue body (#63), a `CLAUDE.md` convention and a
+memory file before anyone checked it — and it shipped a **real bug**, because the one code path
+that would have caught it was believed unreachable:
+
+> RPostgres returns a `text[]` column as class `pq__text`, which is **not** a list — `is.list()` is
+> FALSE and `length()` is 1 — so `fp_prov_scalar()` skipped every branch and jsonlite aborted the
+> write with `No method asJSON S3 class: pq__text`. **Step 1 would have died on its first real run,
+> after building the network.** Found within a minute of connecting properly. Fixed in 2406548.
+
+Two lessons, both now in `soul/conventions/code-check-infra.md`:
+
+- A negative from a probe you have not proven can return a positive is not evidence. `docker ps`
+  and `pg_isready -h localhost` cost nothing.
+- The guard's 31 assertions could not reach the bug, because every fixture was hand-built and no
+  DBI value ever entered them — the fixture-cannot-reach-the-failure-mode rule, in a guard written
+  specifically to be thorough. `provenance-check.R` §5b now constructs the database shapes offline.
+
+**What was verified once connected:** `lnk_log_read()` returns **30** columns against an installed
+link whose `cols_log` names **26** — the `SELECT *` claim the whole wholesale-read design rests on,
+tested for the first time. BULK's row carries `run_uid`, `config_hash`, `link_sha` and a clean
+`link_dirty`, so two of #33's own predictions (null `run_uid`, null `link_sha`) were wrong.

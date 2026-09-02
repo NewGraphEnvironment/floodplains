@@ -79,8 +79,9 @@ content pin.
 - [x] `provenance-check.R` green on a real area
 - [x] A/B: two full runs through the real writer + live STAC, `inputs_hash` identical per section,
       `run.datetime_utc` differs. Gated on the in-band error count, not the wrapper's exit code.
-- [ ] **BLOCKED** — neexdzii end-to-end A/B needs postgres, which is not running on this machine
-- [ ] **BLOCKED** — parity fixture numbers unmoved (673.5 km / 142.8 km² / 770.0 ha); needs postgres
+- [ ] **OUTSTANDING** — neexdzii end-to-end A/B. Filed as #63. (Recorded here at the time as
+      "blocked, postgres not running" — that was a bad probe, not an outage; see findings.md.)
+- [ ] **OUTSTANDING** — parity fixture numbers unmoved (673.5 km / 142.8 km² / 770.0 ha); part of #63
 - [x] `CLAUDE.md` updated
 - [x] Correction note to stac#17 (`nge:landcover_key` should be the item-id hash) and to #33
       (forward-only)
