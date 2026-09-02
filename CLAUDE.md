@@ -154,13 +154,25 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   **42112 (`GDAL_METADATA`)**, 382 bytes under terra 1.9.34 and 5,396 under 1.9.11, the older terra
   carrying the gdalcubes NetCDF attributes into the header. Same GDAL 3.8.5 on both.
   **The tag was the symptom; the cause defeats a naive content hash too.** `terra::readValues()`
-  does not promise a storage type — 1.9.34 returns **double with NaN** in the missing cells, 1.9.11
-  **integer with `NA_integer_`**. `storage.mode(v) <- "double"` turns `NA_integer_` into `NA_real_`
-  and leaves `NaN` alone, so the vectors stay non-`identical()` and the digests stay apart;
-  `v[is.na(v)] <- NA_real_` is the line that collapses them. **Both are required, and the gap is
-  invisible to every value comparison** — `all.equal()` is TRUE, `sum(a != b, na.rm = TRUE)` is 0,
-  NA counts match. Only `identical()` separates them. `provenance-check.R` §5c pins all of this
-  offline with two writes of identical values under different `metags()`.
+  does not promise a storage type, and the trigger is **the PAM `.aux.xml` sidecar**, not the terra
+  version — measured on ONE terra (1.9.34) reading the SAME file, changing nothing else:
+
+  ```
+  GDAL_PAM_ENABLED unset -> storage.mode "double",  NaN 324891, NA 324891
+  GDAL_PAM_ENABLED=NO    -> storage.mode "integer", NaN 0,      NA 324891
+  ```
+
+  GDAL writes that sidecar as a side effect of anyone opening the file, so the storage type of a
+  raster's values depends on who has looked at it. The two sides of the #63 comparison differed in
+  exactly that way — one had a sidecar, the copied one did not — so **the earlier attribution to
+  terra 1.9.34 vs 1.9.11 was never isolated and should not be repeated.**
+  `v[is.na(v)] <- NA_real_` is the line that collapses `NaN` and `NA_real_`; `as.double()` beside it
+  is defensive, and honestly subsumed — assigning a double promotes the vector whatever the index
+  selects. **The gap is invisible to every value comparison** — `all.equal()` is TRUE,
+  `sum(a != b, na.rm = TRUE)` is 0, NA counts match. Only `identical()` separates them.
+  `provenance-check.R` §5c pins container-invariance with two writes under different `metags()`, and
+  **§5d pins the normalization itself in pure R** — because §5c reads both fixtures with the same
+  terra in one process, so it passes with both lines deleted.
   **`terra`, `sf` and GDAL are now recorded — in `run`, not `inputs`.** They were absent entirely,
   which is why the divergence was undiagnosable from the record. They stay out of `inputs` on
   purpose: a terra version legitimately differs between two machines that agree on every cell, so

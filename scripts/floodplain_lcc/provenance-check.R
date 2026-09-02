@@ -54,6 +54,17 @@ check <- function(cond, msg) if (isTRUE(cond)) ok(msg) else bad(msg)
 # harder to spot because it looks like provenance rather than an artefact.
 RUN_FIELDS <- c("datetime_utc", "run_date", "elapsed", "host", "operator", "run_id")
 
+# Declared keys for `run$toolchain`. The raster toolchain is the one thing #64 adds and the ONLY
+# provenance field with no drift protection: the producer/guard drift check (§6) parses the
+# `inputs = ...` argument of fp_prov_set and never looks at `run`, and viol_split only requires that
+# `run` carry datetime_utc. So an edit dropping `toolchain = fp_toolchain()` would be silent and the
+# record would quietly return to the state #64 calls undiagnosable. Sections that write rasters must
+# carry it, populated -- an all-NA toolchain is the same absence wearing a key.
+KEYS_TOOLCHAIN         <- c("terra", "sf", "gdal", "geos", "proj")
+SECTIONS_WITH_RASTERS  <- c("floodplain", "landcover")
+TOOLCHAIN_FIXTURE      <- list(terra = "1.9.34", sf = "1.1.2", gdal = "3.8.5",
+                               geos = "3.12.1", proj = "9.3.1")
+
 # Declared key sets. Present-with-null beats omitted: an absent key reads as "not implemented",
 # a null one reads as "we looked and there was not one", and only the second is true.
 KEYS_NETWORK_INPUTS <- c("watershed_group", "species", "min_order", "network_source",
@@ -93,6 +104,16 @@ viol_split <- function(prov) {
   unlist(lapply(prov_sections(prov), function(e) {
     inp <- names(e$body[["inputs"]] %||% list())
     run <- names(e$body[["run"]] %||% list())
+    tc  <- e$body[["run"]][["toolchain"]]
+    tc_problem <- if (e$section %in% SECTIONS_WITH_RASTERS) {
+      if (is.null(tc)) sprintf("%s[%s] run has no toolchain block (terra/sf/gdal)", e$section, e$key)
+      else if (length(setdiff(KEYS_TOOLCHAIN, names(tc))))
+        sprintf("%s[%s] run$toolchain missing: %s", e$section, e$key,
+                paste(setdiff(KEYS_TOOLCHAIN, names(tc)), collapse = ", "))
+      else if (all(vapply(tc[KEYS_TOOLCHAIN], function(x) is.null(x) || is.na(x[1]), logical(1))))
+        sprintf("%s[%s] run$toolchain is entirely NA -- the absence this field exists to remove",
+                e$section, e$key)
+    }
     # ABSOLUTE assertion first. An intersection test alone passes when `run` is absent, empty or
     # renamed -- a section that lost its whole run block is exactly the defect this check is for,
     # and set arithmetic on nothing is silent about it.
@@ -106,7 +127,8 @@ viol_split <- function(prov) {
                 paste(intersect(inp, RUN_FIELDS), collapse = ", ")),
       if (length(intersect(inp, run)))
         sprintf("%s[%s] inputs/run key sets overlap: %s", e$section, e$key,
-                paste(intersect(inp, run), collapse = ", ")))
+                paste(intersect(inp, run), collapse = ", ")),
+      tc_problem)
   }))
 }
 
@@ -186,7 +208,7 @@ good_prov <- function() {
       run = list(datetime_utc = "2026-09-01T00:00:00Z"))),
     floodplain = list(co_ff04 = list(
       inputs = nul(KEYS_FLOODPLAIN), inputs_hash = "sha256:bb",
-      run = list(datetime_utc = "2026-09-01T00:00:00Z"))),
+      run = list(datetime_utc = "2026-09-01T00:00:00Z", toolchain = TOOLCHAIN_FIXTURE))),
     landcover = list(co_ff04 = list(
       # modifyList, NOT c(): `c()` APPENDS, so a key present in both halves lands twice and `$`
       # then returns the first one -- which is how a later assignment silently fails to take.
@@ -196,7 +218,7 @@ good_prov <- function() {
              item_ids_complete = TRUE,
              classified_content_sha256 = list(`2017` = "sha256:11", `2023` = "sha256:22"))),
       inputs_hash = "sha256:cc",
-      run = list(datetime_utc = "2026-09-01T00:00:00Z"))))
+      run = list(datetime_utc = "2026-09-01T00:00:00Z", toolchain = TOOLCHAIN_FIXTURE))))
 }
 
 # --- 1. Determinism -------------------------------------------------------------------------------
@@ -233,7 +255,13 @@ cat("\n1. Determinism — `inputs` is byte-stable across two writes\n")
         "criterion 2: changing a model parameter MOVES inputs_hash")
   check(perturb(function(h) { h$drift <- list(version = "9.9.9"); h }) != base,
         "criterion 2: bumping a package version MOVES inputs_hash")
-  check(perturb(function(h) { h$classified_content_sha256$`2017` <- "sha256:ff"; h }) != base,
+  # `[[` and an existence premise, not `$<-`. After the #64 rename this read `h$classified_sha256$...`
+  # for a while: `$<-` CREATES a missing key, so the hash still moved and the check still passed --
+  # having silently become "adding an arbitrary key moves inputs_hash", which is a different and
+  # much weaker claim. Assert the key is there before perturbing it.
+  check(!is.null(g$landcover$co_ff04$inputs[["classified_content_sha256"]][["2017"]]),
+        "premise: the digest being perturbed below actually exists in the fixture")
+  check(perturb(function(h) { h[["classified_content_sha256"]][["2017"]] <- "sha256:ff"; h }) != base,
         "criterion 2: a reprocessed landcover raster MOVES inputs_hash")
   check(perturb(function(h) h) == base, "an unchanged input does NOT move inputs_hash")
 }
@@ -262,6 +290,26 @@ cat("\n2. Split — `inputs` carries no run-event field\n")
         "must-fail: a run block without datetime_utc IS reported")
   b5 <- g; b5$landcover$co_ff04$inputs_hash <- NULL
   check(any(grepl("no inputs_hash", viol_split(b5))), "must-fail: a missing inputs_hash IS reported")
+
+  # The toolchain block. It is the one field #64 adds and the only one §6's producer/guard drift
+  # check cannot see, so its three failure shapes are exercised here or it is not a guard at all.
+  b6 <- g; b6$landcover$co_ff04$run$toolchain <- NULL
+  check(any(grepl("no toolchain block", viol_split(b6))),
+        "must-fail: a landcover run with NO toolchain IS reported")
+  b7 <- g; b7$floodplain$co_ff04$run$toolchain$gdal <- NULL
+  check(any(grepl("toolchain missing: gdal", viol_split(b7))),
+        "must-fail: a toolchain missing one member IS reported")
+  # All five present and all NA -- otherwise the "missing member" arm fires first and this stops
+  # testing the arm it names. Derive it from KEYS_TOOLCHAIN so adding a member cannot rot it.
+  b8 <- g
+  b8$landcover$co_ff04$run$toolchain <- stats::setNames(
+    as.list(rep(NA_character_, length(KEYS_TOOLCHAIN))), KEYS_TOOLCHAIN)
+  check(any(grepl("entirely NA", viol_split(b8))),
+        "must-fail: an all-NA toolchain IS reported (an absence wearing a key)")
+  # ... and the network section, which writes no raster, must NOT be required to carry one.
+  b9 <- g; b9$network$co3$run$toolchain <- NULL
+  check(!any(grepl("toolchain", viol_split(b9))),
+        "the network section is not required to carry a toolchain (it writes no raster)")
 }
 
 # --- 3. Declared keys -------------------------------------------------------------------------------
@@ -356,11 +404,17 @@ cat("\n5b. Database-shaped values\n")
         "a one-element array keeps ARRAY shape (auto_unbox would collapse it to a scalar)")
 
   # timestamptz -> the session timezone must not reach the bytes.
-  tz <- Sys.getenv("TZ"); on.exit(Sys.setenv(TZ = tz), add = TRUE)
+  # Restore TZ EXPLICITLY. on.exit() here registers against the global environment, which never
+  # exits, so the handler was never called and every later section ran under TZ=UTC -- silently, and
+  # in a file whose whole subject is values that must not depend on the session. Same trap the §5c
+  # fixture cleanup hit.
+  tz <- Sys.getenv("TZ", unset = NA)
   ts <- as.POSIXct("2026-09-02 00:18:57", tz = "UTC")
   Sys.setenv(TZ = "America/Vancouver"); a <- fp_prov_scalar(ts)
   Sys.setenv(TZ = "UTC");               b <- fp_prov_scalar(ts)
+  if (is.na(tz)) Sys.unsetenv("TZ") else Sys.setenv(TZ = tz)
   check(identical(a, b) && grepl("Z$", a), "a timestamp serializes in UTC regardless of session TZ")
+  check(identical(Sys.getenv("TZ", unset = NA), tz), "the session TZ is restored (on.exit would not have)")
 
   # And the backstop: anything still unserializable is named by PATH, not by jsonlite's
   # class-only message.
@@ -452,6 +506,52 @@ if (requireNamespace("terra", quietly = TRUE) && requireNamespace("digest", quie
 } else {
   bad("terra/digest unavailable -- the content-digest property was NOT checked (a skip is not a pass)")
 }
+
+# --- 5d. The two normalizations, with no raster and no GDAL --------------------------------------
+# §5c proves the digest survives a different CONTAINER. It cannot prove either normalization is
+# needed, because it reads both fixtures with the same terra in the same process, so the storage
+# type never varies -- measured, BOTH lines could be deleted from fp_norm_block() and every §5c
+# assertion still passed. The axis that matters is a property of the vectors, so assert it on
+# vectors: `terra::readValues()` returns integer+NA_integer_ or double+NaN for the same cells
+# depending on whether GDAL read the .aux.xml sidecar.
+cat("\n5d. Value normalization (the lines the fix turns on)\n")
+vi <- c(1L, 2L, NA_integer_, 4L)   # what readValues gives with the PAM sidecar suppressed
+vd <- c(1,  2,  NaN,         4)    # ... and what it gives with the sidecar present
+
+# The premise: these two are indistinguishable by every comparison except identical(). If this ever
+# stops holding, the normalization is being tested against the wrong thing.
+check(isTRUE(all.equal(vi, vd)), "premise: all.equal() cannot tell the two shapes apart")
+check(sum(vi != vd, na.rm = TRUE) == 0, "premise: `!=` with na.rm cannot tell them apart")
+check(sum(is.na(vi)) == sum(is.na(vd)), "premise: the NA counts are equal")
+
+only_storage <- function(v) as.double(v)
+check(!identical(only_storage(vi), only_storage(vd)),
+      "must-fail: storage.mode() ALONE leaves NaN != NA_real_ (why the second line exists)")
+check(identical(fp_norm_block(vi), fp_norm_block(vd)),
+      "both normalizations together make the two shapes identical")
+check(!identical(digest::digest(only_storage(vi), algo = "sha256", serializeVersion = 2L),
+                 digest::digest(only_storage(vd), algo = "sha256", serializeVersion = 2L)),
+      "must-fail: the half-normalized vectors DIGEST differently")
+check(identical(digest::digest(fp_norm_block(vi), algo = "sha256", serializeVersion = 2L),
+                digest::digest(fp_norm_block(vd), algo = "sha256", serializeVersion = 2L)),
+      "fully normalized, they digest the same")
+
+# The cast's own job, stated even though it is currently subsumed. With no missing values there is
+# nothing for the NA line to assign -- so if the sentinel ever stops being a double, THIS is the
+# pair that starts failing, and the assertion is here to be the one that names it.
+check(!identical(digest::digest(c(1L, 2L, 3L), algo = "sha256", serializeVersion = 2L),
+                 digest::digest(c(1, 2, 3), algo = "sha256", serializeVersion = 2L)),
+      "premise: integer and double digest differently when there are no NAs at all")
+check(identical(fp_norm_block(c(1L, 2L, 3L)), fp_norm_block(c(1, 2, 3))),
+      "an all-present integer block normalizes to the same thing as its double twin")
+
+# And the serialization format is pinned, not inherited from a session option.
+old_sv <- getOption("serializeVersion")
+options(serializeVersion = 3L)
+check(identical(digest::digest(fp_norm_block(vd), algo = "sha256", serializeVersion = 2L),
+                digest::digest(fp_norm_block(vi), algo = "sha256", serializeVersion = 2L)),
+      "digest is pinned to serializeVersion 2 -- a session option cannot move it")
+if (is.null(old_sv)) options(serializeVersion = NULL) else options(serializeVersion = old_sv)
 
 # --- 6. Producer/guard key drift -----------------------------------------------------------------
 # The guard's declared key sets are only worth their maintenance if they match what the STEPS
