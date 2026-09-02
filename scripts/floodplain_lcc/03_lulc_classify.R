@@ -121,9 +121,11 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
   for (yr in names(classified_all)) {
     cls_tif <- file.path(fp_dir, paste0("classified_", yr, ".tif"))
     terra::writeRaster(classified_all[[yr]], cls_tif, overwrite = TRUE, datatype = "INT1U")
-    # Hash the .tif only -- GDAL writes a .aux.xml statistics sidecar beside it on later reads,
-    # which is not the data and would make the digest depend on who has opened the file.
-    classified_hashes[[yr]] <- fp_file_sha256(cls_tif)
+    # Digest the CELL VALUES, not the file. A file hash moves with whatever the writer's version
+    # puts in the container -- measured across two machines whose rasters agreed on all 28,291,615
+    # cells (#64). Reading only the .tif also keeps GDAL's .aux.xml statistics sidecar out of it,
+    # which is not the data and would make the digest depend on who had opened the file.
+    classified_hashes[[yr]] <- fp_raster_content_sha256(cls_tif)
   }
   if (nrow(trans_all$summary) > 0) {
     terra::writeRaster(trans_all$raster, file.path(fp_dir, "transition.tif"),
@@ -405,11 +407,11 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
       # it is the landcover as it actually entered the model, measured on the output rather than
       # restated from the request. It also closes the cache-hit hole, where the recorded items
       # describe today's query while the raster came from a cache written weeks ago.
-      classified_sha256 = classified_hashes,
+      classified_content_sha256 = classified_hashes,
       floodplain_layer  = scenario_id,
       drift             = fp_pkg_stamp("drift")),
       lc_items),
-    run = fp_prov_run()))
+    run = fp_prov_run(toolchain = fp_toolchain())))
 
   message("\nDone. Scenario: ", scenario_id, " -- outputs in ", out_dir)
   invisible(out_lc_gpkg)

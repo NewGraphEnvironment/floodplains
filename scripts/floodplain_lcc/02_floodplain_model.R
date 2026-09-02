@@ -225,7 +225,7 @@ fp_floodplain <- function(cfg, scenarios = "run") {
         subbasin_source = subbasin_source,
         crs_epsg        = sf::st_crs(streams)$epsg,
         flooded         = fp_pkg_stamp("flooded")),
-      run = fp_prov_run()))
+      run = fp_prov_run(toolchain = fp_toolchain())))
 
     # --- Per-watercourse attribution (#40) ---
     # Which part of this floodplain belongs to which river? flooded::fl_valley_attribute() applies

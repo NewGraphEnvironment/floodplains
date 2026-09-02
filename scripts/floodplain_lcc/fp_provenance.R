@@ -177,19 +177,115 @@ fp_prov_hash <- function(x) {
   paste0("sha256:", digest::digest(txt, algo = "sha256", serialize = FALSE))
 }
 
-# --- File content digest -----------------------------------------------------------------------
-# The CONTENT pin. Measured: two terra writes of identical values 1.2 s apart are byte-identical,
-# and a single changed cell moves the hash -- so a digest of the classified raster answers "is this
-# the same landcover the published figures were computed from?", which the STAC item ids cannot.
+# --- Raster content digest ---------------------------------------------------------------------
+# The CONTENT pin: a digest over the CELL VALUES and the geometry that makes them mean something,
+# never over the file's bytes.
 #
-# io-lulc item ids are `<tile>-<year>`, a deterministic function of tile and year, and the items
-# carry no `created` or `updated` property (verified live). So if Planetary Computer re-derives a
-# year IN PLACE, every id and every href is unchanged and an id-based hash is identical. The ids
-# still belong in the record -- they name what was read -- but they are an IDENTITY, not a
-# fingerprint, and only the raster digest can fail when the upstream moves.
-fp_file_sha256 <- function(path) {
+# Why it exists at all: io-lulc item ids are `<tile>-<year>`, a deterministic function of tile and
+# year, and the items carry no `created` or `updated` property (verified live). If Planetary
+# Computer re-derives a year IN PLACE, every id and every href is unchanged and an id-based hash is
+# identical. The ids still belong in the record -- they name what was read -- but they are an
+# IDENTITY, not a fingerprint, and only a digest of the raster can fail when the upstream moves.
+#
+# Why it is not a file hash any more (#64). It used to be `digest(file = path)`, on the recorded
+# claim that terra's GeoTIFF writes are byte-deterministic. That holds WITHIN ONE TOOLCHAIN and
+# fails across two. Measured across m1 and m4 running the identical commit against the same
+# database: 28,291,615 cells per year, ZERO differing, and three different digests -- the files
+# differing by exactly 10,028 bytes, all of it TIFF tag 42112 (`GDAL_METADATA`), which the older
+# terra fills with the gdalcubes NetCDF attributes and the newer one drops.
+#
+# TWO NORMALIZATIONS, AND THE SECOND IS THE ONE NOBODY EXPECTS. `terra::readValues()` does not
+# promise a storage type. Measured on ONE terra (1.9.34), the SAME file, changing nothing but
+# whether GDAL is allowed to read its `.aux.xml` sidecar:
+#
+#   GDAL_PAM_ENABLED unset -> storage.mode "double",  NaN 324891, NA 324891
+#   GDAL_PAM_ENABLED=NO    -> storage.mode "integer", NaN 0,      NA 324891
+#
+# That sidecar is written by GDAL as a side effect of anyone opening the file, so the storage type
+# of a raster's values depends on who has looked at it. (The two sides of the #63 cross-machine
+# comparison differed in exactly that way -- one had a sidecar, the copied one did not. Whether the
+# terra version ALSO matters was never isolated, so do not claim it does.)
+#
+#   storage.mode(v) <- "double"   turns NA_integer_ into NA_real_ but leaves NaN as NaN, so the
+#                                 vectors are still not identical() and the digests still disagree
+#   v[is.na(v)] <- NA_real_       collapses both, because is.na() is TRUE for NaN too
+#
+# The first alone is not enough, and the gap is invisible to every value comparison -- all.equal()
+# says TRUE, `sum(a != b, na.rm = TRUE)` is 0, and the NA counts match. Only identical() separates
+# them. Do not simplify either line away: `provenance-check.R` §5c asserts both, in pure R.
+#
+# `block_rows` IS PART OF THE CONTRACT, not a tuning knob: the digest is over per-block hashes, so
+# changing it changes every hash. It is a fixed constant rather than something derived from
+# terra::blocks() or free memory, because either would make the digest depend on the machine --
+# which is the whole defect being fixed here. Streaming at all is what keeps a whole-WSG raster off
+# the heap, and the number that makes it non-optional is the WORST case, not the fixture: BULK's
+# classified grid is 11552 x 14651 = 169.3M cells, 1.35 GB read whole, against ~47 MB per 512-row
+# block. neexdzii's 28.3M cells (226 MB) is the small one.
+#
+# Cost, measured: 1.16 s for 28,291,615 cells, against a step 3 that runs for minutes.
+# The two normalizations, factored out so they can be exercised with no raster and no GDAL at all.
+# Keeping them inline made them untestable: a fixture that writes two files and reads both with the
+# same terra in the same process gets the same storage type on both sides, so BOTH lines could be
+# deleted and every assertion still passed. Measured -- that is exactly what the first version of
+# `provenance-check.R` §5c did.
+fp_norm_block <- function(v) {
+  v <- as.double(v)             # integer and double serialize differently
+  v[is.na(v)] <- NA_real_       # is.na() is TRUE for NaN too, so this collapses NaN and NA_real_
+  v
+}
+# On the two lines above, honestly: the SECOND subsumes the first. Assigning a double into a vector
+# promotes it whatever the index selects, so `v[is.na(v)] <- NA_real_` coerces an integer vector to
+# double even when there is nothing to assign. Measured -- deleting the cast breaks no assertion,
+# and §5d says so rather than pretending otherwise. The cast stays because the invariant should not
+# depend on a subassignment side effect: change the sentinel to a logical `NA` some day and the
+# coercion silently disappears with it. What IS independently provable is the second line: deleting
+# it fails 2 of §5d's checks, deleting the cast fails none, and deleting both fails 3. (Measured --
+# an earlier version of this comment said "three" for the second line alone, which is the
+# both-deleted figure. The file's persuasiveness rests on its numbers being checkable.)
+
+fp_raster_content_sha256 <- function(path, block_rows = 512L) {
   if (!file.exists(path) || file.size(path) == 0) return(NA_character_)
-  paste0("sha256:", digest::digest(file = path, algo = "sha256"))
+  r <- terra::rast(path)
+  # Geometry is part of the content: the same values on a different grid are not the same
+  # landcover. Fixed precision so a float's printed representation cannot move the hash.
+  # An absent authority code must not hash as the literal string "NA": two genuinely different
+  # code-less CRSs would then collide, and the header exists precisely to make grid identity part
+  # of the content. Fall back to the full WKT -- same reasoning as fp_pkg_stamp's "a confident wrong
+  # SHA is worse than NA", one field over.
+  #
+  # Naming the tradeoff rather than hiding it: WKT is a ~1.4 kB, 39-line string that PROJ renders,
+  # so a code-less CRS COULD make the digest PROJ-version-dependent -- the machine dependence this
+  # function exists to remove. It is still strictly better than a silent collision between two
+  # different projections, and it is unreachable for the rasters this pipeline writes (gdalcubes
+  # attaches an authority code; measured EPSG:32609 on every classified raster). If a code-less CRS
+  # ever does turn up here, the right fix is to make it an error, not to hash more text.
+  code <- terra::crs(r, describe = TRUE)$code
+  crs_id <- if (length(code) == 1L && !is.na(code) && nzchar(code)) paste0("EPSG:", code)
+            else paste0("WKT:", terra::crs(r))
+  hdr <- paste(c(dim(r),
+                 sprintf("%.9f", as.vector(terra::ext(r))),
+                 crs_id,
+                 sprintf("%.9f", terra::res(r))), collapse = "|")
+  terra::readStart(r)
+  on.exit(terra::readStop(r), add = TRUE)
+  nr <- terra::nrow(r)
+  parts <- character(0)
+  i <- 1L
+  while (i <= nr) {
+    n <- min(block_rows, nr - i + 1L)
+    v <- terra::readValues(r, row = i, nrows = n)
+    parts <- c(parts, digest::digest(fp_norm_block(v), algo = "sha256",
+                                     # Pin the serialization format. digest hashes R's serialized
+                                     # bytes, and `serializeVersion` is a base option any .Rprofile
+                                     # can set; measured, version 3 gives a different digest for
+                                     # identical cells and embeds the native encoding in the header,
+                                     # making the hash locale-dependent. This function exists to be
+                                     # machine-independent, so the format cannot be left to a option.
+                                     serializeVersion = 2L))
+    i <- i + n
+  }
+  paste0("sha256:", digest::digest(paste0(hdr, "|", paste(parts, collapse = "")),
+                                   algo = "sha256", serialize = FALSE))
 }
 
 # --- Record absence as absence ---------------------------------------------------------------
@@ -441,4 +537,26 @@ fp_stac_has_next <- function(items) {
 # leak into `inputs`, and provenance-check.R fails if it does.
 fp_prov_run <- function(...) {
   c(list(datetime_utc = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")), list(...))
+}
+
+# --- The raster toolchain, recorded in `run` and NOT in `inputs` --------------------------------
+# terra, sf and GDAL are what actually write and read every raster and vector this pipeline
+# produces, and until #64 none of them appeared in the record at all -- only link, flooded, drift
+# and fresh. So when two machines produced identical rasters with different digests, the one
+# difference that explained it was the one thing provenance did not carry.
+#
+# It goes in `run`, deliberately, and this is not a filing convenience. `inputs` is hashed. A terra
+# version legitimately differs between two machines that agree on every cell, so putting it in
+# `inputs` would move `inputs_hash` across machines -- reintroducing exactly the cross-machine churn
+# #64 exists to remove, one field over. `run` is the run event and is not hashed: it makes a digest
+# change DIAGNOSABLE without making it INEVITABLE. That is #33's inputs/run split doing its job.
+fp_toolchain <- function() {
+  ver <- function(p) tryCatch(as.character(utils::packageVersion(p)),
+                              error = function(e) NA_character_)
+  soft <- tryCatch(sf::sf_extSoftVersion(), error = function(e) character(0))
+  pick <- function(k) if (k %in% names(soft)) unname(soft[[k]]) else NA_character_
+  # GEOS and PROJ arrive in the same call for free, and the floodplain section's outputs ARE
+  # geometry -- a PROJ change moves a reprojection the same way a GDAL change moves an encoder.
+  list(terra = ver("terra"), sf = ver("sf"),
+       gdal = pick("GDAL"), geos = pick("GEOS"), proj = pick("PROJ"))
 }

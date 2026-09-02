@@ -138,18 +138,45 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   (one changed cell moves the hash), so it measures the output rather than restating the request —
   and it closes the cache-hit hole for free, where the recorded items describe today's query while
   the raster came from a cache written weeks ago. The ids stay, labelled an identity.
-  **`nge:landcover_key` should be the raster digest — but NOT this one (#64).** The
-  byte-determinism claim this rested on holds **within one toolchain and fails across two**, so the
-  digest is a *container* hash and not a *content* hash. Measured 2026-09-02 across two machines
-  running the identical commit against the same database: 28,291,615 cells per year, **zero
-  differing**, identical extent/CRS/resolution/LZW/block size/palette — and a different digest, by
-  exactly +10,028 bytes in all three years. It is TIFF tag **42112 (`GDAL_METADATA`)**, 382 bytes
-  under terra 1.9.34 and 5,396 under 1.9.11, the older terra carrying the gdalcubes NetCDF
-  attributes (`crs#GeoTransform`, `data#scale_factor`, …) into the header. Same GDAL 3.8.5 both
-  sides. So a published `nge:landcover_key` is machine-specific and churns with no content change —
-  the false positive #45 removed from the GeoPackage, where the rule is already written down: *byte
-  equality answers "same build?", not "same content?"*. **And it is undiagnosable from the record,
-  because `terra` and `sf` are not among the stamped packages** — only link, flooded, drift, fresh.
+  **`nge:landcover_key` should be the raster digest, and IS NOT — it publishes `item_hash` (#64).**
+  `stac_floodplains_bc/scripts/fp_provenance.R` maps `landcover_key` to `inputs$item_hash`, a hash
+  over the resolved STAC **item ids** — the one field established above as an identity that cannot
+  fail when the upstream re-derives in place. The sentence "should be the raster digest" has never
+  been true of what ships. Switching it is the publish layer's change, not this repo's; the coupling
+  stays one-way.
+  **The digest itself was a CONTAINER hash until #64, and is now a CONTENT hash.**
+  `fp_raster_content_sha256()` digests cell values plus geometry in fixed 512-row blocks —
+  **`block_rows` is part of the contract**, since the digest is over per-block hashes. It replaced
+  `digest(file = )`, whose byte-determinism claim holds **within one toolchain and fails across
+  two**: measured 2026-09-02 on two machines running the identical commit against the same database,
+  28,291,615 cells per year, **zero differing**, identical extent/CRS/resolution/LZW/block
+  size/palette — and a different digest, by exactly +10,028 bytes every year. That was TIFF tag
+  **42112 (`GDAL_METADATA`)**, 382 bytes under terra 1.9.34 and 5,396 under 1.9.11, the older terra
+  carrying the gdalcubes NetCDF attributes into the header. Same GDAL 3.8.5 on both.
+  **The tag was the symptom; the cause defeats a naive content hash too.** `terra::readValues()`
+  does not promise a storage type, and the trigger is **the PAM `.aux.xml` sidecar**, not the terra
+  version — measured on ONE terra (1.9.34) reading the SAME file, changing nothing else:
+
+  ```
+  GDAL_PAM_ENABLED unset -> storage.mode "double",  NaN 324891, NA 324891
+  GDAL_PAM_ENABLED=NO    -> storage.mode "integer", NaN 0,      NA 324891
+  ```
+
+  GDAL writes that sidecar as a side effect of anyone opening the file, so the storage type of a
+  raster's values depends on who has looked at it. The two sides of the #63 comparison differed in
+  exactly that way — one had a sidecar, the copied one did not — so **the earlier attribution to
+  terra 1.9.34 vs 1.9.11 was never isolated and should not be repeated.**
+  `v[is.na(v)] <- NA_real_` is the line that collapses `NaN` and `NA_real_`; `as.double()` beside it
+  is defensive, and honestly subsumed — assigning a double promotes the vector whatever the index
+  selects. **The gap is invisible to every value comparison** — `all.equal()` is TRUE,
+  `sum(a != b, na.rm = TRUE)` is 0, NA counts match. Only `identical()` separates them.
+  `provenance-check.R` §5c pins container-invariance with two writes under different `metags()`, and
+  **§5d pins the normalization itself in pure R** — because §5c reads both fixtures with the same
+  terra in one process, so it passes with both lines deleted.
+  **`terra`, `sf` and GDAL are now recorded — in `run`, not `inputs`.** They were absent entirely,
+  which is why the divergence was undiagnosable from the record. They stay out of `inputs` on
+  purpose: a terra version legitimately differs between two machines that agree on every cell, so
+  hashing it would reintroduce the churn #64 removes, one field over.
   Two things that cannot be recorded, and are recorded as absent rather than guessed: the **DEM
   URL** (`fl_dem_aoi()` builds it in its body, and `terra::sources()` on its cropped-and-projected
   return is `""` in memory or a *random per-process temp path* when terra spills — a
