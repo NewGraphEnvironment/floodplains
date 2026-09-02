@@ -51,6 +51,14 @@
 # sections v2 and `stac_floodplains_bc` is downstream of that label.
 FP_PROV_SCHEMA_VERSION <- 2L
 
+# Which sections publish an `outputs` block (#65), declared HERE rather than in a guard because
+# both the guard and provenance_ab-compare.R need it and a second copy would drift. It is a
+# JUDGEMENT -- "this step must publish a digest of what it produced" is not a fact readable from
+# the producers -- so provenance-check.R section 6 pairs it with a derivation from the step scripts
+# and asserts the two setequal. Derived alone would go empty and SILENT the moment a producer
+# dropped the block; declared alone would drift from the code.
+FP_SECTIONS_WITH_OUTPUTS <- c("network", "floodplain", "landcover")
+
 fp_prov_path <- function(cfg) file.path(cfg$dir_out, "provenance.json")
 
 # --- Read ------------------------------------------------------------------------------------

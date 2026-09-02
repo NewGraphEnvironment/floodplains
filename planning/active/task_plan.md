@@ -57,31 +57,31 @@ Outcome: a digest of the input **data** inside `inputs`, and a new `outputs` blo
 
 ## Phase 2: Network section (01) — every `inputs` change in one commit
 
-- [ ] `network_content_sha256` in `inputs`, on the full-WSG read **before** the subset
-- [ ] `outputs = list(streams_layer, network_content_sha256)` — the post-subset set
-- [ ] `link_config_name` derived on the `grab` predicate; `link_config_name_source` closed vocabulary
-- [ ] `config_name` added to 01's null-fill list and `KEYS_LINK_LOG`
-- [ ] `.stamp.md` sidecar states the same resolved config name
-- [ ] `KEYS_NETWORK_INPUTS` / `KEYS_NETWORK_OUTPUTS`; §6 pins the BUILD literal from 01's own
+- [x] `network_content_sha256` in `inputs`, on the full-WSG read **before** the subset
+- [x] `outputs = list(streams_layer, network_content_sha256)` — the post-subset set
+- [x] `link_config_name` derived on the `grab` predicate; `link_config_name_source` closed vocabulary
+- [x] `config_name` added to 01's null-fill list and `KEYS_LINK_LOG`
+- [x] `.stamp.md` sidecar states the same resolved config name
+- [x] `KEYS_NETWORK_INPUTS` / `KEYS_NETWORK_OUTPUTS`; §6 pins the BUILD literal from 01's own
       `lnk_config()` call; a GRAB may never report `link_config_name_source = "built_literal"`
 
 ## Phase 3: Floodplain section (02)
 
-- [ ] `dem_content_sha256` in `inputs`, computed once before the scenario loop
-- [ ] `outputs = list(floodplain_raster, floodplain_content_sha256)` — digest of the written file
-- [ ] Pin `datatype` on 02's `writeRaster`; verify the pin is byte-identical
-- [ ] `KEYS_FLOODPLAIN` + `KEYS_FLOODPLAIN_OUTPUTS`; `SECTIONS_WITH_OUTPUTS` as a declare-or-fail pair
+- [x] `dem_content_sha256` in `inputs`, computed once before the scenario loop
+- [x] `outputs = list(floodplain_raster, floodplain_content_sha256)` — digest of the written file
+- [x] Pin `datatype` on 02's `writeRaster`; verify the pin is byte-identical
+- [x] `KEYS_FLOODPLAIN` + `KEYS_FLOODPLAIN_OUTPUTS`; `SECTIONS_WITH_OUTPUTS` as a declare-or-fail pair
 
 ## Phase 4: Landcover outputs (03)
 
-- [ ] `outputs = list(transition_raster, transition_content_sha256)`, guarding the empty-summary case
-- [ ] `KEYS_LANDCOVER_OUTPUTS`
+- [x] `outputs = list(transition_raster, transition_content_sha256)`, guarding the empty-summary case
+- [x] `KEYS_LANDCOVER_OUTPUTS`
 
 ## Phase 5: A/B compare + schema-version assertability
 
-- [ ] `provenance_ab-compare.R` compares `outputs_hash` with a per-hash detail column
-- [ ] Outputs expectation derived per section, not from what the two files share
-- [ ] `schema_version` 2 tied to the outputs field set
+- [x] `provenance_ab-compare.R` compares `outputs_hash` with a per-hash detail column
+- [x] Outputs expectation derived per section, not from what the two files share
+- [x] `schema_version` 2 tied to the outputs field set
 
 ## Phase 6: Live verification (neexdzii + bulk)
 

@@ -25,6 +25,13 @@
 #
 # Called by scripts/run_area.R (step 1). cfg comes from fp_read_config().
 
+# The link config bundle this repo BUILDS with, named once (#65). Every lnk_config() call in this
+# file uses it, and provenance-check.R parses them to assert that -- so changing the methodology
+# here cannot silently leave the recorded `link_config_name` describing the old one. Not a tuning
+# knob: `default` leaves `subsurfaceflow` OFF as a natural barrier where `bcfishpass` opts it in,
+# which is the NewGraph methodology decision documented below.
+LNK_BUILD_CONFIG <- "default"
+
 fp_network <- function(cfg) {
   library(link)
   library(sf)
@@ -70,7 +77,7 @@ fp_network <- function(cfg) {
   # that is the SOURCE schema, not this area's. Built here rather than inside the else-branch
   # (where the pipeline's own copy lives) so a GRAB run can look up the row too -- which is the
   # only way most published areas get a config_hash at all, since they GRAB and never build. (#33)
-  lnk_cfg_read <- lnk_config("default")
+  lnk_cfg_read <- lnk_config(LNK_BUILD_CONFIG)
   lnk_cfg_read$pipeline$schema <- read_schema
 
   if (grab) {
@@ -90,7 +97,7 @@ fp_network <- function(cfg) {
   # regardless. access_co is NATURAL-barrier accessibility (dams/anthropogenic are
   # excluded from access since link#200) = potential-habitat reachability.
   message("Loading link config + overrides...")
-  lnk_cfg <- lnk_config("default")   # method choice, not area config
+  lnk_cfg <- lnk_config(LNK_BUILD_CONFIG)   # method choice, not area config
   lnk_cfg$pipeline$schema <- schema
   loaded <- lnk_load_overrides(lnk_cfg)
 
@@ -138,6 +145,29 @@ fp_network <- function(cfg) {
       AND s.watershed_group_code = '%4$s'",
     read_schema, min_order, species, aoi_wsg)
   streams <- sf::st_read(conn, query = streams_sql, quiet = TRUE) |> sf::st_zm(drop = TRUE)
+
+  # --- The network content digest (#65) ---
+  # THE INPUT digest, taken HERE: on the full-WSG read, BEFORE the optional reach subset. Same
+  # placement as the freshness guard below and for the same reason, stated there as "checked on the
+  # full-WSG read, before any reach subset".
+  #
+  # Before this field, network `inputs_hash` covered the watershed group, the species, the schema
+  # name and the package versions -- a description of the JOB, with nothing derived from the
+  # network's content. `link_log` is a SIBLING of `inputs`, so even `config_hash` and `run_uid` were
+  # outside the hash. Rebuild `fresh` with a different config, a different link, or different data
+  # and the recorded hash did not move.
+  #
+  # The subset must NOT be inside this digest. It is st_transform + st_intersects -- PROJ and GEOS --
+  # so a post-subset digest would make `inputs_hash` a function of the sf build, reintroducing one
+  # field over exactly the cross-machine churn #64 removed. The subset set is digested separately
+  # into `outputs`, where varying with the toolchain is diagnostic rather than fatal.
+  NETWORK_DIGEST_KEY <- c("blue_line_key", "downstream_route_measure")
+  # The VALUE columns are what step 2 actually consumes: fl_valley_confine() reads
+  # `upstream_area_ha` for the bankfull regression and `map_upstream` for precipitation. A network
+  # with the same accessible segment set but different upstream areas produces a DIFFERENT
+  # floodplain and must not hash the same.
+  NETWORK_DIGEST_VAL <- c("length_metre", "stream_order", "upstream_area_ha", "map_upstream")
+  network_sha_input <- fp_table_content_sha256(streams, NETWORK_DIGEST_KEY, NETWORK_DIGEST_VAL)
 
   # --- Freshness guard (grab only) ---
   # A shared schema is not uniformly current per-WSG, so compare the grabbed accessible km
@@ -229,23 +259,9 @@ fp_network <- function(cfg) {
   }
   message("Saved: ", basename(out_gpkg))
 
-  # --- Provenance stamp sidecar ---
-  # lnk_stamp records config identity + link/fresh versions + git SHAs + a DB snapshot
-  # (bcfishobs.observations = the crossings/observations signal) + per-file config
-  # provenance (the crossings/barrier override CSVs + their drift status). Written next to
-  # every network so a floodplain self-documents what produced it -- and so a grab-guard
-  # override (network_guard = warn|off) is auditable: the stamp shows whether the source's
-  # divergence lines up with updated crossings / a different config. (#14)
-  stamp <- lnk_stamp_finish(lnk_stamp(lnk_config("default"), conn, aoi = aoi_wsg))
-  stamp_md <- c(format(stamp, "markdown"), "",
-                "### Floodplains network source",
-                paste0("- source: ", net_source),
-                paste0("- freshness: ", fresh_note))
-  # Species-suffixed so a second species' step 1 doesn't overwrite the first's stamp (#23).
-  stamp_name <- paste0("aquatic_network_", species, min_order, ".stamp.md")
-  writeLines(stamp_md, file.path(out_dir, stamp_name))
-  message("Wrote provenance sidecar: ", stamp_name)
-
+  # --- Resolve the config name that actually produced this network (#65) ---
+  # Read BEFORE the stamp sidecar below, because that sidecar states the methodology too and used to
+  # state it wrongly for the same reason.
   # --- Machine-readable provenance (#33) ---
   # The stamp above is markdown for a human; this is the block stac_floodplains_bc (#17) publishes
   # as STAC item properties. It records the LINK LOG ROW rather than re-deriving anything: link's
@@ -271,14 +287,81 @@ fp_network <- function(cfg) {
     # Null-fill the declared set. `run_uid` is absent from any schema predating link#262 -- record
     # that as an explicit null, never by omission: an absent key reads as "not implemented", a
     # null one reads as "we looked and there was not one", and only the second is true. (#33)
+    # `config_name` joined this list in #65: it is the field the resolution below reads, and a key
+    # that is absent rather than null cannot be told apart from one the source schema does not have.
     link_log <- fp_prov_null_fill(link_log, c(
-      "run_uid", "config_hash", "link_sha", "link_dirty", "fwapg_sha",
+      "run_uid", "config_hash", "config_name", "link_sha", "link_dirty", "fwapg_sha",
       "bcfp_model_version", "bcfp_pin_source", "date_start", "date_end"))
     # text[] columns (species, wsg_upstream) arrive as a list; timestamps as POSIXct. Flatten both
     # to JSON-safe scalars so the serialized bytes cannot depend on the session's timezone.
     link_log <- lapply(link_log, fp_prov_scalar)
   }
   if (!is.null(link_log_note)) message("  provenance: ", link_log_note)
+
+  # `link_config_name` used to be the LITERAL "default" on both branches. True on a BUILD, where this
+  # script hands lnk_config("default") to the pipeline. WRONG on a GRAB -- measured live in
+  # data/neexdzii: inputs.link_config_name said "default" while link_log.config_name said
+  # "bcfishpass", and the two differ in the natural-barrier set (bcfishpass opts in
+  # `subsurfaceflow`; the default bundle leaves it off). So the published provenance claimed the
+  # NewGraph default methodology for a network built under the config this repo explicitly chose not
+  # to use.
+  #
+  # The predicate is `grab`, NOT log presence. Falling back to the build literal "when there is no
+  # log row" would reproduce the defect exactly where it lives: link_log is NULL precisely when a
+  # GRAB source has no log table. A GRAB may never assert a locally-assumed config name --
+  # provenance-check.R asserts that against the real file, which is the one arm here with an
+  # external reference.
+  #
+  # `link_config_name_source` names which tier answered, so an NA is diagnosable rather than mute --
+  # the same contract fp_pkg_stamp's `sha_source` carries.
+  log_config_name <- if (!is.null(link_log)) link_log[["config_name"]] else NULL
+  if (!is.null(log_config_name) && (length(log_config_name) != 1L || is.na(log_config_name))) {
+    log_config_name <- NULL
+  }
+  if (!grab) {
+    link_config_name <- LNK_BUILD_CONFIG
+    link_config_name_source <- "built_literal"
+    # A BUILD writes its own log row, so the two SHOULD agree. When they do not, the pipeline ran
+    # something other than what this script asked for -- say so rather than silently preferring one.
+    if (!is.null(log_config_name) && !identical(as.character(log_config_name), LNK_BUILD_CONFIG)) {
+      warning("link built with config '", LNK_BUILD_CONFIG, "' but the log row for ", aoi_wsg,
+              " reports '", log_config_name, "'", call. = FALSE, immediate. = TRUE)
+    }
+  } else if (!is.null(log_config_name)) {
+    link_config_name <- as.character(log_config_name)
+    link_config_name_source <- "link_log"
+  } else {
+    link_config_name <- NA_character_
+    link_config_name_source <- "unresolved"
+  }
+  message("  provenance: link config '", link_config_name, "' (", link_config_name_source, ")")
+
+  # --- Provenance stamp sidecar ---
+  # lnk_stamp records config identity + link/fresh versions + git SHAs + a DB snapshot
+  # (bcfishobs.observations = the crossings/observations signal) + per-file config
+  # provenance (the crossings/barrier override CSVs + their drift status). Written next to
+  # every network so a floodplain self-documents what produced it -- and so a grab-guard
+  # override (network_guard = warn|off) is auditable: the stamp shows whether the source's
+  # divergence lines up with updated crossings / a different config. (#14)
+  # lnk_stamp is handed the LOCAL bundle on both branches, deliberately -- it snapshots this
+  # machine's config files and package state, which is a fact about this run whichever schema the
+  # network came from. On a GRAB that makes the block below describe a config that did NOT produce
+  # the network, so say so in the sidecar rather than let a reader take it as the methodology. Same
+  # defect the provenance record carried until #65, in the file a person actually opens.
+  stamp <- lnk_stamp_finish(lnk_stamp(lnk_config(LNK_BUILD_CONFIG), conn, aoi = aoi_wsg))
+  stamp_md <- c(format(stamp, "markdown"), "",
+                "### Floodplains network source",
+                paste0("- source: ", net_source),
+                paste0("- freshness: ", fresh_note),
+                paste0("- link config that produced this network: ", link_config_name,
+                       " (", link_config_name_source, ")"),
+                if (grab) paste0(
+                  "- NOTE: the config block above describes the LOCAL `", LNK_BUILD_CONFIG,
+                  "` bundle on this machine, NOT the config the grabbed network was built under."))
+  # Species-suffixed so a second species' step 1 doesn't overwrite the first's stamp (#23).
+  stamp_name <- paste0("aquatic_network_", species, min_order, ".stamp.md")
+  writeLines(stamp_md, file.path(out_dir, stamp_name))
+  message("Wrote provenance sidecar: ", stamp_name)
 
   fp_prov_set(cfg, "network", paste0(species, min_order), list(
     inputs = list(
@@ -288,9 +371,25 @@ fp_network <- function(cfg) {
       network_source   = net_source,
       read_schema      = read_schema,
       subset           = cfg$subset,
-      link_config_name = "default",
+      link_config_name = link_config_name,
+      link_config_name_source = link_config_name_source,
+      # The one field in this block derived from the network's CONTENT rather than from a
+      # description of the job (#65). Taken pre-subset -- see where it is computed.
+      network_content_sha256 = network_sha_input,
       link             = fp_pkg_stamp("link"),
       fresh            = fp_pkg_stamp("fresh")),
+    # What this step PRODUCED, digested over the same non-geometric key the input digest uses (#65).
+    # It differs from the input digest exactly when the reach subset removed something, so on a
+    # whole-WSG area the two agree by construction and on a subset area they must not. Geometry stays
+    # out: a GeoPackage layer has no guaranteed row order and carries floats, which is #72.
+    outputs = list(
+      streams_layer          = streams_lyr,
+      # Named for the LAYER, not repeating the input key. Same digest function, different stage --
+      # and a distinct name is what lets provenance-check.R keep its inputs/outputs overlap arm,
+      # which is the thing that would catch a parameter accidentally duplicated across the two.
+      streams_content_sha256 = fp_table_content_sha256(streams, NETWORK_DIGEST_KEY,
+                                                       NETWORK_DIGEST_VAL),
+      n_segments             = nrow(streams)),
     link_log = link_log,
     link_log_note = link_log_note,
     # freshness and the guard setting are OBSERVATIONS of this run, not inputs: the guard can be

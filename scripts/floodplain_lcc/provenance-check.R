@@ -83,12 +83,44 @@ TOOLCHAIN_FIXTURE      <- list(terra = "1.9.34", sf = "1.1.2", gdal = "3.8.5",
 # Declared key sets. Present-with-null beats omitted: an absent key reads as "not implemented",
 # a null one reads as "we looked and there was not one", and only the second is true.
 KEYS_NETWORK_INPUTS <- c("watershed_group", "species", "min_order", "network_source",
-                         "read_schema", "subset", "link_config_name", "link", "fresh")
-KEYS_LINK_LOG       <- c("run_uid", "config_hash", "link_sha", "link_dirty", "fwapg_sha",
-                         "bcfp_model_version", "bcfp_pin_source", "date_start", "date_end")
+                         "read_schema", "subset", "link_config_name", "link_config_name_source",
+                         "network_content_sha256", "link", "fresh")
+KEYS_LINK_LOG       <- c("run_uid", "config_hash", "config_name", "link_sha", "link_dirty",
+                         "fwapg_sha", "bcfp_model_version", "bcfp_pin_source", "date_start",
+                         "date_end")
+
+# Declared keys for the `outputs` blocks (#65). Sections absent from this list are declared to write
+# no outputs, and viol_keys reports one that appears anyway -- so the whitelist works in both
+# directions the way the `inputs` one does.
+KEYS_NETWORK_OUTPUTS    <- c("streams_layer", "streams_content_sha256", "n_segments")
+KEYS_FLOODPLAIN_OUTPUTS <- c("floodplain_raster", "floodplain_content_sha256", "valley_cells")
+KEYS_LANDCOVER_OUTPUTS  <- c("transition_raster", "transition_content_sha256",
+                             "transition_patches")
+
+# Sections absent from this list are declared to write NO outputs, and viol_keys reports a block
+# that appears anyway -- so the whitelist works in both directions, like the `inputs` one. A
+# top-level constant rather than a local, so the "a section that declares none" test can move the
+# SCOPE (the thing that grants the exemption) instead of relying on a section that happens to have
+# no outputs yet -- which stops being a test the moment that section gains one.
+KEYS_OUTPUTS_BY_SECTION <- list(network = KEYS_NETWORK_OUTPUTS,
+                                floodplain = KEYS_FLOODPLAIN_OUTPUTS,
+                                landcover = KEYS_LANDCOVER_OUTPUTS)
+
+# Which sections write an `outputs` block, as a JUDGEMENT, stated. Paired with a derivation from the
+# producers in section 6 and asserted setequal, mirroring SECTIONS_WITH_RASTERS. Derived alone would
+# go empty and silent the moment a producer dropped the block; declared alone would drift.
+# Read from fp_provenance.R, not re-declared: provenance_ab-compare.R needs the same list and a
+# second copy would be a literal pinned to nothing. Section 6 asserts it against the producers.
+SECTIONS_WITH_OUTPUTS <- FP_SECTIONS_WITH_OUTPUTS
+
+# The link config bundle 01 BUILDS with. Pinned to 01's own lnk_config() literal in section 6, which
+# is the only EXTERNAL reference available for the BUILD branch -- comparing the recorded
+# link_config_name against the log row it was assigned from could not disagree.
+LNK_BUILD_CONFIG_EXPECTED <- "default"
 KEYS_FLOODPLAIN     <- c("wsg", "species", "scenario", "flood_factor", "slope_threshold",
                          "max_width", "cost_threshold", "size_threshold", "hole_threshold",
                          "anchor_order", "dem_resolver", "dem_crs_epsg", "dem_res_m", "dem_ncell",
+                         "dem_content_sha256",
                          "dem_buffer_m", "attribute_by", "subbasin_source", "crs_epsg",
                          "network_layer", "flooded")
 KEYS_LANDCOVER      <- c("source", "stac_url", "collection", "asset", "res", "crs", "dt",
@@ -198,8 +230,23 @@ viol_sha_source <- function(prov) {
 viol_keys <- function(prov) {
   want <- list(network = KEYS_NETWORK_INPUTS, floodplain = KEYS_FLOODPLAIN,
                landcover = KEYS_LANDCOVER)
+  want_out <- KEYS_OUTPUTS_BY_SECTION
   unlist(lapply(prov_sections(prov), function(e) {
     have <- names(e$body[["inputs"]] %||% list())
+    have_out <- names(e$body[["outputs"]] %||% list())
+    wo <- want_out[[e$section]]
+    out_problem <- if (is.null(wo)) {
+      if (length(have_out))
+        sprintf("%s[%s] writes an `outputs` block but none is declared for that section",
+                e$section, e$key)
+    } else {
+      c(if (length(setdiff(wo, have_out)))
+          sprintf("%s[%s].outputs missing: %s", e$section, e$key,
+                  paste(setdiff(wo, have_out), collapse = ", ")),
+        if (length(setdiff(have_out, wo)))
+          sprintf("%s[%s].outputs has UNDECLARED key(s): %s", e$section, e$key,
+                  paste(setdiff(have_out, wo), collapse = ", ")))
+    }
     miss <- setdiff(want[[e$section]], have)
     # WHITELIST, not just a completeness check: an UNDECLARED key is reported too. A denylist grep
     # for secret-shaped strings can always be outrun by a new field; "only these keys may appear"
@@ -221,8 +268,62 @@ viol_keys <- function(prov) {
                                 paste(miss, collapse = ", ")),
       if (length(undeclared)) sprintf("%s[%s].inputs has UNDECLARED key(s): %s", e$section, e$key,
                                       paste(undeclared, collapse = ", ")),
-      extra)
+      out_problem, extra)
   }))
+}
+
+# The config-name property, and it is the arm with an EXTERNAL reference (#65). A GRAB reads a
+# network somebody else built, so the only honest source for the config that produced it is the log
+# row -- a GRAB reporting `built_literal` is claiming a locally-assumed methodology for a network
+# this machine did not build, which is exactly the defect measured live in data/neexdzii
+# ("default" recorded beside a log row saying "bcfishpass").
+#
+# Asserting `link_config_name == link_log$config_name` is NOT that check: 01 assigns one from the
+# other, so it cannot disagree, and whether it fires would depend on statement order rather than on
+# truth. It is kept below as a second arm only because it would catch a FUTURE producer that
+# decoupled them; it earns nothing on its own.
+viol_config_name <- function(prov) {
+  unlist(lapply(prov_sections(prov), function(e) {
+    if (!identical(e$section, "network")) return(NULL)
+    inp <- e$body[["inputs"]] %||% list()
+    src <- inp[["link_config_name_source"]]
+    nm  <- inp[["link_config_name"]]
+    is_grab <- isTRUE(grepl("^GRAB", as.character(inp[["network_source"]] %||% "")))
+    log_nm <- (e$body[["link_log"]] %||% list())[["config_name"]]
+    c(if (is.null(src) || !as.character(src) %in%
+            c("built_literal", "link_log", "unresolved"))
+        sprintf("network[%s].inputs.link_config_name_source is not one of {built_literal, link_log, unresolved}: %s",
+                e$key, substr(as.character(src %||% "<absent>"), 1, 40)),
+      if (is_grab && identical(as.character(src), "built_literal"))
+        sprintf("network[%s] GRABbed its network but reports link_config_name_source = built_literal -- it is asserting a config this machine did not run",
+                e$key),
+      if (identical(as.character(src), "link_log") && !is.null(log_nm) && !is.na(log_nm) &&
+            !identical(as.character(nm), as.character(log_nm)))
+        sprintf("network[%s] link_config_name '%s' disagrees with link_log.config_name '%s'",
+                e$key, as.character(nm), as.character(log_nm)),
+      if (identical(as.character(src), "unresolved") && !is.null(nm) && !is.na(nm))
+        sprintf("network[%s] reports an unresolved config source but names a config anyway: %s",
+                e$key, as.character(nm)))
+  }))
+}
+
+# The schema version, and the reason it is a property at all (#65). Until now it was asserted
+# NOWHERE -- it appeared only in the skeleton, in an unconditional overwrite on every read, and in a
+# fixture. That overwrite is the sharp edge: `fp_prov_read` stamps the CURRENT version on whatever
+# it reads, so bumping the constant and re-running only step 2 labels a file v2 while its network
+# and landcover sections are still v1 content, and stac_floodplains_bc is downstream of that label.
+#
+# This check alone cannot see that -- a version equality is a claim about a number. What makes the
+# label honest is this PAIRED with viol_keys, which now requires the v2 field set (`outputs` +
+# `outputs_hash`) on every section declared to write one, so a v1 section under a v2 label is
+# reported as a missing outputs block. Neither is sufficient alone; say so rather than let the
+# version check look like it is doing the work.
+viol_schema_version <- function(prov) {
+  v <- prov[["schema_version"]]
+  c(if (is.null(v)) "provenance.json has no schema_version",
+    if (!is.null(v) && !identical(as.integer(v), as.integer(FP_PROV_SCHEMA_VERSION)))
+      sprintf("schema_version is %s but this guard checks %s", as.character(v),
+              FP_PROV_SCHEMA_VERSION))
 }
 
 # Anchored on the query-parameter form so a `sig` COLUMN or a word ending in "se" cannot trip it,
@@ -283,11 +384,19 @@ good_prov <- function() {
   list(
     area = "fixture", wsg = "TEST", schema_version = FP_PROV_SCHEMA_VERSION,
     network = list(co3 = list(
-      inputs = nul(KEYS_NETWORK_INPUTS), inputs_hash = "sha256:aa",
-      link_log = nul(KEYS_LINK_LOG),
+      inputs = utils::modifyList(
+        nul(KEYS_NETWORK_INPUTS),
+        list(network_source = "GRAB from fresh", link_config_name = "bcfishpass",
+             link_config_name_source = "link_log")),
+      inputs_hash = "sha256:aa",
+      outputs = stats::setNames(as.list(rep(NA, length(KEYS_NETWORK_OUTPUTS))),
+                                KEYS_NETWORK_OUTPUTS),
+      outputs_hash = "sha256:aa2",
+      link_log = utils::modifyList(nul(KEYS_LINK_LOG), list(config_name = "bcfishpass")),
       run = list(datetime_utc = "2026-09-01T00:00:00Z"))),
     floodplain = list(co_ff04 = list(
       inputs = nul(KEYS_FLOODPLAIN), inputs_hash = "sha256:bb",
+      outputs = nul(KEYS_FLOODPLAIN_OUTPUTS), outputs_hash = "sha256:bb2",
       run = list(datetime_utc = "2026-09-01T00:00:00Z", toolchain = TOOLCHAIN_FIXTURE))),
     landcover = list(co_ff04 = list(
       # modifyList, NOT c(): `c()` APPENDS, so a key present in both halves lands twice and `$`
@@ -301,6 +410,9 @@ good_prov <- function() {
              years = list(2017L, 2023L),
              classified_content_sha256 = list(`2017` = "sha256:11", `2023` = "sha256:22"))),
       inputs_hash = "sha256:cc",
+      outputs = stats::setNames(as.list(rep(NA, length(KEYS_LANDCOVER_OUTPUTS))),
+                                KEYS_LANDCOVER_OUTPUTS),
+      outputs_hash = "sha256:cc2",
       run = list(datetime_utc = "2026-09-01T00:00:00Z", toolchain = TOOLCHAIN_FIXTURE))))
 }
 
@@ -373,7 +485,12 @@ cat("\n1. Determinism — `inputs` is byte-stable across two writes\n")
   # outputs_hash -- fp_prov_hash(NULL) is NA_character_ -- and viol_split's "outputs_hash with no
   # outputs" arm could then never fire.
   cfg3 <- fixture_cfg()
-  fp_prov_set(cfg3, "floodplain", "co_ff04", g$floodplain$co_ff04)
+  # Built by REMOVAL from the fixture, not by picking a section that happens to have no outputs --
+  # every section gains one as the phases land, and a mutant built the other way silently stops
+  # being a mutant.
+  no_out <- g$floodplain$co_ff04; no_out$outputs <- NULL; no_out$outputs_hash <- NULL
+  check(is.null(no_out[["outputs"]]), "premise: the mutant really has no outputs block")
+  fp_prov_set(cfg3, "floodplain", "co_ff04", no_out)
   w3 <- jsonlite::read_json(fp_prov_path(cfg3), simplifyVector = FALSE)$floodplain$co_ff04
   check(!"outputs_hash" %in% names(w3),
         "an entry with no `outputs` gets NO outputs_hash key at all, not a null one")
@@ -444,15 +561,17 @@ cat("\n2. Split — `inputs` carries no run-event field\n")
   # Built LOCALLY rather than added to good_prov(): the declared outputs key sets arrive with their
   # producers in later phases, and a fixture carrying a block nothing declares yet would make §3
   # fail for a reason that is not a defect.
-  o <- g
-  o$floodplain$co_ff04$outputs <- list(floodplain_content_sha256 = "sha256:dd")
+  o3 <- g   # the clean fixture already carries a well-formed outputs/outputs_hash pair
+  check(!is.null(o3$floodplain$co_ff04[["outputs"]]) &&
+          !is.null(o3$floodplain$co_ff04[["outputs_hash"]]),
+        "premise: the fixture carries a well-formed outputs/outputs_hash pair")
+  check(length(viol_split(o3)) == 0, "a well-formed outputs/outputs_hash pair passes")
+  o <- g; o$floodplain$co_ff04$outputs_hash <- NULL
   check(any(grepl("no outputs_hash", viol_split(o))),
         "must-fail: an `outputs` block with no outputs_hash IS reported")
-  o2 <- g; o2$floodplain$co_ff04$outputs_hash <- "sha256:dd"
+  o2 <- g; o2$floodplain$co_ff04$outputs <- NULL
   check(any(grepl("outputs_hash with no `outputs`", viol_split(o2))),
         "must-fail: an outputs_hash with no `outputs` block IS reported (the inverse)")
-  o3 <- o; o3$floodplain$co_ff04$outputs_hash <- "sha256:dd"
-  check(length(viol_split(o3)) == 0, "a well-formed outputs/outputs_hash pair passes")
   o4 <- o3; o4$floodplain$co_ff04$outputs$datetime_utc <- "2026-09-01T00:00:00Z"
   check(any(grepl("outputs carries run-event field", viol_split(o4))),
         "must-fail: a run-event field in `outputs` IS reported")
@@ -514,6 +633,76 @@ cat("\n3. Declared keys — present, null where absent\n")
   # this case reports a spurious 9-field violation. Read with `[[`, it does not.
   check(is.null(n2$network$co3[["link_log"]]) && !is.null(n2$network$co3$link_log),
         "premise: `$` DOES partial-match link_log -> link_log_note (why this file uses `[[`)")
+
+  # The `outputs` whitelist works in both directions, like the `inputs` one (#65).
+  om <- g; om$network$co3$outputs$n_segments <- NULL
+  check(any(grepl("outputs missing: n_segments", viol_keys(om))),
+        "must-fail: a dropped OUTPUTS key IS reported")
+  ou <- g; ou$network$co3$outputs$surprise <- 1
+  check(any(grepl("outputs has UNDECLARED", viol_keys(ou))),
+        "must-fail: an undeclared OUTPUTS key IS reported")
+  # A section that writes outputs while declaring none. Exercised by moving the SCOPE -- the thing
+  # that grants the exemption -- rather than by naming a section that happens to have no outputs,
+  # which would stop being a mutant the moment that section gained one.
+  local({
+    keep <- KEYS_OUTPUTS_BY_SECTION
+    KEYS_OUTPUTS_BY_SECTION <<- keep["network"]
+    fired <- any(grepl("none is declared for that section", viol_keys(g)))
+    KEYS_OUTPUTS_BY_SECTION <<- keep
+    check(fired, "must-fail: an outputs block in a section that declares none IS reported")
+  })
+  check(length(viol_keys(g)) == 0, "... and the scope is restored (the clean fixture still passes)")
+}
+
+# --- 3b. The config that produced the network -----------------------------------------------------
+cat("\n3b. link_config_name — a GRAB may not assert a locally-assumed config\n")
+{
+  g <- good_prov()
+  check(length(viol_config_name(g)) == 0, "clean fixture reports no config-name violation")
+  # THE RESTORED DEFECT, in the exact shape measured live in data/neexdzii: a GRAB from `fresh`
+  # recording link_config_name = "default" from this script's own literal, beside a log row saying
+  # "bcfishpass". Every other property in this file passed on that file.
+  b <- g
+  b$network$co3$inputs$link_config_name <- "default"
+  b$network$co3$inputs$link_config_name_source <- "built_literal"
+  check(any(grepl("did not run", viol_config_name(b))),
+        "restored defect: a GRAB claiming a built_literal config IS reported")
+  # ... and a BUILD claiming it is fine, which is what stops the guard being "refuse everything".
+  ok_build <- g
+  ok_build$network$co3$inputs$network_source <- "BUILD into neexdzii"
+  ok_build$network$co3$inputs$link_config_name <- LNK_BUILD_CONFIG_EXPECTED
+  ok_build$network$co3$inputs$link_config_name_source <- "built_literal"
+  check(length(viol_config_name(ok_build)) == 0,
+        "a BUILD reporting its own literal is NOT a false refusal")
+  b2 <- g; b2$network$co3$inputs$link_config_name_source <- "guessed"
+  check(any(grepl("not one of", viol_config_name(b2))),
+        "must-fail: an out-of-vocabulary config source IS reported")
+  b3 <- g; b3$network$co3$inputs$link_config_name <- "something_else"
+  check(any(grepl("disagrees with link_log", viol_config_name(b3))),
+        "must-fail: a link_log-sourced name that disagrees with the log row IS reported")
+  b4 <- g
+  b4$network$co3$inputs$link_config_name_source <- "unresolved"
+  check(any(grepl("names a config anyway", viol_config_name(b4))),
+        "must-fail: an unresolved source that still names a config IS reported")
+  b5 <- b4; b5$network$co3$inputs$link_config_name <- NA
+  check(length(viol_config_name(b5)) == 0, "unresolved WITH a null name passes")
+
+  # The schema version, and the PAIR that makes the label mean something.
+  check(length(viol_schema_version(g)) == 0, "clean fixture carries the current schema_version")
+  v1 <- g; v1$schema_version <- 1L
+  check(any(grepl("schema_version is 1", viol_schema_version(v1))),
+        "must-fail: a stale schema_version IS reported")
+  v0 <- g; v0$schema_version <- NULL
+  check(any(grepl("no schema_version", viol_schema_version(v0))),
+        "must-fail: a missing schema_version IS reported")
+  # The shape fp_prov_read actually produces: the version is REWRITTEN on every read, so a file
+  # whose sections predate the bump still claims the new version. The version check cannot see that
+  # -- viol_keys is what does, by requiring the v2 field set.
+  vp <- g; vp$landcover$co_ff04$outputs <- NULL; vp$landcover$co_ff04$outputs_hash <- NULL
+  check(length(viol_schema_version(vp)) == 0,
+        "premise: a v1-content section under a v2 label passes the VERSION check (it cannot see it)")
+  check(any(grepl("landcover\\[co_ff04\\].outputs missing", viol_keys(vp))),
+        "... and viol_keys IS what reports it -- the two together, never the version alone")
 }
 
 # --- 4. No credentials --------------------------------------------------------------------------------
@@ -958,8 +1147,16 @@ prov_sections_writing_toolchain <- function(section_files) {
       if (length(d)) paste0(" -- differs: ", paste(d, collapse = ", ")) else ""))
   }
   drift1("network", net, KEYS_NETWORK_INPUTS)
+  drift1("network outputs", prov_keys(step("01_network_extract.R"), "network", part = "outputs"),
+         KEYS_NETWORK_OUTPUTS)
   drift1("floodplain", fpl, KEYS_FLOODPLAIN)
+  drift1("floodplain outputs",
+         prov_keys(step("02_floodplain_model.R"), "floodplain", part = "outputs"),
+         KEYS_FLOODPLAIN_OUTPUTS)
   drift1("landcover", lcv, KEYS_LANDCOVER)
+  drift1("landcover outputs",
+         prov_keys(step("03_lulc_classify.R"), "landcover", part = "outputs"),
+         KEYS_LANDCOVER_OUTPUTS)
 
   # The `run` half. Until now this scanner read only `inputs`, which meant the toolchain block --
   # the one field #64 adds and the only one with no declared-key protection -- could be deleted from
@@ -990,6 +1187,37 @@ prov_sections_writing_toolchain <- function(section_files) {
   check(setequal(names(fp_toolchain()), KEYS_TOOLCHAIN),
         sprintf("KEYS_TOOLCHAIN matches what fp_toolchain() returns (%s)",
                 paste(names(fp_toolchain()), collapse = ", ")))
+  # The `outputs` half of the same declare-or-fail pair. SECTIONS_WITH_OUTPUTS is a JUDGEMENT about
+  # which steps must publish a digest of what they produced; the derivation is what stops it drifting
+  # from the producers. Neither alone: derived-only goes empty and SILENT the moment a producer drops
+  # the block, which is the hole section 6 exists to close for run$toolchain.
+  out_writers <- names(Filter(function(f) length(f) > 0, list(
+    network    = prov_keys(step("01_network_extract.R"), "network",    part = "outputs"),
+    floodplain = prov_keys(step("02_floodplain_model.R"), "floodplain", part = "outputs"),
+    landcover  = prov_keys(step("03_lulc_classify.R"),   "landcover",  part = "outputs"))))
+  check(setequal(out_writers, SECTIONS_WITH_OUTPUTS),
+        sprintf("every producer declared to write `outputs` still does (found: %s; declared: %s)",
+                if (length(out_writers)) paste(out_writers, collapse = ", ") else "NONE",
+                paste(SECTIONS_WITH_OUTPUTS, collapse = ", ")))
+  # And the BUILD config literal, pinned to 01's own lnk_config() calls -- the only external
+  # reference the BUILD branch has. A methodology change in 01 that left the recorded config name
+  # describing the old bundle goes red here.
+  lit <- unique(unlist(lapply(
+    unlist(lapply(parse(step("01_network_extract.R")), find_calls, fname = "lnk_config"),
+           recursive = FALSE),
+    function(cl) { a <- as.list(cl)[-1]; unlist(lapply(a, function(x) if (is.character(x)) x)) })))
+  # 01 names the bundle once, in LNK_BUILD_CONFIG, so the parsed literals are the ASSIGNMENT and
+  # nothing else. A raw "default" reappearing at a call site would show up here as a second value.
+  assign_lit <- unlist(lapply(parse(step("01_network_extract.R")), function(e)
+    if (is.call(e) && identical(as.character(e[[1]])[1], "<-") &&
+        identical(as.character(e[[2]]), "LNK_BUILD_CONFIG")) as.character(e[[3]])))
+  check(length(assign_lit) == 1L && identical(assign_lit, LNK_BUILD_CONFIG_EXPECTED),
+        sprintf("01's LNK_BUILD_CONFIG is '%s', matching the guard's expectation",
+                paste(assign_lit, collapse = ", ")))
+  check(length(lit) == 0L,
+        sprintf("no lnk_config() call site names a bundle literally (found: %s)",
+                if (length(lit)) paste(lit, collapse = ", ") else "none"))
+
   check(setequal(writers, SECTIONS_WITH_RASTERS),
         sprintf("every raster-writing producer still records run$toolchain (found: %s)",
                 if (length(writers)) paste(writers, collapse = ", ") else "NONE"))
@@ -1016,7 +1244,8 @@ if (length(args) >= 1 && nzchar(args[1])) {
     # indistinguishable, so zero gets its own branch.
     if (n == 0) bad("provenance.json has ZERO sections — nothing was checked") else
       ok(sprintf("%d section(s) to check", n))
-    for (f in list(viol_split, viol_keys, viol_body, viol_sha_source, viol_coverage)) {
+    for (f in list(viol_split, viol_keys, viol_body, viol_sha_source, viol_config_name,
+                   viol_schema_version, viol_coverage)) {
       v <- f(prov); if (length(v)) for (m in v) bad(m)
     }
     v <- viol_creds(txt); if (!is.null(v)) bad(v)

@@ -127,10 +127,17 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
     # which is not the data and would make the digest depend on who had opened the file.
     classified_hashes[[yr]] <- fp_raster_content_sha256(cls_tif)
   }
+  # The transition raster is THE ANSWER of this step, so it is what `outputs` digests (#65). It is
+  # written only when there is a transition to write; the path form of the digest returns NA for an
+  # absent file, so the empty case records an honest absence rather than erroring or fabricating a
+  # hash. NOTE the asymmetry with `classified_content_sha256`, which stays in `inputs`: the
+  # classified rasters are the landcover AS IT ENTERED the model, and an upstream reprocess moving
+  # them is an INGREDIENT change. The transition is what we computed FROM them.
+  trans_tif <- file.path(fp_dir, "transition.tif")
   if (nrow(trans_all$summary) > 0) {
-    terra::writeRaster(trans_all$raster, file.path(fp_dir, "transition.tif"),
-                       overwrite = TRUE, datatype = "INT4S")
+    terra::writeRaster(trans_all$raster, trans_tif, overwrite = TRUE, datatype = "INT4S")
   }
+  transition_sha <- fp_raster_content_sha256(trans_tif)
   message("Floodplain rasters saved to ", fp_dir)
 
   # --- Vectorize to floodplain_landcover.gpkg ---
@@ -411,6 +418,10 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
       floodplain_layer  = scenario_id,
       drift             = fp_pkg_stamp("drift")),
       lc_items),
+    outputs = list(
+      transition_raster         = basename(trans_tif),
+      transition_content_sha256 = transition_sha,
+      transition_patches        = nrow(trans_all$summary)),
     run = fp_prov_run(toolchain = fp_toolchain())))
 
   message("\nDone. Scenario: ", scenario_id, " -- outputs in ", out_dir)
