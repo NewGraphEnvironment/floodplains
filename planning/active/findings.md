@@ -67,3 +67,59 @@ cannot run in CI is an absent guard.
 |-------|------------|
 | `[readValues] the file is not open for reading` | `terra::readValues()` needs `terra::readStart()` first; pair with `readStop()` via `on.exit` |
 | First content-digest prototype disagreed across machines anyway | `storage.mode()` alone is not enough — NaN vs NA_real_ survives it. Both normalizations required |
+
+## Implementation results
+
+### The declared-key drift check caught the rename before anything else did
+
+Renaming the producer's field without touching the guard made `provenance-check.R` go red
+immediately and name both sides:
+
+```
+FAIL  landcover producer writes exactly the 19 declared key(s)
+      -- differs: classified_sha256, classified_content_sha256
+```
+
+That is #33's key-drift guard doing exactly its job, and it is the reason a rename here is a
+*deliberate* change rather than a silent redefinition.
+
+### Cross-machine agreement, on the real evidence
+
+Not a fixture — m4's actual rasters from the #63 run:
+
+```
+2017  old file-hash agrees: FALSE   NEW content-hash agrees: TRUE
+2020  old file-hash agrees: FALSE   NEW content-hash agrees: TRUE
+2023  old file-hash agrees: FALSE   NEW content-hash agrees: TRUE
+```
+
+The digests written by the live step-3 run match the ones computed independently from m1's rasters
+(`sha256:1938fb7d…` for 2017), so the wiring and the prototype agree.
+
+### The toolchain is recorded and is NOT hashed
+
+```
+landcover run keys : ['datetime_utc', 'toolchain']
+run.toolchain      : {"gdal": "3.8.5", "sf": "1.1.2", "terra": "1.9.34"}
+toolchain in inputs: False
+```
+
+That placement is the whole point: a terra version legitimately differs between two machines that
+agree on every cell, so hashing it would reintroduce the churn this issue removes, one field over.
+
+Parity unmoved after the re-run: **673.5 km / 142.8 km² / 770.0 ha**.
+
+### A dead assertion in my own guard, caught by running it
+
+The first draft of §5c asserted `block_rows` changes the digest by comparing 512 against 256 — on a
+**40-row** fixture, where both yield a single block and the two are equal by construction. It went
+red immediately. Replaced with a direct assertion on the default
+(`identical(formals(...)$block_rows, 512L)`) plus a comparison at 8 vs 16 rows, which actually
+splits a 40-row raster. Same class as the fixture rule in `code-check.md`, met in a test written
+specifically to honour it.
+
+## Errors Encountered (cont.)
+
+| Error | Resolution |
+|-------|------------|
+| §5c `premise: block_rows really does change the digest` FAILED | 512 and 256 both exceed a 40-row fixture, so the premise was unreachable. Assert the default directly; compare block sizes that actually split the raster |

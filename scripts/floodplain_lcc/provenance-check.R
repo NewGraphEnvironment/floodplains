@@ -68,7 +68,7 @@ KEYS_FLOODPLAIN     <- c("wsg", "species", "scenario", "flood_factor", "slope_th
 KEYS_LANDCOVER      <- c("source", "stac_url", "collection", "asset", "res", "crs", "dt",
                          "aggregation", "resampling", "tile_size", "years", "change_interval",
                          "patch_area_min_m2", "item_ids", "item_hash", "item_ids_complete",
-                         "classified_sha256", "floodplain_layer", "drift")
+                         "classified_content_sha256", "floodplain_layer", "drift")
 
 # --- Property implementations ------------------------------------------------------------------
 # Each takes a parsed provenance list and returns a character vector of problems (empty = pass), so
@@ -160,7 +160,7 @@ viol_coverage <- function(prov) {
       # partial item set. That is a wrong raster, not a metadata note -- fail on it.
       if (isFALSE(inp[["item_ids_complete"]]))
         sprintf("landcover[%s] item list was TRUNCATED (item_ids_complete = false)", e$key),
-      if (all(is.na(unlist(inp[["classified_sha256"]] %||% NA))))
+      if (all(is.na(unlist(inp[["classified_content_sha256"]] %||% NA))))
         sprintf("landcover[%s] has no classified raster digest -- the only field that can move ",
                 e$key),
       if (!is.null(ids) && length(ids))
@@ -194,7 +194,7 @@ good_prov <- function() {
         nul(KEYS_LANDCOVER),
         list(item_ids = list(`2017` = list("09U-2017"), `2023` = list("09U-2023")),
              item_ids_complete = TRUE,
-             classified_sha256 = list(`2017` = "sha256:11", `2023` = "sha256:22"))),
+             classified_content_sha256 = list(`2017` = "sha256:11", `2023` = "sha256:22"))),
       inputs_hash = "sha256:cc",
       run = list(datetime_utc = "2026-09-01T00:00:00Z"))))
 }
@@ -233,7 +233,7 @@ cat("\n1. Determinism — `inputs` is byte-stable across two writes\n")
         "criterion 2: changing a model parameter MOVES inputs_hash")
   check(perturb(function(h) { h$drift <- list(version = "9.9.9"); h }) != base,
         "criterion 2: bumping a package version MOVES inputs_hash")
-  check(perturb(function(h) { h$classified_sha256$`2017` <- "sha256:ff"; h }) != base,
+  check(perturb(function(h) { h$classified_content_sha256$`2017` <- "sha256:ff"; h }) != base,
         "criterion 2: a reprocessed landcover raster MOVES inputs_hash")
   check(perturb(function(h) h) == base, "an unchanged input does NOT move inputs_hash")
 }
@@ -322,7 +322,7 @@ cat("\n5. Coverage — completeness flag and non-empty year groups\n")
   tr <- g; tr$landcover$co_ff04$inputs$item_ids_complete <- FALSE
   check(any(grepl("TRUNCATED", viol_coverage(tr))),
         "must-fail: item_ids_complete = FALSE is a FAILURE, not a note")
-  nh <- g; nh$landcover$co_ff04$inputs$classified_sha256 <- list(`2017` = NA, `2023` = NA)
+  nh <- g; nh$landcover$co_ff04$inputs$classified_content_sha256 <- list(`2017` = NA, `2023` = NA)
   check(any(grepl("classified raster digest", viol_coverage(nh))),
         "must-fail: a landcover section with NO content digest IS reported")
 }
@@ -373,6 +373,84 @@ cat("\n5b. Database-shaped values\n")
            list(inputs = list(a = 1, b = I(c("x", "y")), c = NA)), "provenance"); TRUE },
          error = function(e) FALSE),
         "a clean object is not a false alarm")
+}
+
+# --- 5c. The content digest is a CONTENT digest -------------------------------------------------
+# The property #64 exists to establish: two writes of the SAME VALUES whose containers differ must
+# produce the SAME digest. This is the guard that was missing -- the old field hashed the file, so
+# it moved with whatever the writer's version put in the header, and nothing here could see it. It
+# took two machines to notice; this fixture reaches it offline.
+#
+# The premise is asserted INLINE, not assumed. If a future terra stops writing the extra metadata
+# the two files become byte-identical, the property passes for nothing, and the test quietly stops
+# testing. Then the premise line fails instead, naming the real cause.
+if (requireNamespace("terra", quietly = TRUE) && requireNamespace("digest", quietly = TRUE)) {
+  cat("\n5c. Content digest is invariant to the container\n")
+  d <- file.path(tempdir(), paste0("fp_prov_digest_", Sys.getpid()))
+  dir.create(d, showWarnings = FALSE, recursive = TRUE)
+  # NOT on.exit(): this is the top level of a script, so the "current frame" is the global
+  # environment, which never exits -- the handler is registered and simply never called. Verified
+  # while writing this: a marker directory survived the run. Clean up explicitly at the end of the
+  # block instead. (CLAUDE.md, "`on.exit()` at a script's top level never fires".)
+  a <- file.path(d, "a.tif"); b <- file.path(d, "b.tif")
+
+  set.seed(1)
+  r <- terra::rast(nrows = 40, ncols = 50, xmin = 0, xmax = 500, ymin = 0, ymax = 400,
+                   crs = "EPSG:3005")
+  # NAs on purpose: the nodata cells are where the two toolchains disagreed (NaN vs NA_integer_),
+  # so a fixture with no missing values cannot reach the failure mode at all.
+  terra::values(r) <- sample(c(1:5, NA), terra::ncell(r), replace = TRUE)
+  terra::writeRaster(r, a, overwrite = TRUE, datatype = "INT1U")
+
+  # Stand in for the other toolchain: identical values, extra container metadata -- the same
+  # gdalcubes NetCDF attributes terra 1.9.11 carries into the header and 1.9.34 drops.
+  r2 <- terra::rast(a)
+  terra::metags(r2) <- c(crs.GeoTransform = "0 10 0 400 0 -10", data.scale_factor = "1",
+                         data.add_offset = "0", data.grid_mapping = "crs")
+  terra::writeRaster(r2, b, overwrite = TRUE, datatype = "INT1U")
+
+  fa <- digest::digest(file = a, algo = "sha256")
+  fb <- digest::digest(file = b, algo = "sha256")
+  check(fa != fb, "premise: the two containers really do differ in bytes")
+  check(identical(terra::values(terra::rast(a)), terra::values(terra::rast(b))),
+        "premise: the two rasters carry identical cell values")
+  check(identical(fp_raster_content_sha256(a), fp_raster_content_sha256(b)),
+        "content digest AGREES across differing containers (the #64 property)")
+
+  # ... and it must still be able to fail. A digest that never moves is worse than one that moves
+  # too often, so both directions are exercised: a changed value, and a cell becoming nodata.
+  rv <- terra::rast(a); v <- terra::values(rv)
+  i <- which(!is.na(v))[1]; v[i] <- v[i] + 1; terra::values(rv) <- v
+  cc <- file.path(d, "c.tif"); terra::writeRaster(rv, cc, overwrite = TRUE, datatype = "INT1U")
+  check(!identical(fp_raster_content_sha256(a), fp_raster_content_sha256(cc)),
+        "must-fail: ONE changed cell value MOVES the content digest")
+
+  rn <- terra::rast(a); vn <- terra::values(rn)
+  j <- which(!is.na(vn))[2]; vn[j] <- NA; terra::values(rn) <- vn
+  dd <- file.path(d, "d.tif"); terra::writeRaster(rn, dd, overwrite = TRUE, datatype = "INT1U")
+  check(!identical(fp_raster_content_sha256(a), fp_raster_content_sha256(dd)),
+        "must-fail: ONE cell becoming nodata MOVES the content digest")
+
+  # The old implementation, restored. It must FAIL the property above -- otherwise this whole
+  # section is decoration and would have passed before the fix as happily as after it.
+  old_file_sha <- function(path) paste0("sha256:", digest::digest(file = path, algo = "sha256"))
+  check(!identical(old_file_sha(a), old_file_sha(b)),
+        "restored defect: the OLD file hash disagrees on the same values (why this changed)")
+
+  # block_rows is part of the contract, not a tuning knob. Assert the DEFAULT directly rather than
+  # through a comparison: this fixture is 40 rows, so 512 and 256 both yield a single block and any
+  # default above 40 would pass. That is the shape of a test whose fixture cannot reach the property
+  # it names -- caught here by the assertion below going red on the first draft.
+  check(identical(formals(fp_raster_content_sha256)$block_rows, 512L),
+        "block_rows defaults to 512 -- changing it would invalidate every digest ever recorded")
+  check(!identical(fp_raster_content_sha256(a, block_rows = 8L),
+                   fp_raster_content_sha256(a, block_rows = 16L)),
+        "premise: block_rows really does change the digest (sizes that actually split 40 rows)")
+
+  unlink(d, recursive = TRUE)
+  check(!dir.exists(d), "the fixture directory is cleaned up (on.exit would not have fired here)")
+} else {
+  bad("terra/digest unavailable -- the content-digest property was NOT checked (a skip is not a pass)")
 }
 
 # --- 6. Producer/guard key drift -----------------------------------------------------------------

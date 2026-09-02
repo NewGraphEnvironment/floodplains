@@ -50,56 +50,56 @@ second machine.
 
 ## Phase 1: Correct #64's body
 
-- [ ] Rewrite "Why it matters": `classified_sha256` is **not** published; the published
+- [x] Rewrite "Why it matters": `classified_sha256` is **not** published; the published
       `nge:landcover_key` is `item_hash`, which cannot detect the drift it exists to catch
-- [ ] Replace the tag-42112 root cause with the measured one (double/NaN vs integer/NA), keeping
+- [x] Replace the tag-42112 root cause with the measured one (double/NaN vs integer/NA), keeping
       42112 as the symptom that surfaced it
 
 ## Phase 2: The content digest
 
-- [ ] `fp_provenance.R` — replace `fp_file_sha256()` (one call site) with
+- [x] `fp_provenance.R` — replace `fp_file_sha256()` (one call site) with
       `fp_raster_content_sha256(path, block_rows = 512L)`: header (`dim`, `ext`, EPSG, `res`) at
       fixed precision, then streamed 512-row blocks with **both** normalizations
-- [ ] Pin `block_rows` as a documented contract, not derived from `terra::blocks()` or free memory
-- [ ] `03_lulc_classify.R:126,408` — write it as **`classified_content_sha256`** (renamed, so an old
+- [x] Pin `block_rows` as a documented contract, not derived from `terra::blocks()` or free memory
+- [x] `03_lulc_classify.R:126,408` — write it as **`classified_content_sha256`** (renamed, so an old
       and a new record are distinguishable and the declared-key drift check catches the change)
 
 ## Phase 3: Record the toolchain — in `run`, not `inputs`
 
-- [ ] Add `terra`, `sf` and GDAL (`sf::sf_extSoftVersion()[["GDAL"]]`) to the landcover and
+- [x] Add `terra`, `sf` and GDAL (`sf::sf_extSoftVersion()[["GDAL"]]`) to the landcover and
       floodplain sections' **`run`** block
-- [ ] **Not `inputs`** — a version that legitimately differs between machines would reintroduce
+- [x] **Not `inputs`** — a version that legitimately differs between machines would reintroduce
       exactly the churn this issue removes. `run` is not hashed; this is #33's split doing its job
 
 ## Phase 4: Guards
 
-- [ ] Rename through `KEYS_LANDCOVER`, the §5 coverage check, and the two perturb fixtures together;
+- [x] Rename through `KEYS_LANDCOVER`, the §5 coverage check, and the two perturb fixtures together;
       confirm the declared-key drift check goes red first if any is missed
-- [ ] **New regression assertion**: two writes of identical values with different `metags()` — assert
+- [x] **New regression assertion**: two writes of identical values with different `metags()` — assert
       file hashes **differ** (the premise, inline) and content digests **agree** (the property)
-- [ ] Exercise it against the restored defect (swap back to `fp_file_sha256`) and watch it go red
+- [x] Exercise it against the restored defect (swap back to `fp_file_sha256`) and watch it go red
 
 ## Phase 5: Verify against the real cross-machine evidence
 
-- [ ] `Rscript scripts/run_area.R neexdzii 3`, gated on the **in-band error count and output mtime**
-- [ ] New digest per year equals the digest of **m4's copy** of the same raster (still in scratchpad)
-- [ ] One changed cell and one cell→nodata each still move it
-- [ ] `provenance-check.R neexdzii` exits 0; parity unmoved (673.5 / 142.8 / 770.0)
+- [x] `Rscript scripts/run_area.R neexdzii 3`, gated on the **in-band error count and output mtime**
+- [x] New digest per year equals the digest of **m4's copy** of the same raster (still in scratchpad)
+- [x] One changed cell and one cell→nodata each still move it
+- [x] `provenance-check.R neexdzii` exits 0; parity unmoved (673.5 / 142.8 / 770.0)
 
 ## Phase 6: Downstream and close
 
-- [ ] File an issue in `stac_floodplains_bc` to point `nge:landcover_key` at the raster digest.
+- [x] File an issue in `stac_floodplains_bc` to point `nge:landcover_key` at the raster digest.
       **File it, do not wire it** — the coupling is one-way by design
-- [ ] CLAUDE.md: name which digest, and record that the published key is still `item_hash`
+- [x] CLAUDE.md: name which digest, and record that the published key is still `item_hash`
 - [ ] Note in #64 that #33 is forward-only, so an area picks the new field up on its next run
 - [ ] `/code-check` per commit, `/planning-archive`, `/gh-pr-push`
 
 ## Validation
 
-- [ ] Cross-machine agreement demonstrated against m4's actual rasters, not a fixture
-- [ ] Sensitivity demonstrated in both directions (value change, nodata change)
-- [ ] The new guard shown red against the restored defect
-- [ ] Parity unmoved; `provenance-check.R neexdzii` exits 0
+- [x] Cross-machine agreement demonstrated against m4's actual rasters, not a fixture
+- [x] Sensitivity demonstrated in both directions (value change, nodata change)
+- [x] The new guard shown red against the restored defect
+- [x] Parity unmoved; `provenance-check.R neexdzii` exits 0
 - [ ] `/code-check` clean on each commit
 - [ ] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion
