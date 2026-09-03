@@ -28,4 +28,11 @@ network_source: fresh
 # pooled 78% of the floodplain into one unnamed feature because a third of the Morice mainstem
 # itself carries no gnis_name. The name is carried as a label column instead (#48).
 attribute_by: blue_line_key
-watershed_groups: [LCHL, LSAL, WILL, TABR, UFRA, NECR, MORK, FRAN, BOWR, MCGR]
+# THOM/LNTH/UNTH (Thompson, Lower + Upper North Thompson) added 2026-09-03 after link's
+# 2026-09-03 build put them in `fresh` (config bcfishpass, sha256:19e3a..., run_uid set).
+# They resolve to `ch` like the rest. Coho IS modelled in all 13 groups, but measured
+# 2026-09-03 the co and ch ACCESSIBLE SETS are identical at every order 1-5 (co_only=0,
+# ch_only=0) -- they differ only in the 1-vs-2 confidence code, and the pipeline selects
+# IN (1,2). With ff04 primary either way, a coho pass would reproduce the same floodplain
+# under different layer names, so it is not run.
+watershed_groups: [LCHL, LSAL, WILL, TABR, UFRA, NECR, MORK, FRAN, BOWR, MCGR, THOM, LNTH, UNTH]
