@@ -1929,6 +1929,55 @@ Meadows. 2010. <em>Ecologically functional floodplains: connectivity,
 flow regime, and scale.</em> Journal of the American Water Resources
 Association 46(2):211–226 — <a href="https://doi.org/10.1111/j.1752-1688.2010.00426.x" class="uri">https://doi.org/10.1111/j.1752-1688.2010.00426.x</a></li>
 </ul>
+<p>A separate debt, and one the papers above do not cover — the software
+this pipeline actually runs on. Verified against each project’s own
+record on 2026-09-04:</p>
+<table>
+<colgroup>
+<col width="33%" />
+<col width="33%" />
+<col width="33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>whose</th>
+<th>what</th>
+<th>licence</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><a href="https://github.com/bluegeo/bluegeo">Devin Cairns —
+BlueGeo</a></td>
+<td>the Valley Confinement Algorithm implementation that <a href="https://github.com/NewGraphEnvironment/flooded"><code>flooded</code></a>
+adapts</td>
+<td>MIT</td>
+</tr>
+<tr class="even">
+<td><a href="https://research.fs.usda.gov/rmrs">USDA Rocky Mountain
+Research Station</a></td>
+<td>the original valley-confinement method — the VCA Toolbox,
+RMRS-GTR-321</td>
+<td>—</td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/smnorris/bcfishpass">Simon Norris —
+<code>bcfishpass</code></a></td>
+<td>lateral habitat assembly, and the modelling approach <a href="https://github.com/NewGraphEnvironment/link"><code>link</code></a>
+reproduces</td>
+<td>three-part: Apache 2.0 software, <strong>ODbL</strong> database,
+DbCL contents</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>bcfishpass</code> entry is a <strong>method</strong>
+citation, not a licence obligation, and the distinction is load-bearing
+rather than polite: ODbL <em>is</em> share-alike, so redistributing that
+database would oblige us differently from any of the sources above.
+Nothing here does. The networks are built by <code>link</code> against
+the Freshwater Atlas in a local <code>fwapg</code>, reproducing the
+approach — the geometry is FWA-derived, and no <code>bcfishpass</code>
+override data is redistributed.</p>
 <p>Those three and 9 more sit in the <code>citations</code> column of
 <code>config/bulk/flood_scenarios.csv</code>, one set per scenario.</p>
 </div>

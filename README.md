@@ -246,6 +246,21 @@ from the literature the scenario config cites:
   functional floodplains: connectivity, flow regime, and scale.* Journal of the American Water
   Resources Association 46(2):211–226 — <https://doi.org/10.1111/j.1752-1688.2010.00426.x>
 
+A separate debt, and one the papers above do not cover — the software this pipeline actually runs
+on. Verified against each project’s own record on 2026-09-04:
+
+| whose | what | licence |
+|----|----|----|
+| [Devin Cairns — BlueGeo](https://github.com/bluegeo/bluegeo) | the Valley Confinement Algorithm implementation that [`flooded`](https://github.com/NewGraphEnvironment/flooded) adapts | MIT |
+| [USDA Rocky Mountain Research Station](https://research.fs.usda.gov/rmrs) | the original valley-confinement method — the VCA Toolbox, RMRS-GTR-321 | — |
+| [Simon Norris — `bcfishpass`](https://github.com/smnorris/bcfishpass) | lateral habitat assembly, and the modelling approach [`link`](https://github.com/NewGraphEnvironment/link) reproduces | three-part: Apache 2.0 software, **ODbL** database, DbCL contents |
+
+The `bcfishpass` entry is a **method** citation, not a licence obligation, and the distinction is
+load-bearing rather than polite: ODbL *is* share-alike, so redistributing that database would
+oblige us differently from any of the sources above. Nothing here does. The networks are built by
+`link` against the Freshwater Atlas in a local `fwapg`, reproducing the approach — the geometry is
+FWA-derived, and no `bcfishpass` override data is redistributed.
+
 Those three and 9 more sit in the `citations` column of `config/bulk/flood_scenarios.csv`, one set per scenario.
 
 ## Licence
