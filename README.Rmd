@@ -5,7 +5,9 @@ output:
     html_preview: false
     pandoc_args: ["--wrap=preserve"]
   html_document:
-    code_folding: hide
+    # No `code_folding`. Every chunk here is `echo = FALSE` -- the figures and tables are the
+    # content, the code that builds them is in scripts/readme_functions.R -- so the button
+    # rendered with nothing behind it.
     self_contained: true
     toc: true
     toc_float: true
@@ -96,7 +98,17 @@ It is a **tool for finding where to look**. Nothing here has been checked on the
 knitr::include_graphics(fp_fig_require("floodplain.png"))
 ```
 
-`r if (identical(params$rmd_on, FALSE)) "A browsable version of this page is at <https://www.newgraphenvironment.com/floodplains/>."`
+```{r whereami, echo=FALSE, results="asis"}
+# Each target points at the other. On GitHub that is the site; on the site it is the repo, which
+# is where the code, the issues and the configs actually live and which a reader of the published
+# page has no other route to.
+cat(if (identical(params$rmd_on, FALSE)) {
+  "A browsable version of this page is at <https://www.newgraphenvironment.com/floodplains/>."
+} else {
+  paste("The code, the per-area configs and the issue tracker are on GitHub:",
+        "<https://github.com/NewGraphEnvironment/floodplains>.")
+}, "\n")
+```
 
 ## What it does
 
@@ -358,6 +370,23 @@ cat("Those ", tolower(num_word(length(named))), " and ", length(setdiff(keys, na
     " more sit in the `citations` column of `config/", FIG_AREA,
     "/flood_scenarios.csv`, one set per scenario.\n", sep = "")
 ```
+
+## Licence
+
+The **code** in this repository is
+[MIT](https://github.com/NewGraphEnvironment/floodplains/blob/main/LICENSE).
+
+The two figures are the only derived data this repo redistributes, and they carry obligations
+from their inputs: land cover from Impact Observatory's `io-lulc-annual-v02`
+([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), **modified** by clipping to modelled
+floodplain extents and cross-tabulating 2017 against 2023; terrain containing information licensed
+under the Open Government Licence – Canada (MRDEM-30, Natural Resources Canada); and stream
+network containing information licensed under the Open Government Licence – British Columbia
+(Freshwater Atlas, Province of British Columbia).
+
+The **published products** are a different question with a different answer, and it is documented
+where they live — see
+[`stac_floodplains_bc/ATTRIBUTION.md`](https://github.com/NewGraphEnvironment/stac_floodplains_bc/blob/main/ATTRIBUTION.md).
 
 ## Roadmap
 

@@ -248,6 +248,23 @@ from the literature the scenario config cites:
 
 Those three and 9 more sit in the `citations` column of `config/bulk/flood_scenarios.csv`, one set per scenario.
 
+## Licence
+
+The **code** in this repository is
+[MIT](https://github.com/NewGraphEnvironment/floodplains/blob/main/LICENSE).
+
+The two figures are the only derived data this repo redistributes, and they carry obligations
+from their inputs: land cover from Impact Observatory’s `io-lulc-annual-v02`
+([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), **modified** by clipping to modelled
+floodplain extents and cross-tabulating 2017 against 2023; terrain containing information licensed
+under the Open Government Licence – Canada (MRDEM-30, Natural Resources Canada); and stream
+network containing information licensed under the Open Government Licence – British Columbia
+(Freshwater Atlas, Province of British Columbia).
+
+The **published products** are a different question with a different answer, and it is documented
+where they live — see
+[`stac_floodplains_bc/ATTRIBUTION.md`](https://github.com/NewGraphEnvironment/stac_floodplains_bc/blob/main/ATTRIBUTION.md).
+
 ## Roadmap
 
 - [ ] Zone-stratified LULC and sub-basin prioritization steps
