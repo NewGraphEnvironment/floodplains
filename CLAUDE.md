@@ -351,8 +351,15 @@ upstream of the mainstem outlet over-shoots a tributary group 2–40× (only hea
 MORR/UFRA happened to work). Interior sub-basin delineation is deferred. Pick species by which
 `access_<species>` column the fwapg schema populates — the region pre-pass does this automatically.
 
-**Fraser region** (`sern_fraser_2024`, chinook): LCHL, LSAL, WILL, TABR, UFRA, NECR, MORK, FRAN
-(3,366 km² total floodplain, 15,022 ha gross tree loss 2017→2023) plus BOWR and MCGR — 10 groups.
+**Fraser region** (`sern_fraser_2024`, chinook): LCHL, LSAL, WILL, TABR, UFRA, NECR, MORK, FRAN,
+BOWR, MCGR plus THOM, LNTH, UNTH (the Thompson groups, added 2026-09-03) — **13 groups**.
+`ch_ff04` totals **3,127 km²** across the 12 that have been re-run on `flooded` >= 0.5.0.
+The former figure (3,366 km² over 10 groups) is **dead, not merely superseded** — it was produced
+under the bankfull units defect, same class as the neexdzii contract in `README.md`. The gross
+tree-loss figure that sat beside it (15,022 ha) is pre-correction too and is **not restated here
+because it has not been recomputed**; recompute before quoting it. MCGR is excluded from the
+3,127: it is still on its 2026-07-12 pre-0.5.0 output (290 km², over-mapped) and cannot be re-run
+(#76).
 
 **Columbia region** (`columbia.yml`, **bull trout**): KOTL 707.8 km², LARL 306.9, SLOC 129.6 at
 `bt_ff04`. ch/co/st/salmon are unmodelled here — verified empirically (`access_* = -9`, the "not
