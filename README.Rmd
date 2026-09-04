@@ -98,6 +98,30 @@ It is a **tool for finding where to look**. Nothing here has been checked on the
 knitr::include_graphics(fp_fig_require("floodplain.png"))
 ```
 
+```{r repo-icon, echo=FALSE, results="asis"}
+# Site only. The mark is inlined as SVG rather than fetched: `self_contained: true` would
+# otherwise put a network call inside a render that is meant to need none, and an icon that
+# 404s is worse than no icon. It is also why this cannot be an <img> from a CDN.
+#
+# Not emitted on the markdown target -- GitHub sanitises inline <svg> and <style> out of a
+# rendered README, so it would be silently dropped there, and the page is already on GitHub.
+if (identical(params$rmd_on, TRUE)) {
+  cat(
+    '<style>',
+    '.repo-link{position:fixed;top:14px;right:16px;z-index:1030;line-height:0;',
+    '  opacity:.55;transition:opacity .15s ease;color:#1b1f23;}',
+    '.repo-link:hover,.repo-link:focus{opacity:1;}',
+    '@media print{.repo-link{display:none;}}',
+    '</style>',
+    '<a class="repo-link" href="https://github.com/NewGraphEnvironment/floodplains"',
+    '   title="Source, configs and issues on GitHub"',
+    '   aria-label="View this project on GitHub">',
+    '<svg height="30" width="30" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">',
+    '<path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>',
+    '</svg></a>', sep = "\n")
+}
+```
+
 ```{r whereami, echo=FALSE, results="asis"}
 # Each target points at the other. On GitHub that is the site; on the site it is the repo, which
 # is where the code, the issues and the configs actually live and which a reader of the published
