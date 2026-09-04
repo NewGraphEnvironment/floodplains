@@ -9,6 +9,12 @@
 #
 # Per source: name, table (fwapg schema.table), geom_col, year_col, carry [cols], optional
 # `filter` (extra SQL predicate) and `window` [from, to] override, and a `confidence` label.
+#
+# LIST ORDER IS PRECEDENCE for any single-cause reporting. Tagging itself is additive -- a patch
+# can carry in_fire AND in_harvest -- but anything that has to pick one cause per patch takes the
+# FIRST source listed here, which is why fire precedes harvest (salvage after a fire is a fire).
+# Not cosmetic: on BULK only 2 patches carry both tags and reversing the order still moves
+# 36.31 ha between the two buckets in the README figure.
 sources:
   - name: fire
     table: whse_land_and_natural_resource.prot_historical_fire_polys_sp
