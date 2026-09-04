@@ -17,3 +17,13 @@
 # Bulk per-run pipeline logs (kills/retries/iteration output). Curated evidence logs
 # (yyyymmdd_noun_verb-detail_target.ext) live directly under logs/, not runs/.
 scripts/floodplain_lcc/logs/runs/
+
+# README render byproducts. README.md and index.html are the tracked artifacts; everything
+# knitr/rmarkdown leaves beside them is not. README_files/ matters most: a chunk that PLOTS
+# instead of routing through fp_fig_*() lands its image there, untracked, so the README renders
+# on the author's machine and 404s for everyone else.
+README.html
+README_files/
+index_files/
+*.knit.md
+*.utf8.md

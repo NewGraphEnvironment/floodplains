@@ -72,9 +72,16 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   residual (matches none) is the classification-noise floor. Opt-in by file presence (no yml ⇒ step 3
   unchanged, no DB conn). `fire_tag.R` is a thin CLI wrapper to re-tag an existing gpkg without the
   STAC fetch. **Fire + harvest wired; pest deferred.** Harvest resolves ~30–36% of floodplain tree
-  loss previously in the "noise" bucket (BULK: fire 5% / harvest 36% / residual 62%). The transition
+  loss previously in the "noise" bucket. **Measured 2026-09-04 on BULK's current output** (the
+  2026-09-02 re-run, 1,565.1 ha of tree loss): fire **4.2%** / harvest **30.3%** / not yet
+  attributed **65.5%** by area. The 5 / 36 / 62 stated here before was pre-re-run and is dead, not
+  superseded. It is now computed at figure-build time into `fig/attribution.png` and stated in no
+  prose, which is the only version of this that stays true (#77). The transition
   layer now carries N disturbance attrs → the STAC schema must too (stac_floodplains_bc#6).
 - `data/<area>/` — outputs (gitignored)
+- `README.Rmd` → `README.md` + `index.html` (Pages), with `scripts/readme_functions.R` (readers +
+  gated figure builders), `scripts/readme_determinism-check.sh` and
+  `scripts/readme_content-check.py`. See the two README subsections under `## Working conventions`.
 - **Two orthogonal explosions, and the bridge between them (#54):** the floodplain is exploded two
   incompatible ways. `<scenario>_by_<attribute_by>` is one row per watercourse and rows **overlap**
   by design (#40); `transition_<scenario>_<span>` is one row per change patch and rows are
@@ -460,6 +467,49 @@ A/B, with no database at all — so the gap was narrow
 and nameable rather than "untested". Gate any run on the **in-band error count and the output
 mtime**, never on the wrapper's exit code: a run that crashed before writing makes an A/B compare
 a stale file against itself and pass.
+
+### The two READMEs are complementary, and the boundary is a rule (#77)
+
+**Each repo states only what it owns, and neither restates the other's numbers.** `floodplains`
+owns the model — VCA, flood factors, what "accessible" means, the uncertainties, how to re-run,
+provenance. [`stac_floodplains_bc`](https://github.com/NewGraphEnvironment/stac_floodplains_bc)
+owns the catalogue — the item model, how to get the data, counts, extent, version, and the
+licence and attribution of the published products. The same rule is written into that repo's
+`CLAUDE.md`, and it cuts both ways: its safety summary restates this repo's attribution
+percentages, which #77 leaves open.
+
+**Why:** `floodplains` said "20 items live" while the collection served 23, and listed 10 Fraser
+groups where `config/regions/fraser.yml` listed 13. Neither was a typo — both were true when
+typed, and nothing regenerated them. A number copied across the boundary has no mechanism keeping
+it honest, so the failure mode is **recurrence**, not the current wording.
+
+**How to apply:** every fact this README states is either regenerated from committed config at
+render time (`fp_readme_roster()` reads `config/regions/*.yml`, `fp_readme_scenarios()` reads
+`config/<area>/flood_scenarios.csv`) or it is a link. `scripts/readme_content-check.py` greps
+both rendered targets for an item count, a collection extent and a collection version, so a
+restatement fails a check rather than waiting to be noticed.
+
+### The README is generated, and both of its targets are committed artifacts
+
+`README.Rmd` renders `README.md` (github_document) **and** `index.html` (html_document,
+`self_contained`), which GitHub Pages serves at
+<https://www.newgraphenvironment.com/floodplains/> from `main` at `/`. `.nojekyll` is committed
+so Pages serves the file rather than running Jekyll over the tracked `.md` files under
+`planning/`, which outnumber everything else in the repo; there is no `CNAME` — the org user site owns the domain and every project page
+inherits it.
+
+Two params, both defaulting **FALSE** and for different reasons. `rmd_on` switches the targets,
+and `README.md` is the artifact an accidental Knit would destroy. `update_figs` gates the figure
+builders, which read the gitignored `data/bulk/` — so a routine render needs no data, no database
+and no network, and `fp_fig_require()` **stops** rather than emitting a page with holes when a
+committed PNG is missing.
+
+**Never plot inline.** Figures are written to `fig/` by a gated builder and pulled in with
+`knitr::include_graphics()`. A plotting chunk lands the `.md`'s image in `README_files/`, which is
+gitignored, so the page renders on the author's machine and shows a broken image everywhere else —
+and both rendered files still hash identically, which is why
+`scripts/readme_determinism-check.sh` checks for that directory **by name** rather than through
+`git status`. Measured: the porcelain form reported OK with `README_files/` sitting on disk.
 
 ## Conventions
 

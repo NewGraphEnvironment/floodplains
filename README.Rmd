@@ -1,36 +1,117 @@
-floodplains
-================
+---
+title: "floodplains"
+output:
+  github_document:
+    html_preview: false
+    pandoc_args: ["--wrap=preserve"]
+  html_document:
+    code_folding: hide
+    self_contained: true
+    toc: true
+    toc_float: true
+params:
+  # FALSE by default, both of them, and for different reasons.
+  #
+  # `rmd_on` switches the two targets. README.md is the artifact an accidental Knit would
+  # destroy, so the default has to be the one that rebuilds it correctly.
+  #
+  # `update_figs` gates the figure builders, which read `data/<area>/` -- gitignored, and
+  # present only on a machine that has run the pipeline. Off, the render pulls in the committed
+  # PNGs and needs no data, no database and no network. Both renders pass the params explicitly.
+  rmd_on: false
+  update_figs: false
+---
+
+```{r setup, echo=FALSE, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, dpi = 60,
+                      out.width = "100%")
+```
+
+```{r source, echo=FALSE, include=FALSE}
+suppressMessages({
+  library(sf)
+  library(ggplot2)
+})
+sf::sf_use_s2(FALSE)
+source("scripts/readme_functions.R")
+
+# Nothing here samples today, and there is no htmlwidget. The seed stays anyway: it costs
+# nothing and it is the guard against a future map quietly reintroducing per-render churn into
+# a committed index.html.
+set.seed(42)
+
+# Spelled-out small numbers, with a numeral fallback. A fixed word vector indexed by `n + 1`
+# reads fine and renders "NA" the day the count exceeds it — silently, since `cat` is happy to
+# print NA.
+num_word <- function(n) {
+  w <- c("Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten")
+  if (n >= 0 && n < length(w)) w[n + 1L] else format(n)
+}
+
+# Derived once and used by the prose, the tables AND the figure alt text. The alt text is the
+# easiest place for this to rot — nobody sees it go wrong — and round 4 found three copies of
+# the scenario set living in exactly those strings.
+s <- fp_readme_scenarios()
+s_run <- fp_scenarios_run()
+src <- fp_readme_sources()
+area_dir <- paste0("config/", FIG_AREA, "/")
+```
+
+```{r build, echo=FALSE, eval=FALSE}
+# Both targets come from this file.
+#
+#   update_figs = TRUE   rebuild fig/*.png from data/bulk/  (needs a machine that has run it)
+#   update_figs = FALSE  use the committed PNGs; no data, no database, no network
+#
+rmarkdown::render("README.Rmd", output_format = "github_document",
+                  params = list(rmd_on = FALSE, update_figs = FALSE))
+
+rmarkdown::render("README.Rmd", output_format = "html_document", output_file = "index.html",
+                  params = list(rmd_on = TRUE, update_figs = FALSE))
+```
+
+```{r figs, echo=FALSE, include=FALSE}
+if (isTRUE(params$update_figs)) fp_fig_build()
+```
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-![status](https://img.shields.io/badge/status-experimental-orange)
-![method](https://img.shields.io/badge/method-VCA%20on%20MRDEM--30-blue)
+```{r badges, echo=FALSE, results="asis"}
+# Landing page only. `self_contained: true` makes pandoc FETCH each badge and base64-embed it,
+# which puts a network call inside a render that is meant to need none.
+if (identical(params$rmd_on, FALSE)) {
+  cat("![status](https://img.shields.io/badge/status-experimental-orange)\n",
+      "![method](https://img.shields.io/badge/method-VCA%20on%20MRDEM--30-blue)\n", sep = "")
+}
+```
 
-**Where are British Columbia’s floodplains, and what is happening to them?** This repo answers
+**Where are British Columbia's floodplains, and what is happening to them?** This repo answers
 that one watershed group at a time: it maps the valley bottom a salmon-bearing river can flood,
 then measures how the land cover inside it changed between 2017 and 2023 and tries to say why.
 
 It is a **tool for finding where to look**. Nothing here has been checked on the ground — read
 [Reading the outputs](#reading-the-outputs-experimental) before you use a number from it.
 
-<img src="fig/floodplain.png" alt="Two panels. Left: the Bulkley watershed group, its coho-accessible stream network, and the modelled ff04 floodplain drawn as a dark ribbon along the valleys, with a red box marking a detail window. Right: that window at three flood-factor scenarios nested inside one another - ff02 flood-prone width / active channel margin, ff04 functional floodplain, ff06 valley bottom extent." width="100%" />
+```{r fig-floodplain, echo=FALSE, fig.alt=paste0("Two panels. Left: the ", FIG_AREA_LABEL, " watershed group, its ", FIG_SPECIES_LABEL, "-accessible stream network, and the modelled ", fp_scen_short(FIG_PRIMARY), " floodplain drawn as a dark ribbon along the valleys, with a red box marking a detail window. Right: that window at ", tolower(num_word(nrow(s_run))), " flood-factor scenarios nested inside one another - ", paste(sprintf("%s %s", fp_scen_short(s_run$scenario_id), tolower(s_run$description)), collapse = ", "), ".")}
+knitr::include_graphics(fp_fig_require("floodplain.png"))
+```
 
-A browsable version of this page is at <https://www.newgraphenvironment.com/floodplains/>.
+`r if (identical(params$rmd_on, FALSE)) "A browsable version of this page is at <https://www.newgraphenvironment.com/floodplains/>."`
 
 ## What it does
 
 For an area — a watershed group, optionally a single reach — the pipeline runs three steps:
 
-1.  **Network.** Pull the stream a species can actually reach, via
-    [`link`](https://github.com/NewGraphEnvironment/link). See
-    [What “accessible” means](#what-accessible-means): it is a connectivity model, **not** modelled
-    spawning or rearing habitat.
-2.  **Floodplain.** Delineate the valley bottom around that network with the Valley Confinement
-    Algorithm, via [`flooded`](https://github.com/NewGraphEnvironment/flooded), on the national
-    30 m DEM.
-3.  **Land-cover change.** Classify 10 m Impact Observatory land cover for 2017, 2020 and 2023,
-    find the patches that changed, and tag each one against overlay layers — fire, harvest — via
-    [`drift`](https://github.com/NewGraphEnvironment/drift).
+1. **Network.** Pull the stream a species can actually reach, via
+   [`link`](https://github.com/NewGraphEnvironment/link). See
+   [What "accessible" means](#what-accessible-means): it is a connectivity model, **not** modelled
+   spawning or rearing habitat.
+2. **Floodplain.** Delineate the valley bottom around that network with the Valley Confinement
+   Algorithm, via [`flooded`](https://github.com/NewGraphEnvironment/flooded), on the national
+   30 m DEM.
+3. **Land-cover change.** Classify 10 m Impact Observatory land cover for 2017, 2020 and 2023,
+   find the patches that changed, and tag each one against overlay layers — fire, harvest — via
+   [`drift`](https://github.com/NewGraphEnvironment/drift).
 
 The **method lives in the packages**. This repo is the thin driver: config per area, one runner,
 and a provenance record of what produced each output.
@@ -45,7 +126,9 @@ a measurement.
 Used that way it works: the model surfaces real riparian change in the Bulkley that would
 otherwise have to be found by eye, at a scale no one is going to walk.
 
-<img src="fig/attribution.png" alt="Top: the Bulkley watershed group with every modelled floodplain tree-loss patch 2017-2023 drawn as a dot sized by area and coloured by attributed cause - fire in red, harvest in amber, and grey where nothing yet attributes it. Bottom: a stacked bar of the same loss by area, showing those sources accounting for roughly a third of it between them." width="100%" />
+```{r fig-attribution, echo=FALSE, fig.alt=paste0("Top: the ", FIG_AREA_LABEL, " watershed group with every modelled floodplain tree-loss patch ", FIG_SPAN[1], "-", FIG_SPAN[2], " drawn as a dot sized by area and coloured by attributed cause - ", paste(sprintf("%s in %s", src, fp_cause_colour(src)), collapse = ", "), ", and ", fp_cause_colour(UNATTRIBUTED), " where nothing yet attributes it. Bottom: a stacked bar of the same loss by area, showing those sources accounting for roughly a third of it between them.")}
+knitr::include_graphics(fp_fig_require("attribution.png"))
+```
 
 **Attribution is the part that is growing.** Each change patch is intersected with the overlay
 layers named in `config/disturbance.yml` and tagged with what it hits. Fire and harvest are what
@@ -61,7 +144,7 @@ What we still do not know:
   layer; some is drought or seasonal drying, water-level change, terrain shadow or plain
   misclassification. Those have not been separated from one another, so the residual is a work
   list, not a measurement.
-- **“Tree loss” is a class transition, not confirmed forest removal.** What is measured is pixels
+- **"Tree loss" is a class transition, not confirmed forest removal.** What is measured is pixels
   leaving the tree class.
 - **Acquisition timing is unknown and unrecoverable.** `io-lulc-annual-v02` items are one
   composite per zone per year and carry no acquisition date and no `created` or `updated`
@@ -74,23 +157,23 @@ What we still do not know:
 
 Everything is published openly so it can be interrogated. **Please do**, and file what you find.
 
-## What “accessible” means
+## What "accessible" means
 
 The network we delineate against is the **accessible** network: stream connected to the ocean
 without an intervening natural barrier, below a per-species gradient ceiling. It is a
 *connectivity* model, not modelled spawning or rearing habitat — which bcfishpass also produces
 and which is far more restrictive.
 
-The ceiling is per species. These values are **copied** from link’s config bundle at
+The ceiling is per species. These values are **copied** from link's config bundle at
 `extdata/configs/bcfishpass/parameters_fresh.csv`, column `access_gradient_max` — verified
 against link 0.50.0 on 2026-09-04. They can move with a link release and nothing here would
 notice, so re-check them when link is upgraded:
 
-| species                | `access_gradient_max` |
-|------------------------|-----------------------|
-| CH, CM, **CO**, PK, SK | **0.15**              |
-| ST, WCT                | 0.20                  |
-| **BT**, CT, DV, RB     | **0.25**              |
+| species | `access_gradient_max` |
+|---|---|
+| CH, CM, **CO**, PK, SK | **0.15** |
+| ST, WCT | 0.20 |
+| **BT**, CT, DV, RB | **0.25** |
 
 So a chinook or coho area is delineated against stream up to **15%** gradient and a bull trout
 area up to **25%**. That is why bull trout shows more accessible km than chinook in the same
@@ -99,16 +182,16 @@ group, and why coho and chinook networks are *identical* wherever both are model
 **The gap between accessible and modelled habitat is large**, so the distinction is not academic.
 Measured 2026-09-03 at order ≥ 3:
 
-| WSG  | species | accessible km | spawning km | rearing km | spawning as % of accessible |
-|------|---------|---------------|-------------|------------|-----------------------------|
-| FRAN | ch      | 2139          | 587         | 803        | **27%**                     |
-| BOWR | ch      | 1017          | 649         | 736        | 64%                         |
-| LNTH | ch      | 694           | 448         | 509        | 65%                         |
-| KOTL | bt      | 1921          | 921         | 1636       | 48%                         |
-| PCEA | bt      | 2194          | 888         | 1743       | 40%                         |
+| WSG | species | accessible km | spawning km | rearing km | spawning as % of accessible |
+|---|---|---|---|---|---|
+| FRAN | ch | 2139 | 587 | 803 | **27%** |
+| BOWR | ch | 1017 | 649 | 736 | 64% |
+| LNTH | ch | 694 | 448 | 509 | 65% |
+| KOTL | bt | 1921 | 921 | 1636 | 48% |
+| PCEA | bt | 2194 | 888 | 1743 | 40% |
 
-Read a published area as *“floodplain along stream this species can reach”*, never as *“floodplain
-along spawning habitat”*.
+Read a published area as *"floodplain along stream this species can reach"*, never as *"floodplain
+along spawning habitat"*.
 
 Which config bundle produced a network is **recorded, not assumed** — `fresh.log.config_name`
 carries it per group and step 1 resolves it into `provenance.json`. The `bcfishpass` bundle opts
@@ -119,18 +202,31 @@ subsurface flow in as a barrier; the `default` bundle leaves it out, and the two
 
 `ff0N` is a **scenario**, not a return period. Each one widens the same delineation to a
 different ecological extent. Every area carries its own `config/<area>/flood_scenarios.csv`;
-this table is read from `config/bulk/`, the group the figures above come from:
+this table is read from `` `r area_dir` ``, the group the figures above come from:
 
-| scenario | flood factor | extent | run by default |
-|:---|---:|:---|:---|
-| co_ff01 | 1 | Bankfull channel extent | no |
-| co_ff02 | 2 | Flood-prone width / active channel margin | yes |
-| co_ff04 | 4 | Functional floodplain | yes |
-| co_ff06 | 6 | Valley bottom extent | yes |
-| co_ff08 | 8 | Extended valley - large wood recruitment | no |
-| co_ff12 | 12 | Channel migration zone - full process width | no |
+```{r scenarios, echo=FALSE}
+knitr::kable(
+  data.frame(
+    scenario = s$scenario_id,
+    `flood factor` = s$flood_factor,
+    extent = s$description,
+    `run by default` = ifelse(s$run == "TRUE" | s$run == TRUE, "yes", "no"),
+    check.names = FALSE
+  ),
+  row.names = FALSE
+)
+```
 
-Three of these are modelled by default; the rest are configured and off. Turning one on is a `run` column edit, not a code change.
+```{r scenarios-run, echo=FALSE, results="asis"}
+# "Three are modelled by default" was written under the table that generates itself, which is
+# the recurrence shape #77 exists to remove — a fourth `run = TRUE` row would move the table and
+# leave the sentence wrong with nothing to notice. Count it from the same frame the table came
+# from.
+n_run <- sum(s$run == "TRUE" | s$run == TRUE)
+cat(num_word(n_run),
+    " of these are modelled by default; the rest are configured and off. ",
+    "Turning one on is a `run` column edit, not a code change.\n", sep = "")
+```
 
 ## Design
 
@@ -140,11 +236,11 @@ Three of these are modelled by default; the rest are configured and off. Turning
   `co_ff04` / `ch_ff06`), so MORR carries both coho and chinook without either overwriting the
   other.
 - **Regions batch a set of groups.** `config/regions/<region>.yml` names the groups and a species
-  preference. A region run **reconciles** each area’s config rather than regenerating it, so a
-  second species’ scenario rows, citations and every comment survive. `DRY=1` writes nothing at
+  preference. A region run **reconciles** each area's config rather than regenerating it, so a
+  second species' scenario rows, citations and every comment survive. `DRY=1` writes nothing at
   all.
 - **A floodplain can be attributed per watercourse.** Optional `attribute_by:` adds one row per
-  watercourse, so a delineation answers “where is the floodplain of *this* river”. Rows **overlap**
+  watercourse, so a delineation answers "where is the floodplain of *this* river". Rows **overlap**
   where ground is genuinely shared at a confluence — on MORR that is 43.6% of the floodplain, so a
   hard partition would mis-assign nearly half of it. A companion `patch_watercourse_*` table
   carries two fractions, and only one of them adds up: `overlap_frac` describes coverage,
@@ -155,7 +251,7 @@ Three of these are modelled by default; the rest are configured and off. Turning
   **673.5 km**, floodplain `co_ff04` **142.8 km²**, tree loss **770.0 ha** — before any change is
   trusted. Re-baselined 2026-09-01 under `flooded` 0.5.0. The previous contract
   (678.2 / 171.0 / 943.13) is **dead, not superseded**: it came from a bankfull regression fed
-  hectares where Hall et al. specify km² and mm where they specify cm/yr. Record these as a fresh
+  hectares where Hall et al. specify km² and mm where they specify cm/yr. Record these as a fresh
   contract, never as a delta from the old.
 - **Rebuilds are byte-reproducible.** GDAL stamps every GeoPackage with the wall-clock time of
   the write, which would make each rebuild a new checksum regardless of content. The stamp is
@@ -168,16 +264,13 @@ Three of these are modelled by default; the rest are configured and off. Turning
 
 Read from `config/regions/*.yml`, which is what the region runner itself consumes:
 
-| region | species preference | watershed groups |
-|:---|:---|:---|
-| columbia | bt | KOTL, LARL, SLOC |
-| fraser | ch | BOWR, FRAN, LCHL, LNTH, LSAL, MCGR, MORK, NECR, TABR, THOM, UFRA, UNTH, WILL |
-| peace | bt | PARS, PCEA, PINE |
-| skeena | ch | KISP |
-| skeena | co | BULK, MORR |
+```{r roster, echo=FALSE}
+knitr::kable(fp_readme_roster(), row.names = FALSE,
+             col.names = c("region", "species preference", "watershed groups"))
+```
 
 Plus the `neexdzii` parity fixture, which is a reach inside BULK and is deliberately not part of
-any region. The species column is the region’s **preference**: the runner takes the first one
+any region. The species column is the region's **preference**: the runner takes the first one
 actually modelled in a group at the configured order, so a group could in principle resolve to
 the second entry.
 
@@ -187,7 +280,7 @@ stand (#76). For what is actually available to download, ask the catalogue rathe
 
 ## Running it
 
-``` bash
+```bash
 Rscript scripts/run_area.R <area> [steps]     # steps default to 1,2,3
 Rscript scripts/run_region.R <region>         # every group in a region, resumable
 ```
@@ -212,13 +305,13 @@ digest of the classified rasters for the land cover.
 Each section splits into `inputs` (a function of the inputs, byte-stable across reruns, summarised
 as one `inputs_hash`) and `outputs` (a digest of what came out). Two questions, two answers:
 *same ingredients?* and *same result?* — and the second is deliberately not folded into the first,
-because “same answer from different data” is worth knowing separately from “different answer”.
+because "same answer from different data" is worth knowing separately from "different answer".
 
 The land-cover fingerprint is a digest of the **classified rasters**, not the STAC item ids: an
 io-lulc item id is `<tile>-<year>` and the items carry no `created` or `updated`, so an upstream
 reprocess in place leaves every id identical.
 
-``` bash
+```bash
 Rscript scripts/floodplain_lcc/provenance-check.R <area>   # no database needed
 ```
 
@@ -226,7 +319,7 @@ Rscript scripts/floodplain_lcc/provenance-check.R <area>   # no database needed
 
 Modelling and publishing are separate repos and the dependency points **one way**:
 [`stac_floodplains_bc`](https://github.com/NewGraphEnvironment/stac_floodplains_bc) reads this
-repo’s `data/` and publishes it. This repo knows nothing about it beyond the reminder a run
+repo's `data/` and publishes it. This repo knows nothing about it beyond the reminder a run
 prints. What the catalogue holds, how to query it, and how to download from it are documented
 there — including the collection id, which is **hyphenated** and is not the repository name.
 
@@ -246,7 +339,25 @@ from the literature the scenario config cites:
   functional floodplains: connectivity, flow regime, and scale.* Journal of the American Water
   Resources Association 46(2):211–226 — <https://doi.org/10.1111/j.1752-1688.2010.00426.x>
 
-Those three and 9 more sit in the `citations` column of `config/bulk/flood_scenarios.csv`, one set per scenario.
+```{r citekeys, echo=FALSE, results="asis"}
+# A count rather than a 12-item dump of Zotero keys: it regenerates from the config the way the
+# rest of this page's facts do, and the keys themselves are one file away.
+#
+# `n - 3` would be one fact derived twice — it assumes the three written out above are all still
+# in the CSV, and goes quietly wrong the day one is not. Take the difference instead, and let
+# the render fail loudly if a named key stops being there.
+named <- c("nagel_etal2014LandscapeScale", "hall_etal2007Predictingriver",
+           "opperman_etal2010EcologicallyFunctional")
+keys <- fp_readme_citekeys()
+if (!all(named %in% keys)) {
+  stop("a citation written out in the Method section is no longer in flood_scenarios.csv: ",
+       paste(setdiff(named, keys), collapse = ", "), call. = FALSE)
+}
+# "Those three" was a second copy of `length(named)` — round 2's fix reappearing 138 lines down.
+cat("Those ", tolower(num_word(length(named))), " and ", length(setdiff(keys, named)),
+    " more sit in the `citations` column of `config/", FIG_AREA,
+    "/flood_scenarios.csv`, one set per scenario.\n", sep = "")
+```
 
 ## Roadmap
 
