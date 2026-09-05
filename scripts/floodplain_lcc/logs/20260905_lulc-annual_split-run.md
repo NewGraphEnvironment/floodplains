@@ -124,7 +124,19 @@ Neither is a defect; both are flagged on `stac_floodplains_bc#59`.
   build?", not "same content?".
 - `nge:landcover_key` moves for all four with no land-cover change, because the publish layer maps
   it to `inputs$item_hash`, built from the *requested* years — seven year-lines instead of three,
-  from the identical 14-item STAC response.
+  over an item set the widened request did not change. (Item counts are per-AOI, not a constant:
+  necr and kotl each record **7** ids, one per year, on one-tile AOIs; neexdzii records 6 over
+  three years from a 14-item response, because its bbox spans two tiles. A "14" quoted for this
+  change is neexdzii's figure and does not describe the four areas.)
+
+## One downstream consequence not in the two above
+
+`lulc_summary_<scenario>.rds` and `lulc_summary.rds` now carry **seven years of rows instead of
+three** for these four areas. Nothing in this repo reads their contents — `readme_functions.R`
+builds both figures from `floodplain_landcover.gpkg` and `floodplain.gpkg`, and `run_region.R`
+tests only that the file exists — but `scripts/floodplain_lcc/README.md` describes it as the
+per-scenario store the report reads. A report repo plotting land cover by year off that file will
+silently gain four categories.
 
 ## Not done here
 

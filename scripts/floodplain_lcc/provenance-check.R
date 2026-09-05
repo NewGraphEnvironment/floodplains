@@ -1473,6 +1473,37 @@ if (length(args) >= 1 && nzchar(args[1])) {
             else eq(np, nrow(sf::st_read(g, layer = lyr, quiet = TRUE)),
                     sprintf("landcover[%s] transition_patches", e$key))
           }
+          # The CLASSIFIED years, reconciled against the ARTEFACTS (#79). Every other check on this
+          # field is internal: viol_coverage asserts the digest year set equals inputs$years, and
+          # both come from the same run, so they cannot disagree. Nothing read rasters/<scen>/ or
+          # the gpkg layer list. So an area reverted from lulc_annual back to three years records
+          # three years, passes green, and keeps four orphan classified_* layers and four orphan
+          # .tifs describing years the record says were never modelled -- #55's orphan class, which
+          # gpkg_prune-legacy.R's transition-only pattern does not sweep. This is the detector the
+          # one-way door needs; without it the hazard is enforced by a comment.
+          yrs_rec <- sort(as.integer(unlist(e$body[["inputs"]][["years"]])))
+          rd      <- file.path(dd, "rasters", e$key)
+          tifs    <- sort(as.integer(sub("^classified_([0-9]{4})\\.tif$", "\\1",
+                     grep("^classified_[0-9]{4}\\.tif$", list.files(rd), value = TRUE))))
+          if (!length(tifs)) {
+            bad(sprintf("landcover[%s]: no classified_<yr>.tif under %s to reconcile years against",
+                        e$key, rd))
+          } else {
+            check(identical(tifs, yrs_rec),
+                  sprintf("landcover[%s] classified tif years reconcile (disk {%s} vs recorded {%s})",
+                          e$key, paste(tifs, collapse = ","), paste(yrs_rec, collapse = ",")))
+          }
+          gl <- file.path(dd, "floodplain_landcover.gpkg")
+          if (!file.exists(gl)) {
+            bad(sprintf("landcover[%s]: no floodplain_landcover.gpkg to reconcile layer years", e$key))
+          } else {
+            pre  <- paste0("classified_", e$key, "_")
+            lyrs <- sort(as.integer(sub(pre, "",
+                    grep(paste0("^", pre, "[0-9]{4}$"), sf::st_layers(gl)$name, value = TRUE))))
+            check(identical(lyrs, yrs_rec),
+                  sprintf("landcover[%s] classified gpkg layer years reconcile (gpkg {%s} vs recorded {%s})",
+                          e$key, paste(lyrs, collapse = ","), paste(yrs_rec, collapse = ",")))
+          }
         }
       }
     } else {

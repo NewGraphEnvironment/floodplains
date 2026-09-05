@@ -30,8 +30,13 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
   # fp_lulc passes tile_size to dft_stac_fetch unconditionally (NULL = off), a param that
   # only exists in drift >= 0.6.0 — on an older drift the call errors with "unused argument"
   # for EVERY area, tiled or not. update_packages defaults FALSE, so guard loudly here.
-  if (utils::packageVersion("drift") < "0.6.0") {
-    stop("fp_lulc requires drift >= 0.6.0 (dft_stac_fetch tile_size); installed ",
+  # 0.6.0 was the tile_size floor. 0.10.0 is a CORRECTNESS floor and supersedes it: before it,
+  # dft_stac_fetch issued a single get_request() with no paging, so an AOI whose item set spans
+  # more than one page was built from a partial collection -- a wrong raster, silently, with
+  # item_ids_complete unable to report it (#81). Measured on KOTL under #79.
+  if (utils::packageVersion("drift") < "0.10.0") {
+    stop("fp_lulc requires drift >= 0.10.0 (paged STAC fetch; < 0.10.0 can silently ",
+         "build a raster from a truncated item set); installed ",
          as.character(utils::packageVersion("drift")),
          ". Update: pak::pak('newgraphenvironment/drift')", call. = FALSE)
   }

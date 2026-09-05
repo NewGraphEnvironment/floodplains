@@ -111,12 +111,19 @@ fp_read_config <- function(area) {
   # committed config is caught whether or not an override is present. yaml gives TRUE for
   # true/yes/on, but a QUOTED "true" is a character vector that isTRUE() reads as off -- the area
   # would run three years under a config that reads as annual, silently.
-  if (!is.null(cfg$lulc_annual) &&
+  #
+  # Keyed on `%in% names()`, NOT on `!is.null()`. `lulc_annual:` with no value, `~` and `null` all
+  # parse to NULL, so an is.null() short-circuit skips the guard entirely and isTRUE(NULL) is
+  # FALSE -- the same silent-off failure this guard exists to close, one shape over, reached by
+  # blanking a value or commenting out the `true`. Key-present-with-null is refused; an explicit
+  # `lulc_annual: false` stays legal because it is a length-1 logical.
+  if ("lulc_annual" %in% names(cfg) &&
       (!is.logical(cfg$lulc_annual) || length(cfg$lulc_annual) != 1L ||
        is.na(cfg$lulc_annual))) {
     stop("area.yml lulc_annual must be a single unquoted true/false; got ",
-         class(cfg$lulc_annual)[1], " of length ", length(cfg$lulc_annual), " (",
-         paste(format(cfg$lulc_annual), collapse = ", "), ")", call. = FALSE)
+         if (is.null(cfg$lulc_annual)) "an empty value (key present with no value, ~ or null)"
+         else paste0(class(cfg$lulc_annual)[1], " of length ", length(cfg$lulc_annual), " (",
+                     paste(format(cfg$lulc_annual), collapse = ", "), ")"), call. = FALSE)
   }
   # FP_LULC_ANNUAL overrides at runtime WITHOUT editing a committed config -- which is how the
   # neexdzii parity fixture is exercised annually without a flag landing in its area.yml, the same
@@ -124,10 +131,19 @@ fp_read_config <- function(area) {
   # A CLOSED vocabulary, not a truthiness test. `%in% c("1","TRUE",...)` would read a typo
   # (FP_LULC_ANNUAL=treu) as FALSE and run three years on an area whose committed config says
   # annual -- the same silent-off failure the type guard above exists to stop, one layer out.
-  env_annual <- Sys.getenv("FP_LULC_ANNUAL", "")
+  #
+  # NOTE it is inherited by run_region.R's children (`system2("Rscript", ...)`), so setting it for
+  # a region run flips every not-yet-cached group with no trace in any area.yml -- and combined
+  # with the one-way door above that is not cheaply reversible. Same shape as FP_TILE_SIZE;
+  # `inputs$years` records what actually ran, so it stays diagnosable.
+  #
+  # The vocabulary matches what YAML 1.1 accepts for the config key (y/yes/on/true and their
+  # negatives) plus R's T/F, so the two spellings of the same switch do not disagree. Trimmed,
+  # because a trailing newline from a shell capture is not a typo.
+  env_annual <- trimws(Sys.getenv("FP_LULC_ANNUAL", ""))
   if (nzchar(env_annual)) {
-    on  <- c("1", "TRUE", "YES", "ON")
-    off <- c("0", "FALSE", "NO", "OFF")
+    on  <- c("1", "TRUE", "T", "YES", "Y", "ON")
+    off <- c("0", "FALSE", "F", "NO", "N", "OFF")
     v   <- toupper(env_annual)
     if (!v %in% c(on, off)) {
       stop("FP_LULC_ANNUAL must be one of ", paste(tolower(c(on, off)), collapse = "/"),
