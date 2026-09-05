@@ -306,9 +306,36 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   that printed message. Shelling out to the sibling repo would make the dependency circular and
   break the layering (a driver reaching into the publish layer). The hook is advisory by design.
 
+- **Annual LULC series per area (#79):** optional `lulc_annual: true` in `area.yml` makes step 3
+  fetch **every** year of `change_interval` (2017–2023) instead of the endpoints plus midpoint.
+  Absent ⇒ unchanged. The **transition does not move** — it is measured endpoint-to-endpoint from
+  `change_interval`, never from the fetched set — so the flag adds classified years and nothing
+  else; verified on all four areas by digest, not by assumption. Area-owned, deliberately: the
+  annual areas span three regions, so a region file must never set or clear it
+  (`region_config-check.R` asserts it survives a region run). `FP_LULC_ANNUAL` overrides at
+  runtime, and is **inherited by `run_region.R`'s children**, so setting it for a region run flips
+  every not-yet-cached group with no trace in any `area.yml`.
+  **It is a ONE-WAY DOOR per area.** Turning it back off strands four `classified_*` gpkg layers
+  and four `.tif`s: writes have been per-layer since #23 and `fp_dir` is never cleaned, so nothing
+  removes a layer whose year the config dropped (#55's orphan class, and
+  `gpkg_prune-legacy.R`'s transition-only pattern does not sweep it). `provenance-check.R` 7c now
+  reconciles the on-disk tif **and** gpkg layer year sets against `inputs$years`, so the revert is
+  *detected* rather than merely warned about in a comment — every other check on that field is
+  internal, comparing two values the same run wrote.
+  **A present-but-empty key is refused.** `lulc_annual:`, `~` and `null` all parse to `NULL`, which
+  an `is.null()` guard skips and `isTRUE()` reads as off — an `area.yml` that reads as annual
+  running three years, silently. The guard keys on `%in% names(cfg)` for exactly that.
+  **Annual is not free, and the fetch is not the cost.** `terra::as.polygons()` runs once per year
+  (7× not 3×) and Pass 2 re-crops the whole grid per year; on a whole-WSG area that is the entire
+  grid again. Measured 2026-09-05: peak RSS **does not track grid size** — KOTL (203 Mcells of
+  bbox) peaked at 54.3 GB and BULK (168) at 20.6 GB, on different hosts. Plausibly terra sizing its
+  working set against available RAM; it was **not isolated**, so do not quote either as a per-area
+  requirement. 64 GB sufficed for the largest area run on it.
+
 Adding an area = adding `config/<area>/`; no code change. `area.yml` carries `species` (drives
 `access_<species>` in 01 — `co`, `ch`, …), `watershed_group`, `min_order`, `schema`,
-`primary_scenario`, and `subset` (blk+drm for a reach, or `null` for the whole WSG).
+`primary_scenario`, and `subset` (blk+drm for a reach, or `null` for the whole WSG), plus the
+optional `tile_size`, `attribute_by` and `lulc_annual`.
 
 **Multiple species per area coexist in one `data/<area>/` (#23).** Outputs are keyed by species
 (`streams_<sp><min_order>`) and species-prefixed scenario id (`co_ff04`, `ch_ff06`); each run writes
@@ -350,7 +377,11 @@ Coexistence is data-layer only (steps 01/02/03).
   `co_ff02` **344.7 km²**, `co_ff04` **386.5 km²**, `co_ff06` **414.6 km²**; 7,161 change patches,
   gross floodplain tree loss **1,565.1 ha** 2017→2023. Published to STAC, which is why it was the
   second area chosen for #65's live verification — the one whose provenance a consumer is most
-  likely to be reading.
+  likely to be reading. **`lulc_annual: true` since 2026-09-05** (#79): step 3 re-run for the full
+  2017–2023 series. The transition did not move — 7,161 patches, `transition_content_sha256` and
+  `outputs_hash` byte-identical to the 09-02 record — so every number above still stands. bulk is
+  also `readme_functions.R`'s `FIG_AREA`, so its transition layer must keep `in_fire`/`in_harvest`
+  or the attribution figure builder **stops**.
 
 Whole-WSG areas use the **FWA group polygon** as the single sub-basin (`fp_wsg_subbasin`; no
 `break_points.csv` needed). The earlier single-outlet break point does NOT generalize — delineating
@@ -391,9 +422,13 @@ the choice unreproducible. Set them in the region file.
 
 ## Prerequisites (when running)
 
-Local `fwapg` (libpq env vars); `link` ≥ 0.44.0, `flooded`, `drift` ≥ 0.6.0, `fresh`, `terra`
+Local `fwapg` (libpq env vars); `link` ≥ 0.44.0, `flooded`, `drift` ≥ 0.10.0, `fresh`, `terra`
 ≥ 1.8-10; internet for the national MRDEM-30 (`flooded::fl_dem_aoi()`) and Microsoft Planetary
-Computer STAC. (`drift` ≥ 0.6.0 because `fp_lulc` passes `tile_size` to `dft_stac_fetch`.)
+Computer STAC. **`drift` ≥ 0.10.0 is a CORRECTNESS floor, not a feature one** — 0.6.0 was merely
+where `dft_stac_fetch` gained `tile_size`, but before **0.10.0** the fetch issued a single
+`get_request()` with no paging, so an AOI whose item set spans more than one page was built from a
+partial collection: a wrong raster, silently, with `item_ids_complete` structurally unable to
+report it (#81). `fp_lulc` asserts the floor.
 
 ## Running gotchas (learned the hard way, issue #1)
 

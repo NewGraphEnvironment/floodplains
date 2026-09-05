@@ -109,6 +109,7 @@ message("\nOwnership rule: the region owns its keys, the area owns the rest")
 # wholesale rewrite discarded without a word.
 d <- copy_cfg("bulk")
 y <- yaml::read_yaml(fs::path(d, "area.yml")); y$tile_size <- 20000; y$subset <- "reach"
+y$lulc_annual <- TRUE
 yaml::write_yaml(y, fs::path(d, "area.yml"))
 p <- fp_region_plan(d, owned_for("BULK", "co"), base_scenarios("co"))
 fp_region_write(p)
@@ -117,6 +118,10 @@ ok("area-owned keys survive a region run",
    identical(after$tile_size, 20000L) || identical(after$tile_size, 20000),
    "tile_size")
 ok("area-owned subset survives", identical(after$subset, "reach"))
+# lulc_annual (#79) is area-owned too: it is set per area, not per region, because the five annual
+# areas span three regions. A region run must not clear it -- that would silently drop four
+# classified years from every published area on the next step-3 run.
+ok("area-owned lulc_annual survives", identical(after$lulc_annual, TRUE))
 
 # THE REGRESSION THAT MATTERS. A naive merge (modifyList) preserves too much: dropping
 # network_source from the region file would leave it stale in area.yml and the group would keep

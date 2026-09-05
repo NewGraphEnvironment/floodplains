@@ -145,7 +145,8 @@ For an area — a watershed group, optionally a single reach — the pipeline ru
 2. **Floodplain.** Delineate the valley bottom around that network with the Valley Confinement
    Algorithm, via [`flooded`](https://github.com/NewGraphEnvironment/flooded), on the national
    30 m DEM.
-3. **Land-cover change.** Classify 10 m Impact Observatory land cover for 2017, 2020 and 2023,
+3. **Land-cover change.** Classify 10 m Impact Observatory land cover over the change interval
+   — its endpoints and midpoint by default, every year where an area sets `lulc_annual` —
    find the patches that changed, and tag each one against overlay layers — fire, harvest — via
    [`drift`](https://github.com/NewGraphEnvironment/drift).
 
