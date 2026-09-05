@@ -498,6 +498,14 @@ so Pages serves the file rather than running Jekyll over the tracked `.md` files
 `planning/`, which outnumber everything else in the repo; there is no `CNAME` — the org user site owns the domain and every project page
 inherits it.
 
+**The site is served from the repo ROOT, so every tracked file is a public URL.** Verified
+2026-09-05: `/floodplains/CLAUDE.md`, `/floodplains/planning/README.md` and
+`/floodplains/research/README.md` all return 200 under the org domain. The repo was already public
+on GitHub, so nothing became secret-exposed — what changed is the *discoverability profile*: these
+are indexable paths on `newgraphenvironment.com` now, not files behind a GitHub UI. Treat anything
+committed here as published. Machine-local memory stays the home for infrastructure identifiers,
+run state, and anything about a person's plans.
+
 Two params, both defaulting **FALSE** and for different reasons. `rmd_on` switches the targets,
 and `README.md` is the artifact an accidental Knit would destroy. `update_figs` gates the figure
 builders, which read the gitignored `data/bulk/` — so a routine render needs no data, no database
