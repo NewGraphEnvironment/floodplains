@@ -86,11 +86,11 @@ answered the class by pinning `datatype = "FLT4S"` in 02. `scripts/fp_gpkg.R`'s 
 
 ## Validation
 
-- [ ] `provenance-check.R` green, must-fail arm exercised with the strip removed and the
+- [x] `provenance-check.R` green, must-fail arm exercised with the strip removed and the
       output **grepped for the expected message**
-- [ ] `gpkg_determinism-check.R` still green
-- [ ] Full sweep: every `.tif` under `data/` reports 0 stray tags across all 23 areas
-- [ ] `raster_strip-tags.R necr` re-run is a no-op; `DRY=1` leaves mtimes unchanged
-- [ ] `run_area.R neexdzii 3`: transition sha, 2032 patches, every classified sha unchanged
+- [x] `gpkg_determinism-check.R` still green
+- [x] Full sweep: every `.tif` under `data/` reports 0 stray tags across all 23 areas
+- [x] `raster_strip-tags.R necr` re-run is a no-op; `DRY=1` leaves mtimes unchanged
+- [x] `run_area.R neexdzii 3`: transition sha, 2032 patches, every classified sha unchanged
 - [ ] `/code-check` clean on each commit; PWF checkboxes land with the code
 - [ ] `/planning-archive` on completion

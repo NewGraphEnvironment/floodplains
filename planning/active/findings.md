@@ -327,6 +327,33 @@ four completed files were intact, and re-running picked up at `classified_2020.t
 script tests each file's tags rather than tracking progress. Idempotence bought resumability; it was
 exercised by accident rather than by design.
 
+## Validation — the neexdzii regression run
+
+`Rscript scripts/run_area.R neexdzii 3`, full re-fetch (the drift cache had no entry for this AOI),
+0 in-band errors, exit 0. Compared against a copy of `provenance.json` taken before the run:
+
+| field | result |
+|---|---|
+| `outputs_hash` | **SAME** `sha256:504624f6…` |
+| `transition_patches` | **SAME** 2032 |
+| `transition_content_sha256` | **SAME** `sha256:1e379aee…` |
+| `classified_content_sha256` 2017 / 2020 / 2023 | **SAME**, all three |
+| `years` | **SAME** `[2017, 2020, 2023]` |
+| `run.datetime_utc` | moved — it is the run event |
+| `inputs_hash` | moved |
+
+**The `inputs_hash` move is fully accounted for**: of 26 input fields, exactly **one** differs —
+`drift.version`, 0.8.0 → 0.13.0. The baseline was written before drift was updated, the stamp is
+part of `inputs` by design (#65), and the #79 split-run log records the same behaviour for the same
+reason. Nothing about the container pin touches `inputs`.
+
+All four freshly written rasters report **0 stray tags**, and `provenance-check.R neexdzii` passes.
+
+**This is a regression test, not proof the fix works.** On m1 the strip is a no-op, so what it
+demonstrates is that the pin damages nothing — every content digest reproduced to the byte through
+a full re-fetch. The offline §5f section is the only arm that can demonstrate the strip and the
+refusal, which is why both defects are restored there.
+
 ## Errors Encountered
 
 | Error | Resolution |
