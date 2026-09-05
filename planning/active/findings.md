@@ -76,10 +76,84 @@ on-disk type" cannot move the container, and it was kept even though it measured
 `scripts/fp_gpkg.R` closes with *"GeoTIFF output (terra::writeRaster) was measured deterministic
 already and needs nothing"* — falsified by this issue and corrected in Phase 2.
 
+## Phase 1 — mechanism, measured (2026-09-05, m1, terra 1.9.34 / GDAL 3.13.0)
+
+### The strip works, and reproduces the clean areas exactly
+
+`metags(r) <- NULL` clears all 31 tags in memory, and a subsequent `writeRaster()` produces a
+file carrying **`AREA_OR_POINT` alone** — byte-for-byte the tag set `bulk` and `lnth` already
+have. So a full clear is right; `AREA_OR_POINT` does not need restoring by hand.
+
+It does **not alias**: `x <- lst[[1]]; metags(x) <- NULL` leaves `lst[[1]]` at 31 tags, so
+stripping cannot disturb the `classified_all` list Pass 2 crops and masks. Strip into a local
+anyway, because the read is what makes that safe and a future terra could change it.
+
+### terra 1.9.34 propagates faithfully on WRITE — the difference is on the READ side
+
+Reading a dirty `necr` raster on 1.9.34 and writing it straight through **keeps all 30 tags**.
+So 1.9.34 does not "drop" NetCDF metadata at write time; it never picks it up from a `.nc` in
+the first place, where 1.9.11 does. That matters twice: the strip is genuinely load-bearing on
+any terra whose read populates them, and the Phase 3 guard is **reachable on this machine**,
+since explicitly-set metags do reach the written file (`§5c`'s premise, re-asserted rather than
+inherited).
+
+### The repair route: four candidates, three rejected on measurement
+
+| route | stray tags | band categories | palette 255 | content sha | size per run | idempotent |
+|---|---|---|---|---|---|---|
+| `gdal_edit.py -unsetmd` | clean | **DESTROYED** | — | same | **+54 KB** | no |
+| GDAL dataset-only `SetMetadata` | clean | **DESTROYED** | — | same | **+54 KB** | no |
+| ... + `SetCategoryNames()` restore | clean | **still DESTROYED** | — | same | +54 KB | no |
+| **terra strip + rewrite** | clean | **preserved** | `0,0,0,0` -> `255,255,255,0` | same | -10 KB | yes |
+
+**`gdal_edit.py -unsetmd` was the route named at the plan gate and it is wrong.** It wipes the
+band's category names — `Water`, `Trees`, `Flooded Vegetation`, … — which is the RAT
+`stac_floodplains_bc` publishes and that stac#34/#35 fought to get embedded. It would have
+shipped COGs with no class labels while every checksum agreed: CLAUDE.md's "a well-formed file
+the consumer ignores is worse than a malformed one", arriving from the repair rather than the
+producer. Restoring the names explicitly through the GDAL API does not bring them back either,
+and every GDAL in-place variant grows the file ~54 KB per invocation (a re-serialised TIFF
+directory, the old one orphaned) — so it is not idempotent in bytes.
+
+**terra strip + rewrite is adopted.** It preserves all 512 category rows, all 256 palette
+entries, type, block layout, description and nodata; `fp_raster_content_sha256()` is identical;
+and the file is 10 KB *smaller* because the tags are gone rather than orphaned.
+
+### The one deviation, bounded rather than hidden
+
+The nodata palette entry moves `255: 0,0,0,0` -> `255: 255,255,255,0`. Alpha is 0 in both, so
+nothing renders differently, and it is the **only** line that differs in the whole band section.
+It is a property of the round-trip, not of the strip: it survives `NAflag(r) <- 255`,
+`writeRaster(NAflag = 255)` and re-applying the source colour table verbatim. Every published
+area carries `0,0,0,0` (bulk, lnth, necr, kotl, neexdzii, morr — checked), because a fresh step-3
+raster is masked in memory and never round-trips.
+
+Chasing it further meant rebuilding drift's palette inside a repair script — re-implementing
+package logic in the driver, which the repo's core principle forbids — so it stops here. The
+repair **asserts** it instead: the only band-section difference permitted is that one line, and
+anything else aborts the file.
+
+### A trap found while probing, and designed against
+
+`fp_raster_content_sha256()` returns `NA_character_` for a path that does not exist. A repair
+comparing before/after with `identical()` therefore reports **"content unchanged"** when the
+probe was broken — two `NA`s compare equal. Measured live: an unexported `SP` gave a relative
+path, both sides came back `NA`, and the comparison passed. The repair script rejects `NA` on
+either side as a hard error, not as a match.
+
+A second one, same session: `jsonlite` renames `gdalinfo -json`'s empty-string metadata-domain
+key, so `j$metadata$_` reads `NULL` and every raster looks clean. It produced three confident
+wrong readings before the Python reader from the original sweep disagreed. Tag reads go through
+one reader.
+
 ## Errors Encountered
 
 | Error | Resolution |
 |-------|------------|
+| `stat: invalid option -- '%'` | GNU coreutils `stat` is on PATH ahead of BSD; `stat -f%z` is BSD-only. Used `wc -c` — portable either way. |
+| `diff` printed a git-style diff | `diff` is a shell function delegating to `git diff` (CLAUDE.md's shadowed-command trap). Used `command diff` for anything treated as evidence. |
+| `fp_raster_content_sha256()` returned `NA` on both sides | `SP` was set but not exported, so `Sys.getenv("SP")` was empty and the path was relative. Two `NA`s compare equal — see the trap note above. |
+| `j$metadata$_` read `NULL` for every raster | jsonlite renames the empty-string JSON key. Read tags with the Python reader used for the original sweep. |
 
 ## Issue context
 

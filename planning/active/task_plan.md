@@ -27,15 +27,15 @@ answered the class by pinning `datatype = "FLT4S"` in 02. `scripts/fp_gpkg.R`'s 
 
 ## Phase 1: Pin the mechanism offline, before changing anything
 
-- [ ] Confirm `metags(r) <- NULL` clears every tag including `AREA_OR_POINT`, and that a
+- [x] Confirm `metags(r) <- NULL` clears every tag including `AREA_OR_POINT`, and that a
       subsequent `writeRaster()` still produces `AREA_OR_POINT=Area` — i.e. GDAL re-adds it
       and a cleared raster matches bulk/lnth exactly. If not, restore it explicitly rather
       than shipping a container that differs from the clean areas in the other direction.
-- [ ] Confirm terra 1.9.34 **writes** explicitly-set metags to GTiff, so the Phase 3 guard is
+- [x] Confirm terra 1.9.34 **writes** explicitly-set metags to GTiff, so the Phase 3 guard is
       reachable on this machine. Assert inline rather than inheriting §5c's premise.
-- [ ] Confirm `metags(x) <- NULL` on a list element does not alias `classified_all[[yr]]`
+- [x] Confirm `metags(x) <- NULL` on a list element does not alias `classified_all[[yr]]`
       (terra wraps an external pointer). Strip into a local and write the local if it does.
-- [ ] On a **copy** of a dirty file, run `gdal_edit.py -unsetmd -mo AREA_OR_POINT=Area` and
+- [x] On a **copy** of a dirty file, run `gdal_edit.py -unsetmd -mo AREA_OR_POINT=Area` and
       diff before/after: `gdalinfo` Band 1 section (type, block, ColorInterp, Description,
       NoData, every category) and `fp_raster_content_sha256()`. Both identical; tags 31 -> 1.
 
@@ -62,7 +62,12 @@ answered the class by pinning `datatype = "FLT4S"` in 02. `scripts/fp_gpkg.R`'s 
 
 - [ ] `scripts/floodplain_lcc/raster_strip-tags.R <area>` — idempotent, `DRY=1` returns before
       the first write, joining the `gpkg_backfill-wsg.R` / `gpkg_prune-legacy.R` family.
-      Per file: content sha before, edit, re-read after, `stop()` if it moved.
+      **Route changed in Phase 1: terra strip + rewrite, NOT `gdal_edit.py -unsetmd`** — every
+      GDAL in-place variant destroys the band's category names (the RAT stac publishes) and
+      grows the file 54 KB per run. See findings.md for the four-route measurement.
+      Per file: content sha before, rewrite, re-read after, `stop()` if it moved — and reject
+      `NA` on either side, since two `NA`s compare equal and would report a false match.
+      Assert the band section differs in **at most** the one known palette line.
 - [ ] Run it on `necr` and `kotl` (14 files).
 - [ ] Verify every `classified_content_sha256` in `data/<area>/provenance.json` still matches
       — an **independent** reference written before this repair existed.
