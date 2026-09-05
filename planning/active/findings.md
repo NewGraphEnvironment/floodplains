@@ -37,9 +37,18 @@ returns the same nc-backed raster, so the NetCDF attributes survive.
 written here and it is wrong. `crop()`, `mask()` and `deepcopy()` all build new rasters and
 **preserve** metags (measured: 31 in, 31 out), and `mask()` is precisely how
 `drift/R/dft_stac_fetch.R:230` delivers the tags in the first place. The discriminator is which
-*kind* of op: geometry ops carry metadata forward, value-rewriting ops (`classify`, `app`,
-`ifel`, arithmetic, `patches`) drop it. `dft_rast_transition()` is the second kind, which is why
-`transition.tif` is clean on both terras and `classified_*.tif` is not.
+*kind* of op. Measured on one file carrying 5 tags, terra 1.9.34:
+
+| geometry ops (preserve) | | value-rewriting ops (drop) | |
+|---|---|---|---|
+| `crop` | 5 | `classify` | 0 |
+| `mask` | 5 | `app` | 0 |
+| `deepcopy` | 5 | `ifel` | 0 |
+| | | `r * 1` | 0 |
+| | | `patches` | 0 |
+
+`dft_rast_transition()` is the second kind, which is why `transition.tif` is clean on both terras
+and `classified_*.tif` is not.
 
 That sentence is the answer to the issue's headline Question, so it is stated from the
 measurement rather than from the plausible-sounding version.
