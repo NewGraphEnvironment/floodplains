@@ -226,6 +226,50 @@ Every classified and transition raster in `data/` — clean areas included — c
 into the published COGs. Wrong values in a published asset, same family as this issue, different
 cause. Not widened into #83.
 
+## Phase 3 — the guard, and a false-positive it would have had
+
+`provenance-check.R` §5f, 14 checks, on the §5c pattern. The fixture sets the tags **explicitly**,
+which is not a convenience: `rast(<.nc>)` on 1.9.34 yields nothing, so a fixture built from a real
+cube would carry no tags, the strip would be a no-op and every assertion would pass against a
+deleted implementation.
+
+**Restore-the-bug, both defects, message-grepped rather than exit-code-read.** Disabling the strip
+turns three checks red and prints the guard's own message; restoring the unguarded
+`metags(r) <- NULL` turns the two empty-case checks red. A first draft let the first of those abort
+the whole script — `fp_rast_write()` stops by design, so an uncaught `stop()` took sections 6 and 7
+down with it and read as a crash rather than as this property failing. It is caught, recorded as a
+named FAIL, and the run continues.
+
+### A PAM sidecar made a clean raster read as dirty
+
+Found by the round-1 reviewer and reproduced: GDAL merges a dataset-level `<Metadata>` block from a
+`.aux.xml` into the default domain, so a sidecar carrying `TIFFTAG_SOFTWARE=QGIS` put two "stray"
+tags on a clean file. Latent rather than live — none of the **112** sidecars under `data/` carries
+such a block today — and it matters for two reasons beyond the false alarm:
+
+1. **The repair cannot fix what the guard would flag.** `raster_strip-tags.R` rewrites the TIFF,
+   which cannot remove a tag living in a sidecar. The file would be reported dirty, "repaired", and
+   reported dirty again, forever.
+2. **It is machine-local.** CLAUDE.md's #64 block records that GDAL writes that sidecar as a side
+   effect of anyone *opening* the raster — so a PAM-sensitive guard makes a published-artifact
+   property depend on who has looked at the file in QGIS. That is the machine dependence #64 was
+   opened to remove, arriving one field over.
+
+The reader now sets `GDAL_PAM_ENABLED=NO` for the duration of the call and restores the previous
+value, so the subject is the TIFF's own tag 42112 and nothing else. Pinned in §5f with a premise arm
+proving the sidecar really is visible to GDAL, so the assertion is not about something that could
+never happen.
+
+### `classified_content_sha256` was the one recorded digest never re-derived
+
+§7 asserted its year *set* against `inputs$years` — both written by the same run, so they cannot
+disagree — and nothing read the rasters. It now re-derives all seven digests from
+`rasters/<scen>/classified_<yr>.tif` and checks each file's container, and does the same for
+`transition.tif` and step 2's `floodplain_*.tif`. That is what makes Phase 4's claim checkable by a
+committed guard rather than by hand: run it on `necr` today and it reports **7 of 7 dirty** with the
+digests already reconciling, which is the repair's whole thesis stated as a test before the repair
+runs.
+
 ## Errors Encountered
 
 | Error | Resolution |

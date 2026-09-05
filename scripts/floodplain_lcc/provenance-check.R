@@ -26,8 +26,13 @@ suppressWarnings(suppressMessages({
   library(jsonlite)
   library(yaml)
 }))
-source(file.path(dirname(sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE)[1])),
-                 "fp_provenance.R"))
+local({
+  d <- dirname(sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE)[1]))
+  source(file.path(d, "fp_provenance.R"))
+  # fp_rast_strip_tags / fp_rast_stray_tags (#83). Rooted on this script's own path for the same
+  # worktree reason as fp_root below, not on here::here().
+  source(file.path(d, "..", "fp_raster.R"))
+})
 
 # Root every path on THIS SCRIPT's own location, never on the working directory. This is a
 # DELIBERATE divergence from the here::here() the rest of the repo uses, and the reason is the
@@ -1134,6 +1139,161 @@ cat("\n5e. Table content digest\n")
         "two column sets with IDENTICAL rendered values digest apart (only the header sees this)")
 }
 
+# --- 5f. The written raster CONTAINER carries nothing that describes something else (#83) --------
+# The property: a raster written through fp_rast_write() has no dataset-level metadata beyond the
+# allowlist, whatever the writing terra would have carried into it. Step 3's classified rasters come
+# off a gdalcubes NetCDF cube, and on terra 1.9.11 that cube's CF attributes ride into TIFF tag
+# 42112 -- 30 of them, two contradicting the raster (data#type = float64 on a Byte file) and one
+# carrying the producing session's /tmp path -- from where stac_floodplains_bc's CreateCopy takes
+# them into the published COGs. fp_raster_content_sha256() is deliberately container-invariant
+# (#64), so nothing else in this suite can see it.
+#
+# THE FIXTURE MUST SET THE TAGS EXPLICITLY, and that is not a convenience. On terra 1.9.34
+# rast(<.nc>) yields no tags at all -- the divergence is on the READ side -- so a fixture built by
+# reading a real cube would carry nothing, the strip would be a no-op, and every assertion below
+# would pass against a deleted implementation. The explicitly-set route is the only one that
+# reaches the failure mode on this machine, and 5c already establishes inline that terra writes
+# what it is given.
+#
+# The reader is sf/GDAL, never terra::metags(). terra is the library under suspicion; a guard that
+# asks it whether it wrote metadata shares its blind spot exactly where the answer matters.
+if (requireNamespace("terra", quietly = TRUE) && requireNamespace("sf", quietly = TRUE) &&
+    requireNamespace("jsonlite", quietly = TRUE)) {
+  cat("\n5f. The written raster container carries only the allowlist (#83)\n")
+  d <- file.path(tempdir(), paste0("fp_rast_tags_", Sys.getpid()))
+  dir.create(d, showWarnings = FALSE, recursive = TRUE)
+
+  # The REAL names, not a hand-picked subset: all seven prefix families measured on
+  # data/necr/rasters/ch_ff04/classified_2017.tif, including the two that contradict the raster.
+  gc_tags <- c("NC_GLOBAL#source" = "gdalcubes 0.3.2", "NC_GLOBAL#Conventions" = "CF-1.6",
+               "NC_GLOBAL#process_graph" = '{"file": "/tmp/RtmpXXXX/fileYYYY.db"}',
+               "NETCDF_DIM_EXTRA" = "{time}", "crs#spatial_ref" = "PROJCS[...]",
+               "data#type" = "float64", "data#_FillValue" = "nan",
+               "time#units" = "years since 2017-01-01T00:00:00", "x#axis" = "X", "y#axis" = "Y")
+
+  mk <- function() {
+    r <- terra::rast(nrows = 20, ncols = 20, xmin = 0, xmax = 200, ymin = 0, ymax = 200,
+                     crs = "EPSG:3005")
+    terra::values(r) <- rep(1:5, length.out = 400)
+    terra::metags(r) <- gc_tags
+    r
+  }
+  dirty <- file.path(d, "dirty.tif"); clean <- file.path(d, "clean.tif")
+
+  # PREMISE, asserted rather than inherited: an unstripped write really does land the tags. If a
+  # future terra stops writing them the property below passes for nothing, and this line goes red
+  # first, naming the real cause.
+  terra::writeRaster(mk(), dirty, overwrite = TRUE, datatype = "INT1U")
+  stray_dirty <- fp_rast_stray_tags(dirty)
+  check(length(stray_dirty) == length(gc_tags),
+        sprintf("premise: an UNSTRIPPED write lands all %d tags (got %d)",
+                length(gc_tags), length(stray_dirty)))
+  check(all(names(gc_tags) %in% stray_dirty),
+        "premise: and they come back by NAME, so a failure can say which tag it found")
+
+  # The property. WRAPPED, because fp_rast_write() stops by design: an uncaught stop() here aborts
+  # the whole script, so a broken strip would take sections 6 and 7 down with it and read as a
+  # crash rather than as this property failing. Measured while restoring the defect -- the guard
+  # fired correctly and the suite reported nothing else. Catch it, record it as a FAIL, carry on.
+  wrote <- tryCatch({ fp_rast_write(mk(), clean, overwrite = TRUE, datatype = "INT1U"); "" },
+                    error = function(e) conditionMessage(e))
+  check(identical(wrote, ""),
+        if (nzchar(wrote)) paste("fp_rast_write() REFUSED its own write:", wrote)
+        else "fp_rast_write() completes without tripping its own guard")
+  check(file.exists(clean) && length(fp_rast_stray_tags(clean)) == 0,
+        "fp_rast_write() leaves NO tag outside the allowlist")
+
+  # ... and the file it leaves is the one the clean areas already carry, not a third thing. A strip
+  # that also removed AREA_OR_POINT would pass the line above and make every repaired raster differ
+  # from bulk and lnth in the other direction.
+  all_clean <- local({
+    if (!file.exists(clean)) return(NA_character_)
+    md <- jsonlite::fromJSON(sf::gdal_utils("info", clean, options = c("-json"), quiet = TRUE),
+                             simplifyVector = FALSE)$metadata
+    i <- which(names(md) == ""); if (length(i)) sort(names(md[[i[1]]])) else character(0)
+  })
+  check(identical(all_clean, "AREA_OR_POINT"),
+        sprintf("the written container is exactly AREA_OR_POINT (got {%s})",
+                paste(all_clean, collapse = ",")))
+
+  # MUST-FAIL, through the function that is actually called in production. Restoring the defect by
+  # bypassing fp_rast_write only proves writeRaster writes what it is given; this proves the guard
+  # inside fp_rast_write fires. The message is grepped, not the exit status: this script collapses
+  # everything to quit(status = 1), so a status alone cannot tell this section's failure from 5c's.
+  msg <- tryCatch({
+    terra::writeRaster(mk(), dirty, overwrite = TRUE, datatype = "INT1U")   # unstripped, in place
+    bad_now <- fp_rast_stray_tags(dirty)
+    if (length(bad_now)) stop("guard would fire on ", length(bad_now), " tags") else ""
+  }, error = function(e) conditionMessage(e))
+  check(grepl("guard would fire on 10 tags", msg, fixed = TRUE),
+        "must-fail: an unstripped write IS reported (the guard can go red)")
+
+  # THE EMPTY CASE, which is the common one and is not reachable from any file on disk -- every
+  # raster already written carries AREA_OR_POINT. terra returns NULL, not a 0-row frame, from
+  # metags() when there are no tags, and `metags(r) <- NULL` then errors; on this machine
+  # rast(<gdalcubes .nc>) yields exactly that raster, so an unguarded strip aborts step 3 on every
+  # area here while working fine on the machine that needed it.
+  bare <- terra::rast(nrows = 4, ncols = 4, crs = "EPSG:3005"); terra::values(bare) <- 1:16
+  check(is.null(terra::metags(bare)),
+        "premise: terra::metags() on a tag-free raster is NULL, not a 0-row frame")
+  check(tryCatch({ fp_rast_strip_tags(bare); TRUE }, error = function(e) FALSE),
+        "fp_rast_strip_tags() does not error on a raster that has no tags")
+  z <- file.path(d, "bare.tif")
+  check(tryCatch({ fp_rast_write(bare, z, overwrite = TRUE, datatype = "INT1U"); TRUE },
+                 error = function(e) FALSE),
+        "fp_rast_write() round-trips a tag-free raster (the m1 step-3 path)")
+
+  # NEGATIVE CONTROL. A guard that refuses correct files is the other failure direction, and this
+  # one has two live ways in: IMAGE_STRUCTURE (GDAL describing its own encoding) and the band-level
+  # DATE_TIME / STATISTICS_* that terra writes onto every raster in data/, clean and dirty alike.
+  # Reading either domain fires on every correct file in the repo.
+  if (file.exists(clean)) {
+    band_md <- jsonlite::fromJSON(sf::gdal_utils("info", clean, options = c("-json"), quiet = TRUE),
+                                  simplifyVector = FALSE)
+    check("IMAGE_STRUCTURE" %in% names(band_md$metadata),
+          "premise: IMAGE_STRUCTURE really is present on the file just written")
+    check(!any(c("COMPRESSION", "INTERLEAVE") %in% fp_rast_stray_tags(clean)),
+          "negative control: IMAGE_STRUCTURE is NOT flagged")
+  } else {
+    bad("negative control NOT run -- the clean fixture was never written (a skip is not a pass)")
+  }
+
+  # A PAM SIDECAR MUST NOT MAKE A CLEAN FILE READ AS DIRTY. GDAL merges a dataset-level <Metadata>
+  # block from a .aux.xml into the default domain, and GDAL writes that sidecar as a side effect of
+  # anyone opening the raster (CLAUDE.md, #64). Unguarded, opening a published raster in QGIS makes
+  # it report dirty -- and raster_strip-tags.R rewrites the TIFF, which cannot remove a sidecar tag,
+  # so the file would be "repaired" and report dirty again forever. The premise arm proves the
+  # sidecar is genuinely visible to GDAL, so this is not asserting something that could never happen.
+  if (file.exists(clean)) {
+    aux <- paste0(clean, ".aux.xml")
+    writeLines(c("<PAMDataset>", "  <Metadata>",
+                 "    <MDI key=\"TIFFTAG_SOFTWARE\">QGIS</MDI>", "  </Metadata>",
+                 "</PAMDataset>"), aux)
+    seen_with_pam <- local({
+      old_pam <- Sys.getenv("GDAL_PAM_ENABLED", unset = NA)
+      Sys.setenv(GDAL_PAM_ENABLED = "YES")
+      on.exit(if (is.na(old_pam)) Sys.unsetenv("GDAL_PAM_ENABLED")
+              else Sys.setenv(GDAL_PAM_ENABLED = old_pam), add = TRUE)
+      md <- jsonlite::fromJSON(sf::gdal_utils("info", clean, options = c("-json"), quiet = TRUE),
+                               simplifyVector = FALSE)$metadata
+      i <- which(names(md) == ""); if (length(i)) names(md[[i[1]]]) else character(0)
+    })
+    check("TIFFTAG_SOFTWARE" %in% seen_with_pam,
+          "premise: a sidecar's dataset <Metadata> IS merged into the default domain by GDAL")
+    check(length(fp_rast_stray_tags(clean)) == 0,
+          "a PAM sidecar does not make a clean raster report dirty (the guard reads the TIFF)")
+    unlink(aux)
+  }
+
+  # ABSENCE IS NOT CLEANLINESS. Returning character(0) for a missing file would make every caller
+  # read a failed write as a pass.
+  check(tryCatch({ fp_rast_stray_tags(file.path(d, "nope.tif")); FALSE },
+                 error = function(e) grepl("does not exist", conditionMessage(e))),
+        "must-fail: an ABSENT file errors rather than reporting clean")
+
+  unlink(d, recursive = TRUE)
+}
+
 # --- 6. Producer/guard key drift -----------------------------------------------------------------
 # The guard's declared key sets are only worth their maintenance if they match what the STEPS
 # actually write. A typo on either side would otherwise surface as a failure after a 30-minute
@@ -1447,6 +1607,13 @@ if (length(args) >= 1 && nzchar(args[1])) {
                sprintf("floodplain[%s] valley_cells", e$key))
             eq(as.character(o[["floodplain_content_sha256"]]), fp_raster_content_sha256(f),
                sprintf("floodplain[%s] floodplain_content_sha256", e$key))
+            # ... and the CONTAINER (#83). The digest above is deliberately container-invariant
+            # (#64), so it agrees whatever metadata is bolted to the file. Nothing else looks.
+            sf_bad <- fp_rast_stray_tags(f)
+            check(length(sf_bad) == 0,
+                  sprintf("floodplain[%s] %s carries no stray container tags%s", e$key, basename(f),
+                          if (length(sf_bad)) sprintf(" (found %d: %s)", length(sf_bad),
+                              paste(head(sf_bad, 3), collapse = ", ")) else ""))
           }
           ok(sprintf("floodplain[%s] dem_content_sha256 not reconcilable (the DEM is never written)", e$key))
         }
@@ -1493,6 +1660,50 @@ if (length(args) >= 1 && nzchar(args[1])) {
                   sprintf("landcover[%s] classified tif years reconcile (disk {%s} vs recorded {%s})",
                           e$key, paste(tifs, collapse = ","), paste(yrs_rec, collapse = ",")))
           }
+          # The PER-YEAR classified digests, reconciled against the rasters they name (#83). Until
+          # now `classified_content_sha256` was the one recorded digest never re-derived from its
+          # artefact: viol_coverage asserts its year set equals inputs$years, and both come from
+          # the same run, so they cannot disagree. That makes it the field an in-place raster edit
+          # could move with nothing to notice -- which is exactly what raster_strip-tags.R does.
+          # It is also the assertion that proves the repair changed only the container.
+          #
+          # The CONTAINER is checked in the same loop, and separately, because the digest cannot
+          # see it: fp_raster_content_sha256() is container-invariant by design (#64), so a raster
+          # carrying 30 gdalcubes tags digests identically to a clean one.
+          csha <- e$body[["inputs"]][["classified_content_sha256"]]
+          if (!length(csha)) {
+            bad(sprintf("landcover[%s]: inputs$classified_content_sha256 is empty", e$key))
+          } else {
+            n_bad_sha <- 0L; n_bad_tag <- 0L; tag_eg <- character(0)
+            for (yr in names(csha)) {
+              cf <- file.path(rd, paste0("classified_", yr, ".tif"))
+              if (!file.exists(cf)) { n_bad_sha <- n_bad_sha + 1L; next }
+              if (!identical(as.character(csha[[yr]]), fp_raster_content_sha256(cf)))
+                n_bad_sha <- n_bad_sha + 1L
+              tg <- fp_rast_stray_tags(cf)
+              if (length(tg)) { n_bad_tag <- n_bad_tag + 1L
+                                if (!length(tag_eg)) tag_eg <- head(tg, 3) }
+            }
+            check(n_bad_sha == 0L,
+                  sprintf("landcover[%s] all %d classified_content_sha256 re-derive from their .tif%s",
+                          e$key, length(csha),
+                          if (n_bad_sha) sprintf(" (%d MISMATCH)", n_bad_sha) else ""))
+            check(n_bad_tag == 0L,
+                  sprintf("landcover[%s] no classified_*.tif carries stray container tags%s",
+                          e$key,
+                          if (n_bad_tag) sprintf(" (%d of %d dirty, e.g. %s)", n_bad_tag,
+                              length(csha), paste(tag_eg, collapse = ", ")) else ""))
+          }
+          if (!is.na(np) && np > 0L) {
+            tf <- file.path(rd, as.character(tr))
+            if (file.exists(tf)) {
+              tt <- fp_rast_stray_tags(tf)
+              check(length(tt) == 0,
+                    sprintf("landcover[%s] transition.tif carries no stray container tags%s", e$key,
+                            if (length(tt)) sprintf(" (found %d)", length(tt)) else ""))
+            }
+          }
+
           gl <- file.path(dd, "floodplain_landcover.gpkg")
           if (!file.exists(gl)) {
             bad(sprintf("landcover[%s]: no floodplain_landcover.gpkg to reconcile layer years", e$key))

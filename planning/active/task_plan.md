@@ -53,10 +53,12 @@ answered the class by pinning `datatype = "FLT4S"` in 02. `scripts/fp_gpkg.R`'s 
 
 ## Phase 3: Guard it offline
 
-- [ ] New section in `provenance-check.R` on the §5c pattern: premise asserted inline;
+- [x] New section in `provenance-check.R` on the §5c pattern: premise asserted inline;
       strip + write => no stray tags; **must-fail** arm (same write without the strip reports
       the names); **negative control** (`AREA_OR_POINT` and `IMAGE_STRUCTURE` not flagged).
-- [ ] Assert `fp_rast_stray_tags()` against the real 30 names recorded in findings.md.
+- [x] Assert `fp_rast_stray_tags()` against the real tag names recorded in findings.md.
+- [x] Reconcile the per-year `classified_content_sha256` against their rasters in §7, and check
+      every on-disk raster's container there too — the one recorded digest never re-derived.
 
 ## Phase 4: Reconcile the 14 written files
 

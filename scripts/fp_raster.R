@@ -86,6 +86,25 @@ fp_rast_stray_tags <- function(path) {
   if (!file.exists(path)) {
     stop("cannot read tags: ", path, " does not exist", call. = FALSE)
   }
+  # READ WITH PAM DISABLED. GDAL merges a dataset-level <Metadata> block from a .aux.xml sidecar
+  # into the default domain, so without this a sidecar carrying TIFFTAG_SOFTWARE=QGIS reports two
+  # stray tags on a perfectly clean raster (measured). Two reasons that is the wrong answer here:
+  #
+  #   1. It is not FIXABLE by the thing this guard drives. raster_strip-tags.R rewrites the TIFF,
+  #      which cannot remove a tag that lives in a sidecar -- so the file would be reported dirty,
+  #      "repaired", and reported dirty again, forever.
+  #   2. It is machine-local. CLAUDE.md's #64 block records that GDAL writes that sidecar as a
+  #      side effect of anyone OPENING the file, so a PAM-sensitive guard makes a published-artifact
+  #      property depend on who has looked at the raster in QGIS -- the machine dependence #64 was
+  #      opened to remove, arriving one field over.
+  #
+  # So the subject is the TIFF's own tag 42112 and nothing else. Sidecars are untracked, gitignored
+  # and excluded from the stac release sync; none of the 112 under data/ carries a dataset-level
+  # block today. Restore the default by unsetting the variable if that ever needs revisiting.
+  old_pam <- Sys.getenv("GDAL_PAM_ENABLED", unset = NA)
+  Sys.setenv(GDAL_PAM_ENABLED = "NO")
+  on.exit(if (is.na(old_pam)) Sys.unsetenv("GDAL_PAM_ENABLED")
+          else Sys.setenv(GDAL_PAM_ENABLED = old_pam), add = TRUE)
   j <- sf::gdal_utils("info", path, options = c("-json"), quiet = TRUE)
   md <- jsonlite::fromJSON(j, simplifyVector = FALSE)$metadata
   if (is.null(md)) return(character(0))
@@ -119,9 +138,11 @@ fp_rast_write <- function(r, path, ...) {
          collapse = ", "), if (length(bad) > 3) ", ..." else "", ") -- the metags strip did not ",
          "take on terra ", as.character(utils::packageVersion("terra")), ". These describe the ",
          "gdalcubes cube, not this raster, and would reach the published COGs (#83). Update terra ",
-         "on this machine and re-run step 3 for this area -- do NOT publish it. Note this area's ",
-         "rasters are now MIXED: one year freshly written beside the previous run's, with the gpkg ",
-         "and provenance still describing that earlier run.", call. = FALSE)
+         "on this machine and re-run step 3 for this area -- do NOT publish it. If the tag is a ",
+         "NEW and legitimate one a later terra writes by default, the fix is FP_RAST_TAGS_OK in ",
+         "scripts/fp_raster.R, not the toolchain. Note this area's rasters are now MIXED: one year ",
+         "freshly written beside the previous run's, with the gpkg and provenance still describing ",
+         "that earlier run.", call. = FALSE)
   }
   invisible(path)
 }
