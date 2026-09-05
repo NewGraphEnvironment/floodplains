@@ -26,3 +26,21 @@
 - All guard paths exercised: 4 areas TRUE / 4 untouched FALSE, 4 on-values, 4 off-values,
   2 typos error, empty = no override, and quoted/length-2/numeric configs all refused
 - README re-rendered; determinism check green on all three properties
+
+### Phases 3-5 — runs, acceptance, evidence
+- Baselines backed up and asserted real (v2, 3 years, digests present) on all four areas BEFORE
+  anything overwrote them — a v1 record would have degraded the acceptance to nothing (#73's trap)
+- Split run: m4 necr+kotl (41.6 min), m1 lnth+bulk (49.3 min); 49.3 min wall vs 91.9 sequential
+- All four areas rc=0 on the full acceptance set
+- bulk's 7,161 change patches match CLAUDE.md's recorded 2026-09-02 figure exactly
+- Disturbance tags (`in_fire`/`in_harvest`) present and populated on all four; m4 reached m1's
+  fresh-db over tailscale for its two
+- Outputs rsynced back to m1 and provenance digests verified identical across the copy
+- Evidence log: scripts/floodplain_lcc/logs/20260905_lulc-annual_split-run.md
+
+### Two of my own harness bugs, both caught by in-band checks rather than exit codes
+- The first m1 waiter reported completion while lnth was still running — local `sleep` is blocked
+  in this harness, so the loop exited early. Replaced with a loop whose sleep runs on m1.
+- The acceptance script called `bridge-check.R <area>` without a scenario; it defaults to `co_ff04`,
+  so chinook necr failed looking for a layer that never existed. The code was fine.
+Neither touched the outputs. Both are the reason the convention says gate on in-band markers.

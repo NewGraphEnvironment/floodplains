@@ -34,7 +34,7 @@ Downstream: `stac_floodplains_bc#59` publishes the seven years, `drift#62` analy
 - [x] Re-probe and diff against the pre-upgrade record
 - [x] rsync `data/{neexdzii,kotl,necr}` and `~/Library/Caches/drift/io-lulc/` from m1
 - [x] Point m4 `PGHOST` at m1; verify with a real query, not a port check
-- [ ] Control: m4 runs `run_area.R neexdzii 3` unchanged and reproduces m1's landcover `outputs_hash`
+- [x] Control: m4 runs `run_area.R neexdzii 3` unchanged and reproduces m1's landcover `outputs_hash`
 
 ## Phase 2: The code change
 
@@ -55,33 +55,38 @@ Downstream: `stac_floodplains_bc#59` publishes the seven years, `drift#62` analy
 
 ## Phase 3: Acceptance harness, before any area is overwritten
 
-- [ ] Per area: back up `provenance.json` and assert the baseline is real (v2 + three digests)
-- [ ] Write down the expected `provenance_ab-compare.R` failure set and grep for it
-- [ ] Element-wise: 2017/2020/2023 `classified_content_sha256` unchanged
-- [ ] `outputs.transition_content_sha256` and `transition_patches` unchanged
-- [ ] Exactly seven `classified_<scen>_*` layers and no eighth
-- [ ] `provenance-check.R <area>` green
+- [x] Per area: back up `provenance.json` and assert the baseline is real (v2 + three digests)
+- [x] Write down the expected `provenance_ab-compare.R` failure set and grep for it
+- [x] Element-wise: 2017/2020/2023 `classified_content_sha256` unchanged
+- [x] `outputs.transition_content_sha256` and `transition_patches` unchanged
+- [x] Exactly seven `classified_<scen>_*` layers and no eighth
+- [x] `provenance-check.R <area>` green
 
 ## Phase 4: The split runs
 
-- [ ] m4: `STEPS=3 scripts/run_areas.sh kotl necr`
-- [ ] m1: `STEPS=3 scripts/run_areas.sh bulk lnth`
-- [ ] Gate on in-band markers and output mtime, never the wrapper exit
-- [ ] Record wall-clock and peak RSS per area
+- [x] m4: `STEPS=3 scripts/run_areas.sh kotl necr`
+- [x] m1: `STEPS=3 scripts/run_areas.sh bulk lnth`
+- [x] Gate on in-band markers and output mtime, never the wrapper exit
+- [x] Record wall-clock and peak RSS per area
 
 ## Phase 5: Reconcile, evidence, PR
 
-- [ ] rsync m4's outputs back to m1
-- [ ] Committed evidence log under `scripts/floodplain_lcc/logs/`
-- [ ] PR body: timings, RSS, expected-failure set, gpkg-bytes and `nge:landcover_key` notes
-- [ ] Flag both on `stac_floodplains_bc#59`
+- [x] rsync m4's outputs back to m1
+- [x] Committed evidence log under `scripts/floodplain_lcc/logs/`
+- [x] PR body: timings, RSS, expected-failure set, gpkg-bytes and `nge:landcover_key` notes
+- [x] Flag both on `stac_floodplains_bc#59`
 
 ## Issues to write
 
-- [ ] Edit #79 body: four areas, PINE reason, corrected cost, restated acceptance
-- [ ] New issue: the m1 run half, so m1 can `/planning-init` on it
-- [ ] Comment on #76: PINE's annual run belongs in its acceptance
-- [ ] New issue: `item_ids_complete` is dead on drift >= 0.10
+- [x] Edit #79 body: four areas, PINE reason, corrected cost, restated acceptance
+- [x] SUPERSEDED — an m1 run-half issue was planned when m1 was expected to be driven separately.
+      Both halves were driven from one session over ssh, so the issue would have described work
+      already in flight. The split is recorded in the evidence log and the PR body instead.
+- [x] New issue instead: stac_floodplains_bc#61, splitting the year ABSTRACTION out of stac#59
+      (which bundled a code generalization, a collection-wide policy decision and a data
+      operation with three different blockers); stac#59 rescoped to the publish and to 4 areas
+- [x] Comment on #76: PINE's annual run belongs in its acceptance
+- [x] New issue: `item_ids_complete` is dead on drift >= 0.10
 
 ## Validation
 
