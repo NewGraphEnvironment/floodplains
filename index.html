@@ -1518,8 +1518,10 @@ habitat.</li>
 network with the Valley Confinement Algorithm, via <a href="https://github.com/NewGraphEnvironment/flooded"><code>flooded</code></a>,
 on the national 30 m DEM.</li>
 <li><strong>Land-cover change.</strong> Classify 10 m Impact Observatory
-land cover for 2017, 2020 and 2023, find the patches that changed, and
-tag each one against overlay layers — fire, harvest — via <a href="https://github.com/NewGraphEnvironment/drift"><code>drift</code></a>.</li>
+land cover over the change interval — its endpoints and midpoint by
+default, every year where an area sets <code>lulc_annual</code> — find
+the patches that changed, and tag each one against overlay layers —
+fire, harvest — via <a href="https://github.com/NewGraphEnvironment/drift"><code>drift</code></a>.</li>
 </ol>
 <p>The <strong>method lives in the packages</strong>. This repo is the
 thin driver: config per area, one runner, and a provenance record of

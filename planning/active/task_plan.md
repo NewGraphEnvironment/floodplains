@@ -25,24 +25,33 @@ Downstream: `stac_floodplains_bc#59` publishes the seven years, `drift#62` analy
 
 ## Phase 1: Level m4 and prove it (blocking for the split)
 
-- [ ] Probe m4 capabilities before upgrading; record the result
-- [ ] `drift` -> v0.13.0 pinned (>= 0.10.0 mandatory: 0.8.0 truncates a multi-page item set)
-- [ ] `sf` -> 1.1-2, `gdalcubes` -> 0.7.4, `terra` -> current (content digest is container-invariant)
-- [ ] Re-probe and diff against the pre-upgrade record
-- [ ] rsync `data/{neexdzii,kotl,necr}` and `~/Library/Caches/drift/io-lulc/` from m1
-- [ ] Point m4 `PGHOST` at m1; verify with a real query, not a port check
+- [x] Probe m4 capabilities before upgrading; record the result
+- [x] `drift` -> v0.13.0 pinned (>= 0.10.0 mandatory: 0.8.0 truncates a multi-page item set)
+- [x] `sf` -> 1.1.2, `gdalcubes` -> 0.7.4 (both now match m1 exactly); `terra` LEFT at 1.9.11
+      against m1's 1.9.34 — no plain install gives parity (CRAN current is 1.9-46), and
+      `fp_raster_content_sha256()` exists (#64) to be container-invariant across exactly this
+      gap. terra is now the ONLY difference between the machines, which is what the control tests.
+- [x] Re-probe and diff against the pre-upgrade record
+- [x] rsync `data/{neexdzii,kotl,necr}` and `~/Library/Caches/drift/io-lulc/` from m1
+- [x] Point m4 `PGHOST` at m1; verify with a real query, not a port check
 - [ ] Control: m4 runs `run_area.R neexdzii 3` unchanged and reproduces m1's landcover `outputs_hash`
 
 ## Phase 2: The code change
 
-- [ ] `run_area.R`: `lulc_annual` optional key beside `tile_size`, plus `FP_LULC_ANNUAL` env twin
-- [ ] Logical type guard (a quoted `"true"` is a character vector and `isTRUE()` reads it as off)
-- [ ] `03_lulc_classify.R:49` — the one line
-- [ ] Record `gdalcubes` in `fp_toolchain()` + `KEYS_TOOLCHAIN` + `TOOLCHAIN_FIXTURE`
-- [ ] Extend `region_config-check.R` area-owned-survival assertion to `lulc_annual`
-- [ ] Config comment: `lulc_annual` is a one-way door per area (#55 orphan class)
-- [ ] Prose: `README.Rmd`, `README.md`, `scripts/floodplain_lcc/README.md`, two stale code comments
-- [ ] Turn it on for the four areas' `area.yml`
+- [x] `run_area.R`: `lulc_annual` optional key beside `tile_size`, plus `FP_LULC_ANNUAL` env twin
+- [x] Logical type guard (a quoted `"true"` is a character vector and `isTRUE()` reads it as off)
+- [x] `03_lulc_classify.R:49` — the one line
+- [x] gdalcubes levelled to 0.7.4 on both machines, so the split carries no unrecorded
+      difference. RECORDING it in provenance is DEFERRED to its own issue: adding a required
+      `KEYS_TOOLCHAIN` member would make `provenance-check.R <area>` fail on the `floodplain[*]`
+      and `network[*]` entries this issue deliberately does not re-run — breaking #79's own
+      acceptance for a reason unrelated to #79. It needs a per-section key set and a
+      `schema_version` conversation with stac_floodplains_bc.
+- [x] Extend `region_config-check.R` area-owned-survival assertion to `lulc_annual`, and prove
+      it fires: adding `lulc_annual` to `FP_REGION_OWNED` turns it PASS -> FAIL
+- [x] Config comment: `lulc_annual` is a one-way door per area (#55 orphan class)
+- [x] Prose: `README.Rmd`, `README.md`, `scripts/floodplain_lcc/README.md`, two stale code comments
+- [x] Turn it on for the four areas' `area.yml`
 
 ## Phase 3: Acceptance harness, before any area is overwritten
 

@@ -15,3 +15,9 @@ attribute_by: blue_line_key
 network_source: fresh
 # flood_scenarios.csv copied from the coho scenario set (co_ff04 = functional floodplain).
 # No break_points.csv — whole-WSG single sub-basin.
+# lulc_annual (#79): fetch EVERY year in change_interval (2017..2023) rather than the endpoints
+# + midpoint, so drift's dft_rast_break_class() can separate a sustained switch from flicker.
+# The transition is unchanged -- it is measured endpoint-to-endpoint from change_interval, not
+# from the fetched set. ONE-WAY DOOR: turning this off strands the four extra classified layers
+# and .tifs, because writes are per-layer (#23) and nothing prunes a year the config dropped.
+lulc_annual: true

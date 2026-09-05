@@ -42,11 +42,14 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
   out_dir <- cfg$dir_out
   fs::dir_create(out_dir)
   ag_classes <- c("Crops", "Rangeland", "Bare Ground")
-  # Snapshots to fetch: the change-interval endpoints + midpoint. cfg$change_interval is the single
-  # source of truth (also drives the transition from/to and layer name below) so they can't drift.
-  # Default c(2017, 2023) => c(2017, 2020, 2023), unchanged (#19).
+  # Snapshots to fetch. cfg$change_interval is the single source of truth (it also drives the
+  # transition from/to and the layer name below) so they can't drift. Default c(2017, 2023) =>
+  # c(2017, 2020, 2023) (#19); lulc_annual: true => EVERY year in the interval, 2017..2023 (#79).
+  # The transition is endpoint-to-endpoint either way -- it reads `yrs`, never `years` -- so
+  # turning lulc_annual on adds classified years and moves no transition.
   yrs   <- sort(cfg$change_interval)   # ascending: from=yrs[1], to=yrs[2] (guard a reversed config)
-  years <- sort(unique(c(yrs[1], round(mean(yrs)), yrs[2])))
+  years <- if (isTRUE(cfg$lulc_annual)) seq(yrs[1], yrs[2]) else
+    sort(unique(c(yrs[1], round(mean(yrs)), yrs[2])))
 
   # Patch-size sieve: drop transition patches smaller than 1.0 ha (100 px at
   # 10 m IO LULC resolution). 0.5 ha (BC VRI minimum mapping unit) and 1.0 ha

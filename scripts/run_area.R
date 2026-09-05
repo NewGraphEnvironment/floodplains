@@ -97,6 +97,44 @@ fp_read_config <- function(area) {
   # change_interval: the [from, to] years the LULC transition (03) is measured over, and the default
   # window for disturbance attribution — one source of truth so the two can never drift (#19).
   cfg$change_interval <- cfg$change_interval %||% c(2017L, 2023L)
+  # lulc_annual (optional area.yml key, logical): fetch EVERY year in change_interval rather than
+  # the endpoints + midpoint (#79). Absent => NULL => 03 fetches 2017/2020/2023 as before. The
+  # transition is unaffected either way -- it is measured endpoint-to-endpoint from
+  # change_interval, not from the fetched set.
+  #
+  # ONE-WAY DOOR per area. Turning it back off leaves classified_<scen>_{2018,2019,2021,2022} in
+  # floodplain_landcover.gpkg and four .tif siblings in rasters/<scen>/, describing years the
+  # config no longer models. Writes have been per-layer since #23 and fp_dir is never cleaned, so
+  # nothing removes them -- #55's orphan class. Prune by hand if an area is ever reverted.
+  #
+  # The type guard runs on the value the CONFIG carries, BEFORE the env override, so a malformed
+  # committed config is caught whether or not an override is present. yaml gives TRUE for
+  # true/yes/on, but a QUOTED "true" is a character vector that isTRUE() reads as off -- the area
+  # would run three years under a config that reads as annual, silently.
+  if (!is.null(cfg$lulc_annual) &&
+      (!is.logical(cfg$lulc_annual) || length(cfg$lulc_annual) != 1L ||
+       is.na(cfg$lulc_annual))) {
+    stop("area.yml lulc_annual must be a single unquoted true/false; got ",
+         class(cfg$lulc_annual)[1], " of length ", length(cfg$lulc_annual), " (",
+         paste(format(cfg$lulc_annual), collapse = ", "), ")", call. = FALSE)
+  }
+  # FP_LULC_ANNUAL overrides at runtime WITHOUT editing a committed config -- which is how the
+  # neexdzii parity fixture is exercised annually without a flag landing in its area.yml, the same
+  # reason FP_TILE_SIZE exists above. Empty => no override.
+  # A CLOSED vocabulary, not a truthiness test. `%in% c("1","TRUE",...)` would read a typo
+  # (FP_LULC_ANNUAL=treu) as FALSE and run three years on an area whose committed config says
+  # annual -- the same silent-off failure the type guard above exists to stop, one layer out.
+  env_annual <- Sys.getenv("FP_LULC_ANNUAL", "")
+  if (nzchar(env_annual)) {
+    on  <- c("1", "TRUE", "YES", "ON")
+    off <- c("0", "FALSE", "NO", "OFF")
+    v   <- toupper(env_annual)
+    if (!v %in% c(on, off)) {
+      stop("FP_LULC_ANNUAL must be one of ", paste(tolower(c(on, off)), collapse = "/"),
+           "; got '", env_annual, "'", call. = FALSE)
+    }
+    cfg$lulc_annual <- v %in% on
+  }
   # disturbance: shared province-wide sources (config/disturbance.yml) for tagging change patches by
   # overlay layer (fire, harvest, …). Absent => NULL => 03 skips tagging (behaviour unchanged) (#19).
   dst_path <- here::here("config", "disturbance.yml")
