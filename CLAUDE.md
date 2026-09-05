@@ -295,8 +295,55 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   layer into an *existing* gpkg is not. `VACUUM` does not close that — it isolates the difference to
   3 SQLite header bytes (change counter, schema cookie, version-valid-for), which are write-history
   counters and cannot be normalized to content, so it was not adopted. Byte equality answers "same
-  build?", not "same content?"; the latter needs a content hash over normalized geometry. GeoTIFF
-  output was measured already deterministic.
+  build?", not "same content?"; the latter needs a content hash over normalized geometry. **"GeoTIFF
+  output was measured already deterministic" used to close this bullet and was falsified twice** —
+  by #65's `datatype` pin and then by #83; raster container pins live in `scripts/fp_raster.R`.
+- **The raster CONTAINER is pinned too, and it is not a function of which terra ran (#83).** Step 3
+  writes `classified_<yyyy>.tif` from a SpatRaster drift hands back backed by a gdalcubes NetCDF
+  cube (`terra::mask(terra::rast(<year>_<key>.nc), aoi)`). terra **1.9.11** carries that cube's CF
+  attributes into TIFF tag 42112 and **1.9.34** does not — measured, 30 tags on all seven years of
+  `necr` and `kotl` (m4) and none on `bulk` and `lnth` (m1). Two of the thirty **contradict the file
+  they sit on** (`data#type = float64`, `data#_FillValue = nan` on a Byte raster whose nodata is
+  255) and `NC_GLOBAL#process_graph` leaks the producing session's `/tmp/Rtmp…` path;
+  `stac_floodplains_bc` COGs these with a `CreateCopy`, so they reach the published assets.
+  **The #79 split-run had already paid for the isolation** — m4 was levelled to m1 on `drift`, `sf`
+  and `gdalcubes`, leaving terra as the only variable — so the discriminator was read out of each
+  area's own `provenance.json` rather than measured again. That field exists for this (#64).
+  **The divergence is on the READ side.** `terra::rast(<.nc>)` yields zero metags on 1.9.34, while
+  `writeRaster` propagates faithfully on both — a dirty raster read and written straight through
+  keeps all 30. So on m1 the strip is a **no-op** and no live run here can demonstrate the fix; what
+  carries the assurance is `fp_rast_write()` re-reading the file it just wrote and refusing to
+  continue, which does not require trusting the strip. Its message names the **toolchain**, never
+  `raster_strip-tags.R`: that script repairs a completed run, and a run aborted on its first year
+  has written no gpkg layers and no provenance, so repairing and re-running would abort identically.
+  **`transition.tif` is clean on both terras, and "it builds a new raster" is NOT why.** `crop()`,
+  `mask()` and `deepcopy()` all build new rasters and **preserve** metags — `mask()` is how the tags
+  arrive. Value-rewriting ops (`classify`, `app`, `ifel`, arithmetic, `patches`) drop them, and
+  `dft_rast_transition()` is one.
+  **The guard reads through GDAL, never `terra::metags()`** — terra is the library under suspicion,
+  so a guard built on it reports clean exactly where the strip fails. It reads with
+  `GDAL_PAM_ENABLED=NO`: GDAL merges a `.aux.xml`'s dataset `<Metadata>` block into the default
+  domain, so without that a sidecar written by anyone *opening* the raster in QGIS makes a clean file
+  report dirty — and a TIFF rewrite cannot remove a sidecar tag, so the file would be "repaired" and
+  report dirty forever. `provenance-check.R` §5f pins all of it with a must-fail arm, and §7 now
+  re-derives every `classified_content_sha256` from its raster — the one recorded digest that had
+  never been reconciled against its artefact, its year *set* being asserted against `inputs$years`,
+  both written by the same run.
+  **`raster_strip-tags.R <area>` reconciles what was already written** (idempotent, `DRY=1`), and
+  the 14 files in `necr` and `kotl` are done —
+  `logs/20260905_raster-tags_strip_necr-kotl.md`. **The band category names are NOT in the TIFF**;
+  they live only in the `.aux.xml` PAM sidecar, which is where `stac_floodplains_bc` reads the RAT
+  from (stac#34/#35). The first draft of the repair deleted that sidecar as a regenerable statistics
+  cache and the class labels went with it, silently, with the content digest agreeing — so the
+  script renames both files and asserts `terra::cats()` survived. It permits exactly **one**
+  band-section difference, the nodata palette entry `255: 0,0,0,0` → `255: 255,255,255,0` (alpha 0
+  both ways, a property of the round-trip), and aborts the file on any other.
+  **`gdal_edit.py -unsetmd` was rejected on a measurement that was wrong** and the correction is
+  worth more than the verdict: it was reported as destroying the RAT, and it does not — the test had
+  copied the `.tif` **without** its sidecar and compared it against an original that had one. It
+  stays rejected because it grows the file ~54 kB per invocation and needs `osgeo` bindings nothing
+  else here uses. `necr` and `kotl` need a COG rebuild in `stac_floodplains_bc` (stac#59) to pick
+  the repair up; the coupling stays one-way.
 - `scripts/publish_hint.R` — `fp_publish_hint()`: after a run producing publishable outputs (steps 2
   or 3) the runners print the stac release sequence (`run_pipeline.sh` rebuild → `catalogue_release.sh`
   publish; order matters, releasing without rebuilding ships a stale catalogue). `run_region` sets

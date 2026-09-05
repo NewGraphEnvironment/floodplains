@@ -77,10 +77,11 @@ answered the class by pinning `datatype = "FLT4S"` in 02. `scripts/fp_gpkg.R`'s 
 
 ## Phase 5: Record and hand off
 
-- [ ] CLAUDE.md: extend the #64/#65 block — discriminator, the isolation the split-run gave
+- [x] CLAUDE.md: extend the #64/#65 block — discriminator, the isolation the split-run gave
       for free, the `transition.tif`-is-clean asymmetry and why, the pin.
-- [ ] File an informational issue in `drift` (our own repo): untiled `dft_stac_fetch()`
-      returns nc-backed rasters carrying gdalcubes attributes.
+- [x] File an informational issue in `drift` (our own repo): untiled `dft_stac_fetch()`
+      returns nc-backed rasters carrying gdalcubes attributes — filed as drift#63.
+- [x] File the band-level `STATISTICS_*=-9999` finding separately rather than widening #83 — #84.
 - [ ] PR body names stac_floodplains_bc#59 — necr/kotl need a COG rebuild + republish.
 
 ## Validation
