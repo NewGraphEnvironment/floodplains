@@ -64,10 +64,11 @@ output) and 24 `transition.tif`, across 23 areas. **14 dirty**, all `classified_
 (`ch_ff04`) and `kotl` (`bt_ff04`), 7 years each. No other area, no `transition.tif`, no
 `floodplain_*`.
 
-The first count written here was **116**, because the glob was `data/*/rasters/*/*.tif` and step
-2 writes `floodplain_<scenario>.tif` one directory up. Same dirty set either way, but the clean
-population was understated by 68 files and the sweep did not cover the third write site at all —
-"an inventory is only complete relative to a boundary", on a boundary chosen by a glob.
+The first count written here was **116**, and that was wrong twice over: the glob
+`data/*/rasters/*/*.tif` returns **112**, and it misses step 2's `floodplain_<scenario>.tif` one
+directory up — 184 − 112 = exactly the 72 floodplain rasters. So the boundary was chosen by a glob
+*and* the number inside it was stated rather than counted. Same dirty set either way. "An inventory
+is only complete relative to a boundary", with a miscount on top.
 
 ## The 30 stray tag names
 
@@ -322,8 +323,9 @@ missing at rename time.
 
 ### Interrupted mid-run, and it resumed
 
-The kotl pass was killed by a 2-minute command timeout after four files. No temp file was left, the
-four completed files were intact, and re-running picked up at `classified_2020.tif` — because the
+The kotl pass was killed by a 2-minute command timeout with `classified_2020.tif` in flight -- its
+REPAIR line had printed but not its `ok`. No temp file was left, the **three** completed files were
+intact, and re-running picked up at 2020 — because the
 script tests each file's tags rather than tracking progress. Idempotence bought resumability; it was
 exercised by accident rather than by design.
 
@@ -409,6 +411,71 @@ by a command timeout while this was being written. Swept at start by an explicit
 INT1U / INT4S / FLT4S and every raster is single-band; `cats()[[1]]` is `NULL` rather than an error
 on a non-categorical raster; the palette regex matches exactly one line; and the acceptance is not
 circular — `provenance.json` predates the repair.
+
+## Round-3 review — a defect inside a fix, and the enumeration that ended the loop
+
+### The must-fail arm could not see the thing it was written to guard
+
+§5f's must-fail arm wrote unstripped with `terra::writeRaster()`, read the tags back and raised its
+own error. That pins `fp_rast_stray_tags()` — **not the refusal**. Measured by the reviewer:
+gutting `fp_rast_write()`'s guard body left the section **14 of 14 green**, including the line
+labelled *"must-fail … the guard can go red"*.
+
+That is the sharpest form this could take. `CLAUDE.md` and this file both nominate the refusal as
+the thing carrying the assurance on a machine where the strip is a no-op — so the one line called
+load-bearing was the one line the guard could not see disappear.
+
+The arm now runs **through** `fp_rast_write()` with `fp_rast_strip_tags` temporarily replaced by
+identity, which is exactly the failure mode being guarded (a terra that ignores the strip). With the
+guard body gutted it goes red on two arms. A **premise** beside it — the same write succeeding with
+the real strip restored — stops a `fp_rast_write()` that refused *everything* from passing.
+
+A smaller sibling in my first version of that arm: it asserted a specific tag name appears in the
+message. The message truncates to the first three of a `sort()`ed vector and `sort()` on mixed-case
+names is locale-dependent, so it was an assertion about the collation wearing the costume of an
+assertion about the message. It now asserts that *at least one* of the fixture's names appears.
+
+### Two more fails-toward-pass, both mine
+
+- **§5f had no `else`.** Absent terra/sf/jsonlite skipped the whole section silently while the
+  script printed `PASS`. §7 already handled the identical predicate with *"a skip is not a pass"*.
+- **§7 iterated `names(csha)` and reported `length(csha)`.** A length>0 object with no names — a
+  JSON array rather than an object — runs zero iterations and prints "all 7 re-derive" having read
+  nothing. It now asserts the shape and reports the number actually visited.
+
+### And the interruption claim was wrong by one
+
+"Killed after four files … finished the remaining four" on a seven-file area does not add up. The
+mtimes settle it: 2017 / 2018 / 2019 at 22 s spacing, a **33 s gap**, then 2020–2023. **Three**
+completed before the timeout; `classified_2020.tif` was in flight — its REPAIR line had printed and
+its `ok` had not — and four ran after.
+
+### The mechanism, and why the loop stops here
+
+The reviewer named what produced all eight earlier defects: **on m1, three genuinely different
+raster states produce one observation.**
+
+- **A** — no dataset metadata at all (what `rast(<.nc>)` yields here)
+- **B** — exactly `AREA_OR_POINT` (a correct written file)
+- **C** — stray tags living in a `.aux.xml` sidecar rather than in tag 42112
+
+"The strip worked", "there was nothing to strip" and "the tags are not in the subject" all read the
+same. Defects 1 and 2 were the A/B gap; 5 and 7 the B/C gap; 3, 4, 6 and 8 the same collapse one
+level out, in the callers.
+
+So the candidate set is those three states plus the three knobs that decide them — the strip, the
+refusal, the allowlist — and the loop ends by showing each is **separately** detectable rather than
+by another quiet round:
+
+| restored defect | the assertion that goes red alone |
+|---|---|
+| strip does nothing | `the written container is exactly AREA_OR_POINT` (reports all 11) |
+| unguarded `metags<- NULL` (state A) | `does not error on a raster that has no tags` |
+| refusal gutted | `REFUSES when the strip does not take` |
+| reader made PAM-sensitive (state C) | `a PAM sidecar does not make a clean raster report dirty` |
+| allowlist emptied | `premise: an UNSTRIPPED write lands all 10 tags (got 11)` |
+
+Five restorations, five distinct red sets, and the suite green with all of them reverted.
 
 ## Errors Encountered
 

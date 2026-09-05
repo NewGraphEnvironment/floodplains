@@ -102,9 +102,9 @@ field's year *set* was asserted against `inputs$years`, both written by the same
 
 ## Interrupted mid-run, and it resumed correctly
 
-The kotl pass was killed by a 2-minute command timeout after four files. It left **no** temp file,
-the four completed files were intact, and re-running picked up at `classified_2020.tif` and
-finished the remaining four — because the script tests each file's tags rather than tracking
+The kotl pass was killed by a 2-minute command timeout with `classified_2020.tif` in flight. It
+left **no** temp file, the **three** completed files were intact, and re-running picked up at 2020
+and finished the remaining **four** — because the script tests each file's tags rather than tracking
 progress. That is the resumability the idempotence buys, exercised by accident rather than by
 design.
 

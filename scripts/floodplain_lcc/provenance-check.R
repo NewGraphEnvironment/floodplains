@@ -1157,9 +1157,11 @@ cat("\n5e. Table content digest\n")
 #
 # The reader is sf/GDAL, never terra::metags(). terra is the library under suspicion; a guard that
 # asks it whether it wrote metadata shares its blind spot exactly where the answer matters.
-if (requireNamespace("terra", quietly = TRUE) && requireNamespace("sf", quietly = TRUE) &&
-    requireNamespace("jsonlite", quietly = TRUE)) {
-  cat("\n5f. The written raster container carries only the allowlist (#83)\n")
+cat("\n5f. The written raster container carries only the allowlist (#83)\n")
+if (!(requireNamespace("terra", quietly = TRUE) && requireNamespace("sf", quietly = TRUE) &&
+      requireNamespace("jsonlite", quietly = TRUE))) {
+  bad("terra/sf/jsonlite unavailable -- the raster container was NOT checked (a skip is not a pass)")
+} else {
   d <- file.path(tempdir(), paste0("fp_rast_tags_", Sys.getpid()))
   dir.create(d, showWarnings = FALSE, recursive = TRUE)
 
@@ -1216,17 +1218,40 @@ if (requireNamespace("terra", quietly = TRUE) && requireNamespace("sf", quietly 
         sprintf("the written container is exactly AREA_OR_POINT (got {%s})",
                 paste(all_clean, collapse = ",")))
 
-  # MUST-FAIL, through the function that is actually called in production. Restoring the defect by
-  # bypassing fp_rast_write only proves writeRaster writes what it is given; this proves the guard
-  # inside fp_rast_write fires. The message is grepped, not the exit status: this script collapses
-  # everything to quit(status = 1), so a status alone cannot tell this section's failure from 5c's.
-  msg <- tryCatch({
-    terra::writeRaster(mk(), dirty, overwrite = TRUE, datatype = "INT1U")   # unstripped, in place
-    bad_now <- fp_rast_stray_tags(dirty)
-    if (length(bad_now)) stop("guard would fire on ", length(bad_now), " tags") else ""
-  }, error = function(e) conditionMessage(e))
-  check(grepl("guard would fire on 10 tags", msg, fixed = TRUE),
-        "must-fail: an unstripped write IS reported (the guard can go red)")
+  # MUST-FAIL, and it has to run THROUGH fp_rast_write. An earlier version of this arm wrote
+  # unstripped with terra::writeRaster(), read the tags back and raised its own error -- which pins
+  # fp_rast_stray_tags() and not the refusal. Measured: gutting fp_rast_write()'s guard body left
+  # this section 14/14 green, including the line calling itself a must-fail. That is the sharpest
+  # version of the problem, because CLAUDE.md and findings.md both nominate the refusal as the thing
+  # carrying the assurance on a machine where the strip is a no-op -- so the one line said to be
+  # load-bearing was the one line this section could not see disappear.
+  #
+  # SIMULATE THE REAL FAILURE MODE: a terra that ignores the strip. fp_rast_write() resolves
+  # fp_rast_strip_tags() by name at call time, so replacing it with identity for one call makes the
+  # written file carry its tags exactly as terra 1.9.11 would, and the refusal must fire.
+  strip_real <- fp_rast_strip_tags
+  fp_rast_strip_tags <<- function(r) r                       # a strip that does not take
+  msg <- tryCatch({ fp_rast_write(mk(), dirty, overwrite = TRUE, datatype = "INT1U"); "" },
+                  error = function(e) conditionMessage(e))
+  fp_rast_strip_tags <<- strip_real
+  check(grepl("outside the allowlist", msg, fixed = TRUE) &&
+        grepl(paste0("with ", length(gc_tags), " metadata tag"), msg, fixed = TRUE),
+        "must-fail: fp_rast_write() REFUSES when the strip does not take (the refusal can fire)")
+  # ... and the refusal must not be silent about WHICH tag it found -- a count sends the operator
+  # back to gdalinfo to learn something the guard already knew. Asserted as "at least one of the
+  # fixture's names appears", not as a specific name: the message truncates to the first three of a
+  # sorted vector, and `sort()` on mixed-case names is locale-dependent (measured, the same three
+  # tags order differently under different collations). Naming one would be an assertion about the
+  # locale wearing the costume of an assertion about the message.
+  check(any(vapply(names(gc_tags), grepl, logical(1), x = msg, fixed = TRUE)) &&
+        grepl("terra ", msg, fixed = TRUE),
+        "must-fail: and the refusal names a tag and the terra that wrote it")
+  # The premise for that simulation: with the real strip restored, the same write succeeds. Without
+  # this, a fp_rast_write() that refused EVERYTHING would pass the arm above.
+  msg_ok <- tryCatch({ fp_rast_write(mk(), dirty, overwrite = TRUE, datatype = "INT1U"); "" },
+                     error = function(e) conditionMessage(e))
+  check(identical(msg_ok, ""),
+        "premise: with the real strip restored the same write succeeds (the guard is not blanket)")
 
   # THE EMPTY CASE, which is the common one and is not reachable from any file on disk -- every
   # raster already written carries AREA_OR_POINT. terra returns NULL, not a 0-row frame, from
@@ -1674,8 +1699,16 @@ if (length(args) >= 1 && nzchar(args[1])) {
           if (!length(csha)) {
             bad(sprintf("landcover[%s]: inputs$classified_content_sha256 is empty", e$key))
           } else {
-            n_bad_sha <- 0L; n_bad_tag <- 0L; tag_eg <- character(0)
+            # ITERATE AND COUNT THE SAME THING. `for (yr in names(csha))` over a length>0 object
+            # with no names -- a JSON array rather than an object -- runs zero times, and reporting
+            # length(csha) then prints "all 7 re-derive" having read nothing. Assert the shape, then
+            # report the number actually visited.
+            check(length(names(csha)) == length(csha),
+                  sprintf("landcover[%s] classified_content_sha256 is keyed by year (%d of %d named)",
+                          e$key, length(names(csha)), length(csha)))
+            n_seen <- 0L; n_bad_sha <- 0L; n_bad_tag <- 0L; tag_eg <- character(0)
             for (yr in names(csha)) {
+              n_seen <- n_seen + 1L
               cf <- file.path(rd, paste0("classified_", yr, ".tif"))
               if (!file.exists(cf)) { n_bad_sha <- n_bad_sha + 1L; next }
               if (!identical(as.character(csha[[yr]]), fp_raster_content_sha256(cf)))
@@ -1684,15 +1717,15 @@ if (length(args) >= 1 && nzchar(args[1])) {
               if (length(tg)) { n_bad_tag <- n_bad_tag + 1L
                                 if (!length(tag_eg)) tag_eg <- head(tg, 3) }
             }
-            check(n_bad_sha == 0L,
+            check(n_bad_sha == 0L && n_seen == length(csha),
                   sprintf("landcover[%s] all %d classified_content_sha256 re-derive from their .tif%s",
-                          e$key, length(csha),
+                          e$key, n_seen,
                           if (n_bad_sha) sprintf(" (%d MISMATCH)", n_bad_sha) else ""))
             check(n_bad_tag == 0L,
                   sprintf("landcover[%s] no classified_*.tif carries stray container tags%s",
                           e$key,
                           if (n_bad_tag) sprintf(" (%d of %d dirty, e.g. %s)", n_bad_tag,
-                              length(csha), paste(tag_eg, collapse = ", ")) else ""))
+                              n_seen, paste(tag_eg, collapse = ", ")) else ""))
           }
           if (!is.na(np) && np > 0L) {
             tf <- file.path(rd, as.character(tr))
