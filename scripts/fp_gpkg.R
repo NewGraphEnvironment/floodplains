@@ -22,7 +22,11 @@
 # layer into an EXISTING gpkg is not — SQLite free-page state differs from a fresh insert, and the
 # pin cannot reach that. See scripts/floodplain_lcc/gpkg_determinism-check.R.
 #
-# GeoTIFF output (terra::writeRaster) was measured deterministic already and needs nothing.
+# GeoTIFF output needs its OWN pin, and this line used to say it did not. "terra::writeRaster was
+# measured deterministic already and needs nothing" was true of the timestamp question this file
+# answers and false of the container generally: #65 then pinned datatype on the floodplain write,
+# and #83 found classified_*.tif carrying 30 gdalcubes NetCDF tags on one terra and none on
+# another. Raster container pins live in scripts/fp_raster.R.
 
 # The pinned value. Any fixed instant works; this is the one #45 verified.
 FP_GPKG_EPOCH <- "2000-01-01T00:00:00.000Z"

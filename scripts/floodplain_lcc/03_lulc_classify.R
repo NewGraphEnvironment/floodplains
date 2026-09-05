@@ -128,7 +128,13 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
   classified_hashes <- list()
   for (yr in names(classified_all)) {
     cls_tif <- file.path(fp_dir, paste0("classified_", yr, ".tif"))
-    terra::writeRaster(classified_all[[yr]], cls_tif, overwrite = TRUE, datatype = "INT1U")
+    # fp_rast_write, not writeRaster: strips the container metadata and then MEASURES the file
+    # (#83). drift's untiled fetch returns a raster backed by the gdalcubes NetCDF cube, and on
+    # terra 1.9.11 the cube's CF attributes ride into TIFF tag 42112 -- 30 of them, two
+    # contradicting the raster (data#type = float64 on a Byte file) and one leaking the producing
+    # session's /tmp path -- and a CreateCopy carries them into the published COGs. Pinned here for
+    # the same reason 02 pins datatype: the container must not be a function of which terra ran.
+    fp_rast_write(classified_all[[yr]], cls_tif, overwrite = TRUE, datatype = "INT1U")
     # Digest the CELL VALUES, not the file. A file hash moves with whatever the writer's version
     # puts in the container -- measured across two machines whose rasters agreed on all 28,291,615
     # cells (#64). Reading only the .tif also keeps GDAL's .aux.xml statistics sidecar out of it,
@@ -143,7 +149,12 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
   # them is an INGREDIENT change. The transition is what we computed FROM them.
   trans_tif <- file.path(fp_dir, "transition.tif")
   if (nrow(trans_all$summary) > 0) {
-    terra::writeRaster(trans_all$raster, trans_tif, overwrite = TRUE, datatype = "INT4S")
+    # Pinned too, though every measured transition.tif is already clean -- dft_rast_transition()
+    # builds a NEW raster, which drops the source metadata on either terra. Same reasoning as #65
+    # pinning datatype where it measured byte-identical: an unpinned write is one refactor upstream
+    # from carrying whatever its input carries, and the asymmetry with the classified series is a
+    # property of drift's internals, not a contract it owes us.
+    fp_rast_write(trans_all$raster, trans_tif, overwrite = TRUE, datatype = "INT4S")
     transition_sha <- fp_raster_content_sha256(trans_tif)
   } else {
     # A zero-transition run writes no raster -- and `fp_dir` is never cleaned, so digesting the path

@@ -13,7 +13,7 @@ rasters. Measured 2026-09-05 on m1.
 | `necr` | m4 | **1.9.11** | 0.13.0 | **30 x 7 years** | clean |
 | `kotl` | m4 | **1.9.11** | 0.13.0 | **30 x 7 years** | clean |
 
-**The isolation was already paid for.** `logs/20260905_lulc-annual_split-run.md` records that
+**The isolation was already paid for.** `scripts/floodplain_lcc/logs/20260905_lulc-annual_split-run.md` records that
 m4 was deliberately levelled to m1 on `drift` (0.8.0 -> 0.13.0), `sf` (1.1.2) and `gdalcubes`
 (0.7.4), and that terra could not be matched and was left at 1.9.11 — "which made terra the
 *only* remaining difference and the control a test of exactly one variable". So this is a
@@ -31,9 +31,18 @@ on it — see "Why the fix is a pin" below.
 ## Why `transition.tif` is clean and `classified_*.tif` is not
 
 `dft_rast_classify()` mutates in place — `terra::set.cats()` then `terra::coltab()<-` — and
-returns the same nc-backed raster, so the NetCDF attributes survive. `dft_rast_transition()`
-builds a **new** raster, which drops them on either terra. That asymmetry is the issue's
-"something differs in how the four were written" question, answered.
+returns the same nc-backed raster, so the NetCDF attributes survive.
+
+**"builds a new raster, so it drops them" is NOT the mechanism** — that was the first answer
+written here and it is wrong. `crop()`, `mask()` and `deepcopy()` all build new rasters and
+**preserve** metags (measured: 31 in, 31 out), and `mask()` is precisely how
+`drift/R/dft_stac_fetch.R:230` delivers the tags in the first place. The discriminator is which
+*kind* of op: geometry ops carry metadata forward, value-rewriting ops (`classify`, `app`,
+`ifel`, arithmetic, `patches`) drop it. `dft_rast_transition()` is the second kind, which is why
+`transition.tif` is clean on both terras and `classified_*.tif` is not.
+
+That sentence is the answer to the issue's headline Question, so it is stated from the
+measurement rather than from the plausible-sounding version.
 
 Origin of the metadata: `drift/R/dft_stac_fetch.R:230` —
 `terra::mask(terra::rast(cache_file), terra::vect(aoi_target))`, where `cache_file` is the
@@ -41,8 +50,15 @@ gdalcubes `write_ncdf()` output under `~/Library/Caches/drift/v2/io-lulc/<year>_
 
 ## Blast radius — swept, not assumed
 
-Every `.tif` under `data/`: **116 files, 23 areas, 14 dirty.** All 14 are `classified_*` in
-`necr` (`ch_ff04`) and `kotl` (`bt_ff04`), 7 years each. No other area. No `transition.tif`.
+Every `.tif` under `data/` — **184 files**: 88 `classified_*`, 72 `floodplain_*` (step 2's
+output) and 24 `transition.tif`, across 23 areas. **14 dirty**, all `classified_*` in `necr`
+(`ch_ff04`) and `kotl` (`bt_ff04`), 7 years each. No other area, no `transition.tif`, no
+`floodplain_*`.
+
+The first count written here was **116**, because the glob was `data/*/rasters/*/*.tif` and step
+2 writes `floodplain_<scenario>.tif` one directory up. Same dirty set either way, but the clean
+population was understated by 68 files and the sweep did not cover the third write site at all —
+"an inventory is only complete relative to a boundary", on a boundary chosen by a glob.
 
 ## The 30 stray tag names
 
@@ -146,6 +162,70 @@ key, so `j$metadata$_` reads `NULL` and every raster looks clean. It produced th
 wrong readings before the Python reader from the original sweep disagreed. Tag reads go through
 one reader.
 
+## Phase 2 — the pin, and two defects it introduced
+
+### On this machine the strip is a NO-OP, and that is the honest position
+
+`terra::rast(<gdalcubes .nc>)` on 1.9.34 returns **zero** metags — measured directly against
+`~/Library/Caches/drift/v2/io-lulc/2017_*.nc`. So for step 3's own path on m1 there is nothing to
+strip, and no live run here can demonstrate the fix working. terra 1.9.11 is not installed and is
+not reachable from CRAN (current is 1.9-46), so the m4 arm is not run either.
+
+What carries the assurance instead is the **post-write check**, and it is designed so the strip
+does not have to be trusted: whatever terra does, `fp_rast_write()` re-reads the file it just wrote
+and refuses to continue if stray tags are on it. That is why the reader matters (below), and why a
+`run_area.R neexdzii 3` in the Validation list is a **regression** test — it proves the pin damages
+nothing — and not evidence the pin fixes anything.
+
+### The guard does not read through terra
+
+`fp_rast_stray_tags()` asks GDAL via `sf::gdal_utils("info", …, "-json")`, not
+`terra::metags()`. terra is the library under suspicion — the entire defect is that one terra
+surfaces a NetCDF's attributes and another does not — so a guard built on `metags()` would report
+clean on exactly the toolchain where the strip fails. CLAUDE.md carries this twice already ("a
+verifier built on the writer's own library shares its blind spot"); it would have been the third.
+
+Scope is the dataset-level, **default** domain, on measurement. `IMAGE_STRUCTURE` is GDAL
+describing its own encoding, and every classified raster — clean and dirty alike — carries
+band-level `DATE_TIME` and `STATISTICS_*` that terra writes. A guard reading either fires on every
+correct file in the repo.
+
+The default-domain key is the **empty string**, which `md[[""]]` does not index; it is selected by
+position. Indexed by name the guard sees no tags on any raster and passes everything.
+
+### Two defects in the first draft of the fix, both in the empty case
+
+Neither is reachable from any file on disk, because every raster already written carries
+`AREA_OR_POINT` — so only a constructed zero-tag case finds them.
+
+1. **`metags(r) <- NULL` ERRORS on a raster that has no tags.** terra 1.9.34 returns `NULL` from
+   `metags()` — not a 0-row frame — and the setter then dies with `value[, 3] <- "" : incorrect
+   number of subscripts on matrix`. That is the m1 raster exactly. An unguarded strip would have
+   **aborted step 3 on every area on this machine**, while working fine on the one machine that
+   needed it: the fix breaking everywhere except where the bug was.
+2. **`if (!nrow(tg))` on that same `NULL`** raises `invalid argument type`, so the tag reader
+   errored on any clean raster. Superseded by the GDAL reader, and the shape lesson kept: `NULL`,
+   a 0-row frame and `character(0)` are three different things and `metags()` returns the first.
+
+### Scope corrections from the plan review
+
+- **`run_region.R` does not write rasters** and the source line added there has been removed. It
+  sources `fp_gpkg.R` for a specific reason — `fp_gpkg_pin_date()` sets a process env var its
+  per-WSG children inherit — and `fp_raster.R` has no process-level effect. Sourcing it there
+  would tell the next reader that `run_region` writes rasters.
+- **`02_floodplain_model.R:226` is a third write site** and is now pinned too. All 72
+  `floodplain_*.tif` on disk are already clean, so the strip is a measured no-op there — wired
+  anyway, because leaving one of three sites unpinned on the grounds that its input happens to be
+  clean is a fact about `flooded`'s internals rather than a contract, and is how "the fix landed
+  in one of the callers" comes back.
+
+### Out of scope, and worth its own issue
+
+Every classified and transition raster in `data/` — clean areas included — carries band-level
+`STATISTICS_MEAN=-9999` and `STATISTICS_STDDEV=-9999`, terra's own placeholders, and those ride
+into the published COGs. Wrong values in a published asset, same family as this issue, different
+cause. Not widened into #83.
+
 ## Errors Encountered
 
 | Error | Resolution |
@@ -154,6 +234,9 @@ one reader.
 | `diff` printed a git-style diff | `diff` is a shell function delegating to `git diff` (CLAUDE.md's shadowed-command trap). Used `command diff` for anything treated as evidence. |
 | `fp_raster_content_sha256()` returned `NA` on both sides | `SP` was set but not exported, so `Sys.getenv("SP")` was empty and the path was relative. Two `NA`s compare equal — see the trap note above. |
 | `j$metadata$_` read `NULL` for every raster | jsonlite renames the empty-string JSON key. Read tags with the Python reader used for the original sweep. |
+| `value[, 3] <- "" : incorrect number of subscripts on matrix` | `metags(r) <- NULL` on a raster with no tags. Guard the assignment on `!is.null(tg) && NROW(tg) > 0`. |
+| `if (!nrow(tg))` -> `invalid argument type` | `terra::metags()` returns `NULL`, not a 0-row frame, when empty. Superseded by reading through `sf::gdal_utils()`. |
+| `sf::gdal_utils(...)` returned `NA`, then a jsonlite lexical error | The file did not exist -- an earlier write had failed. The NA propagated into the parser instead of failing where it happened. |
 
 ## Issue context
 

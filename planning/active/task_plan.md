@@ -41,15 +41,15 @@ answered the class by pinning `datatype = "FLT4S"` in 02. `scripts/fp_gpkg.R`'s 
 
 ## Phase 2: Pin the write path
 
-- [ ] New `scripts/fp_raster.R`, sibling to `scripts/fp_gpkg.R`: `fp_rast_strip_tags(r)` and
+- [x] New `scripts/fp_raster.R`, sibling to `scripts/fp_gpkg.R`: `fp_rast_strip_tags(r)` and
       `fp_rast_stray_tags(path)` (returns **names**, so an error can name the offender).
-- [ ] Source it in `scripts/run_area.R` and `scripts/run_region.R` beside `fp_gpkg.R`.
-- [ ] `03_lulc_classify.R` — strip before both `writeRaster()` calls (classified per year, and
+- [x] Source it in `scripts/run_area.R` and `scripts/run_region.R` beside `fp_gpkg.R`.
+- [x] `03_lulc_classify.R` — strip before both `writeRaster()` calls (classified per year, and
       `transition.tif` defensively: measured clean today, pinned anyway, as #65 pinned
       `datatype` where it measured byte-identical).
-- [ ] Post-write verify with `stop()` on the first classified year, naming the repair script
+- [x] Post-write verify with `stop()` on the first classified year, naming the repair script
       and the running terra version; re-verify each subsequent year.
-- [ ] Correct `scripts/fp_gpkg.R`'s closing "GeoTIFF … needs nothing" line.
+- [x] Correct `scripts/fp_gpkg.R`'s closing "GeoTIFF … needs nothing" line.
 
 ## Phase 3: Guard it offline
 
