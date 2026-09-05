@@ -69,7 +69,7 @@ fp_rast_strip_tags <- function(r) {
 #' toolchain where the strip fails -- CLAUDE.md's "a verifier built on the writer's own library
 #' shares its blind spot", in the guard written to catch that library. `sf::gdal_utils()` asks GDAL
 #' directly and returns the same domain-keyed structure `gdalinfo -json` does (checked against the
-#' Python sweep over all 116 tifs under data/).
+#' Python sweep over all 184 tifs under data/).
 #'
 #' SCOPE IS THE DATASET-LEVEL, DEFAULT DOMAIN, deliberately and on measurement. IMAGE_STRUCTURE is
 #' GDAL describing its own encoding (COMPRESSION, INTERLEAVE), and every classified raster -- clean

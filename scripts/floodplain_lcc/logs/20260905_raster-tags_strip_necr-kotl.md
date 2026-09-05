@@ -17,8 +17,9 @@ nodata is 255 — and `NC_GLOBAL#process_graph` carries the producing session's
 
 Swept over **every** `.tif` under `data/` — 184 files across 23 areas: 88 `classified_*`, 72
 `floodplain_*` (step 2) and 24 `transition.tif`. Exactly **14 dirty**, all classified, all in those
-two areas. (An earlier sweep reported 116 files because it globbed `data/*/rasters/*/*.tif` and
-step 2 writes one directory up. Same dirty set; the clean population was understated by 68.)
+two areas. (An earlier sweep reported **112** — `data/*/rasters/*/*.tif` — and prose around it said 116, a
+number stated rather than counted. Step 2 writes one directory up, so 184 − 112 = the 72
+`floodplain_*.tif`. Same dirty set either way.)
 
 ## Why those two areas
 
@@ -46,8 +47,8 @@ same directory, verifies, and renames. It is the fixed step 3's own write path, 
 raster is what a re-run would produce rather than a third thing.
 
 **`gdal_edit.py -unsetmd` was tried first and rejected on a measurement that was wrong.** It was
-reported as destroying the band's category names. Re-measured with the `.aux.xml` sidecar in place,
-all 512 rows survive and the tags go: the first test had copied the `.tif` **without** its sidecar
+reported as destroying the band's category names. Re-measured with the `.aux.xml` sidecar in place, all
+**256 category rows and 256 palette entries** survive and the tags go: the first test had copied the `.tif` **without** its sidecar
 and compared it against an original that had one, so the categories were never there to lose. It
 stays rejected on reasons that hold — it grows the file ~54 kB per invocation by orphaning the TIFF
 directory it rewrites (1,699,519 → 1,753,590 → 1,807,660 → 1,861,730 over three runs), it is

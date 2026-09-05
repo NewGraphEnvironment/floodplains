@@ -18,7 +18,8 @@
 #
 # That fact also corrects this issue's first measurement, which is recorded rather than quietly
 # dropped: `gdal_edit.py -unsetmd` was tried, reported as destroying the RAT, and rejected for it.
-# It does NOT -- re-measured with the sidecar in place, all 512 rows survive and the tags go. The
+# It does NOT -- re-measured with the sidecar in place, all 256 category rows and 256 palette
+# entries survive and the tags go. The
 # first test copied the .tif WITHOUT its sidecar and compared it against an original that had one,
 # so the categories were never there to lose. A comparison whose two sides differ in something other
 # than the treatment.
@@ -67,8 +68,8 @@ if (!dir.exists(adir)) stop("no data/ for area '", area, "' under ", fp_root, ca
 
 # Every .tif this repo writes: step 3's classified + transition under rasters/<scenario>/, and
 # step 2's floodplain_<scenario>.tif one level up. The first sweep written for this issue globbed
-# only rasters/*/*.tif and missed 72 files -- clean, as it turned out, but the boundary was chosen
-# by a glob rather than by what the repo writes.
+# only rasters/*/*.tif -- 112 files -- and missed the other 72, clean as they turned out, but the
+# boundary was chosen by a glob rather than by what the repo writes.
 tifs <- sort(c(list.files(file.path(adir, "rasters"), pattern = "\\.tif$",
                           recursive = TRUE, full.names = TRUE),
                list.files(adir, pattern = "^floodplain_.*\\.tif$", full.names = TRUE)))
@@ -91,6 +92,18 @@ PALETTE_NODATA <- "^ *255: (0,0,0,0|255,255,255,0) *$"
 # different numbers and DRY=1 makes them differ by everything -- reporting `repaired` under DRY
 # printed "Would repair 0 of 11" over a list of seven files it had just said it would repair, which
 # is a preview that contradicts itself.
+# Orphans from a killed run. The temp is a dot-file in the target directory, so `list.files()` below
+# does not see it and nothing else would ever mention it -- #55's orphan class, self-inflicted. A
+# kill between the write and the rename is not hypothetical: the kotl pass was interrupted by a
+# command timeout while this was being written. Swept by an explicit pattern, never by a wildcard.
+orphans <- list.files(adir, pattern = "^\\..*\\.strip[0-9]+\\.tif(\\.aux\\.xml)?$",
+                      recursive = TRUE, full.names = TRUE, all.files = TRUE)
+if (length(orphans)) {
+  message("  ", if (dry) "would remove" else "removing", " ", length(orphans),
+          " orphaned temp file(s) from an interrupted run")
+  if (!dry) unlink(orphans)
+}
+
 flagged <- 0L; repaired <- 0L; clean <- 0L; failed <- character(0)
 
 for (f in tifs) {
@@ -161,19 +174,44 @@ for (f in tifs) {
     failed <- c(failed, rel); message("    ABORT (original untouched): ", problem); next
   }
 
-  # RENAME BOTH. terra writes the band's category names into the temp file's own sidecar, so the
-  # .tif and its .aux.xml are one artefact and moving only the .tif strands the class labels. The
-  # first draft of this script deleted the target's sidecar instead, on the theory that it was a
-  # regenerable statistics cache -- measured after: `is.factor()` FALSE and `cats()` NULL on the
-  # repaired raster, i.e. the RAT stac publishes, silently gone, with the content digest agreeing.
-  aux_tmp <- paste0(tmp, ".aux.xml")
-  if (!file.exists(aux_tmp)) {
+  # RENAME BOTH, when there are both. terra writes the band's category names into the temp file's own
+  # sidecar, so for a CATEGORICAL raster the .tif and its .aux.xml are one artefact and moving only
+  # the .tif strands the class labels. The first draft deleted the target's sidecar instead, on the
+  # theory that it was a regenerable statistics cache -- measured after: `is.factor()` FALSE and
+  # `cats()` NULL on the repaired raster, the RAT stac publishes, silently gone, content digest
+  # agreeing.
+  #
+  # REQUIRING one unconditionally is the opposite defect and is what the first fix did. Measured:
+  # fp_rast_write() writes a sidecar for the categorical rasters (classified INT1U, transition
+  # INT4S) and NONE for step 2's FLT4S floodplain mask, which has no categories to record. That is
+  # 72 of the 184 tifs this sweeps -- so a dirty floodplain raster would pass all four acceptance
+  # checks, then abort on "the category names would be lost" for a raster that has none, and the
+  # script would be structurally unable to repair the very files it walks one directory up to find.
+  # Unreachable so far only because all 14 dirty files happened to be categorical.
+  #
+  # So the requirement follows the SOURCE: a raster that HAD categories must still have them.
+  had_cats <- !is.null(cats_before)
+  aux_tmp  <- paste0(tmp, ".aux.xml")
+  if (had_cats && !file.exists(aux_tmp)) {
     unlink(tmp); failed <- c(failed, rel)
-    message("    ABORT (original untouched): terra wrote no .aux.xml -- the category names would ",
-            "be lost"); next
+    message("    ABORT (original untouched): the source is categorical but terra wrote no ",
+            ".aux.xml -- the category names would be lost"); next
   }
-  file.rename(tmp, f)
-  file.rename(aux_tmp, paste0(f, ".aux.xml"))
+  # file.rename() RETURNS FALSE; it does not error. Unchecked, a failed rename left the file
+  # reported as repaired while still carrying its 30 tags -- and the second rename then overwrote
+  # the ORIGINAL's sidecar, so the failure made things worse and the summary said "left untouched".
+  # Rename the sidecar FIRST: if that fails nothing has moved, and if the .tif rename then fails the
+  # pair is inconsistent and is reported as exactly that rather than as a success.
+  if (had_cats && !file.rename(aux_tmp, paste0(f, ".aux.xml"))) {
+    unlink(c(tmp, aux_tmp)); failed <- c(failed, rel)
+    message("    ABORT (original untouched): could not move the .aux.xml into place"); next
+  }
+  if (!file.rename(tmp, f)) {
+    unlink(tmp); failed <- c(failed, rel)
+    message("    ABORT: could not move the repaired .tif into place. The .tif still carries its ",
+            "stray tags", if (had_cats) " and its .aux.xml has been REPLACED with the rewritten ",
+            if (had_cats) "one -- inspect this file by hand" else "", "."); next
+  }
   repaired <- repaired + 1L
   message("    ok: ", length(stray), " tags removed, content sha unchanged (", substr(sha_after, 1, 19), "...)")
 }

@@ -133,8 +133,8 @@ inherited).
 
 **CORRECTED IN PHASE 4 — the "DESTROYED" column above is WRONG, and the row is left standing
 because the error is the useful part.** `gdal_edit.py -unsetmd` does **not** wipe the band's
-category names. Re-measured with the `.aux.xml` sidecar in place, all 512 rows survive and the
-tags go. The first test copied the `.tif` **without** its sidecar and compared it against an
+category names. Re-measured with the `.aux.xml` sidecar in place, all 256 category rows and 256
+palette entries survive and the tags go. The first test copied the `.tif` **without** its sidecar and compared it against an
 original that had one, so the categories were never there to lose: a comparison whose two sides
 differed in something other than the treatment. The conclusion — "the route named at the plan
 gate destroys the published RAT" — was written into a commit message and a script header before
@@ -353,6 +353,62 @@ All four freshly written rasters report **0 stray tags**, and `provenance-check.
 demonstrates is that the pin damages nothing — every content digest reproduced to the byte through
 a full re-fetch. The offline §5f section is the only arm that can demonstrate the strip and the
 refusal, which is why both defects are restored there.
+
+## Round-2 review — five findings, all real, and two of my numbers were wrong
+
+### The one that mattered: an unchecked `file.rename()` reported success on a file it had not fixed
+
+`file.rename()` returns `FALSE`; it does not error. Every other step in the repair aborts with the
+original untouched, and the one **destructive** step was the unchecked one. Proved by making only
+the rename fail (`chflags uchg` on the target, so the temp still writes):
+
+| | reported | exit | file afterwards |
+|---|---|---|---|
+| check removed | `Repaired 1 of 1 raster` | **0** | **still 2 stray tags** |
+| check present | `ABORT: could not move the repaired .tif into place` | **1** | untouched, named in FAILED |
+
+It also made the summary's `FAILED (left untouched)` uncontradictable — the one state where that
+sentence is false could never enter `failed`. The sidecar is now renamed **first**, so a failure
+there moves nothing at all, and a `.tif` rename that then fails is reported as the inconsistent pair
+it is rather than as a success.
+
+### The fix for one defect created its exact opposite
+
+Requiring the `.aux.xml` unconditionally — the fix for the deleted-class-names bug — made the script
+**structurally unable to repair a non-categorical raster**. Measured: `fp_rast_write()` writes a
+sidecar for the categorical rasters (classified INT1U, transition INT4S) and **none** for step 2's
+FLT4S floodplain mask, which has no categories to record. That is **72 of the 184** files the sweep
+walks. A dirty floodplain raster would pass all four acceptance checks, then abort on "the category
+names would be lost" — false for a raster that has none — delete the good temp and exit 1.
+
+Unreachable so far only because all 14 dirty files happened to be categorical: a fixture that could
+not reach the failure mode, made by the previous round's fix. The requirement now follows the
+**source** (`had_cats`), and a dirty FLT4S raster repairs cleanly — with the unconditional form
+restored, the same file aborts.
+
+### Two numbers I stated rather than counted
+
+- **"116 tifs"** never reconciled. `data/*/rasters/*/*.tif` is **112**, and 184 − 112 = **72**,
+  exactly the floodplain count the explanation predicts. The figure appeared in prose, in the log
+  and in `fp_raster.R`, so fixing one would have left the others reading as corroboration — one fact
+  derived twice, both times from the same unchecked assertion.
+- **"all 512 category rows"** is **256 categories + 256 palette entries**; 512 is the two `gdalinfo`
+  blocks summed, which is what my `grep -c '^ *[0-9]*: '` counted.
+
+### And an orphan class I created myself
+
+A kill between the write and the rename leaves a dot-file temp that `list.files()` cannot see and
+nothing reports — #55's shape, self-inflicted, and not hypothetical: the kotl pass *was* interrupted
+by a command timeout while this was being written. Swept at start by an explicit
+`^\..*\.strip[0-9]+\.tif` pattern, never a wildcard, and `DRY=1` reports without removing.
+
+### Checked and clean, recorded so a later round does not reopen them
+
+`DRY=1` genuinely returns before the first write and its counts close in both modes;
+`band_section()` fails toward abort when `gdalinfo` is missing; `datatype()[1]` is right for
+INT1U / INT4S / FLT4S and every raster is single-band; `cats()[[1]]` is `NULL` rather than an error
+on a non-categorical raster; the palette regex matches exactly one line; and the acceptance is not
+circular — `provenance.json` predates the repair.
 
 ## Errors Encountered
 

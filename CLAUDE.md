@@ -340,7 +340,8 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   both ways, a property of the round-trip), and aborts the file on any other.
   **`gdal_edit.py -unsetmd` was rejected on a measurement that was wrong** and the correction is
   worth more than the verdict: it was reported as destroying the RAT, and it does not — the test had
-  copied the `.tif` **without** its sidecar and compared it against an original that had one. It
+  copied the `.tif` **without** its sidecar and compared it against an original that had one; all
+  256 category rows survive it. It
   stays rejected because it grows the file ~54 kB per invocation and needs `osgeo` bindings nothing
   else here uses. `necr` and `kotl` need a COG rebuild in `stac_floodplains_bc` (stac#59) to pick
   the repair up; the coupling stays one-way.
