@@ -62,7 +62,7 @@ answered the class by pinning `datatype = "FLT4S"` in 02. `scripts/fp_gpkg.R`'s 
 
 ## Phase 4: Reconcile the 14 written files
 
-- [ ] `scripts/floodplain_lcc/raster_strip-tags.R <area>` — idempotent, `DRY=1` returns before
+- [x] `scripts/floodplain_lcc/raster_strip-tags.R <area>` — idempotent, `DRY=1` returns before
       the first write, joining the `gpkg_backfill-wsg.R` / `gpkg_prune-legacy.R` family.
       **Route changed in Phase 1: terra strip + rewrite, NOT `gdal_edit.py -unsetmd`** — every
       GDAL in-place variant destroys the band's category names (the RAT stac publishes) and
@@ -70,9 +70,10 @@ answered the class by pinning `datatype = "FLT4S"` in 02. `scripts/fp_gpkg.R`'s 
       Per file: content sha before, rewrite, re-read after, `stop()` if it moved — and reject
       `NA` on either side, since two `NA`s compare equal and would report a false match.
       Assert the band section differs in **at most** the one known palette line.
-- [ ] Run it on `necr` and `kotl` (14 files).
-- [ ] Verify every `classified_content_sha256` in `data/<area>/provenance.json` still matches
+- [x] Run it on `necr` and `kotl` (14 files).
+- [x] Verify every `classified_content_sha256` in `data/<area>/provenance.json` still matches
       — an **independent** reference written before this repair existed.
+- [x] Commit the evidence log — `data/` is gitignored, so the repair leaves no other trace.
 
 ## Phase 5: Record and hand off
 

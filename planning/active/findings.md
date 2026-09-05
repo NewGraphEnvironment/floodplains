@@ -117,23 +117,35 @@ inherited).
 
 | route | stray tags | band categories | palette 255 | content sha | size per run | idempotent |
 |---|---|---|---|---|---|---|
-| `gdal_edit.py -unsetmd` | clean | **DESTROYED** | — | same | **+54 KB** | no |
-| GDAL dataset-only `SetMetadata` | clean | **DESTROYED** | — | same | **+54 KB** | no |
-| ... + `SetCategoryNames()` restore | clean | **still DESTROYED** | — | same | +54 KB | no |
+| `gdal_edit.py -unsetmd` | clean | ~~DESTROYED~~ **preserved** (see below) | — | same | **+54 KB** | no |
+| GDAL dataset-only `SetMetadata` | clean | ~~DESTROYED~~ **preserved** | — | same | **+54 KB** | no |
+| ... + `SetCategoryNames()` restore | clean | ~~still DESTROYED~~ | — | same | +54 KB | no |
 | **terra strip + rewrite** | clean | **preserved** | `0,0,0,0` -> `255,255,255,0` | same | -10 KB | yes |
 
-**`gdal_edit.py -unsetmd` was the route named at the plan gate and it is wrong.** It wipes the
-band's category names — `Water`, `Trees`, `Flooded Vegetation`, … — which is the RAT
-`stac_floodplains_bc` publishes and that stac#34/#35 fought to get embedded. It would have
-shipped COGs with no class labels while every checksum agreed: CLAUDE.md's "a well-formed file
-the consumer ignores is worse than a malformed one", arriving from the repair rather than the
-producer. Restoring the names explicitly through the GDAL API does not bring them back either,
-and every GDAL in-place variant grows the file ~54 KB per invocation (a re-serialised TIFF
-directory, the old one orphaned) — so it is not idempotent in bytes.
+**CORRECTED IN PHASE 4 — the "DESTROYED" column above is WRONG, and the row is left standing
+because the error is the useful part.** `gdal_edit.py -unsetmd` does **not** wipe the band's
+category names. Re-measured with the `.aux.xml` sidecar in place, all 512 rows survive and the
+tags go. The first test copied the `.tif` **without** its sidecar and compared it against an
+original that had one, so the categories were never there to lose: a comparison whose two sides
+differed in something other than the treatment. The conclusion — "the route named at the plan
+gate destroys the published RAT" — was written into a commit message and a script header before
+anything re-measured it.
 
-**terra strip + rewrite is adopted.** It preserves all 512 category rows, all 256 palette
-entries, type, block layout, description and nodata; `fp_raster_content_sha256()` is identical;
-and the file is 10 KB *smaller* because the tags are gone rather than orphaned.
+The fact that discriminates, and that nothing in this issue had established until Phase 4:
+**the category names are not in the TIFF at all.** `GDAL_PAM_ENABLED=NO gdalinfo` on an untouched
+classified raster shows no `Categories` block; they live only in the `.aux.xml` sidecar, which is
+where `stac_floodplains_bc` reads the RAT from (stac#34/#35).
+
+`gdal_edit` stays rejected, on the reasons that survive measurement: it grows the file ~54 KB per
+invocation by orphaning the TIFF directory it rewrites (1,699,519 → 1,753,590 → 1,807,660 →
+1,861,730 over three runs) so it is not byte-idempotent, it needs `osgeo` Python bindings nothing
+else in this repo depends on, and it would edit files written by GDAL 3.8.5 using the 3.13.0 on
+PATH.
+
+**terra strip + rewrite is adopted**, on the reason that holds: it is the fixed step 3's own
+write path, so a repaired raster is byte-for-byte what a re-run would produce rather than a third
+thing. `fp_raster_content_sha256()` is identical, the file is 10 KB *smaller* because the tags are
+gone rather than orphaned, and it is idempotent in bytes.
 
 ### The one deviation, bounded rather than hidden
 
@@ -224,7 +236,7 @@ Neither is reachable from any file on disk, because every raster already written
 Every classified and transition raster in `data/` — clean areas included — carries band-level
 `STATISTICS_MEAN=-9999` and `STATISTICS_STDDEV=-9999`, terra's own placeholders, and those ride
 into the published COGs. Wrong values in a published asset, same family as this issue, different
-cause. Not widened into #83.
+cause. Filed as [#84](https://github.com/NewGraphEnvironment/floodplains/issues/84), not widened into #83.
 
 ## Phase 3 — the guard, and a false-positive it would have had
 
@@ -270,6 +282,42 @@ committed guard rather than by hand: run it on `necr` today and it reports **7 o
 digests already reconciling, which is the repair's whole thesis stated as a test before the repair
 runs.
 
+## Phase 4 — the repair, and the bug it had
+
+Fourteen files: seven `classified_*.tif` in `necr` (`ch_ff04`), seven in `kotl` (`bt_ff04`). Full
+evidence, including the numbers, is committed at
+`scripts/floodplain_lcc/logs/20260905_raster-tags_strip_necr-kotl.md` — `data/` is gitignored, so a
+repair that touches 14 files otherwise leaves nothing in the PR.
+
+### The repair deleted the published class names, and the content digest agreed
+
+The first draft renamed the rewritten `.tif` into place and `unlink`ed the target's `.aux.xml`, on
+the reasoning that a PAM sidecar is a regenerable statistics cache. Measured after the run:
+`is.factor()` FALSE, `cats()` NULL — the RAT `stac_floodplains_bc` publishes, silently gone, while
+`fp_raster_content_sha256()` matched perfectly, because it digests cell values and geometry and the
+class labels are neither.
+
+That is the exact shape stac#34/#35 already cost this project once: a well-formed file the consumer
+reads nothing from, passing every checksum. The script now renames **both** files and asserts
+`terra::cats()` is identical before and after — asserted directly, because the band-section diff
+cannot see it: that diff reads each file with its own sidecar, so it is blind to the sidecar going
+missing at rename time.
+
+### Two smaller defects, both caught by running it
+
+- **The temp file needs a `.tif` extension.** `.classified_2017.tif.strip<pid>` made terra abort
+  with "cannot guess file type from filename" — which the abort path handled correctly, leaving both
+  originals untouched and exiting non-zero.
+- **`DRY=1` printed "Would repair 0 of 11"** over a list of seven files it had just said it would
+  repair, because the counter only increments on a real write. A preview that contradicts itself.
+
+### Interrupted mid-run, and it resumed
+
+The kotl pass was killed by a 2-minute command timeout after four files. No temp file was left, the
+four completed files were intact, and re-running picked up at `classified_2020.tif` — because the
+script tests each file's tags rather than tracking progress. Idempotence bought resumability; it was
+exercised by accident rather than by design.
+
 ## Errors Encountered
 
 | Error | Resolution |
@@ -281,6 +329,8 @@ runs.
 | `value[, 3] <- "" : incorrect number of subscripts on matrix` | `metags(r) <- NULL` on a raster with no tags. Guard the assignment on `!is.null(tg) && NROW(tg) > 0`. |
 | `if (!nrow(tg))` -> `invalid argument type` | `terra::metags()` returns `NULL`, not a 0-row frame, when empty. Superseded by reading through `sf::gdal_utils()`. |
 | `sf::gdal_utils(...)` returned `NA`, then a jsonlite lexical error | The file did not exist -- an earlier write had failed. The NA propagated into the parser instead of failing where it happened. |
+| `[writeRaster] cannot guess file type from filename` | The repair's temp file must still end in `.tif`; terra reads the driver from the extension. |
+| `bfs: Invalid timestamp` on `find -newermt "-2 minutes"` | `find` is the `bfs` shim, which takes ISO-8601 only. Compared a digest of the whole tree instead -- a stronger check than mtimes anyway. |
 
 ## Issue context
 
