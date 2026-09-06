@@ -223,7 +223,13 @@ fp_floodplain <- function(cfg, scenarios = "run") {
     # zero cells changed -- the #64 failure with a new cause. FLT4S is exactly what terra picks today
     # for this 0/1 double mask: measured, writing the same raster with and without the argument
     # produces BYTE-IDENTICAL files, so the pin changes no shipped artefact. 03 already pins INT1U.
-    terra::writeRaster(valleys, out_raster, overwrite = TRUE, datatype = "FLT4S")
+    # fp_rast_write, for the same reason the datatype above is pinned (#83). This raster is
+    # DEM-derived, not gdalcubes-backed, and all 72 floodplain_*.tif on disk carry AREA_OR_POINT
+    # and nothing else -- so the strip is a measured no-op here today. It is wired anyway because
+    # the alternative is one of three write sites left unpinned on the grounds that its input
+    # happens to be clean, which is a fact about flooded's internals rather than a contract, and
+    # "the fix landed in one of the callers" is how this class comes back.
+    fp_rast_write(valleys, out_raster, overwrite = TRUE, datatype = "FLT4S")
     # Item key (#30): scenario-layer names (co_ff04, ch_ff04) are identical across every area, so
     # these columns are the only way a merged multi-area floodplain.gpkg stays separable.
     valleys_poly$wsg      <- cfg$watershed_group

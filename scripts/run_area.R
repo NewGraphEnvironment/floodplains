@@ -169,6 +169,7 @@ if (is.na(area)) stop("usage: Rscript scripts/run_area.R <area> [steps]", call. 
 update_packages <- FALSE
 source(here::here("scripts", "packages.R"))
 source(here::here("scripts", "fp_gpkg.R"))       # fp_gpkg_pin_date (byte-deterministic gpkg)
+source(here::here("scripts", "fp_raster.R"))      # fp_rast_write (container-pinned raster writes, #83)
 fp_gpkg_pin_date()                                # #45: pin gpkg_contents.last_change
 lcc_dir <- here::here("scripts", "floodplain_lcc")
 source(here::here("scripts", "publish_hint.R"))    # fp_publish_hint (advisory publish handoff)
