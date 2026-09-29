@@ -189,6 +189,21 @@ fp_disturbance_tag <- function(patches, sources, conn, window = c(2017, 2023), f
   patches
 }
 
+# Same VALUES, whatever the storage type. A carried column read back from a gpkg is double, or
+# logical when it was all-NA (the Boolean defect #95 fixed in fp_disturbance_tag); a fresh tag
+# produces the fetched type. identical() would call every such column "moved". Used by fire_tag.R's
+# compare-before-write and disturbance-check.R's before/after comparison -- one definition of
+# "unchanged" for both.
+fp_same_values <- function(x, y) {
+  if (length(x) != length(y) || !identical(is.na(x), is.na(y))) return(FALSE)
+  x <- x[!is.na(x)]; y <- y[!is.na(y)]
+  # Numbers compare as exact doubles: as.character() keeps 15 significant digits, so it called
+  # 0.1 + 0.2 and 0.3 "the same" and would have hidden a recomputed area.
+  num <- function(v) is.numeric(v) || is.logical(v)
+  if (num(x) && num(y)) identical(as.double(x), as.double(y))
+  else identical(as.character(x), as.character(y))
+}
+
 # Report the Trees->non-Trees loss split by source + additive residual (the noise floor).
 # `sources` must be CAUSES only. An undated (context) entry is refused rather than counted: the
 # report cannot tell a wetland from a fire by its column, so the list it is handed is the only

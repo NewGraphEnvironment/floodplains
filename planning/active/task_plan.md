@@ -48,17 +48,17 @@ Exploration findings that shape the plan:
 - [x] Phase 1 check passes. Restore-the-bug: delete the year-predicate branch and the collision guard in a copy, and confirm the check goes red.
 
 ## Phase 3: fire_tag.R writes the main layer
-- [ ] Tag with sources + context, then write back onto the **main** transition layer (not `_disturbance`), keeping the item keys `wsg`, `species` and `scenario` as the last columns, as step 3 does. Replace the top-level `on.exit` with an explicit disconnect. Print an `in_<context>` count and area line after the attribution report. Update the header comment.
+- [x] Tag with sources + context, then write back onto the **main** transition layer (not `_disturbance`), keeping the item keys `wsg`, `species` and `scenario` as the last columns, as step 3 does. Replace the top-level `on.exit` with an explicit disconnect. Print an `in_<context>` count and area line after the attribution report. Update the header comment.
 
 ## Phase 4: Live, NECR and BULK (the database is the `fresh-db` container; `pg_isready -h localhost`)
-- [ ] Snapshot both areas' transition layers, then run `fire_tag.R necr` and `fire_tag.R bulk`.
-- [ ] Extend `disturbance-check.R` with a live section. It **requires** an area argument (#91) and prints the resolved area and layer first. It asserts:
+- [x] Snapshot both areas' transition layers, then run `fire_tag.R necr` and `fire_tag.R bulk`.
+- [x] Extend `disturbance-check.R` with a live section. It **requires** an area argument (#91) and prints the resolved area and layer first. It asserts:
   - `in_wetland` and `waterbody_poly_id` are present
   - `in_fire`, `in_harvest`, their carried columns, `area_ha` and `patch_id` are identical to the snapshot, so the BULK attribution figure's inputs are unchanged
   - there is no `_disturbance` layer
   - `gpkg_prune-legacy.R` with `DRY=1` reports nothing
-- [ ] `fp_disturbance_report()` numbers for BULK are identical before and after.
-- [ ] Measure NECR: FWA wetland area, the share of it inside the `ch_ff04` floodplain, and the wetland-flagged patch count and hectares. Record these in `findings.md`.
+- [x] `fp_disturbance_report()` numbers for BULK are identical before and after.
+- [x] Measure NECR: FWA wetland area, the share of it inside the `ch_ff04` floodplain, and the wetland-flagged patch count and hectares. Record these in `findings.md`.
 
 ## Phase 5: Docs
 - [ ] CLAUDE.md disturbance bullet: the `context:` list, why it is not a source, the carry-collision guard, and that `fire_tag.R` now writes the main layer. **Forward-only:** other areas gain `in_wetland` on their next step 3 or `fire_tag.R` run.

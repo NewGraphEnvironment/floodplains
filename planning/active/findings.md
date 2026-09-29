@@ -111,7 +111,85 @@ Out of scope, noted by round 3: the dominant-feature pick breaks exact overlap t
 (no ORDER BY). This is unchanged by #95, and fire_tag.R's compare-before-write would surface it as a
 refused re-tag rather than a silent change.
 
+## Phase 3-4: live re-tag of NECR and BULK (2026-09-29)
+
+**CORRECTION (same day, code-check P3-4 round 1).** The first live pass recorded below was
+**wrong about geometry**. `st_read()` defaults to `promote_to_multi = TRUE`, and step 3 writes a
+**mix** of POLYGON and MULTIPOLYGON under a `GEOMETRY` declaration. `fire_tag.R` read it promoted,
+put that back as "the published geometry", and wrote the layer declared MULTIPOLYGON:
+NECR 3,947 POLYGON + 1,745 MULTIPOLYGON became 5,692 MULTIPOLYGON, and BULK 5,024 + 2,137 became
+7,161. The check's "0 rows differ" was real and meaningless: it read BOTH sides promoted. That is
+"verification that reads its own output" -- the reference went through the same lossy reader as
+the subject.
+
+Repair:
+- both readers now pass `promote_to_multi = FALSE`
+- the check also compares the declared geometry type
+- must-fail: a snapshot of the pre-re-tag backup against the promoted layer gives 2 FAIL (declared
+  type, and 3,947 WKB rows)
+- both gpkgs restored byte-for-byte from the pre-re-tag copies (no sidecars, rollback-mode header),
+  then re-snapshotted, re-tagged and re-checked: ALL PASS, including NECR against the ORIGINAL
+  backup's snapshot
+
+The table below stands (the attribute values never moved).
+
+**The first NECR re-tag was REFUSED by the compare-before-write, correctly.** The tagger intersects
+on `st_make_valid()` output, which rewrote all 5,692 NECR geometries even though **0** were invalid
+(ring normalisation; some MULTIPOLYGON came back POLYGON; areas unchanged). Step 3 does that once
+before its first write. A re-tag has no reason to do it again, so `fire_tag.R` now puts the
+published geometry back on the tagged attributes. The live check's WKB before/after comparison is
+the external proof: 0 rows differ on both areas.
+
+Re-tag results. Cause columns are identical to the snapshot on both areas, verified by
+disturbance-check.R's live section:
+
+| area | patches | tree loss | in_fire | in_harvest | residual | in_wetland |
+|---|---:|---:|---:|---:|---:|---:|
+| necr | 5,692 | 1,943.2 ha | 565.6 ha (29%) | 588.9 ha (30%) | 886.3 ha (46%) | 1,820 patches, 2,482.8 ha |
+| bulk | 7,161 | 1,565.1 ha | 66.1 ha (4%) | 509.8 ha (33%) | 1,025.4 ha (66%) | 1,231 patches, 1,252.4 ha |
+
+BULK's report is byte-identical before and after, so the README attribution figure's inputs did not
+move. NECR's `in_wetland` covers **53%** of its 4,712.6 ha of change, far more than wetland's 15.9%
+share of the floodplain area, because a patch is flagged when it TOUCHES a wetland.
+
+Also verified:
+- the live comparison's must-fail arm: a doctored snapshot (one `in_fire` flipped, one WKB altered)
+  gives 2 FAIL
+- `gpkg_prune-legacy.R` with `DRY=1` finds nothing on either area
+- `bridge-check.R` passes on necr/ch_ff04 and bulk/co_ff04
+- `provenance-check.R` passes on both
+
+## Review record, Phases 3-4 (/code-check P3-4 rounds 1-2)
+
+| Round | Findings | Fixed | Accepted | Inside previous fix? |
+|-------|----------|-------|----------|----------------------|
+| 1 | 2 | 2 (+ data restored) | 0 | **y** -- promote_to_multi, inside "keep the published geometry" |
+| 2 | 3 | 3 | 0 | **y** -- fp_same_values' 15-digit compare, inside this phase's own helper |
+
+**Mechanism:** a reader or writer DEFAULT transforms data in transit, and a check that reads both
+sides through the same default cannot see it. **Terminated by enumeration.** Round 2 compared the
+re-tagged layers against the pre-re-tag copies in SQLite directly, bypassing sf, over every artefact
+of the round trip. Here is how each is now held:
+- geometry blobs: WKB read unpromoted, compared (was: promoted on both sides)
+- attribute values: exact doubles for numbers (was: 15 significant digits)
+- declared field types, per column: PRAGMA table_info, compared; BOOLEAN -> typed is allowed for carries only
+- declared geometry type + srs_id: gpkg_geometry_columns, compared
+- column set: a dropped snapshot column FAILs (was: silently intersected away)
+- row set: (name_basin, patch_id) key, compared
+- rtree, gpkg_contents extent + last_change, fid mapping: verified identical by round 2, not in the check
+- layer order in gpkg_contents: CHANGES (the re-tagged layer moves last). No script in either repo
+  reads layers by position. Accepted.
+- Integer64 / datetime / NULL-geometry fields: none in any of the 21 areas' transition layers
+  (round 2's scan), so these defaults have nothing to act on.
+
+Each new arm was shown to FAIL: a doctored snapshot (MEDIUMINT type, srs 3005, extra column) gives 3
+FAIL; a schema-less snapshot gives 1 FAIL rather than passing vacuously; and
+`fp_same_values(0.1 + 0.2, 0.3)` is FALSE.
+
 ## Errors Encountered
 
 | Error | Resolution |
 |-------|------------|
+| fire_tag re-tag promoted every POLYGON to MULTIPOLYGON; check blind (both sides promoted) | `promote_to_multi = FALSE` in both readers + declared-type compare; gpkgs restored from backup and re-tagged |
+| `fire_tag.R necr`: REFUSED, `<geometry>` would change | `st_make_valid()` rewrites valid geometry; re-tag keeps the published geometry |
+| Offline arms passed against a function that did not exist | `refused()` matches the guard's condition class; `accepted()` requires the call to run |
