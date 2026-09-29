@@ -642,6 +642,136 @@ Run `/claude-md-init` to sync New Graph soul conventions below the marker.
 
 <!-- BEGIN SOUL CONVENTIONS — DO NOT EDIT BELOW THIS LINE -->
 
+
+# Cartography
+
+## Style Registry
+
+Use the `gq` package for all shared layer symbology. Never hardcode hex color values when a registry style exists.
+
+```r
+library(gq)
+reg <- gq_reg_main()  # load once per script — 51+ layers
+```
+
+**Core pattern:** `reg$layers$lake`, `reg$layers$road`, `reg$layers$bec_zone`, etc.
+
+### Translators
+
+| Target | Simple layer | Classified layer |
+|--------|-------------|-----------------|
+| tmap | `gq_tmap_style(layer)` → `do.call(tm_polygons, ...)` | `gq_tmap_classes(layer)` → field, values, labels |
+| mapgl | `gq_mapgl_style(layer)` → paint properties | `gq_mapgl_classes(layer)` → match expression |
+
+### Custom styles
+
+For project-specific layers not in the main registry, use a hand-curated CSV and merge:
+
+```r
+reg <- gq_reg_merge(gq_reg_main(), gq_reg_custom("path/to/custom.csv"))
+```
+
+Install: `pak::pak("NewGraphEnvironment/gq")`
+
+## Map Targets
+
+| Output | Tool | When |
+|--------|------|------|
+| PDF / print figures | `tmap` v4 | Bookdown PDF, static reports |
+| Interactive HTML | `mapgl` (MapLibre GL) | Bookdown gitbook, memos, web pages |
+| QGIS project | Native QML | Field work, Mergin Maps |
+
+## Key Rules
+
+- **`sf_use_s2(FALSE)`** at top of every mapping script
+- **Compute area BEFORE simplify** in SQL
+- **No map title** — title belongs in the report caption
+- **Legend over least-important terrain** — swap legend and logo sides when it reduces AOI occlusion. No fixed convention for which side.
+- **Four-corner rule** — legend, logo, scale bar, keymap each get their own corner. Never stack two in the same quadrant.
+- **Bbox must match canvas aspect ratio** — compute the ratio from geographic extents and page dimensions. Mismatch causes white space bands.
+- **Consistent element-to-frame spacing** — all inset elements should have visually equal margins from the frame edge
+- **Map fills to frame** — basemap extends edge-to-edge, no dead bands. Use near-zero `inner.margins` and `outer.margins`.
+- **Suppress auto-legends** — build manual ones from registry values
+- **ALL CAPS labels appear larger** — use title case for legend labels (gq `gq_tmap_classes()` handles this automatically via `to_title()` fallback)
+
+## Self-Review (after every render)
+
+Read the PNG and check before showing anyone.
+
+### Placement
+
+1. Correct polygon/study area shown? (verify source data, not just the bbox)
+2. Map fills the page? (no white/black bands)
+3. Keymap inside frame with spacing from edge?
+4. No element overlap? (each in its own corner)
+5. Legend over least-important terrain?
+6. Consistent spacing across all elements?
+7. Scale bar breaks appropriate for extent?
+
+### Does it communicate?
+
+Every check above is about **where elements sit**. A map can satisfy all seven
+and still fail to say what it is about — so these are not optional extras, they
+are the half of the review that the placement list structurally cannot reach.
+
+8. **Is every prominent feature in the legend?** Work the other direction from
+   the usual one: rank what draws the eye *in the rendered image*, then confirm
+   each of the top few appears in the legend. Building the legend from the layer
+   list instead answers "did I list my layers", which is a different question and
+   always says yes.
+9. **Is the subject obvious to someone who has never seen this area?** An AOI
+   that renders identically to its surroundings is not delineated by a thin
+   boundary line — the reader has to be told where to look. Containment (a fill,
+   a dimmed exterior, a mask) is what does it.
+10. **Does the symbology have a hierarchy, or is it flat?** If one class holds
+    the great majority of the features, it will dominate regardless of how
+    correct its size is. Ask what the map is *for* and de-emphasise or filter
+    accordingly — and say in the caption or prose that you did.
+11. **Does the basemap earn its contrast cost?** A basemap that adds no readable
+    terrain is not neutral: it lowers the contrast of everything drawn over it.
+    Blend parameters that mute it into a flat field are worse than no basemap.
+12. **Is the type sized for the width it is published at, not rendered at?** A
+    7 in figure squeezed into a ~700 px column loses roughly 40% — text set at
+    `size = 0.5` for the render lands at a few pixels on the page. Check the
+    figure at its delivered width.
+
+### Why this half exists
+
+Added 2026-08-26 after gq's flagship vignette map was reported as passing all
+seven placement checks and was, on being looked at, unreadable: 89% of its point
+symbols were one modelled class, the basemap was a featureless grey field, the
+AOI was indistinguishable from its surroundings, and the single most prominent
+feature on the map — a bright red 397-feature habitat network — **was not in the
+legend at all**, while the prose beneath the figure described its styling in
+detail (gq#61).
+
+The seven checks had returned green, accurately. They were simply not asking.
+
+See the `cartography` skill for full reference: basemap blending, BC spatial data queries, label hierarchy, mapgl gotchas, and worked examples.
+
+## Land Cover Change
+
+Use [drift](https://github.com/NewGraphEnvironment/drift) and [flooded](https://github.com/NewGraphEnvironment/flooded) together for riparian land cover change analysis. flooded delineates floodplain extents from DEMs and stream networks; drift tracks what's changing inside them over time.
+
+**Pipeline:**
+
+```r
+# 1. Delineate floodplain AOI (flooded)
+valleys <- flooded::fl_valley_confine(dem, streams, area_field = "upstream_area_ha")
+
+# 2. Fetch, classify, summarize (drift)
+rasters   <- drift::dft_stac_fetch(aoi, source = "io-lulc", years = c(2017, 2020, 2023))
+classified <- drift::dft_rast_classify(rasters, source = "io-lulc")
+summary    <- drift::dft_rast_summarize(classified, unit = "ha")
+
+# 3. Interactive map with layer toggle
+drift::dft_map_interactive(classified, aoi = aoi)
+```
+
+- Class colors come from drift's shipped class tables (IO LULC, ESA WorldCover)
+- For production COGs on S3, `dft_map_interactive()` serves tiles via titiler — set `options(drift.titiler_url = "...")`
+- See the [drift vignette](https://www.newgraphenvironment.com/drift/articles/neexdzii-kwa.html) for a worked example (Neexdzii Kwa floodplain, 2017-2023)
+
 # Code Check — R
 Traps in R: the language and base/utils behaviour, package internals (`R CMD build`, `.Rbuildignore`, roxygen, lintr, `data-raw/`, testthat, pak), and the DBI/duckdb/arrow data layer.
 
@@ -877,6 +1007,18 @@ Sum a range directly (segment tree, per-range `sum()`, or grouped sums) rather t
 
 ### Inside a dplyr verb, a column named like a local variable wins
 Inject a local value into a data-masked verb with `!!x` or `.env$x`, never a bare `x`: `transmute(d, aoi_id = id)` inside `for (id in ids)` reads the frame's own `id` column whenever one exists, with no warning, and the result is well-typed and plausible.
+
+### `earthdatalogin`'s search and download calls overwrite the netrc when they find no Earthdata entry
+Call NASA's CMR search with `curl` and download with `curl` given the netrc directly (`netrc = 1, netrc_file = <path>, cookiefile = ""` follows the URS redirect), or check `earthdatalogin:::has_edl_netrc()` yourself first.
+
+### A fetcher's test helper must make the network fail, not just mock the reader
+When a test mocks a downloader's reader and supplies fixture files, also mock the search and download functions to `stop()` by default, and re-mock them only in the tests that exercise that path.
+
+### testthat 3e `expect_message()` returns the condition, not the expression's value
+Assign inside the call, `expect_message(h <- f(x), "msg")`, never `h <- expect_message(f(x), "msg")`.
+
+### `c()` dispatches on its first argument, so `c(NULL, <Date>)` is a plain number
+Put a Date first when `c()` combines an optional piece with Dates: `c(NULL, <Date>)` takes the default method and returns a bare day count.
 
 # Code Check — Shell
 Tool-level traps in bash, sed, git and `gh`, and in the host toolchain those commands depend on.
@@ -1181,6 +1323,27 @@ Rasterise in memory and then `writeRaster(datatype = …)`: written directly thr
 
 ### GDAL's `average` warp across a rotated CRS weights the wrong pixels; average in the target CRS instead
 To take class fractions or means from a fine grid in one CRS onto a coarse grid in another, resample nearest onto a grid aligned with the target and `fact` times finer (`terra::disagg(terra::rast(target), fact)`), then `terra::aggregate(fact, mean)`.
+
+### `terra::densify()` on lon/lat follows great circles, so a raster extent's parallel edges bow poleward
+Pass `flat = TRUE` (with the interval in degrees) when densifying a lon/lat extent before projecting it.
+
+### Planetary Computer STAC: a floodplain-scale read hits three limits a reach never does
+Query a large AOI by its convex hull, re-sign items before each tile, and give `datetime` explicit times (`…T00:00:00Z/…T23:59:59Z`).
+
+### gdalcubes reports failed chunk reads only on stderr, so a partial cube passes as complete
+Do not guard on it by capturing output.
+
+### terra reads a multi-variable gdalcubes NetCDF with its variables in alphabetical order
+Select layers by name after `terra::rast()` of a `gdalcubes::write_ncdf()` output, never by position.
+
+### terra's COG writer emits a `.aux.json` sidecar when the raster carries a time
+Strip `time` (and `units`, `varnames`, `longnames`, `metags`, `scoff`) before `writeRaster(filetype = "COG")`, or have the publisher move `<file>.aux.json` with the raster.
+
+### `sf::st_read()` promotes a mixed POLYGON/MULTIPOLYGON layer to all-MULTIPOLYGON
+Read with `promote_to_multi = FALSE` whenever a layer will be written back.
+
+### `sf::st_make_valid()` rewrites geometry that was already valid
+Run it on the invalid rows only (`!st_is_valid(x)`), or keep the original geometry and use the made-valid copy just for the computation.
 
 # Code Check Conventions
 Structured checklist for reviewing diffs before commit.
