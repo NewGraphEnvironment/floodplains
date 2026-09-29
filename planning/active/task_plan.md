@@ -27,13 +27,13 @@ Exploration findings that shape the plan:
 - NECR has 4,495 FWA wetland polygons. `waterbody_poly_id` is the unique key, and the table has a gist index on `geom`.
 
 ## Phase 1: Offline check first (fails until Phase 2)
-- [ ] `scripts/floodplain_lcc/disturbance-check.R`, with no database. It covers:
+- [x] `scripts/floodplain_lcc/disturbance-check.R`, with no database. It covers:
   - the validator refuses a `sources:` entry with no `year_col`, a `context:` entry *with* a `year_col`, duplicate names across both lists, duplicate carry columns across entries, and a missing required field
   - the query builder includes `BETWEEN` for a source and omits it for a context entry
   - the carry-collision guard refuses carrying `area_ha`, but allows re-tagging a layer that already carries this tagger's own columns (`fire_year`, `in_fire`)
   - on synthetic patches tagged through an injected stub fetch, `fp_disturbance_report()` gives an identical residual with and without the `context:` entry
   - **must-fail arm:** moving `wetland` under `sources:` changes the residual
-- [ ] Run it and confirm it goes red for the right reasons.
+- [x] Run it and confirm it goes red for the right reasons.
 
 ## Phase 2: Tagger and config
 - [ ] `fp_disturbance.R`:

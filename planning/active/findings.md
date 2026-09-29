@@ -51,6 +51,14 @@ Relates: #92 (report, split from its wetland section), #93 (uses the flag for st
 
 
 
+## Phase 1: a check that could not fail (2026-09-28)
+
+The first draft's `refused()` accepted ANY error, so every "is refused" arm PASSED against a
+`fp_disturbance_validate()` that did not exist yet ("could not find function" is an error). The
+mirror, `!refused()` for the "is accepted" arms, passed for the same reason. Fixed: refusal must be
+the guard's own condition class (`fp_disturbance_config_error`), and acceptance must mean the call
+ran. Re-run: zero PASS lines before Phase 2 -- red for the right reason.
+
 ## Errors Encountered
 
 | Error | Resolution |
