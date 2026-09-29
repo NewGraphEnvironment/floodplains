@@ -77,6 +77,15 @@ for (core in c("area_ha", "patch_id", "from_class", "wsg")) {
   ok(sprintf("carrying `%s` is refused (it would overwrite the patch's own column)", core),
      refused(fp_disturbance_validate(list(sources = list(fire), context = list(clash)))))
 }
+typo <- fire; typo$filtr <- "fire_size_ha > 1"
+ok("a misspelt entry key is refused (`filtr:` would run the source unfiltered)",
+   refused(fp_disturbance_validate(list(sources = list(typo)))))
+shadow <- no_year; shadow$.list <- "context"
+ok("an entry cannot smuggle its own `.list` tag past the year_col rule",
+   refused(fp_disturbance_validate(list(sources = list(shadow)))))
+cased <- harvest; cased$name <- "Fire"
+ok("names differing only in case are refused (GeoPackage fields are case-insensitive)",
+   refused(fp_disturbance_validate(list(sources = list(fire, cased)))))
 ok("an unknown top-level key is refused (a typo like `contxt:` would drop every entry)",
    refused(fp_disturbance_validate(c(dst_ok, list(contxt = list(wetland))))))
 
@@ -137,6 +146,58 @@ ok("must-fail arm: filing wetland under sources DOES shrink the residual", r_lea
 t_again <- fp_disturbance_tag(t_all, list(fire, harvest, wetland), NULL, fetch = stub)
 ok("re-tagging an already-tagged layer reproduces it (fire_tag.R's path)",
    identical(sf::st_drop_geometry(t_again), sf::st_drop_geometry(t_all)))
+ok("must-fail arm: the report REFUSES a context entry rather than counting it",
+   refused(fp_disturbance_report(t_all, list(fire, harvest, wetland), "check")))
+ok("a carried column stays typed when nothing matches (not Boolean on write)",
+   is.integer(t_src$harvest_start_year_calendar) && is.integer(t_all$waterbody_poly_id),
+   paste(class(t_src$harvest_start_year_calendar), class(t_all$waterbody_poly_id)))
+
+# patch_id is numbered per sub-basin, so it repeats across basins. Two patches share id 1: the one
+# in basin A sits in a wetland, the one in basin B does not. An id join gave B the wetland's key.
+dup <- sf::st_sf(patch_id = c(1L, 1L), transition = "Trees -> Rangeland", area_ha = 1,
+                 name_basin = c("A", "B"), from_class = "Trees", to_class = "Rangeland",
+                 geom = sf::st_sfc(sq(200, 0), sq(800, 0), crs = 3005))
+t_dup <- fp_disturbance_tag(dup, list(wetland), NULL, fetch = stub)
+ok("carried values follow the ROW, not a repeated patch_id",
+   identical(t_dup$in_wetland, c(TRUE, FALSE)) && identical(t_dup$waterbody_poly_id, c(11L, NA)),
+   paste(t_dup$waterbody_poly_id, collapse = ","))
+
+# The README figure's cause list is the other reader of the file; it must not see context names.
+source(here::here("scripts", "readme_functions.R"), local = (rf <- new.env()))
+dst_live <- yaml::read_yaml(here::here("config", "disturbance.yml"))
+ok("the README figure's cause list excludes every context name",
+   !any(vapply(dst_live$context, function(s) s$name, character(1)) %in%
+          rf$fp_readme_sources(here::here("config", "disturbance.yml"))))
+
+ok("must-fail arm: the report refuses patches missing a source's in_ column (it read 0 ha)",
+   refused(fp_disturbance_report(t_src[, setdiff(names(t_src), "in_harvest")],
+                                 list(fire, harvest), "check")))
+upper <- wetland; upper$carry <- list("AREA_HA")
+ok("an upper-case carry of a core column is refused (Postgres folds it onto area_ha)",
+   refused(fp_disturbance_validate(list(sources = list(fire), context = list(upper)))))
+lost <- wetland; lost$carry <- list("WATERBODY_POLY_ID")
+ok("a carry the fetch did not return is refused, not silently dropped",
+   refused(fp_disturbance_tag(patches, list(lost), NULL, fetch = stub)))
+
+# `$` partial-matches: with no sources, `cfg$disturbance` returned a `disturbance_context` list and
+# step 3 tagged and logged wetlands as causes. The mechanism is any cfg key that is a strict prefix
+# of another, so sweep every cfg key the scripts use rather than pinning this one pair.
+src_files <- list.files(here::here("scripts"), pattern = "[.]R$", recursive = TRUE, full.names = TRUE)
+tx <- unlist(lapply(src_files, readLines, warn = FALSE))
+k1 <- sub("cfg[$]", "", unlist(regmatches(tx, gregexpr("cfg[$][A-Za-z_][A-Za-z0-9_]*", tx))))
+k2 <- gsub("cfg\\[\\[\"|\"\\]\\]", "",
+           unlist(regmatches(tx, gregexpr("cfg\\[\\[\"[A-Za-z0-9_]+\"\\]\\]", tx))))
+keys <- sort(unique(c(k1, k2)))
+pairs <- which(outer(keys, keys, function(x, y) x != y & startsWith(y, x)), arr.ind = TRUE)
+pairs <- data.frame(prefix = keys[pairs[, 1]], longer = keys[pairs[, 2]])
+mine <- pairs$prefix %in% c("disturbance", "context_overlays") |
+  pairs$longer %in% c("disturbance", "context_overlays")
+ok("no cfg key is a prefix of the disturbance/context keys (or vice versa)", !any(mine),
+   paste(sprintf("%s<%s", pairs$prefix[mine], pairs$longer[mine]), collapse = ","))
+if (any(!mine))
+  message("  INFO  other cfg prefix pairs (not this check's; #97): ",
+          paste(sprintf("%s<%s", pairs$prefix[!mine], pairs$longer[!mine]), collapse = ", "))
+
 geom_clash <- wetland; geom_clash$carry <- list("geom")
 ok("carrying the patches' geometry column is refused at tag time",
    refused(fp_disturbance_tag(patches, list(geom_clash), NULL, fetch = stub)))

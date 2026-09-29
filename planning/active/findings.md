@@ -59,6 +59,58 @@ mirror, `!refused()` for the "is accepted" arms, passed for the same reason. Fix
 the guard's own condition class (`fp_disturbance_config_error`), and acceptance must mean the call
 ran. Re-run: zero PASS lines before Phase 2 -- red for the right reason.
 
+## NECR: how much FWA wetland sits in the floodplain (measured 2026-09-28)
+
+The issue asked this to be measured rather than assumed, and the assumption would have been wrong.
+The first draft of the `disturbance.yml` comment said "most sit inside the floodplain already"; it
+was removed before commit because it had not been measured.
+
+- NECR FWA wetlands: 4,495 polygons, 16,291.8 ha.
+- Inside the `ch_ff04` floodplain: 6,290.3 ha, **38.6% of wetland area**. 1,118 polygons touch it.
+- Wetland is **15.9%** of the 39,651.5 ha floodplain.
+
+So the delineation's `wetlands = TRUE` seeding does not put most wetland inside the floodplain;
+it seeds only network-connected wetlands (`wetland_filter = network`). `in_wetland` therefore flags
+patches in about a sixth of the floodplain's area.
+
+Snapshots for the Phase 4 comparison: `snap_{necr,bulk}.rds` (the transition layers' attribute
+tables) and byte copies of both `floodplain_landcover.gpkg`, in the session scratchpad. Both gpkgs
+had exactly one live transition layer and no legacy `_disturbance`/`_fire` layer. Columns on both:
+`patch_id, transition, area_ha, name_basin, from_class, to_class, in_fire, fire_year, fire_number,
+in_harvest, harvest_start_year_calendar, wsg, species, scenario`. That is FP_PATCH_CORE plus the
+two sources' columns, exactly.
+
+## Review record, Phase 2 (plan review + /code-check rounds 1-3)
+
+| Round | Findings | Fixed | Accepted | Inside previous fix? |
+|-------|----------|-------|----------|----------------------|
+| plan review | 13 | 10 | 3 (followed up as #96; 2 folded into later phases) | — |
+| 1 | 2 | 2 | 0 | — (both pre-existing, on the new wetland path) |
+| 2 | 2 (+1 comment) | 3 | 0 | **y** — silent carry drop inside the typed-NA fix |
+| 3 | 3 | 3 | 0 | **y** — missing-column residual inside the Reduce-init fix |
+
+**Mechanism (round 3):** a lookup by NAME returns something other than what was meant, and R keeps
+going. `$` partial-matches, `[[` of an absent column is NULL (which drops a column on assignment and
+empties a mask when OR-ed), `patch_id` looks like a key and repeats across sub-basins, and Postgres
+and GeoPackage fold identifier case.
+
+**Terminated by enumeration, not by a quiet round.** Every `[[`/`$` in fp_disturbance.R, parsed
+with getParseData (35 lines):
+- entry-field reads: exact `[[`, keys whitelisted (FP_DST_ENTRY_KEYS). Absent optional keys are
+  intended NULL, and required ones are checked.
+- `poly[[a]]` is guarded by the lost-carry refusal.
+- `loss[[ic]]` is guarded by the absent-column refusal.
+- the report's patch columns moved from `$` to `[[` plus a presence check.
+- the remaining `$` uses are `inter$._ov` (an assignment) and `dom$._row` (a tibble, which does not
+  partial-match).
+
+The cfg side is swept by the check itself (no cfg key prefix-relates to `disturbance` or
+`context_overlays`). The sweep's one other hit is #97, which predates this work.
+
+Out of scope, noted by round 3: the dominant-feature pick breaks exact overlap ties by SQL row order
+(no ORDER BY). This is unchanged by #95, and fire_tag.R's compare-before-write would surface it as a
+refused re-tag rather than a silent change.
+
 ## Errors Encountered
 
 | Error | Resolution |

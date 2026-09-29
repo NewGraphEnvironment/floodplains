@@ -36,16 +36,16 @@ Exploration findings that shape the plan:
 - [x] Run it and confirm it goes red for the right reasons.
 
 ## Phase 2: Tagger and config
-- [ ] `fp_disturbance.R`:
+- [x] `fp_disturbance.R`:
   - `fp_disturbance_validate(dst)` (pure), enforcing the rules above
   - `.dst_query()` (pure SQL builder), with the year predicate only when `year_col` is set
   - `.dst_fetch()` calls `.dst_query()`
   - `fp_disturbance_tag()` gains a `fetch = .dst_fetch` argument so the check can inject a stub, plus the carry-collision guard
   - update the header comment to document `context:`
-- [ ] `config/disturbance.yml`: add a `context:` list with `wetland` (`whse_basemapping.fwa_wetlands_poly`, `geom`, `carry: [waterbody_poly_id]`). The header explains why it is not under `sources:` and names the `area_ha` collision.
-- [ ] `run_area.R` `fp_read_config()`: validate the file, set `cfg$disturbance` from `sources` (unchanged) and `cfg$disturbance_context` from `context`.
-- [ ] `03_lulc_classify.R`: tag `c(sources, context)` when either is non-null. The attribution message names both. Item keys stay last.
-- [ ] Phase 1 check passes. Restore-the-bug: delete the year-predicate branch and the collision guard in a copy, and confirm the check goes red.
+- [x] `config/disturbance.yml`: add a `context:` list with `wetland` (`whse_basemapping.fwa_wetlands_poly`, `geom`, `carry: [waterbody_poly_id]`). The header explains why it is not under `sources:` and names the `area_ha` collision.
+- [x] `run_area.R` `fp_read_config()`: validate the file, set `cfg$disturbance` from `sources` (unchanged) and `cfg$disturbance_context` from `context`.
+- [x] `03_lulc_classify.R`: tag `c(sources, context)` when either is non-null. The attribution message names both. Item keys stay last.
+- [x] Phase 1 check passes. Restore-the-bug: delete the year-predicate branch and the collision guard in a copy, and confirm the check goes red.
 
 ## Phase 3: fire_tag.R writes the main layer
 - [ ] Tag with sources + context, then write back onto the **main** transition layer (not `_disturbance`), keeping the item keys `wsg`, `species` and `scenario` as the last columns, as step 3 does. Replace the top-level `on.exit` with an explicit disconnect. Print an `in_<context>` count and area line after the attribution report. Update the header comment.
