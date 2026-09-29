@@ -49,12 +49,14 @@ otherwise have to be found by eye, at a scale no one is going to walk.
 <img src="fig/attribution.png" alt="Top: the Bulkley watershed group with every modelled floodplain tree-loss patch 2017-2023 drawn as a dot sized by area and coloured by attributed cause - fire in red, harvest in amber, and grey where nothing yet attributes it. Bottom: a stacked bar of the same loss by area, showing those sources accounting for roughly a third of it between them." width="100%" />
 
 **Attribution is the part that is growing.** Each change patch is intersected with the overlay
-layers named in `config/disturbance.yml` and tagged with what it hits. Fire and harvest are what
+layers named in `config/disturbance.yml` and tagged with what it hits. Fire and harvest are the causes
 that file lists today, and between them they source about a third of the tree loss above — a
 third that used to sit undifferentiated. The framework is layer-agnostic: **any spatial layer we
 can get is a config line**, not a code change. Confirmed riparian clearing for agriculture,
 forest health, tenure — each is one entry away. A patch can carry several tags at once, which is
-the honest answer for salvage logging after a fire.
+the honest answer for salvage logging after a fire. Some layers locate change without explaining
+it: a patch touching a mapped FWA wetland carries `in_wetland`, so wetland change can be found and
+reviewed, and it never counts toward the attributed share above.
 
 What we still do not know:
 

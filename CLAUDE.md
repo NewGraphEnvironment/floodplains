@@ -70,14 +70,43 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   `in_<name>` + carried attrs from the dominant overlapping feature, windowed to `cfg$change_interval`
   (default 2017–2023). Additive — a patch may match several sources (salvage = fire AND harvest); the
   residual (matches none) is the classification-noise floor. Opt-in by file presence (no yml ⇒ step 3
-  unchanged, no DB conn). `fire_tag.R` is a thin CLI wrapper to re-tag an existing gpkg without the
-  STAC fetch. **Fire + harvest wired; pest deferred.** Harvest resolves ~30–36% of floodplain tree
+  unchanged, no DB conn). `fire_tag.R <area> [scenario]` re-tags every transition layer of an area
+  without the STAC fetch and writes back onto the **main** layer (it used to write a `_disturbance`
+  sibling -- #55's orphan class, recreated on every run). It keeps the published geometry, because
+  the tagger's `st_make_valid()` rewrites all of it (NECR: 0 of 5,692 invalid, all 5,692 rewritten),
+  and it **refuses to write if any cause column would change** (`FORCE=1` overrides), since the
+  layer it replaces is published. **Read transition layers with `promote_to_multi = FALSE`:** step 3
+  writes a *mix* of POLYGON and MULTIPOLYGON declared `GEOMETRY`, and `st_read()`'s default promotes
+  every POLYGON. The first live re-tag did exactly that to necr and bulk (3,947 + 5,024 geometries,
+  layer re-declared MULTIPOLYGON) while the check passed, because it read both sides promoted; both
+  were restored from byte copies. `disturbance-check.R`'s comparison now reads the schema from the
+  gpkg's own tables (`PRAGMA table_info`, `gpkg_geometry_columns`) so no reader default can hide a
+  change. **Fire + harvest wired; pest deferred.** Harvest resolves ~30–36% of floodplain tree
   loss previously in the "noise" bucket. **Measured 2026-09-04 on BULK's current output** (the
   2026-09-02 re-run, 1,565.1 ha of tree loss): fire **4.2%** / harvest **30.3%** / not yet
   attributed **65.5%** by area. The 5 / 36 / 62 stated here before was pre-re-run and is dead, not
   superseded. It is now computed at figure-build time into `fig/attribution.png` and stated in no
   prose, which is the only version of this that stays true (#77). The transition
   layer now carries N disturbance attrs → the STAC schema must too (stac_floodplains_bc#6).
+  **Context overlays (#95) are tagged by the same code and are NOT causes.** A second list,
+  `context:`, holds undated layers that say where a patch is, not why it changed -- today
+  `in_wetland` + `waterbody_poly_id` from `fwa_wetlands_poly`. `cfg$disturbance` stays the causes
+  and `cfg$context_overlays` the context (never `disturbance_context`: `$` partial-matches, so with
+  no sources `cfg$disturbance` would have returned the wetlands and step 3 would have logged them
+  as causes -- caught in review before any run).
+  `fp_disturbance_validate()` enforces the split at config load: a source must have `year_col`, a
+  context entry must not, entry keys are whitelisted (`filtr:` would run a source unfiltered), and
+  no carry may land on a patch column -- case-folded, since Postgres and GeoPackage fold case and
+  `fwa_wetlands_poly.area_ha` would have overwritten the patch's area. The report refuses a context
+  entry and a missing `in_` column (which read as a 0 ha residual). Carried attributes join back
+  by **row**, never `patch_id`, which repeats across sub-basins. `disturbance-check.R` asserts all
+  of it offline, each rule with a must-fail arm, plus a live section with a snapshot mode it owns.
+  **Forward-only, and often "not until forced":** necr and bulk are re-tagged. Any other area gains
+  `in_wetland` on its next step 3 run, or from `fire_tag.R` **only where its cause columns would
+  not move** -- `mcgr` and `pine` carry no cause columns at all, so `fire_tag.R` refuses them, as it
+  refuses any area whose fire or cutblock table has changed since it was tagged; those need step 3
+  or `FORCE=1`. `run_region.R` also skips a group whose `lulc_summary.rds` exists. `in_wetland` sits on **changed**
+  patches only (`changes_only = TRUE`), so "stable land inside a wetland" needs its own overlay.
 - `data/<area>/` — outputs (gitignored)
 - `README.Rmd` → `README.md` + `index.html` (Pages), with `scripts/readme_functions.R` (readers +
   gated figure builders), `scripts/readme_determinism-check.sh` and
@@ -838,6 +867,12 @@ Copy the script and run the copy (`cp scripts/x.R "$TMPDIR/x_frozen.R" && Rscrip
 ### A range total taken as the difference of two large running totals loses the small ranges
 Sum a range directly (segment tree, per-range `sum()`, or grouped sums) rather than as `cumsum[hi] - cumsum[lo]` when ranges are small relative to the running total.
 
+### A `pkg::` call in a test passes `devtools::test()` and fails `R CMD check` if `pkg` is undeclared
+`R CMD check` warns "'::' or ':::' import not declared from" for any package a test reaches with `::` that `DESCRIPTION` does not list, and under `error-on: "warning"` that reddens every runner.
+
+### Inside a dplyr verb, a column named like a local variable wins
+Inject a local value into a data-masked verb with `!!x` or `.env$x`, never a bare `x`: `transmute(d, aoi_id = id)` inside `for (id in ids)` reads the frame's own `id` column whenever one exists, with no warning, and the result is well-typed and plausible.
+
 # Code Check — Shell
 Tool-level traps in bash, sed, git and `gh`, and in the host toolchain those commands depend on.
 
@@ -980,6 +1015,9 @@ Supply a default ssh command only when `GIT_SSH_COMMAND`, `core.sshCommand` and 
 
 ### `curl -o` without `-L` saves the redirect page as the download
 `curl` does not follow redirects unless it is given `-L`, and it exits 0 on a 3xx.
+
+### `conda run` captures its child's output, so a pipe gets nothing
+`conda run -n env cmd` buffers the child's stdout and re-emits it, and that re-emission does not reach a pipe.
 
 # Code Check — Spatial
 terra, sf, bcdata, GDAL/OGR CLIs.
@@ -1126,6 +1164,18 @@ Apply a displacement in the CRS it was measured in: transform the point there, a
 
 ### Writing KML: `<color>` is `aabbggrr`, and a remote icon href renders nothing offline
 Do the hex swap in **one** helper and omit `<Icon><href>` entirely.
+
+### `rio cogeo validate` exits 0 when the file is NOT a valid COG
+It reports the verdict in text and returns success either way, so the exit status carries no information at all:
+
+### `terra::rast()` on a SpatRaster returns an empty template, not a copy
+Pass a SpatRaster through as is (`if (inherits(x, "SpatRaster")) x else terra::rast(x)`): `rast(x)` on one builds a new raster with the same geometry and **no values**, so a function that normalises its input with `terra::rast()` silently receives an all-empty grid when handed an object rather …
+
+### `terra::rasterize(filename = , datatype = <integer>)` writes the background as 0, not NA
+Rasterise in memory and then `writeRaster(datatype = …)`: written directly through `filename` with an integer `datatype` (INT1U, INT2S), cells no polygon covers come out as 0, while the file's NoData is 255, so they read back as data (terra 1.9.46 and 1.9.50; rspatial/terra#2195).
+
+### GDAL's `average` warp across a rotated CRS weights the wrong pixels; average in the target CRS instead
+To take class fractions or means from a fine grid in one CRS onto a coarse grid in another, resample nearest onto a grid aligned with the target and `fact` times finer (`terra::disagg(terra::rast(target), fact)`), then `terra::aggregate(fact, mean)`.
 
 # Code Check Conventions
 Structured checklist for reviewing diffs before commit.
@@ -1801,6 +1851,8 @@ would, X is not evidence.
 
 When the user pushes back on an inference, re-derive rather than defend. The
 conclusion often survives; the reasoning that reaches it is usually different.
+
+*5 lines of evidence for this rule are in `conventions/karpathy.md`, which `/code-check` reads in full.*
 
 ### Documents that share an ancestor corroborate nothing
 

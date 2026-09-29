@@ -213,16 +213,20 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
     trans_polys$area_ha <- as.numeric(sf::st_area(trans_polys)) / 1e4
 
     # Disturbance attribution (#19): tag each change patch by configured overlay layer, in memory
-    # before the write so the transition layer carries in_<source> + carried attrs. Open a DB conn
-    # ONLY when sources are configured, so offline step-3 runs (no cfg$disturbance) are unaffected.
-    if (!is.null(cfg$disturbance)) {
+    # before the write so the transition layer carries in_<source> + carried attrs. Context overlays
+    # (#95, e.g. in_wetland) ride the same pass -- they locate change and never explain it, which is
+    # why only cfg$disturbance ever reaches the attribution report. Open a DB conn ONLY when
+    # something is configured, so offline step-3 runs are unaffected.
+    dst_entries <- c(cfg[["disturbance"]], cfg[["context_overlays"]])
+    if (length(dst_entries)) {
       conn <- DBI::dbConnect(RPostgres::Postgres())
       on.exit(try(DBI::dbDisconnect(conn), silent = TRUE), add = TRUE)  # norm: disconnect even on error
-      trans_polys <- fp_disturbance_tag(trans_polys, cfg$disturbance, conn,
+      trans_polys <- fp_disturbance_tag(trans_polys, dst_entries, conn,
                                         window = cfg$change_interval)
       DBI::dbDisconnect(conn)
-      message("  Tagged disturbance: ",
-              paste(vapply(cfg$disturbance, function(s) s$name, character(1)), collapse = ", "))
+      nms <- function(x) paste(vapply(x, function(s) s$name, character(1)), collapse = ", ")
+      message("  Tagged disturbance: ", nms(cfg[["disturbance"]]),
+              if (length(cfg[["context_overlays"]])) paste0("; context: ", nms(cfg[["context_overlays"]])))
     }
 
     # Item key (#30) — set after disturbance tagging so the keys sit alongside the tagged columns.

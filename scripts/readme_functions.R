@@ -297,8 +297,9 @@ fp_fig_floodplain <- function(out = fp_fig_path("floodplain.png")) {
 
 #' fig/attribution.png — every change patch, and how much of it we can currently source
 #'
-#' The bar is the honest half: fire and harvest are the two overlays `config/disturbance.yml`
-#' happens to list, not the limit of what it takes. The numbers live in the figure and nowhere
+#' The bar is the honest half: fire and harvest are the two causes `config/disturbance.yml`
+#' happens to list under `sources:`, not the limit of what it takes. Its `context:` overlays (#95,
+#' e.g. wetlands) locate change and never appear here. The numbers live in the figure and nowhere
 #' else, so they cannot go stale in prose the way #77's counts did.
 fp_fig_attribution <- function(out = fp_fig_path("attribution.png")) {
   # The sources come from config/disturbance.yml, which is what the caption claims to describe.
@@ -366,7 +367,7 @@ fp_fig_attribution <- function(out = fp_fig_path("attribution.png")) {
                   # string claiming to describe it, so enabling `pest` would have made the
                   # figure right and the caption false.
                   subtitle = sprintf(
-                    "%s %s what config/disturbance.yml lists today — it takes any layer",
+                    "%s %s the causes config/disturbance.yml lists today — it takes any layer",
                     paste(src, collapse = " and "),
                     if (length(src) == 1) "is" else "are"))
 

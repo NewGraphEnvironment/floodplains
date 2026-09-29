@@ -153,8 +153,15 @@ fp_read_config <- function(area) {
   }
   # disturbance: shared province-wide sources (config/disturbance.yml) for tagging change patches by
   # overlay layer (fire, harvest, …). Absent => NULL => 03 skips tagging (behaviour unchanged) (#19).
+  # `context:` (#95) is tagged too but kept apart: cfg$disturbance stays the CAUSES, which is all the
+  # attribution report reads. Validated here, at config load, so a bad entry fails before the fetch.
+  # The context key must NOT start with "disturbance": `$` partial-matches, so with no sources
+  # (cfg$disturbance NULL, i.e. absent) `cfg$disturbance` would return a `disturbance_context` list
+  # and step 3 would tag and log the wetlands as causes.
   dst_path <- here::here("config", "disturbance.yml")
-  cfg$disturbance <- if (file.exists(dst_path)) yaml::read_yaml(dst_path)$sources else NULL
+  dst <- if (file.exists(dst_path)) fp_disturbance_validate(yaml::read_yaml(dst_path)) else list()
+  cfg$disturbance      <- dst[["sources"]]
+  cfg$context_overlays <- dst[["context"]]
   cfg
 }
 
