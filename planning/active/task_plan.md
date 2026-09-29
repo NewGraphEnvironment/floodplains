@@ -43,7 +43,7 @@ Exploration findings that shape the plan:
   - `fp_disturbance_tag()` gains a `fetch = .dst_fetch` argument so the check can inject a stub, plus the carry-collision guard
   - update the header comment to document `context:`
 - [x] `config/disturbance.yml`: add a `context:` list with `wetland` (`whse_basemapping.fwa_wetlands_poly`, `geom`, `carry: [waterbody_poly_id]`). The header explains why it is not under `sources:` and names the `area_ha` collision.
-- [x] `run_area.R` `fp_read_config()`: validate the file, set `cfg$disturbance` from `sources` (unchanged) and `cfg$disturbance_context` from `context`.
+- [x] `run_area.R` `fp_read_config()`: validate the file, set `cfg$disturbance` from `sources` (unchanged) and `cfg$context_overlays` from `context` (first named `disturbance_context`, renamed in review: `$` partial-matching).
 - [x] `03_lulc_classify.R`: tag `c(sources, context)` when either is non-null. The attribution message names both. Item keys stay last.
 - [x] Phase 1 check passes. Restore-the-bug: delete the year-predicate branch and the collision guard in a copy, and confirm the check goes red.
 
@@ -61,9 +61,9 @@ Exploration findings that shape the plan:
 - [x] Measure NECR: FWA wetland area, the share of it inside the `ch_ff04` floodplain, and the wetland-flagged patch count and hectares. Record these in `findings.md`.
 
 ## Phase 5: Docs
-- [ ] CLAUDE.md disturbance bullet: the `context:` list, why it is not a source, the carry-collision guard, and that `fire_tag.R` now writes the main layer. **Forward-only:** other areas gain `in_wetland` on their next step 3 or `fire_tag.R` run.
-- [ ] README.Rmd: one sentence in the attribution paragraph (context layers such as `in_wetland` locate change, and never count as a cause). Render with `rmd_on = TRUE`, then run `readme_determinism-check.sh` and `readme_content-check.py`.
-- [ ] Update #93's body where it assumed the flag's shape, and comment on stac_floodplains_bc#6 with the new columns.
+- [x] CLAUDE.md disturbance bullet: the `context:` list, why it is not a source, the carry-collision guard, and that `fire_tag.R` now writes the main layer. **Forward-only:** other areas gain `in_wetland` on their next step 3 or `fire_tag.R` run.
+- [x] README.Rmd: one sentence in the attribution paragraph (context layers such as `in_wetland` locate change, and never count as a cause). Render with `rmd_on = TRUE`, then run `readme_determinism-check.sh` and `readme_content-check.py`.
+- [x] Update #93's body where it assumed the flag's shape, and comment on stac_floodplains_bc#6 with the new columns.
 
 ## Phase 6: Close out
 - [ ] `/code-check` on each commit, `/planning-archive`, `/gh-pr-push` (Closes #95).

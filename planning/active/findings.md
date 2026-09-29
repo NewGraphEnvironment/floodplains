@@ -186,6 +186,23 @@ Each new arm was shown to FAIL: a doctored snapshot (MEDIUMINT type, srs 3005, e
 FAIL; a schema-less snapshot gives 1 FAIL rather than passing vacuously; and
 `fp_same_values(0.1 + 0.2, 0.3)` is FALSE.
 
+## Review record, Phase 5 docs (one round)
+
+One claim-verification round over the staged prose (review-docs-round1.md): 1 moderate + 3 minor,
+all fixed.
+- **Moderate:** "any other area gains in_wetland on its next step 3 or fire_tag.R run" was false.
+  `fire_tag.R` refuses `mcgr`/`pine` (no cause columns at all) and any area whose overlay tables
+  moved. Fixed in CLAUDE.md, and in the stac_floodplains_bc#6 comment, edited in place and marked.
+- "Fire and harvest are what that file lists" is no longer true now that the file also lists
+  context. Fixed in README.Rmd, the readme_functions.R roxygen, and the figure subtitle, which meant
+  rebuilding `fig/attribution.png` from data/bulk. Only that PNG changed; the other figures rebuilt
+  byte-identical, and the numbers in it are unchanged.
+- The past-tense account of the `$` partial match (it was caught in review and never ran) is now
+  conditional in CLAUDE.md and disturbance-check.R.
+- task_plan.md named the pre-rename cfg key.
+
+The fixes to the prose were verified by re-reading against the code, not by a second round.
+
 ## Errors Encountered
 
 | Error | Resolution |

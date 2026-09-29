@@ -182,8 +182,9 @@ lost <- wetland; lost$carry <- list("WATERBODY_POLY_ID")
 ok("a carry the fetch did not return is refused, not silently dropped",
    refused(fp_disturbance_tag(patches, list(lost), NULL, fetch = stub)))
 
-# `$` partial-matches: with no sources, `cfg$disturbance` returned a `disturbance_context` list and
-# step 3 tagged and logged wetlands as causes. The mechanism is any cfg key that is a strict prefix
+# `$` partial-matches: with no sources, `cfg$disturbance` would have returned a `disturbance_context`
+# list and step 3 would have tagged and logged wetlands as causes (a key that existed only mid-branch;
+# caught in review). The mechanism is any cfg key that is a strict prefix
 # of another, so sweep every cfg key the scripts use rather than pinning this one pair.
 src_files <- list.files(here::here("scripts"), pattern = "[.]R$", recursive = TRUE, full.names = TRUE)
 tx <- unlist(lapply(src_files, readLines, warn = FALSE))

@@ -81,10 +81,16 @@ bbox is pushed into the SQL server-side so a province-wide layer never streams i
 
 Config is opt-in by file presence: no `config/disturbance.yml` ⇒ step 3 runs unchanged (no DB conn,
 no columns). Adding a source is config-only. `scripts/floodplain_lcc/fire_tag.R <area> [scenario]`
-re-tags an existing gpkg (writes a `*_disturbance` layer) without re-running the STAC fetch.
+re-tags every transition layer in place without re-running the STAC fetch. It keeps the published
+geometry and refuses to write if a cause column would change (`FORCE=1` overrides).
 
-Representative result (Trees→non-Trees loss, BULK co_ff04): fire 5% · harvest 36% · residual 62%.
-**Scope:** fire + harvest wired; pest/forest-health deferred (the config contract already supports
+**Context overlays** (`context:` in the same file, #95) are tagged the same way and never count as a
+cause. They are undated, excluded from the report and the README figure, and refused by the
+validator if given a `year_col`. `in_wetland` + `waterbody_poly_id` (FWA wetlands) locates wetland
+change so it can be filtered and reviewed. `disturbance-check.R` asserts the split.
+
+The attribution split itself is computed into the README figure (`fig/attribution.png`) and stated
+in no prose here, so it cannot go stale (#77). **Scope:** fire + harvest wired; pest/forest-health deferred (the config contract already supports
 it via `filter:` + `confidence:`). The transition layer now carries N disturbance attributes → the
 STAC publish schema must carry them (NewGraphEnvironment/stac_floodplains_bc#6).
 

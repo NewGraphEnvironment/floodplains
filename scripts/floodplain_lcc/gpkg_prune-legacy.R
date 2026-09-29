@@ -3,12 +3,12 @@
 # floodplain_landcover.gpkg can carry THREE transition layers for one scenario, two of them stale,
 # with no way for a consumer to tell which is live:
 #
-#   transition_<scenario>_<span>                current -- carries in_fire + in_harvest
+#   transition_<scenario>_<span>                current -- carries the in_<source> + in_<context> tags
 #   transition_<scenario>_<span>_disturbance    legacy
 #   transition_<scenario>_<span>_fire           legacy
 #
 # Disturbance attribution used to write a separate `_disturbance` layer (and fire_tag.R a `_fire`
-# one); it now writes those columns onto the main transition layer. The old names were never
+# one); both now write those columns onto the main transition layer (fire_tag.R since #95). The old names were never
 # removed, and NOTHING removes them: #23 made writes per-layer (append = file.exists +
 # delete_layer = TRUE) precisely so a second species does not wipe the first, which means a layer
 # whose NAME goes obsolete is never cleaned up. Correct for coexistence, and it strands orphans
