@@ -107,6 +107,11 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   refuses any area whose fire or cutblock table has changed since it was tagged; those need step 3
   or `FORCE=1`. `run_region.R` also skips a group whose `lulc_summary.rds` exists. `in_wetland` sits on **changed**
   patches only (`changes_only = TRUE`), so "stable land inside a wetland" needs its own overlay.
+- `DESCRIPTION` + `NEWS.md` — the repo is versioned (since 0.1.0, 2026-09-29). The version lives
+  in `DESCRIPTION` alone; do not restate it in prose. `/gh-pr-merge` adds the NEWS section, bumps
+  the version and tags `v<X.Y.Z>` on merge. `DESCRIPTION` deliberately has no `Imports:`:
+  `scripts/packages.R` installs the dependencies, and a second list would drift from it. It also
+  must not carry `Type: Project`, which `/gh-pr-merge` reads as a manifest and never tags.
 - `data/<area>/` — outputs (gitignored)
 - `README.Rmd` → `README.md` + `index.html` (Pages), with `scripts/readme_functions.R` (readers +
   gated figure builders), `scripts/readme_determinism-check.sh` and

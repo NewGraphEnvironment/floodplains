@@ -1,0 +1,10 @@
+Package: floodplains
+Title: Floodplain Delineation and Land Cover Change Across BC Watershed Groups
+Version: 0.1.0
+Date: 2026-09-29
+Description: Config-driven driver and provenance layer over the link, flooded and
+    drift packages: per-area network extraction, VCA floodplain delineation, and
+    STAC land cover classification with change detection and disturbance
+    attribution. The version identifies a state of this driver; package
+    dependencies are installed by scripts/packages.R.
+License: MIT
