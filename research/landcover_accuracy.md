@@ -1,12 +1,12 @@
 # IO LULC accuracy inside our floodplains
 
-**Verified:** 2026-09-29 · **Issues:** #93 (this work), #92 (report), #94 (review surface), #95
+**Verified:** 2026-09-30 · **Issues:** #93 (this work), #92 (report), #94 (review surface), #95
 (wetland flag), drift#79 / drift#81 (composites, sampling + estimators); spawned #100 (patch-level
 harvest attribution) and drift#92 (clear-observation counts) · **Produced by:**
 `scripts/landcover_accuracy/` (logs under `scripts/landcover_accuracy/logs/`) · **Status:**
 OPEN — criteria and definitions pre-registered; drought years and free reference measured
 (criterion 4 does not hold); NECR pilot sample and review project ready; composite-window rule
-pre-registered, counts running; **verdict pending human labels.**
+measured (August; 2017 August–September); **verdict pending human labels.**
 
 Every land-cover number this repo publishes — floodplain tree loss, the fire/harvest attribution
 split, the unattributed residual, wetland change — inherits the error of one external product, IO
@@ -215,9 +215,9 @@ The design record redraws **byte-identical**.
   `caffeinate -s` background job, and the chips are built only once the windows are measured.
 - **2017 summer imagery is thin.** Under the 20% scene-cloud filter, **5 of 15** test points had
   no usable July–August 2017 scene at all ("no scenes"). Only Sentinel-2A was flying, and 2017 was
-  a heavy smoke year. The 2017 endpoint is the one every transition depends on, so the window
-  measurement (drift#92) has to find a 2017 window that exists everywhere, or the review falls back
-  to HLS (drift#82) for that year.
+  a heavy smoke year. The window measurement settled it: July 2017 has no scene at all on the
+  floodplain and August reaches 0.852, but August–September clears everywhere. The 2017 chips use
+  that window (see Composite windows), so HLS (drift#82) is not needed for the endpoint.
 - **Estimation is wired end to end.** On synthetic labels (IO's own endpoints with 20% of `ref_to`
   flipped, `SYNTHETIC=1`) it returns the nonresponse table, error-adjusted areas with CIs for
   tree loss, unattributed tree loss and wetland change, the four criteria, and the full-sample
@@ -265,7 +265,26 @@ code is `fp_acc_window_*` in `scripts/landcover_accuracy/fp_accuracy.R`, and
 - **Early and late windows.** The first and last month clear everywhere in each year are
   reported here, not chipped. Chips cache per point, so adding them later rebuilds nothing.
 
-Results: pending the run.
+**Measured 2026-09-30** (`window_count-clear.R`, logs
+`scripts/landcover_accuracy/logs/20260930_window_count-clear_necr*`). The drift#87 grep was clean
+on every cache-filling log.
+
+- **No month is clear everywhere in all seven years.** Four month-years have no scene under 20%
+  cloud anywhere on the floodplain: 2017 April, May and July, and 2021 September. Mid-summer is
+  also not reliably clear: July 2019 is 0.180 and June 2019 is 0.811.
+- **The same season is August.** Without 2017, only May and August pass in every year. August
+  takes the tie on minimum share (0.9985 against 0.988).
+- **2017 needed the pre-registered deviation.** August 2017 alone reaches 0.852. Adding September
+  (0.999 on its own) gives a direct count of **1.000**, so the 2017 window is **August–September**.
+  HLS is not needed for the endpoint.
+- **Reference windows** (`reference/necr/windows.csv`): 2017 `8-9`; 2018, 2020 and 2023 `8`.
+- **Early and late windows.** The first month clear everywhere is May in five of the seven years
+  (April in 2021, June in 2017). The last is October in four (September in 2017 and 2020, August in
+  2021).
+  - This is a statement about **clear imagery, not phenology**.
+  - It means a May composite and an August–October composite exist in most years, for reading
+    seasonal amplitude by eye.
+  - Neither is chipped. Chips cache per point, so adding them later rebuilds nothing.
 
 ## Drought years
 

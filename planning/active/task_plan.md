@@ -58,12 +58,12 @@ What exploration found that shapes the plan:
 ## Phase 2: Measure the windows (live)
 - [x] `Rscript window_count-clear.R necr validate` → checks (a) res 100 vs 20, (b) ≤ distinct dates,
       (c) timing. Log to `scripts/landcover_accuracy/logs/20260930_window_count-clear_necr_validate.md`
-- [ ] `caffeinate -s Rscript window_count-clear.R necr run` (background, gated on the validate
+- [x] `caffeinate -s Rscript window_count-clear.R necr run` (background, gated on the validate
       timing). Before reading anything, gate on the output's mtime and the number of `failed` rows,
       never the wrapper's exit code. Re-run the failed month-years, since a cached month is free
-- [ ] `Rscript window_count-clear.R necr derive` → commit `reference/necr/windows.csv` plus the
+- [x] `Rscript window_count-clear.R necr derive` → commit `reference/necr/windows.csv` plus the
       curated CSV/log under `logs/20260930_window_count-clear_necr.*`
-- [ ] Research note: replace "Composite windows (measurement held)" with the measured section.
+- [x] Research note: replace "Composite windows (measurement held)" with the measured section.
       It covers the per-month table, the span, whether 2017 needed widening, and early vs late
       amplitude. Update the header Status and the "2017 summer imagery is thin" bullet
 
