@@ -31,6 +31,13 @@ That measurement also answers a bigger question: **is it worth classifying land 
       topic-file rule plus a cutover line (closes #86)
 - [x] Commit before any phase-2 to phase-4 measurement runs
 
+## Phase 1b: Operational definitions (plan review G3/G4 — before any Phase 4/5 result)
+- [ ] Pin in the research note how each criterion is computed from drift's outputs (map year,
+      reference endpoint, UA by map class vs stratum, cell-level cause polygons), the omission
+      definition (qualifying polygons, denominator, both numerators), and the strata definition
+      (footprint population, sieved stratum, cell-level wetland)
+- [ ] `scripts/packages.R`: add rfp + tidyhydat; drift floor comment → 0.19.0 for `dft_accuracy_*`
+
 ## Phase 2: Windows, measured
 - [x] Upgrade drift to ≥ 0.19.0 (`pak`). Bump `scripts/packages.R` and the `fp_lulc` floor
       comment only if something here needs it
@@ -61,25 +68,33 @@ That measurement also answers a bigger question: **is it worth classifying land 
 - [ ] Both into the research note plus logs. Criterion 4 evaluated
 
 ## Phase 5: Strata and pilot sample
-- [ ] `fp_accuracy.R` strata builder on the transition grid, with **first-match precedence**:
-      fire → harvest (causes read from `sources:` names only, never `in_*`) → wetland change
-      (Flooded Veg from/to, or `in_wetland`) → Trees→Rangeland → Rangeland→Trees →
-      Crops↔Rangeland → Crops↔Trees → Snow/Ice→* → *↔Water → other tree loss → other change.
-      Stable strata: stable ∩ FWA wetland → stable Trees → stable other. Rasterise in memory,
-      then `mask()` to the map
+- [ ] `fp_accuracy.R` strata builder on the transition grid, with **first-match precedence**
+      (revised per plan review B2/B3/G1): population = floodplain footprint (`classified_2017`
+      non-NA), not `transition.tif`. Change strata: causes in `sources:` order (patch flags as
+      published, never `in_*`) → wetland change (FV endpoint OR cell inside rasterised
+      `fwa_wetlands_poly`) → Trees→Rangeland → Rangeland→Trees → Crops↔Rangeland → Crops↔Trees →
+      Snow/Ice→* → *↔Water → other tree loss → other change, with transition classes read from the
+      raster codes. **Sieved change (<1 ha)** is its own stratum, and its map claim is "no change".
+      Stable strata: stable ∩ FWA wetland → stable Trees → stable other. Assert that the
+      transition matches the classified endpoints and that rasterised patch cells ⊆ change cells
 - [ ] `accuracy-check.R` covers: precedence, a context column never becoming a cause,
       stable-vs-change completeness (every mapped cell gets exactly one stratum), and
       recode-then-estimate union targets (all tree loss, the unattributed residual) on a toy grid
-- [ ] `sample_draw-pilot.R`: `dft_accuracy_sample(strata, n = 30, seed = <fixed>, map = <2017..2023 + transition>)`
-      → `reference/necr/sample.gpkg` (OGR date pinned), `strata.csv`, `design.json`
+- [ ] `sample_draw-pilot.R`: `dft_accuracy_sample(strata, n = 30, seed = <fixed>, map = c(list(class = reported), <2017..2023>))`
+      (named `class` gives `map_class`, per review G2) plus cell-level `in_<cause>_poly` per point
+      (criterion 2) → `reference/necr/sample.gpkg` (OGR date pinned, the design record),
+      `strata.csv`, `design.json`
 
 ## Phase 6: Review setup
-- [ ] `chip_build-composite.R`: one `dft_stac_composite()` per buffered point per phase-2 window
-      (true colour), cached as COGs under `data/necr/reference_chips/` (gitignored)
+- [ ] `chip_build-composite.R`: one `dft_stac_composite()` per buffered point per window
+      (true colour), `cache_dir` inside the project dir, a manifest, one VRT per window-year.
+      Time 5 points (review S1: ~50 s per chip). The full build waits on the Phase 2 windows
+      (drift#92)
 - [ ] Label layer: the sample points plus empty `ref_from`, `ref_to`, `change`, `confidence`,
       `imagery`, `note`, `reviewer`, `date`, `use`. The value-map QML is committed in
       `reference/necr/`
-- [ ] `review_build-qgis.R`: build the project with rfp (label layer + QML, chips, Esri/Google
+- [ ] `review_build-qgis.R` (reviewers edit a working copy inside the project dir, never
+      `reference/necr/sample.gpkg`): build the project with rfp (label layer + QML, chips, Esri/Google
       services, transition patches with `in_*`). If rfp cannot build a bare non-fieldwork
       project, file an rfp issue and ship the gpkg + QML + chips as the deliverable
 - [ ] `labels_export.R`: gpkg label layer → `reference/necr/labels.csv` (committed, diffable),
