@@ -103,7 +103,7 @@ That measurement also answers a bigger question: **is it worth classifying land 
       (clearly marked, never committed as `labels.csv`), so labelling is the only missing input
 
 ## Phase 7: Handoff (human labelling is outside this branch)
-- [ ] Research note "Status": sample and project ready; verdict pending labels
+- [x] Research note "Status": sample and project ready; verdict pending labels
 - [ ] Edit the #93 body: phases 1–6 delivered (PR "Part of #93", #93 stays open). The remaining
       steps are label → `labels_export.R` → `accuracy_estimate.R` → `dft_accuracy_size` → the
       verdict against the criteria → #92, with the exact commands

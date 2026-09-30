@@ -107,6 +107,28 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   refuses any area whose fire or cutblock table has changed since it was tagged; those need step 3
   or `FORCE=1`. `run_region.R` also skips a group whose `lulc_summary.rds` exists. `in_wetland` sits on **changed**
   patches only (`changes_only = TRUE`), so "stable land inside a wetland" needs its own overlay.
+- **IO LULC accuracy (#93): `scripts/landcover_accuracy/` + `reference/<area>/`.** Measures the
+  error of the land cover under every number here with a stratified reference sample (Olofsson
+  2014). drift owns the sampler and estimators (`dft_accuracy_*`, drift ≥ 0.19.0); this module
+  builds the strata, the review project (rfp) and the verdict. `research/landcover_accuracy.md` is
+  the topic file. It holds the **pre-registered** classify-ourselves criteria and their operational
+  definitions, and both were committed before any result; do not edit them to fit a result.
+  `reference/<area>/` holds **committed inputs**:
+  - `sample.gpkg`, `strata.csv`, `design.json`: the design record, never hand-edited.
+  - `labels.csv`: the labels every accuracy number regenerates from.
+  - `labels_form.qml`: the review form.
+
+  Rules that are easy to break:
+  - **A `point_id` is not an identity.** drift names points `<stratum>_<k>`, so a redraw moves
+    points under the same ids. Every stage checks stratum, cell and map class against the design,
+    and `sample_draw-pilot.R` refuses to redraw over labels.
+  - **The population is the classified footprint, not `transition.tif`.** The 1 ha sieve removes
+    18% of NECR's IO change; it gets its own stratum, whose map claim is "no change".
+  - **Wetland is decided per cell** (FWA polygon or Flooded Vegetation), never from the any-touch
+    `in_wetland` flag.
+  - **Causes come from `design.json`.**
+  - `accuracy-check.R` asserts all of this offline, with must-fail arms.
+  - Composite windows are held on drift#92 (`aggregation = "count"` returns reflectance).
 - `DESCRIPTION` + `NEWS.md` — the repo is versioned (since 0.1.0, 2026-09-29). The version lives
   in `DESCRIPTION` alone; do not restate it in prose. `/gh-pr-merge` adds the NEWS section, bumps
   the version and tags `v<X.Y.Z>` on merge. `DESCRIPTION` deliberately has no `Imports:`:
