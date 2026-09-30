@@ -58,14 +58,14 @@ That measurement also answers a bigger question: **is it worth classifying land 
 - [x] Research note section plus a log
 
 ## Phase 4: Free reference (results)
-- [ ] `reference_omission-disturbance.R`: per in-window fire and harvest polygon, floodplain
+- [x] `reference_omission-disturbance.R`: per in-window fire and harvest polygon, floodplain
       area ∩ IO Trees-in-2017 vs the area IO labels as tree loss by 2023. Denominator stated.
       Harvest start ≤ 2022 so the 2023 map can see it. Caveats beside the number (partial cuts,
       start-year vs removal, non-stand-replacing fire). Feeds criterion 4
-- [ ] `reference_composition-wetland.R`: per-year IO class composition inside
+- [x] `reference_composition-wetland.R`: per-year IO class composition inside
       `fwa_wetlands_poly` ∩ floodplain, from the **classified rasters** (not `in_wetland`,
       which exists on changed patches only)
-- [ ] Both into the research note plus logs. Criterion 4 evaluated
+- [x] Both into the research note plus logs. Criterion 4 evaluated
 
 ## Phase 5: Strata and pilot sample
 - [ ] `fp_accuracy.R` strata builder on the transition grid, with **first-match precedence**

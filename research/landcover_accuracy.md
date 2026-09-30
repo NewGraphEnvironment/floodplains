@@ -101,6 +101,56 @@ transition is `from * 1000 + to`.
 - **Causes** are the names under `sources:` in `config/disturbance.yml`, taken in that order. They
   use the published patch flags, because that is the attribution the report states.
 
+## Free reference: results
+
+**Verified:** 2026-09-29 · **Produced by:** `scripts/landcover_accuracy/reference_omission-disturbance.R`
+and `reference_composition-wetland.R`, logs `scripts/landcover_accuracy/logs/20260929_reference_*_necr.*`.
+
+### Omission of known disturbance
+
+These are computed exactly as defined above. The breakdown is **per start year** rather than per
+polygon (79 polygons, most under 1 ha of floodplain Trees). That is a reporting choice and changes
+nothing in the criterion.
+
+| source | polygons | IO Trees 2017 inside (ha) | IO omission | published omission |
+|---|---:|---:|---:|---:|
+| harvest (clearcut ≥ 90%, RESULTS/VRI, 2018–2022) | 79 | 92.1 | **0.255** | 0.411 |
+| fire (2018–2022) | 3 | 635.2 | 0.314 | 0.329 |
+
+- **Criterion 4 does not hold.** IO labels 74.5% of qualifying harvest area as tree loss by 2023,
+  so it misses 25.5%, under the 30% bar. The annual rows range 0.20–0.33, over 12–24 ha each.
+- **The sieve costs more than IO does.** The published map misses 41.1% of the same harvest area,
+  so step 3's 1 ha sieve adds 16 points of omission on top of IO's. That is a property of our
+  product, not of IO, and it is the reason the stratified sample carries a sieved-change stratum.
+- The denominator is small. NECR's floodplain holds only 92 ha of qualifying clearcut that IO saw
+  as Trees in 2017, so this is a census of a small population, not a precise rate. Nearly all of
+  the fire row is the two 2018 fires.
+- Caveats, as defined: riparian reserves inside cutblock polygons inflate apparent omission;
+  start year is not removal date; regrowth to Trees by 2023 reads as missed.
+
+### How IO labels a mapped wetland
+
+Inside FWA wetlands, per cell centre: 1,122 polygons touch the floodplain, covering 6,436.6 ha of
+the 41,838 ha footprint.
+
+| IO class | 2017 | 2018 | 2019 | 2020 | 2021 | 2022 | 2023 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Trees | 0.583 | 0.568 | 0.508 | 0.565 | 0.527 | 0.552 | 0.518 |
+| Rangeland | 0.340 | 0.350 | 0.412 | 0.349 | 0.387 | 0.380 | 0.411 |
+| Crops | 0.052 | 0.057 | 0.058 | 0.058 | 0.056 | 0.047 | 0.049 |
+| Water | 0.012 | 0.018 | 0.017 | 0.017 | 0.022 | 0.016 | 0.018 |
+| Flooded Vegetation | 0.003 | 0.006 | 0.004 | 0.009 | 0.006 | 0.005 | 0.004 |
+
+- **IO almost never calls a mapped wetland "Flooded Vegetation"**: 0.3–0.9% in every year. Treed
+  swamp is legitimately Trees under IO's legend, so this is not an error rate by itself. It does
+  mean that wetland change in IO terms is almost entirely **Trees ↔ Rangeland** movement inside
+  wetlands, not a Flooded Vegetation signal. Criterion 1 (FV producer's accuracy) and criterion 3
+  (Trees→Rangeland user's accuracy) are the two places the sample will test it.
+- **The Trees/Rangeland split inside wetlands moves 7 points between years** (Trees 0.508 in 2019,
+  0.583 in 2017), with nothing on the ground known to move it. Across the whole floodplain, Trees
+  moves 3.5 points (0.411–0.445). That year-to-year flicker, 2× stronger in wetlands, is
+  what a change map built from two single years inherits.
+
 ## Accuracy labels and training labels never mix
 
 Decided before anyone labels anything. Every point in the reference sample carries
