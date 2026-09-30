@@ -16,6 +16,23 @@ What exploration found, and how it shaped the plan:
   local DB, which is a **machine change, stated here**.
 
 
+## Phase 2: `aggregation = "count"` is not a count (2026-09-29)
+
+The issue body prescribed `dft_stac_composite(aggregation = "count")`, and drift's composite docs
+point the same way. drift passes `aggregation` straight to `gdalcubes::cube_view()`, which supports
+only min/max/mean/median/first (gdalcubes 0.7.5), and an unsupported value is not refused. Measured
+on a 2 km square in the NECR floodplain, July 2021 and July 2023, `res = 20`: values are continuous,
+with a median around 0.03 to 0.04 (vegetation red reflectance). They are not integers times the
+1e-4 scale, and 2023 shows no −0.1 offset shift. The validation run also saw 17 items over 6
+distinct dates (tiles 09UYV, 10UCE, 10UDE), so a true per-pixel count could be at most 17.
+
+- Filed drift#92: validate `aggregation`, provide clear-observation counts (`dt = P1D` +
+  `reduce_time("count(band)")`, unscaled), and invalidate the cached count composites.
+- `window_count-clear.R` now refuses a non-integer count (the guard fired on the live output).
+  Phase 2's measurement waits on drift#92.
+- Sourcing `run_area.R` for `fp_read_config()` would dispatch the pipeline, because it has no main
+  guard. `fp_accuracy.R::fp_acc_area()` reads the minimum of `area.yml` instead.
+
 ## Issue context
 
 > **Status: parked (2026-09-28)** until #95 (wetland flag, delivered 2026-09-29 pending merge) and drift#81 (sampling + estimators) merge; then run as one branch via `/planning-init 93`. drift#79 (composites) is already delivered. The Phases section below is the plan of record.
@@ -182,3 +199,4 @@ Relates: #92 (report), #95 (wetland flag), #94 (collaborator review surface), dr
 
 | Error | Resolution |
 |-------|------------|
+| `aggregation = "count"` returned reflectance (drift 0.19.0) | Filed drift#92; integer guard in `window_count-clear.R`; phase 2 measurement held |

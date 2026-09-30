@@ -32,9 +32,9 @@ That measurement also answers a bigger question: **is it worth classifying land 
 - [x] Commit before any phase-2 to phase-4 measurement runs
 
 ## Phase 2: Windows, measured
-- [ ] Upgrade drift to ≥ 0.19.0 (`pak`). Bump `scripts/packages.R` and the `fp_lulc` floor
+- [x] Upgrade drift to ≥ 0.19.0 (`pak`). Bump `scripts/packages.R` and the `fp_lulc` floor
       comment only if something here needs it
-- [ ] `window_count-clear.R`: validate one month first, at `res=100` against a finer `res` on a
+- [ ] (blocked: drift#92 — `aggregation="count"` returns reflectance; script + integer guard landed) `window_count-clear.R`: validate one month first, at `res=100` against a finer `res` on a
       small sub-AOI, and against the per-month `eo:cloud_cover` item count
 - [ ] Run months 4–10 × 2017–2023 over the NECR `ch_ff04` floodplain (`aggregation="count"`,
       `bands="red"`, `clip=TRUE`) under `caffeinate -s`. Per-month/year median clear-obs → CSV + log
