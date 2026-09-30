@@ -23,13 +23,13 @@ That measurement also answers a bigger question: **is it worth classifying land 
 
 
 ## Phase 1: Pre-registered criteria
-- [ ] `research/landcover_accuracy.md` with the header line (Verified/Issues/Produced by), the
+- [x] `research/landcover_accuracy.md` with the header line (Verified/Issues/Produced by), the
       four move-6 criteria verbatim ("any two ⇒ pilot a local classifier"), and the
       accuracy/training split decision (every point in this sample has `use = "accuracy"`;
       training labels will only ever come from a separate draw)
-- [ ] `research/README.md`: add the index row, and replace the dated-memo rule with the
+- [x] `research/README.md`: add the index row, and replace the dated-memo rule with the
       topic-file rule plus a cutover line (closes #86)
-- [ ] Commit before any phase-2 to phase-4 measurement runs
+- [x] Commit before any phase-2 to phase-4 measurement runs
 
 ## Phase 2: Windows, measured
 - [ ] Upgrade drift to ≥ 0.19.0 (`pak`). Bump `scripts/packages.R` and the `fp_lulc` floor
