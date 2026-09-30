@@ -5,8 +5,8 @@
 harvest attribution) and drift#92 (clear-observation counts) · **Produced by:**
 `scripts/landcover_accuracy/` (logs under `scripts/landcover_accuracy/logs/`) · **Status:**
 OPEN — criteria and definitions pre-registered; drought years and free reference measured
-(criterion 4 does not hold); NECR pilot sample and review project ready; composite windows held on
-drift#92; **verdict pending human labels.**
+(criterion 4 does not hold); NECR pilot sample and review project ready; composite-window rule
+pre-registered, counts running; **verdict pending human labels.**
 
 Every land-cover number this repo publishes — floodplain tree loss, the fire/harvest attribution
 split, the unattributed residual, wetland change — inherits the error of one external product, IO
@@ -231,14 +231,35 @@ met and a local classifier is piloted, its training labels come from a **separat
 own seed. They are never taken from this sample, because a label that trains a classifier cannot
 also measure it.
 
-## Composite windows (measurement held)
+## Composite windows
 
-**Held on drift#92.** The plan was to count clear Sentinel-2 observations per month with
-`dft_stac_composite(aggregation = "count")`. drift 0.19.0 passes that value to gdalcubes'
-`cube_view()`, which has no count, and returns red **reflectance** with no error: a median of
-0.03–0.04 on a 2 km NECR test square, where a true count would be at most 17 (17 items over 6
-dates). `scripts/landcover_accuracy/window_count-clear.R` now refuses a non-integer count, and the
-guard fired on the live output. The windows get measured once drift can count.
+**Rule pre-registered 2026-09-30, before any count ran** (drift 0.20.0, which fixed drift#92). The
+code is `fp_acc_window_*` in `scripts/landcover_accuracy/fp_accuracy.R`, and
+`accuracy-check.R` pins it with must-fail arms.
+
+- **The measure.** `window_count-clear.R <area> run` counts **distinct clear days** per pixel for
+  each month 4–10 of 2017–2023. It runs over the whole primary floodplain at res 100, with the
+  chips' own scene filter (`cloud_cover_max = 20`). "Clear" means outside the SCL mask, so it
+  excludes snow as well as cloud and shadow.
+- **A month is clear everywhere in a year** when at least **95%** of floodplain cells have one
+  or more clear days (`share_ge1 >= 0.95`).
+  - A month with no scene at all is a measured zero.
+  - A month whose call failed is refused, not scored.
+- **The same-season span** is the longest run of contiguous months that is clear everywhere in
+  **every** year. Ties go to the higher minimum share over the run's cells, then to the earlier run.
+- **The one deviation allowed in advance is 2017.** It is the thin year: Sentinel-2A only, plus
+  heavy smoke. If no span exists across all seven years but one exists without 2017:
+  - 2017 is widened one adjacent month at a time, taking the higher-share neighbour first.
+  - Each widened window is accepted only when a **direct count of that whole window** clears 95%.
+    A union of months cannot be read off per-month shares.
+  - If nothing within months 4–10 passes, the fallback is HLS (drift#82).
+- **Chipped windows.** `derive` writes `reference/<area>/windows.csv` with one `same_season` row
+  each for **2017, 2018, 2020 and 2023**: the endpoints, the borderline-dry year and the wet year
+  (see Drought years).
+- **Early and late windows.** The first and last month clear everywhere in each year are
+  reported here, not chipped. Chips cache per point, so adding them later rebuilds nothing.
+
+Results: pending the run.
 
 ## Drought years
 
