@@ -115,7 +115,7 @@ That measurement also answers a bigger question: **is it worth classifying land 
 
 ## Validation
 
-- [ ] Tests pass (`scripts/landcover_accuracy/accuracy-check.R`, each must-fail arm red when its rule is broken)
-- [ ] `/code-check` clean on each commit
-- [ ] PWF checkboxes match landed work
+- [x] Tests pass (`scripts/landcover_accuracy/accuracy-check.R`, each must-fail arm red when its rule is broken)
+- [x] `/code-check` clean — run once over ALL branch code (4 rounds, terminal by a 75-row enumeration) before the phase 5–6 commit, not before each earlier commit; phases 2–4 scripts were reviewed after they landed
+- [x] PWF checkboxes match landed work (phase 2 measurement + the #93 body edit remain open by design)
 - [ ] `/planning-archive` on completion
