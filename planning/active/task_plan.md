@@ -32,14 +32,14 @@ What exploration found that shapes the plan:
   chips. Chips cache per point, so early/late chips can be added later without rebuilding.
 
 ## Phase 1: drift 0.20.0 and the window script
-- [ ] `pak::pak("NewGraphEnvironment/drift")` → 0.20.0 (machine change, stated in the PR). Update the
+- [x] `pak::pak("NewGraphEnvironment/drift")` → 0.20.0 (machine change, stated in the PR). Update the
       drift floor comment in `scripts/packages.R` to name 0.20.0 for `aggregation = "count"`
-- [ ] `window_count-clear.R` validate (b): bound the max per-pixel count by **distinct dates**, not
+- [x] `window_count-clear.R` validate (b): bound the max per-pixel count by **distinct dates**, not
       items. Keep the item count printed as a cross-check
-- [ ] Add a validate step (c) that **times one floodplain-wide month** at res 100 (2021-07, the
+- [x] Add a validate step (c) that **times one floodplain-wide month** at res 100 (2021-07, the
       same month as (a)). Print the minutes and the extrapolation to 49 calls, so `run` is
       launched on a measured cost
-- [ ] Add a `derive` mode: read `windows_clear_obs.csv` and write `reference/<area>/windows.csv`.
+- [x] Add a `derive` mode: read `windows_clear_obs.csv` and write `reference/<area>/windows.csv`.
       The rule is pre-registered in the research note and committed **before** `run`:
       - A month is "clear everywhere" in a year when `share_ge1 >= 0.95`.
       - The same-season span is the longest run of contiguous months that is clear everywhere in
@@ -48,15 +48,15 @@ What exploration found that shapes the plan:
         the deviation. HLS (drift#82) is the fallback named if nothing passes.
       - It writes `same_season` rows for 2017, 2018, 2020 and 2023.
       - The early/late windows are reported in the note and CSV, not chipped.
-- [ ] Refresh the stale comments: drift#92 in `window_count-clear.R` and in
+- [x] Refresh the stale comments: drift#92 in `window_count-clear.R` and in
       `chip_build-composite.R` line 12, and the "no chips yet (drift#92)" message in
       `review_build-qgis.R`
-- [ ] `accuracy-check.R`: an offline arm for `derive` on a hand-built stats frame. A month below
+- [x] `accuracy-check.R`: an offline arm for `derive` on a hand-built stats frame. A month below
       0.95 in one year breaks the span (must-fail), a `failed`/NA row refuses rather than passes,
       and 2017-only widening is taken only when it passes
 
 ## Phase 2: Measure the windows (live)
-- [ ] `Rscript window_count-clear.R necr validate` → checks (a) res 100 vs 20, (b) ≤ distinct dates,
+- [x] `Rscript window_count-clear.R necr validate` → checks (a) res 100 vs 20, (b) ≤ distinct dates,
       (c) timing. Log to `scripts/landcover_accuracy/logs/20260930_window_count-clear_necr_validate.md`
 - [ ] `caffeinate -s Rscript window_count-clear.R necr run` (background, gated on the validate
       timing). Before reading anything, gate on the output's mtime and the number of `failed` rows,

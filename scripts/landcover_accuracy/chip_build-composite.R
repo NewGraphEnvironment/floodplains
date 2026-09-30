@@ -7,7 +7,7 @@
 # own, so extending the pilot to the full sample fetches only the new points.
 #
 # Windows come from reference/<area>/windows.csv (columns: window, year, months), which phase 2
-# writes once the windows are MEASURED. That measurement is held on drift#92, so this script refuses
+# writes once the windows are MEASURED (`window_count-clear.R <area> derive`), so this script refuses
 # to run without the file rather than guess; `WINDOWS=<csv>` points it at another file (a timing run).
 #
 # Output, all inside the review project so rfp can reference it (rfp stops on a raster outside the
@@ -32,9 +32,10 @@ cfg  <- fp_acc_area(area)
 BUFFER_M <- 300   # half-width of a chip: 600 m square, 60 x 60 cells at 10 m
 win_file <- Sys.getenv("WINDOWS", file.path(cfg$dir_ref, "windows.csv"))
 if (!file.exists(win_file))
-  stop("no ", win_file, ": the composite windows are measured in phase 2, which waits on drift#92",
+  stop("no ", win_file, ": the composite windows are measured first -- run window_count-clear.R <area> run, then derive",
        call. = FALSE)
-wins <- utils::read.csv(win_file, stringsAsFactors = FALSE)
+# months as character: an all-single-month file ("7") would otherwise read back as integer
+wins <- utils::read.csv(win_file, stringsAsFactors = FALSE, colClasses = c(months = "character"))
 if (!all(c("window", "year", "months") %in% names(wins)))
   stop(win_file, " needs columns window, year, months (e.g. \"7-8\")", call. = FALSE)
 if (anyDuplicated(wins[, c("window", "year")])) stop("duplicate window x year in ", win_file, call. = FALSE)

@@ -249,9 +249,15 @@ code is `fp_acc_window_*` in `scripts/landcover_accuracy/fp_accuracy.R`, and
   **every** year. Ties go to the higher minimum share over the run's cells, then to the earlier run.
 - **The one deviation allowed in advance is 2017.** It is the thin year: Sentinel-2A only, plus
   heavy smoke. If no span exists across all seven years but one exists without 2017:
-  - 2017 is widened one adjacent month at a time, taking the higher-share neighbour first.
-  - Each widened window is accepted only when a **direct count of that whole window** clears 95%.
-    A union of months cannot be read off per-month shares.
+  - The span itself is counted directly for 2017 first. Each of its months can fail on its own
+    while their union clears the bar.
+  - If the span fails, 2017 is widened one adjacent month at a time. The higher-share neighbour
+    goes first, and a tie takes the earlier month.
+  - Each window is accepted only when a **direct count of that whole window** clears 95%. A union
+    of months cannot be read off per-month shares.
+  - *Amended 2026-09-30:* the span-first count and the tie-break were added after the counts
+    started, but before any result was read. Both came from code review, and the tie-break was
+    already in the code.
   - If nothing within months 4–10 passes, the fallback is HLS (drift#82).
 - **Chipped windows.** `derive` writes `reference/<area>/windows.csv` with one `same_season` row
   each for **2017, 2018, 2020 and 2023**: the endpoints, the borderline-dry year and the wet year

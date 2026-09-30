@@ -115,6 +115,6 @@ for (v in sort(vrts)) {
   rfp::rfp_qgs_raster_add(qgs, raster = file.path("chips", v), name = nm, qml = qml_rgb,
                           stretch = "none", group = "Reference imagery", visible = FALSE)
 }
-if (!length(vrts)) message("no chips yet: run chip_build-composite.R once the windows are measured (drift#92)")
+if (!length(vrts)) message("no chips yet: run chip_build-composite.R once reference/<area>/windows.csv exists (window_count-clear.R derive)")
 
 message("project: ", qgs)

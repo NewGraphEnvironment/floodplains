@@ -361,3 +361,73 @@ fp_acc_estimate <- function(lab, smp, strata, causes, omission_harvest_io = NA_r
   list(transition = trans, targets = targets, criteria = crit, verdict = verdict,
        nonresponse = nr, size = size, level = level)
 }
+
+# --- composite windows (#93 phase 2) -----------------------------------------------------------
+# The rule is pre-registered in research/landcover_accuracy.md ("Composite windows") and was
+# committed before the counts ran. Pure: it reads window_count-clear.R's per-month stats and
+# decides; the live half (a direct count of a widened window) is the script's.
+FP_ACC_WIN_THR <- 0.95   # a month is clear everywhere when >= 95% of floodplain cells see a clear day
+
+# stats: one row per year x month with `status` (ok | empty | failed) and `share_ge1`.
+# -> list(pass = logical year x month matrix, share = numeric matrix)
+# A missing, duplicated or failed month-year is refused: an unmeasured month is not a failed one,
+# and treating it as either would move the span.
+fp_acc_window_pass <- function(stats, years, months, thr = FP_ACC_WIN_THR) {
+  key  <- paste(stats$year, stats$month)
+  want <- paste(rep(years, each = length(months)), rep(months, length(years)))
+  if (anyDuplicated(key)) stop("duplicate year x month in the window stats", call. = FALSE)
+  miss <- setdiff(want, key)
+  if (length(miss)) stop("window stats lack ", length(miss), " year x month(s): ",
+                         paste(utils::head(miss, 5), collapse = ", "), call. = FALSE)
+  s <- stats[match(want, key), ]
+  bad <- s$status == "failed" | is.na(s$status) | is.na(s$share_ge1)
+  if (any(bad)) stop(sum(bad), " month-year(s) failed or unmeasured (", paste(want[bad], collapse = ", "),
+                     "): re-run window_count-clear.R before deriving windows", call. = FALSE)
+  share <- matrix(s$share_ge1, nrow = length(years), byrow = TRUE,
+                  dimnames = list(as.character(years), as.character(months)))
+  list(pass = share >= thr, share = share)
+}
+
+# Longest run of contiguous months that passes in every one of `years`; ties go to the run with the
+# higher minimum share over its cells, then to the earlier run. integer(0) when no month passes.
+fp_acc_window_span <- function(wp, years = rownames(wp$pass)) {
+  yrs    <- as.character(years)
+  months <- as.integer(colnames(wp$pass))
+  ok_m   <- apply(wp$pass[yrs, , drop = FALSE], 2, all)
+  runs <- list(); cur <- integer(0)
+  for (k in seq_along(months)) {
+    contiguous <- length(cur) && months[k] == cur[length(cur)] + 1L
+    if (ok_m[k]) cur <- if (contiguous) c(cur, months[k]) else months[k]
+    else cur <- integer(0)
+    if (ok_m[k]) runs[[length(runs) + 1]] <- cur
+  }
+  if (!length(runs)) return(integer(0))
+  # keep only maximal runs (the loop records every prefix)
+  runs <- runs[!vapply(seq_along(runs), function(i)
+    i < length(runs) && all(runs[[i]] %in% runs[[i + 1]]), logical(1))]
+  len  <- vapply(runs, length, integer(1))
+  minv <- vapply(runs, function(r) min(wp$share[yrs, as.character(r), drop = FALSE]), numeric(1))
+  first <- vapply(runs, `[`, integer(1), 1)
+  runs[[order(-len, -minv, first)[1]]]
+}
+
+# The widening order for one year that fails the span: add the adjacent month (within `months`)
+# with the higher share for that year, one at a time; a tie takes the earlier month. Returns the
+# candidate windows, narrowest first, each one month wider. Which one is USED is decided by a
+# direct count of the whole window -- a union of months cannot be read off per-month shares.
+fp_acc_window_widen <- function(wp, year, span) {
+  months <- as.integer(colnames(wp$pass))
+  sh <- wp$share[as.character(year), ]
+  out <- list(); cur <- span
+  repeat {
+    cand <- c(cur[1] - 1L, cur[length(cur)] + 1L)
+    cand <- cand[cand %in% months]
+    if (!length(cand)) break
+    add <- cand[order(-sh[as.character(cand)], cand)[1]]
+    cur <- sort(c(cur, add))
+    out[[length(out) + 1]] <- cur
+  }
+  out
+}
+
+fp_acc_months_str <- function(m) if (length(m) == 1) as.character(m) else paste0(min(m), "-", max(m))

@@ -187,3 +187,22 @@ Relates: #92 (report), #95 (wetland flag), #94 (collaborator review surface), dr
 
 | Error | Resolution |
 |-------|------------|
+| `grep` returned nothing / "ugrep: warning" on a file that has the string | `grep` is shadowed by ugrep in this shell; use `/usr/bin/grep` or python |
+
+## Validate (2026-09-30)
+
+res 100 = res 20 (median 5); max 6 = distinct dates 6 of 17 items; floodplain-wide 2021-07 in
+0.8 min, share >= 1 clear day 0.9996. Log `scripts/landcover_accuracy/logs/20260930_window_count-clear_necr_validate.md`.
+
+## /code-check
+
+- Round 1: `months` read back as integer when every `windows.csv` row is a single month (fixed:
+  colClasses). Two rule gaps: 2017's span never counted directly, and the tie-break missing from
+  the prose. Both fixed, with the prose amendment noted before any result was read.
+- Round 2: gdalcubes chunk failures are invisible (drift#87, upstream). The documented log-grep
+  step was added.
+- Round 3: inside round 2's fix, the grep did not cover derive or cache-filling logs, and there
+  was no `force` path (fixed: FORCE=1 and the header procedure). Terminal enumeration in
+  `review-enumeration.md` (13 sites).
+- Live log: 2017-04, 2017-05 and 2017-07 returned 0 items (`empty`). 2017 will need the
+  widening.
