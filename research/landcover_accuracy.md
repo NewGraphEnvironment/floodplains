@@ -1,9 +1,12 @@
 # IO LULC accuracy inside our floodplains
 
 **Verified:** 2026-09-29 · **Issues:** #93 (this work), #92 (report), #94 (review surface), #95
-(wetland flag), drift#79 / drift#81 (composites, sampling + estimators) · **Produced by:**
+(wetland flag), drift#79 / drift#81 (composites, sampling + estimators); spawned #100 (patch-level
+harvest attribution) and drift#92 (clear-observation counts) · **Produced by:**
 `scripts/landcover_accuracy/` (logs under `scripts/landcover_accuracy/logs/`) · **Status:**
-OPEN — criteria pre-registered; measurements and verdict below as they land.
+OPEN — criteria and definitions pre-registered; drought years and free reference measured
+(criterion 4 does not hold); NECR pilot sample and review project ready; composite windows held on
+drift#92; **verdict pending human labels.**
 
 Every land-cover number this repo publishes — floodplain tree loss, the fire/harvest attribution
 split, the unattributed residual, wetland change — inherits the error of one external product, IO
@@ -150,6 +153,75 @@ the 41,838 ha footprint.
   0.583 in 2017), with nothing on the ground known to move it. Across the whole floodplain, Trees
   moves 3.5 points (0.411–0.445). That year-to-year flicker, 2× stronger in wetlands, is
   what a change map built from two single years inherits.
+
+## Reference sample (NECR pilot)
+
+**Drawn:** 2026-09-29 · **Produced by:** `scripts/landcover_accuracy/sample_draw-pilot.R`, log
+`scripts/landcover_accuracy/logs/20260929_sample_draw-pilot_necr.md` · **Record:**
+`reference/necr/{sample.gpkg,strata.csv,design.json}` · seed 930093, 30 points per stratum.
+
+The 15 strata partition the 41,838 ha footprint exactly. The change strata sum to the 472,998
+published change cells, and the sieved stratum holds the 104,947 cells the 1 ha sieve removed.
+The design record redraws **byte-identical**.
+
+| stratum | ha | weight |
+|---|---:|---:|
+| change: fire | 582.5 | 0.0139 |
+| change: harvest | 621.5 | 0.0149 |
+| wetland change | 950.5 | 0.0227 |
+| Trees → Rangeland | 274.3 | 0.0066 |
+| Rangeland → Trees | 532.7 | 0.0127 |
+| Crops ↔ Rangeland | 1,319.1 | 0.0315 |
+| Crops ↔ Trees | 178.8 | 0.0043 |
+| Snow/Ice → any | 3.9 | 0.0001 |
+| any ↔ Water | 132.7 | 0.0032 |
+| other tree loss | 31.8 | 0.0008 |
+| other change | 102.2 | 0.0024 |
+| sieved change (<1 ha) | 1,049.5 | 0.0251 |
+| stable wetland (FWA or Flooded Vegetation) | 5,198.5 | 0.1243 |
+| stable Trees | 13,206.1 | 0.3156 |
+| stable other | 17,654.1 | 0.4220 |
+
+- **Cell-level causes are not the published attribution, and for harvest the gap is large.** 3 of
+  the 30 fire-stratum points lie outside every fire polygon at cell level, but **17 of the 30
+  harvest-stratum points** lie outside every cutblock. Measured over the whole grid, only 48.9% of
+  NECR's harvest-attributed tree loss (287.8 of 588.9 ha) lies inside a qualifying cutblock. For fire
+  it is 94.2%. Step 3 tags a patch with a cause if it touches the polygon anywhere, so half of the
+  "harvest" credit is change beside a block. Filed as #100. Criterion 2 scores the reference
+  against cell-level polygons for exactly this reason.
+- **Stable strata are thin at 30 points.** drift measured a rare class hiding in a large stratum
+  giving 95% intervals that cover 61% of the time at 25 points per stratum (drift#81). The stable
+  strata hold 86% of the footprint and are where omission hides. The pilot keeps the allocation
+  chosen at the plan gate. The full sample should raise the stable strata first: same seed, larger
+  `n`, and the pilot's labels carry over.
+
+## Review setup
+
+**Verified:** 2026-09-29 · **Produced by:** `review_build-qgis.R`, `chip_build-composite.R`,
+`labels_export.R`, `accuracy_estimate.R` in `scripts/landcover_accuracy/`.
+
+- **Project.** `review_build-qgis.R` builds an rfp restoration-template project, which needs QGIS
+  4.x, under `data/<area>/accuracy/review/` (gitignored). It holds the label layer with a
+  constrained form (`reference/necr/labels_form.qml`), the published change patches, FWA
+  wetlands and lakes, and the undated Esri/Google/Bing basemaps. Review layers are display copies
+  in BC Albers, because rfp's templates carry no UTM layer. Identity is never taken from geometry.
+- **Labels.** Labels are stored in IO's own class codes (`ref_from`, `ref_to`). "Cannot label" is a
+  status, not a class. The committed record is `reference/<area>/labels.csv`, exported by
+  `point_id` **and checked against the design** (stratum, cell, map class). A redraw keeps point
+  ids but moves points, so id alone is not an identity. The export, the estimate, and a re-run of
+  the project build all refuse labels made on another draw.
+- **Chips cost about 44 s each.** Measured on 15 points × 2 windows: 30 chips in 22.1 min. The
+  full pilot (450 points) at four windows would be 1,800 chips, roughly 22 h. That is a
+  `caffeinate -s` background job, and the chips are built only once the windows are measured.
+- **2017 summer imagery is thin.** Under the 20% scene-cloud filter, **5 of 15** test points had
+  no usable July–August 2017 scene at all ("no scenes"). Only Sentinel-2A was flying, and 2017 was
+  a heavy smoke year. The 2017 endpoint is the one every transition depends on, so the window
+  measurement (drift#92) has to find a 2017 window that exists everywhere, or the review falls back
+  to HLS (drift#82) for that year.
+- **Estimation is wired end to end.** On synthetic labels (IO's own endpoints with 20% of `ref_to`
+  flipped, `SYNTHETIC=1`) it returns the nonresponse table, error-adjusted areas with CIs for
+  tree loss, unattributed tree loss and wetland change, the four criteria, and the full-sample
+  size. Those synthetic numbers mean nothing and are never written to `reference/`.
 
 ## Accuracy labels and training labels never mix
 

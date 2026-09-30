@@ -38,10 +38,15 @@ YEARS  <- 2017:2023
 MONTHS <- 4:10
 CC_MAX <- 20   # drift's composite default; the chips use the same
 
-count_stats <- function(r, month, year, res) {
-  v <- terra::values(r[[1]], mat = FALSE)
-  v <- v[!is.na(v)]
-  data.frame(year = year, month = month, res = res, n_cells = length(v),
+# Per-pixel stats over the AOI's OWN cells. A pixel with no clear observation can come back NA
+# rather than 0, so summarising only non-NA values would drop exactly the cells that make a month
+# bad; cells the AOI touches (the clip rule drift uses) count as 0 when NA.
+count_stats <- function(r, month, year, res, aoi, status = "ok") {
+  inside <- terra::values(terra::rasterize(terra::vect(sf::st_geometry(aoi)), r[[1]], touches = TRUE),
+                          mat = FALSE)
+  v <- terra::values(r[[1]], mat = FALSE)[!is.na(inside)]
+  v[is.na(v)] <- 0
+  data.frame(year = year, month = month, res = res, status = status, n_cells = length(v),
              median = if (length(v)) stats::median(v) else NA_real_,
              p10 = if (length(v)) unname(stats::quantile(v, 0.10)) else NA_real_,
              max = if (length(v)) max(v) else NA_real_,
@@ -49,13 +54,32 @@ count_stats <- function(r, month, year, res) {
              share_ge3 = if (length(v)) mean(v >= 3) else NA_real_)
 }
 
+# One month-year -> list(r, status). Three outcomes, and they must stay distinct:
+#   ok      a raster of counts
+#   empty   drift found no scenes or no clear pixels -- a REAL zero, the signal this script looks for.
+#           drift reports it as a warning ("Skipping the ... composite: no scenes|no clear pixels")
+#           and then, with one year per call, aborts "No year produced a composite."
+#   failed  any other error (STAC, network, token): NA, never 0
+# The empty case is recognised by drift's warning text. If that text changes, an empty month falls
+# to `failed` (NA) -- the direction that asks for a re-run rather than inventing a number.
 clear_count <- function(aoi, year, month, res) {
-  out <- tryCatch(
-    drift::dft_stac_composite(aoi, years = year, months = month, bands = "red",
-                              aggregation = "count", res = res, crs = crs_grid, clip = TRUE,
-                              cloud_cover_max = CC_MAX),
-    error = function(e) { message("  ", year, "-", month, ": ", conditionMessage(e)); NULL })
-  if (is.null(out) || !length(out)) return(NULL)
+  skipped <- FALSE
+  out <- withCallingHandlers(
+    tryCatch(
+      drift::dft_stac_composite(aoi, years = year, months = month, bands = "red",
+                                aggregation = "count", res = res, crs = crs_grid, clip = TRUE,
+                                cloud_cover_max = CC_MAX),
+      error = function(e) {
+        if (!skipped) message("  ", year, "-", month, " FAILED: ", conditionMessage(e))
+        NULL
+      }),
+    warning = function(w) {
+      if (grepl("^Skipping the .* composite: (no scenes|no clear pixels)", conditionMessage(w))) {
+        skipped <<- TRUE
+        invokeRestart("muffleWarning")
+      }
+    })
+  if (is.null(out) || !length(out)) return(list(r = NULL, status = if (skipped) "empty" else "failed"))
   # A count is a whole number. drift 0.19.0 passes `aggregation` straight to gdalcubes'
   # cube_view(), which has no "count", and returns reflectance without complaint (drift#92) --
   # values near 0.03 that read as "almost no clear scenes" if nobody checks. Refuse them.
@@ -65,7 +89,7 @@ clear_count <- function(aoi, year, month, res) {
     stop(sprintf("%d-%02d: aggregation = \"count\" returned non-integer values (max %.4f); ",
                  year, month, max(v)),
          "this drift does not count clear observations (drift#92)", call. = FALSE)
-  out[[1]]
+  list(r = out[[1]], status = "ok")
 }
 
 if (mode == "validate") {
@@ -76,10 +100,10 @@ if (mode == "validate") {
   box    <- sf::st_as_sfc(sf::st_bbox(sf::st_buffer(anchor, 3000)))
   sub    <- sf::st_sf(geometry = sf::st_intersection(sf::st_union(fp), box))
 
-  r100 <- clear_count(sub, year, month, 100)
-  r20  <- clear_count(sub, year, month, 20)
-  if (is.null(r100) || is.null(r20)) stop("validation composite failed", call. = FALSE)
-  s <- rbind(count_stats(r100, month, year, 100), count_stats(r20, month, year, 20))
+  r100 <- clear_count(sub, year, month, 100)$r
+  r20  <- clear_count(sub, year, month, 20)$r
+  if (is.null(r100) || is.null(r20)) stop("validation composite failed or was empty", call. = FALSE)
+  s <- rbind(count_stats(r100, month, year, 100, sub), count_stats(r20, month, year, 20, sub))
   print(s)
 
   # (b) independent item query over the sub-AOI's bbox
@@ -102,16 +126,21 @@ if (mode == "validate") {
   rows <- list()
   for (yr in YEARS) for (m in MONTHS) {
     t0 <- Sys.time()
-    r  <- clear_count(fp, yr, m, 100)
-    if (is.null(r)) {
-      rows[[length(rows) + 1]] <- data.frame(year = yr, month = m, res = 100, n_cells = 0,
-                                             median = 0, p10 = 0, max = 0, share_ge1 = 0,
-                                             share_ge3 = 0)
-    } else rows[[length(rows) + 1]] <- count_stats(r, m, yr, 100)
+    cc <- clear_count(fp, yr, m, 100)
+    rows[[length(rows) + 1]] <- if (cc$status == "ok") count_stats(cc$r, m, yr, 100, fp) else
+      if (cc$status == "empty")   # a real zero: no scene, or no clear pixel, in the whole window
+        data.frame(year = yr, month = m, res = 100, status = "empty", n_cells = NA_real_, median = 0,
+                   p10 = 0, max = 0, share_ge1 = 0, share_ge3 = 0) else
+        data.frame(year = yr, month = m, res = 100, status = "failed", n_cells = NA_real_,
+                   median = NA_real_, p10 = NA_real_, max = NA_real_, share_ge1 = NA_real_,
+                   share_ge3 = NA_real_)   # NA, never 0: re-run it
     message(sprintf("%d-%02d done in %.1f min", yr, m,
                     as.numeric(difftime(Sys.time(), t0, units = "mins"))))
   }
   res <- do.call(rbind, rows)
+  if (any(res$status == "failed"))
+    warning(sum(res$status == "failed"), " month-year(s) FAILED (NA); re-run before choosing windows",
+            call. = FALSE)
   dir.create(cfg$dir_acc, showWarnings = FALSE)
   f <- file.path(cfg$dir_acc, "windows_clear_obs.csv")
   utils::write.csv(res, f, row.names = FALSE, na = "")

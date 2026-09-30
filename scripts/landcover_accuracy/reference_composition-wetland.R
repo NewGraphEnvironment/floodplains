@@ -29,9 +29,8 @@ if (length(wet_src) != 1) stop("config/disturbance.yml has no `wetland` context 
 fp <- sf::st_read(file.path(cfg$dir_out, "floodplain.gpkg"), layer = cfg$primary_scenario, quiet = TRUE)
 fp <- sf::st_transform(fp, terra::crs(g$trans))
 conn <- DBI::dbConnect(RPostgres::Postgres())
-wet  <- .dst_fetch(conn, wet_src[[1]], fp, cfg$change_interval)
+wet  <- fp_acc_fetch(conn, wet_src[[1]], fp, cfg$change_interval)
 DBI::dbDisconnect(conn)
-wet  <- wet[lengths(sf::st_intersects(sf::st_transform(wet, sf::st_crs(fp)), fp)) > 0, ]  # bbox -> footprint
 wet_r <- fp_acc_rasterize(wet, g$trans)
 
 class_names <- c(`1` = "Water", `2` = "Trees", `4` = "Flooded Vegetation", `5` = "Crops",

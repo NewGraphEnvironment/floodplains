@@ -36,3 +36,38 @@ The reviewer read the plan, #93, drift 0.19.0 and rfp 0.86.0 source, and NECR's 
 | S1 | Chip budget ~52 h | Accept: chips per window wait on Phase 2 windows anyway; land the script and time 5 points |
 | S2 | Pilot allocation; stable strata starve at 30 | **User chose 14 × 30 at the gate.** Draw 30 per stratum (15 strata). Raising `n` with the same seed extends the pilot, and the caution goes in the research note and the final report |
 | AC1/AC2 | State which acceptance items this PR meets; branch checks | Accept |
+
+## Code-check round 1 (review-round1.md) — disposition
+
+| finding | disposition |
+|---|---|
+| Stable Flooded Vegetation outside FWA polygons went to "stable other" (4,396 cells), contradicting the pinned definition | **Fixed.** Stable wetland = FWA cell OR FV; stratum relabelled "stable wetland"; toy case added; sample redrawn (no labels existed) |
+| `window_count-clear.R` recorded a failed month as 0 clear observations | **Fixed**: NA |
+| The grid sync guard missed a transition cell with an NA endpoint | **Fixed**: NA-safe comparison |
+| Observation: 17/30 harvest points outside any cutblock at cell level | Measured by area: 48.9% of harvest-attributed tree loss lies inside a cutblock (fire 94.2%). **Filed #100** |
+
+## Code-check round 2 (review-round2.md) — disposition
+
+| finding | disposition |
+|---|---|
+| **Inside the R1 fix:** an EMPTY month (drift: "Skipping … no scenes", then "No year produced a composite.") became NA, like a failed fetch | **Fixed.** `clear_count()` returns a status: `ok` / `empty` (a real 0) / `failed` (NA, warned). The warning regex was verified against live drift output. `count_stats()` also counts NA cells inside the AOI as 0; the same mechanism was dropping zero-observation cells |
+| R1 fixes 1 and 3 | Verified clean by the reviewer (the reverted mutant fails `stable_FV_not_fwa`; 390/390 sample strata re-derived) |
+
+The inside-a-fix pattern has appeared, so the loop now ends only on an enumeration (round 3 asks for the mechanism and the table).
+Also found while adding phase-6 checks: `dft_accuracy_size()` aborts when every stratum SD is 0, and `fp_acc_estimate` now reports that case instead of aborting.
+
+## Code-check round 3 (review-round3.md) — mechanism, a 53-row enumeration, disposition
+
+Mechanism (reviewer): *a value that is absent, failed, not evaluable, or only nominally the same is folded into the nearest definite value.* The enumeration covers every handler, `na.rm`/`is.na`/`%in%`, zero-length branch and absent→value site: 53 rows, of which 5 are defects and 1 is fragile.
+
+| finding | disposition |
+|---|---|
+| A `point_id` is not an identity: a redraw keeps the ids and moves the points, and labels/working copy/estimate matched on id alone (rows 16, 34, 40) | **Fixed.** `fp_acc_design_check()` compares stratum/cell/map_class wherever labels meet the sample (export, project re-run, estimate), and `sample_draw-pilot.R` refuses to redraw over labels.csv (FORCE=1). `labels.csv` carries `cell`. Must-fail arms added |
+| Criterion 1 `min(na.rm = TRUE)` turned "cannot evaluate" into a verdict (row 25) | **Fixed**: `fp_acc_crit1()` is three-valued; checks include the old form as a must-fail arm |
+| Causes were read from the live yml, not the design (row 22) | **Fixed**: taken from design.json; a differing yml is refused |
+| `review_build` blocked when the chips dir already exists (row 38) | **Fixed**: chips refuse before the project exists; review_build names the stray-dir case |
+| Found building the project: rfp refuses EPSG:32610 layers | Review layers and chips are display copies in EPSG:3005; identity never uses geometry |
+
+## Code-check round 4 (review-round4.md) — terminal
+
+The round-3 enumeration was re-walked against the current code, plus 22 sites the fixes introduced: **75 rows, 0 defects**. The loop ends by enumeration. Two hardening items were applied anyway: the design check now requires `cell` (without it, `map_class` alone cannot detect a redraw; probed by the reviewer), and `sample_draw-pilot.R` refuses a redraw that drops a labelled `point_id`.

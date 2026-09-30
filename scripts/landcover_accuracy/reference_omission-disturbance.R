@@ -40,10 +40,7 @@ fp <- sf::st_read(file.path(cfg$dir_out, "floodplain.gpkg"), layer = cfg$primary
 fp <- sf::st_transform(fp, terra::crs(g$trans))
 
 conn <- DBI::dbConnect(RPostgres::Postgres())
-polys <- lapply(QUAL, function(s) {
-  p <- .dst_fetch(conn, s, fp, WINDOW)
-  p[lengths(sf::st_intersects(sf::st_transform(p, sf::st_crs(fp)), fp)) > 0, ]
-})
+polys <- lapply(QUAL, fp_acc_fetch, conn = conn, fp = fp, window = WINDOW)
 DBI::dbDisconnect(conn)
 
 rows <- list()
