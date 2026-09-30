@@ -43,3 +43,39 @@ Decided before anyone labels anything. Every point in the reference sample carri
 met and a local classifier is piloted, its training labels come from a **separate draw** with its
 own seed. They are never taken from this sample, because a label that trains a classifier cannot
 also measure it.
+
+## Composite windows (measurement held)
+
+**Held on drift#92.** The plan was to count clear Sentinel-2 observations per month with
+`dft_stac_composite(aggregation = "count")`. drift 0.19.0 passes that value to gdalcubes'
+`cube_view()`, which has no count, and returns red **reflectance** with no error: a median of
+0.03–0.04 on a 2 km NECR test square, where a true count would be at most 17 (17 items over 6
+dates). `scripts/landcover_accuracy/window_count-clear.R` now refuses a non-integer count, and the
+guard fired on the live output. The windows get measured once drift can count.
+
+## Drought years
+
+**Verified:** 2026-09-29 · **Produced by:** `scripts/landcover_accuracy/drought_rank-gauges.R`,
+log `scripts/landcover_accuracy/logs/20260929_drought_rank-gauges_necr.*` · HYDAT 2026-07-17.
+
+The only active gauge inside NECR, **08JC001 Nechako at Vanderhoof, is regulated** (HYDAT flags it
+from 1952; Kenney Dam releases). It ranks 2023 at the 45th percentile of its own record, so it would
+have hidden the one drought in the window. The ranking uses unregulated gauges within ~80 km.
+August–September mean daily flow per year is ranked against each gauge's full record (0 = driest).
+"Low" means the lowest quintile at more than half of the four free-flowing gauges:
+
+| year | free-flowing gauges in lowest quintile | median rank | lake-buffered (Nautley, Stuart) |
+|---|---:|---:|---|
+| 2017 | 0 / 4 | 0.35 | 0.47, 0.23 |
+| 2018 | 2 / 4 | 0.21 | 0.28, 0.18 |
+| 2019 | 1 / 4 | 0.52 | 0.29, 0.15 |
+| 2020 | 0 / 4 | 0.85 | 0.76, 0.86 |
+| 2021 | 1 / 4 | 0.31 | 0.25, 0.21 |
+| 2022 | 0 / 4 | 0.62 | 0.83, 0.67 |
+| **2023** | **3 / 4** | **0.14** | **0.03, 0.01** |
+
+**2023 is the drought year, and it is IO's change endpoint.** Every NECR transition is measured
+2017→2023, so any late-summer wetness signal (Flooded Vegetation, Water, wet meadow read as
+Rangeland) compares an average year with a dry one. 2018 is borderline dry and 2020 is the wet
+contrast. The reference windows therefore include 2017, 2023, 2018 and 2020. The wetland and
+`↔ Water` strata are the ones to read in that light.

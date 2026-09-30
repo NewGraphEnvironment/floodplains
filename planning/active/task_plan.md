@@ -42,13 +42,13 @@ That measurement also answers a bigger question: **is it worth classifying land 
       window in a single year. Record both in the research note
 
 ## Phase 3: Drought years, measured
-- [ ] `tidyhydat::download_hydat()` (machine change: replaces the shared local DB). Record the
+- [x] `tidyhydat::download_hydat()` (machine change: replaces the shared local DB). Record the
       old and new release dates
-- [ ] `drought_rank-gauges.R`: Aug–Sep mean flow per year against each gauge's long-term record
+- [x] `drought_rank-gauges.R`: Aug–Sep mean flow per year against each gauge's long-term record
       for 08KC001, 08JB002, 08JE004, 08KG001, with 08JB003 and 08JE001 flagged lake-buffered and
       08JC001 excluded as regulated. Output: which of 2017–2023 sit in the lowest quantile at
       most gauges
-- [ ] Research note section plus a log
+- [x] Research note section plus a log
 
 ## Phase 4: Free reference (results)
 - [ ] `reference_omission-disturbance.R`: per in-window fire and harvest polygon, floodplain
