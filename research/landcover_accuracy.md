@@ -36,6 +36,71 @@ If they are met, the local classifier is a drift issue: Sentinel-2/HLS composite
 wetlands as covariates, trained on a **held-out** label set. This work delivers the evidence, not
 the classifier.
 
+### How each criterion is computed
+
+**Pinned 2026-09-29, before any phase 4 or phase 5 result existed** (a review of the plan found the
+criteria above had no mechanical definition). Everything here is read from
+`drift::dft_accuracy_estimate()` on the committed labels. Class codes are IO's (1 Water, 2 Trees,
+4 Flooded Vegetation, 5 Crops, 7 Built Area, 8 Bare Ground, 9 Snow/Ice, 11 Rangeland), and a
+transition is `from * 1000 + to`.
+
+1. **Flooded Vegetation producer's accuracy**, estimated **per endpoint**:
+   - `map_class = map_2017`, `ref_class = ref_from`
+   - `map_class = map_2023`, `ref_class = ref_to`
+
+   `$accuracy`, measure `producer`, class `4`. The criterion holds if the estimate is < 0.5 at
+   **either** endpoint, since an error at either date corrupts every transition built on it. The
+   sample is stratified by transition, not by year class. Stehman's estimator (which drift uses) is
+   valid when the strata are not the map classes.
+2. **Unattributed tree loss.** Recode, then estimate:
+   - **Map side:** the reported transition is Trees→non-Trees **and** the point is not in a cause
+     stratum.
+   - **Reference side:** `ref_from == 2 & ref_to != 2` **and** the point's cell lies inside no
+     windowed cause polygon (`in_<cause>_poly`, cell level, taken from the `sources:` tables).
+   - The criterion holds if `z × area_se / area > 0.5` for that class at the 95% level.
+3. **Trees→Rangeland user's accuracy** = `$accuracy`, measure `user`, class `2011`, on the reported
+   transition map. This is the **map class**, not within-stratum agreement, so it does not depend
+   on the order of the strata. The criterion holds if the estimate is < 0.6.
+4. **Harvest omission** = the IO-view number from the free-reference check below. The criterion
+   holds if it is > 0.30.
+
+### Free-reference omission (criterion 4), defined before it is computed
+
+- **Qualifying harvest:**
+  - `data_source` in (`RESULTS`, `VRI`). "Satellite Imagery - Change Detection" (18% of the table)
+    is excluded, because it is optical change detection and so not independent of IO.
+  - `percent_clearcut >= 90`, as the stand-replacing proxy.
+  - `harvest_start_year_calendar` in 2018–2022 and `harvest_end_date` ≤ 2022-12-31 (not null).
+  - Together these mean the stand was standing for IO's 2017 map and removed before its 2023 map.
+- **Qualifying fire:** `fire_year` 2018–2022. There is no severity field, so "burned" is not
+  "stand-replaced". That is a caveat, not a filter.
+- **Denominator:** the floodplain footprint ∩ `classified_2017 == Trees` ∩ the **dissolved union**
+  of qualifying polygons, so that overlaps count once.
+- **Numerators**, both reported:
+  - **IO view**, which feeds criterion 4: `classified_2023 != Trees`, unsieved. This is what "IO
+    misses" means.
+  - **Published view:** `transition.tif` Trees→non-Trees, after the 1 ha sieve.
+- Omission is `1 − numerator / denominator`, pooled and area-weighted. Per-polygon values are
+  supplementary.
+- **Caveats beside the number:**
+  - Cutblocks include retained riparian reserves, and the floodplain ∩ cutblock intersection is
+    disproportionately riparian. That inflates apparent omission, which `percent_clearcut` only
+    partly controls.
+  - The start year is not the removal date.
+  - Regrowth to Rangeland or Crops by 2023 counts as detected. Regrowth to Trees counts as missed.
+
+### Strata
+
+- **Population:** the whole floodplain footprint (`classified_2017` non-NA). It is **not**
+  `transition.tif`, where step 3's 1 ha sieve set 18% of IO's change cells in NECR to NA.
+- **Sieved change** is a stratum of its own, and its map claim is "no change". Omission of the
+  published map hides there.
+- **Wetland** is decided per **cell** (a Flooded Vegetation endpoint, or a cell inside
+  `fwa_wetlands_poly`), and the same way for change and stable land. The patch flag `in_wetland`
+  is any-touch and would take 78% of Trees→Rangeland into the wetland stratum.
+- **Causes** are the names under `sources:` in `config/disturbance.yml`, taken in that order. They
+  use the published patch flags, because that is the attribution the report states.
+
 ## Accuracy labels and training labels never mix
 
 Decided before anyone labels anything. Every point in the reference sample carries

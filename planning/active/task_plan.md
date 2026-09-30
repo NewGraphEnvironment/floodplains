@@ -32,11 +32,11 @@ That measurement also answers a bigger question: **is it worth classifying land 
 - [x] Commit before any phase-2 to phase-4 measurement runs
 
 ## Phase 1b: Operational definitions (plan review G3/G4 — before any Phase 4/5 result)
-- [ ] Pin in the research note how each criterion is computed from drift's outputs (map year,
+- [x] Pin in the research note how each criterion is computed from drift's outputs (map year,
       reference endpoint, UA by map class vs stratum, cell-level cause polygons), the omission
       definition (qualifying polygons, denominator, both numerators), and the strata definition
       (footprint population, sieved stratum, cell-level wetland)
-- [ ] `scripts/packages.R`: add rfp + tidyhydat; drift floor comment → 0.19.0 for `dft_accuracy_*`
+- [x] `scripts/packages.R`: add rfp + tidyhydat; drift floor comment → 0.19.0 for `dft_accuracy_*`
 
 ## Phase 2: Windows, measured
 - [x] Upgrade drift to ≥ 0.19.0 (`pak`). Bump `scripts/packages.R` and the `fp_lulc` floor
