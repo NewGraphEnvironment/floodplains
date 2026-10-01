@@ -187,6 +187,7 @@ Relates: #92 (report), #95 (wetland flag), #94 (collaborator review surface), dr
 
 | Error | Resolution |
 |-------|------------|
+| review_build-qgis.R: `Double hyphen within comment` in chip_rgb.qml | `--` in an XML comment is invalid; replaced with `;`. Latent since #101, first read once chips existed |
 | `grep` returned nothing / "ugrep: warning" on a file that has the string | `grep` is shadowed by ugrep in this shell; use `/usr/bin/grep` or python |
 
 ## Validate (2026-09-30)

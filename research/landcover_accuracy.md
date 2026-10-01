@@ -6,7 +6,8 @@ harvest attribution) and drift#92 (clear-observation counts) · **Produced by:**
 `scripts/landcover_accuracy/` (logs under `scripts/landcover_accuracy/logs/`) · **Status:**
 OPEN — criteria and definitions pre-registered; drought years and free reference measured
 (criterion 4 does not hold); NECR pilot sample and review project ready; composite-window rule
-measured (August; 2017 August–September); **verdict pending human labels.**
+measured (August; 2017 August–September); chips built and in the review project;
+**verdict pending human labels.**
 
 Every land-cover number this repo publishes — floodplain tree loss, the fire/harvest attribution
 split, the unattributed residual, wetland change — inherits the error of one external product, IO
@@ -210,9 +211,11 @@ The design record redraws **byte-identical**.
   `point_id` **and checked against the design** (stratum, cell, map class). A redraw keeps point
   ids but moves points, so id alone is not an identity. The export, the estimate, and a re-run of
   the project build all refuse labels made on another draw.
-- **Chips cost about 44 s each.** Measured on 15 points × 2 windows: 30 chips in 22.1 min. The
-  full pilot (450 points) at four windows would be 1,800 chips, roughly 22 h. That is a
-  `caffeinate -s` background job, and the chips are built only once the windows are measured.
+- **Chips are built.** The 450 pilot points × the 4 measured windows give **1,800 chips with 0
+  missing**, built 2026-09-30 to 10-01 in 15.8 h at 31.5 s each. The 2026-09-29 estimate was 44 s
+  each from 30 chips. The worst chip is 1.0% NA (2017) and every other year is complete. Log:
+  `scripts/landcover_accuracy/logs/20260930_chip_build-composite_necr.md`. The review project
+  carries one "S2 same season_<year>" layer per window-year, at one fixed stretch.
 - **2017 summer imagery is thin.** Under the 20% scene-cloud filter, **5 of 15** test points had
   no usable July–August 2017 scene at all ("no scenes"). Only Sentinel-2A was flying, and 2017 was
   a heavy smoke year. The window measurement settled it: July 2017 has no scene at all on the

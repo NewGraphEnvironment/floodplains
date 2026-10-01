@@ -68,11 +68,11 @@ What exploration found that shapes the plan:
       amplitude. Update the header Status and the "2017 summer imagery is thin" bullet
 
 ## Phase 3: Chips and the review project (live, ~22 h)
-- [ ] `caffeinate -s Rscript chip_build-composite.R necr` (background). Gate on `manifest.csv`
+- [x] `caffeinate -s Rscript chip_build-composite.R necr` (background). Gate on `manifest.csv`
       mtime and the missing-chip count. Re-run for the missing ones (cached chips are free)
-- [ ] `Rscript review_build-qgis.R necr` → the 4 S2 layers added; re-run to confirm it is idempotent.
+- [x] `Rscript review_build-qgis.R necr` → the 4 S2 layers added; re-run to confirm it is idempotent.
       Verify the layers in the `.qgs` XML (headless QGIS load fails here, per memory)
-- [ ] Research note: the chip counts, the build time, and missing chips per window-year. Log
+- [x] Research note: the chip counts, the build time, and missing chips per window-year. Log
       `logs/20260930_chip_build-composite_necr.md`
 
 ## Phase 4: Handoff
