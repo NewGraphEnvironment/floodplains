@@ -1,3 +1,11 @@
+# floodplains 0.1.2 (2026-10-01)
+
+* Measure the composite windows and build the review chips for IO LULC accuracy (#93; NECR).
+  `window_count-clear.R` counts clear days with drift >= 0.20.0, and a rule pre-registered before
+  any count ran writes `reference/necr/windows.csv`. The result is August, with 2017 widened to
+  August–September, so HLS is not needed. The 1,800 dated Sentinel-2 chips are in the review
+  project. Labelling, the estimates and the verdict remain.
+
 # floodplains 0.1.1 (2026-09-29)
 
 * Measure IO LULC's accuracy inside the floodplains (#93, phases 1-6; NECR first).
