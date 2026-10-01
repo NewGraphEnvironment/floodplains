@@ -1047,6 +1047,9 @@ Assign inside the call, `expect_message(h <- f(x), "msg")`, never `h <- expect_m
 ### `c()` dispatches on its first argument, so `c(NULL, <Date>)` is a plain number
 Put a Date first when `c()` combines an optional piece with Dates: `c(NULL, <Date>)` takes the default method and returns a bare day count.
 
+### `bind_rows()` of all-`NULL` is a 0 x 0 tibble, and a typed template must take its types from the rows' source
+Bind per-group results under a zero-row template so an all-dropped result keeps its columns, and build that template's key columns from the same object the rows are built from (`combos$variable[0]`, not `character()`).
+
 # Code Check — Shell
 Tool-level traps in bash, sed, git and `gh`, and in the host toolchain those commands depend on.
 
@@ -1371,6 +1374,9 @@ Read with `promote_to_multi = FALSE` whenever a layer will be written back.
 
 ### `sf::st_make_valid()` rewrites geometry that was already valid
 Run it on the invalid rows only (`!st_is_valid(x)`), or keep the original geometry and use the made-valid copy just for the computation.
+
+### terra: `unique()` and `freq()` on a factor return its labels, not its codes
+Read a factor raster's codes from a copy with its levels stripped (`levels(y) <- NULL`, or `set.cats(y, layer = 1, value = NULL)` on a copy you own), never from `terra::unique(x)[, 1]` or `terra::freq(x)$value`: on a factor both return the active category's labels, so matching …
 
 # Code Check Conventions
 Structured checklist for reviewing diffs before commit.
