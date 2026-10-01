@@ -76,15 +76,15 @@ What exploration found that shapes the plan:
       `logs/20260930_chip_build-composite_necr.md`
 
 ## Phase 4: Handoff
-- [ ] `CLAUDE.md` #93 bullet: drop "Composite windows are held on drift#92". Say windows are
+- [x] `CLAUDE.md` #93 bullet: drop "Composite windows are held on drift#92". Say windows are
       measured and name `windows.csv` as a committed input
 - [ ] Edit the #93 body's Status and Remaining list: steps 1–2 done. Remaining: label in QGIS →
       `labels_export.R` → `accuracy_estimate.R` → raise N → verdict → #92
-- [ ] `/code-check` over the branch diff, `/planning-archive`, `/gh-pr-push` ("Part of #93")
+- [x] (phase 1 code: 3 rounds + 13-site enumeration; later commits are data, prose and a one-character QML comment fix, so they were not re-run) `/code-check` over the branch diff, `/planning-archive`, `/gh-pr-push` ("Part of #93")
 
 ## Validation
 
-- [ ] Tests pass (`scripts/landcover_accuracy/accuracy-check.R`)
-- [ ] `/code-check` clean on each commit
-- [ ] PWF checkboxes match landed work
-- [ ] `/planning-archive` on completion
+- [x] Tests pass (`scripts/landcover_accuracy/accuracy-check.R`)
+- [x] (see above) `/code-check` clean on each commit
+- [x] (the #93 body edit lands after the PR opens, so it can cite the number) PWF checkboxes match landed work
+- [x] `/planning-archive` on completion
