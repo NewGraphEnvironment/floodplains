@@ -172,5 +172,42 @@ ok("must-fail arm: min(na.rm = TRUE) would have said 'does not hold' there",
    !(suppressWarnings(min(NA, 0.8, na.rm = TRUE)) < 0.5))
 ok("FALSE only when both endpoints are evaluated and >= 0.5", identical(fp_acc_crit1(0.7, 0.8), FALSE))
 
+message("Composite windows (the pre-registered rule):")
+yrs <- 2017:2019; mos <- 5:9
+# every cell clear except the ones set below
+wst <- expand.grid(month = mos, year = yrs)[, c("year", "month")]
+wst$status <- "ok"; wst$share_ge1 <- 0.99
+setw <- function(d, y, m, v) { d$share_ge1[d$year == y & d$month == m] <- v; d }
+wst <- setw(wst, 2018, 5, 0.50)          # May fails in one year
+wst <- setw(wst, 2019, 9, 0.94)          # just under the bar
+wp <- fp_acc_window_pass(wst, yrs, mos)
+ok("span = longest run clear in EVERY year (6-8: May fails 2018, Sep fails 2019 at 0.94)",
+   identical(fp_acc_window_span(wp), 6:8))
+ok("must-fail arm: a mean-over-years rule would have kept September (mean 0.973)",
+   colMeans(wp$share)[["9"]] >= FP_ACC_WIN_THR && !9L %in% fp_acc_window_span(wp))
+wst2 <- setw(wst, 2018, 7, 0.10)         # splits the span into 6 and 8
+wp2 <- fp_acc_window_pass(wst2, yrs, mos)
+ok("a month failing in one year breaks the run; the tie goes to the higher minimum share",
+   identical(fp_acc_window_span(setw(wst2, 2017, 6, 0.96) |> fp_acc_window_pass(yrs, mos)), 8L))
+ok("a tie on length and minimum share goes to the earlier run", identical(fp_acc_window_span(wp2), 6L))
+wf <- wst; wf$status[wf$year == 2017 & wf$month == 7] <- "failed"; wf$share_ge1[wf$year == 2017 & wf$month == 7] <- NA
+ok("a failed month-year is refused, never read as clear or as zero",
+   inherits(tryCatch(fp_acc_window_pass(wf, yrs, mos), error = identity), "error"))
+ok("a missing month-year is refused",
+   inherits(tryCatch(fp_acc_window_pass(wst[-1, ], yrs, mos), error = identity), "error"))
+we <- wst; we$status[we$year == 2017 & we$month == 7] <- "empty"; we$share_ge1[we$year == 2017 & we$month == 7] <- 0
+ok("an empty month (a real zero) is measured, and fails the bar",
+   !fp_acc_window_pass(we, yrs, mos)$pass["2017", "7"])
+w17 <- setw(setw(setw(wst, 2017, 6, 0.60), 2017, 7, 0.60), 2017, 8, 0.60)   # 2017 alone fails 6-8
+wp17 <- fp_acc_window_pass(w17, yrs, mos)
+ok("no span in all years when 2017 alone fails the middle; without 2017 it is 6-8",
+   !length(fp_acc_window_span(wp17)) && identical(fp_acc_window_span(wp17, c("2018", "2019")), 6:8))
+wid <- fp_acc_window_widen(wp17, 2017, 6:8)
+ok("widening adds the adjacent month with the higher share, one at a time; a tie takes the earlier month",
+   identical(wid[[1]], 5:8) && identical(wid[[length(wid)]], 5:9))
+ok("widening prefers the higher-share neighbour",
+   identical(fp_acc_window_widen(fp_acc_window_pass(setw(w17, 2017, 5, 0.30), yrs, mos), 2017, 6:8)[[1]], 6:9))
+ok("months string", identical(fp_acc_months_str(7L), "7") && identical(fp_acc_months_str(6:8), "6-8"))
+
 message(if (fails) sprintf("\n%d FAIL", fails) else "\nALL PASS")
 quit(status = if (fails) 1L else 0L)

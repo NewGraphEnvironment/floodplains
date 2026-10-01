@@ -1,12 +1,13 @@
 # IO LULC accuracy inside our floodplains
 
-**Verified:** 2026-09-29 · **Issues:** #93 (this work), #92 (report), #94 (review surface), #95
+**Verified:** 2026-09-30 · **Issues:** #93 (this work), #92 (report), #94 (review surface), #95
 (wetland flag), drift#79 / drift#81 (composites, sampling + estimators); spawned #100 (patch-level
 harvest attribution) and drift#92 (clear-observation counts) · **Produced by:**
 `scripts/landcover_accuracy/` (logs under `scripts/landcover_accuracy/logs/`) · **Status:**
 OPEN — criteria and definitions pre-registered; drought years and free reference measured
-(criterion 4 does not hold); NECR pilot sample and review project ready; composite windows held on
-drift#92; **verdict pending human labels.**
+(criterion 4 does not hold); NECR pilot sample and review project ready; composite-window rule
+measured (August; 2017 August–September); chips built and in the review project;
+**verdict pending human labels.**
 
 Every land-cover number this repo publishes — floodplain tree loss, the fire/harvest attribution
 split, the unattributed residual, wetland change — inherits the error of one external product, IO
@@ -210,14 +211,16 @@ The design record redraws **byte-identical**.
   `point_id` **and checked against the design** (stratum, cell, map class). A redraw keeps point
   ids but moves points, so id alone is not an identity. The export, the estimate, and a re-run of
   the project build all refuse labels made on another draw.
-- **Chips cost about 44 s each.** Measured on 15 points × 2 windows: 30 chips in 22.1 min. The
-  full pilot (450 points) at four windows would be 1,800 chips, roughly 22 h. That is a
-  `caffeinate -s` background job, and the chips are built only once the windows are measured.
+- **Chips are built.** The 450 pilot points × the 4 measured windows give **1,800 chips with 0
+  missing**, built 2026-09-30 to 10-01 in 15.8 h at 31.5 s each. The 2026-09-29 estimate was 44 s
+  each from 30 chips. The worst chip is 1.0% NA (2017) and every other year is complete. Log:
+  `scripts/landcover_accuracy/logs/20260930_chip_build-composite_necr.md`. The review project
+  carries one "S2 same season_<year>" layer per window-year, at one fixed stretch.
 - **2017 summer imagery is thin.** Under the 20% scene-cloud filter, **5 of 15** test points had
   no usable July–August 2017 scene at all ("no scenes"). Only Sentinel-2A was flying, and 2017 was
-  a heavy smoke year. The 2017 endpoint is the one every transition depends on, so the window
-  measurement (drift#92) has to find a 2017 window that exists everywhere, or the review falls back
-  to HLS (drift#82) for that year.
+  a heavy smoke year. The window measurement settled it: July 2017 has no scene at all on the
+  floodplain and August reaches 0.852, but August–September clears everywhere. The 2017 chips use
+  that window (see Composite windows), so HLS (drift#82) is not needed for the endpoint.
 - **Estimation is wired end to end.** On synthetic labels (IO's own endpoints with 20% of `ref_to`
   flipped, `SYNTHETIC=1`) it returns the nonresponse table, error-adjusted areas with CIs for
   tree loss, unattributed tree loss and wetland change, the four criteria, and the full-sample
@@ -231,14 +234,60 @@ met and a local classifier is piloted, its training labels come from a **separat
 own seed. They are never taken from this sample, because a label that trains a classifier cannot
 also measure it.
 
-## Composite windows (measurement held)
+## Composite windows
 
-**Held on drift#92.** The plan was to count clear Sentinel-2 observations per month with
-`dft_stac_composite(aggregation = "count")`. drift 0.19.0 passes that value to gdalcubes'
-`cube_view()`, which has no count, and returns red **reflectance** with no error: a median of
-0.03–0.04 on a 2 km NECR test square, where a true count would be at most 17 (17 items over 6
-dates). `scripts/landcover_accuracy/window_count-clear.R` now refuses a non-integer count, and the
-guard fired on the live output. The windows get measured once drift can count.
+**Rule pre-registered 2026-09-30, before any count ran** (drift 0.20.0, which fixed drift#92). The
+code is `fp_acc_window_*` in `scripts/landcover_accuracy/fp_accuracy.R`, and
+`accuracy-check.R` pins it with must-fail arms.
+
+- **The measure.** `window_count-clear.R <area> run` counts **distinct clear days** per pixel for
+  each month 4–10 of 2017–2023. It runs over the whole primary floodplain at res 100, with the
+  chips' own scene filter (`cloud_cover_max = 20`). "Clear" means outside the SCL mask, so it
+  excludes snow as well as cloud and shadow.
+- **A month is clear everywhere in a year** when at least **95%** of floodplain cells have one
+  or more clear days (`share_ge1 >= 0.95`).
+  - A month with no scene at all is a measured zero.
+  - A month whose call failed is refused, not scored.
+- **The same-season span** is the longest run of contiguous months that is clear everywhere in
+  **every** year. Ties go to the higher minimum share over the run's cells, then to the earlier run.
+- **The one deviation allowed in advance is 2017.** It is the thin year: Sentinel-2A only, plus
+  heavy smoke. If no span exists across all seven years but one exists without 2017:
+  - The span itself is counted directly for 2017 first. Each of its months can fail on its own
+    while their union clears the bar.
+  - If the span fails, 2017 is widened one adjacent month at a time. The higher-share neighbour
+    goes first, and a tie takes the earlier month.
+  - Each window is accepted only when a **direct count of that whole window** clears 95%. A union
+    of months cannot be read off per-month shares.
+  - *Amended 2026-09-30:* the span-first count and the tie-break were added after the counts
+    started, but before any result was read. Both came from code review, and the tie-break was
+    already in the code.
+  - If nothing within months 4–10 passes, the fallback is HLS (drift#82).
+- **Chipped windows.** `derive` writes `reference/<area>/windows.csv` with one `same_season` row
+  each for **2017, 2018, 2020 and 2023**: the endpoints, the borderline-dry year and the wet year
+  (see Drought years).
+- **Early and late windows.** The first and last month clear everywhere in each year are
+  reported here, not chipped. Chips cache per point, so adding them later rebuilds nothing.
+
+**Measured 2026-09-30** (`window_count-clear.R`, logs
+`scripts/landcover_accuracy/logs/20260930_window_count-clear_necr*`). The drift#87 grep was clean
+on every cache-filling log.
+
+- **No month is clear everywhere in all seven years.** Four month-years have no scene under 20%
+  cloud anywhere on the floodplain: 2017 April, May and July, and 2021 September. Mid-summer is
+  also not reliably clear: July 2019 is 0.180 and June 2019 is 0.811.
+- **The same season is August.** Without 2017, only May and August pass in every year. August
+  takes the tie on minimum share (0.9985 against 0.988).
+- **2017 needed the pre-registered deviation.** August 2017 alone reaches 0.852. Adding September
+  (0.999 on its own) gives a direct count of **1.000**, so the 2017 window is **August–September**.
+  HLS is not needed for the endpoint.
+- **Reference windows** (`reference/necr/windows.csv`): 2017 `8-9`; 2018, 2020 and 2023 `8`.
+- **Early and late windows.** The first month clear everywhere is May in five of the seven years
+  (April in 2021, June in 2017). The last is October in four (September in 2017 and 2020, August in
+  2021).
+  - This is a statement about **clear imagery, not phenology**.
+  - It means a May composite and an August–October composite exist in most years, for reading
+    seasonal amplitude by eye.
+  - Neither is chipped. Chips cache per point, so adding them later rebuilds nothing.
 
 ## Drought years
 
