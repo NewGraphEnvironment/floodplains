@@ -176,7 +176,7 @@ Relates: #92 (report), #95 (wetland flag), #94 (collaborator review surface), dr
 
 ## Exploration (2026-09-30)
 
-- drift#92 closed by drift PR #97 → drift 0.20.0. `aggregation = "count"` is now distinct clear
+- drift#92 closed by drift#97 (PR) → drift 0.20.0. `aggregation = "count"` is now distinct clear
   days per pixel (P1D steps, same-day MGRS tiles once), INT2U COG `count_<key>.tif`, NA = no clear
   day, snow masked. Skip warning text unchanged (`Skipping the {label} composite: {why}.`).
 - Installed drift 0.19.0 at start.
