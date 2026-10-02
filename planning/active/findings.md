@@ -43,6 +43,25 @@ Decide from the distributions whether a "long, thin, channel-adjacent, paired" c
 
 Relates: #54, #93, #95, #103, fly#53
 
+## Exploration (2026-10-02)
+
+- drift `dft_transition_artifact()` already computes width (2A/P), boundary-hugging and exact
+  A->B / B->A reciprocity, and reads the reciprocal pair as misregistration. It is reused. The
+  migration pairing (X->Water with Water->Bare/Rangeland) is not exact-reverse, so the probe
+  computes it.
+- The published transition is sieved at 1 ha (`03_lulc_classify.R`). The probe re-derives an
+  unsieved transition from the endpoint tifs.
+- `transition.tif` carries stable A->A codes (`from*1000+to`, 50 levels), so the from-class
+  around a patch is readable.
+- `fp_acc_strata()` precedence (`scripts/landcover_accuracy/fp_accuracy.R:143-161`): causes >
+  prior fire > wetland change (from or to = 4, or inside an FWA wetland) > Rangeland/Trees/Crops
+  pairs > Snow/Ice > any<->Water. Stratum 16 (126.06 ha) is sieved Water change minus all of
+  those. The probe's anchor is therefore a lower bound, not a reconstruction.
+- Pairing assigns `blk` from the nearest FWA stream line, not from the #54 bridge. The bridge
+  exists only for published (sieved) patches and attributes through overlapping floodplain
+  polygons, while opposite-bank geometry needs the centreline. This deviates from the plan's
+  wording; recorded here.
+
 ## Errors Encountered
 
 | Error | Resolution |

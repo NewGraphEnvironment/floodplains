@@ -46,7 +46,7 @@ Exploration findings that shape the work:
 
 ## Phase 1: Pre-register the separation rule
 
-- [ ] Write `research/channel_migration.md` (provenance line, question, the candidate-cluster
+- [x] Write `research/channel_migration.md` (provenance line, question, the candidate-cluster
       definition, and the **separation rule with thresholds**) and add it to the
       `research/README.md` index. Commit **before** any probe output exists, in the
       `landcover_accuracy.md` pattern. Draft rule, to be fixed in this commit:
