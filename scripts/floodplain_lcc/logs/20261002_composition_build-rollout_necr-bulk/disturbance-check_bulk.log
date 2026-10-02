@@ -74,7 +74,7 @@ tagging: context columns land, cause columns and the residual do not move
   PASS  must-fail arm: the report REFUSES alr passed as a cause
   PASS  carrying the patches' geometry column is refused at tag time
 
-live: area=bulk  gpkg=/Users/airvine/Projects/repo/floodplains/data/bulk/floodplain_landcover.gpkg  layers=transition_co_ff04_2017_2023
+live: area=bulk  gpkg=<repos>/floodplains/data/bulk/floodplain_landcover.gpkg  layers=transition_co_ff04_2017_2023
   PASS  at least one transition layer
   PASS  no legacy `_disturbance` / `_fire` sibling (#55)
   -- transition_co_ff04_2017_2023

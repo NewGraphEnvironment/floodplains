@@ -206,8 +206,8 @@ Provenance: landcover[co_ff04] -> provenance.json
   ok    no lnk_config() call site names a bundle literally (found: none) 
   ok    every raster-writing producer still records run$toolchain (found: floodplain, landcover) 
 
-7. Real area: /Users/airvine/Projects/repo/floodplains/data/bulk/provenance.json
-   (repo root resolved from this script: /Users/airvine/Projects/repo/floodplains)
+7. Real area: <repos>/floodplains/data/bulk/provenance.json
+   (repo root resolved from this script: <repos>/floodplains)
   ok    5 section(s) to check 
   ok    all 5 config-derived entries present 
 

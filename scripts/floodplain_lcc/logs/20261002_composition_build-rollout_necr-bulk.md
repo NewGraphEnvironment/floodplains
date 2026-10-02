@@ -61,6 +61,22 @@ The last row is the overstatement the table exists to avoid. Summing flagged pat
 **Cost:** NECR 46 s at 12.3 GB peak RSS (56 Mcell grid). BULK 129 s at 12.8 GB (169 Mcell grid). The
 cost is one `lapp` + `freq` pass.
 
+## The step-3 path, on the parity fixture (neexdzii)
+
+NECR and BULK used the backfill CLI. To exercise the composition inside step 3, I ran
+`run_area.R neexdzii 3`. That path covers the stale-table delete, the marker unlink, the landcover
+record, `fp_composition_build`, and the markers rewritten last. The STAC request hit the cache.
+
+- **Parity holds.** Tree loss is 770.0 ha over 2,032 patches. The transition `outputs_hash` is
+  byte-identical to the pre-run record. `inputs_hash` moved only because of the installed drift
+  version stamp (0.13.0 → 0.20.0); every classified digest is unchanged.
+- **Composition.** 336 rows. Floodplain 14,282.8 ha (vector 14,282.3); ALR 4,461.3 ha, 31.2% (vector
+  4,461.8); change 1,289.0 ha, of it 701.0 ha (54.4%) inside the ALR.
+- **Multi-sub-basin bound.** Change cells exceed patches by **+0.29%** across 13 sub-basins, inside
+  the one-sided 1% bound.
+- composition-check and provenance-check exit 0. Log: `run_area_step3_neexdzii.log` (paths
+  redacted), plus `composition-check_neexdzii.log` and `provenance-check_neexdzii.log`.
+
 ## Evidence
 
 `20261002_composition_build-rollout_necr-bulk/` holds the build, tag and check logs, two per area per

@@ -168,8 +168,7 @@ if (is.na(a[1])) {
     # (1) change == the transition layer, an independent vectorisation of the same cells. ONE-SIDED:
     # step 3 intersects the patches with the sub-basins and recomputes their area, so change cells the
     # sub-basin boundary clips lose area on the patch side and never on this one. Measured 2026-10-02:
-    # NECR cells 4,730.0 ha vs patches 4,712.6 ha (+0.37%). A multi-sub-basin area (neexdzii) needs
-    # its own measurement before this bound is reused.
+    # NECR +0.37%, BULK +0.34% (one sub-basin each), neexdzii +0.29% (13 sub-basins).
     tr <- sf::st_read(gpkg, tlyr, quiet = TRUE, promote_to_multi = FALSE)
     v_ha <- sum(tr$area_ha); c_ha <- sum(comp$ha[chg])
     rel <- (c_ha - v_ha) / v_ha

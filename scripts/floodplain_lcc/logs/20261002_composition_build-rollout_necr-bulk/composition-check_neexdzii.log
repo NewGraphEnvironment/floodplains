@@ -1,0 +1,53 @@
+Spherical geometry (s2) switched off
+
+offline: a 4 x 4 grid, every status and both overlays
+  PASS  every (class pair, status, overlay) combination and count matches the per-cell reference  (11 rows)
+  PASS  the footprint is the cells non-NA in EITHER endpoint (14 of 16)
+  PASS  cell 13, inside an overlay but outside the footprint, is not counted
+  PASS  ha = cells x cell area (10 m cells -> 0.01 ha)
+  PASS  statuses: 7 stable, 3 change, 2 sieved, 2 nodata
+  PASS  class names come from the code map; an NA endpoint has no name
+  PASS  ALR and wetland are independent columns (cell 3 is in both)
+  PASS  premise: the fixture's transition raster holds stable cells (non-NA != changed)
+  PASS  no transition raster -> every changed cell is sieved, none `change`
+  PASS  no overlays -> no in_ columns, same footprint
+  PASS  must-fail arm: a transition raster from a different run is refused
+  PASS  must-fail arm: a transition cell where an endpoint is NA is refused
+  PASS  a class code with no name is refused
+  PASS  unnamed overlays are refused
+  PASS  an overlay off the classified grid is refused
+  PASS  fp_rast_cells: a polygon grazing a cell without its centre does not claim it
+  PASS  fp_rast_cells: a polygon over the centre claims the cell
+  PASS  must-fail arm (premise): any-touch DOES claim the grazed cell, so the rule is load-bearing
+  PASS  fp_rast_cells: zero polygons give an all-NA grid, not an error
+  PASS  summary: floodplain = in_floodplain cells (12), footprint = 14
+  PASS  summary: ALR = ALR cells inside the floodplain (3), change in ALR = 2 of 3 change cells
+  PASS  summary: in_floodplain is the denominator, never itself a reported overlay
+  PASS  the table digest ignores row order
+  PASS  must-fail arm: one cell more moves the digest
+  PASS  must-fail arm: flipping a membership moves the digest
+
+live: area=neexdzii scenario=co_ff04 layer=composition_co_ff04_2017_2023
+  PASS  the composition layer exists
+  PASS  item keys present and single-valued
+  PASS  status values are the declared four
+  PASS  in_floodplain present (the population shares of the floodplain use)
+  PASS  change ha >= the transition layer's sum(area_ha), by under 1% (sub-basin clipping only)  (cells 1289.0 ha vs patches 1285.3 ha, +0.29%)
+  PASS  in_floodplain ha agrees with the vector floodplain area within 1%  (cells 14282.8 ha vs vector 14282.3 ha)
+  PASS  in_wetland is a column of the table
+  PASS  wetland: in_floodplain cell ha agrees with the vector floodplain intersection within 2% (or both ~0)  (cells 1802.0 ha vs vector 1801.5 ha)
+  PASS  wetland: change inside <= change, inside <= floodplain
+  PASS  in_wetland on the patches is consistent with the table (change cells inside => some patch tagged)  (14773 change cells inside; 240 patches tagged)
+  PASS  in_alr is a column of the table
+  PASS  alr: in_floodplain cell ha agrees with the vector floodplain intersection within 2% (or both ~0)  (cells 4461.3 ha vs vector 4461.8 ha)
+  PASS  alr: change inside <= change, inside <= floodplain
+  PASS  in_alr on the patches is consistent with the table (change cells inside => some patch tagged)  (70102 change cells inside; 1254 patches tagged)
+  PASS  provenance landcover[scenario].composition is recorded
+  PASS  recorded table digest re-derives from the written table
+  PASS  recorded layer name and row count match
+  PASS  the composition was computed from the classified rasters step 3 recorded
+  PASS  ...and from the transition step 3 recorded
+  PASS  inputs_hash / outputs_hash recorded and well-formed
+  INFO  footprint_ha=15030.5; floodplain_ha=14282.8; change_ha=1289.0; sieved_ha=340.9; wetland_ha=1802.0; wetland_share=0.126; change_in_wetland_ha=147.7; change_in_wetland_share=0.115; alr_ha=4461.3; alr_share=0.312; change_in_alr_ha=701.0; change_in_alr_share=0.544
+
+ALL PASS

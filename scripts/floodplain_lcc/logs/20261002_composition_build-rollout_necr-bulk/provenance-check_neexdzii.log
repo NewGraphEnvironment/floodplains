@@ -206,38 +206,38 @@ Provenance: landcover[co_ff04] -> provenance.json
   ok    no lnk_config() call site names a bundle literally (found: none) 
   ok    every raster-writing producer still records run$toolchain (found: floodplain, landcover) 
 
-7. Real area: <repos>/floodplains/data/necr/provenance.json
+7. Real area: <repos>/floodplains/data/neexdzii/provenance.json
    (repo root resolved from this script: <repos>/floodplains)
   ok    5 section(s) to check 
   ok    all 5 config-derived entries present 
 
 7c. Reconcile — published `outputs` values against the artefacts they name
   ok    premise: the digest column lists parse out of 01 (key=2, value=6) 
-  ok    network[ch3] n_segments: recorded 5045, artefact 5045 
-  ok    network[ch3] streams_content_sha256: recorded sha256:40754e978af0c9c035f67c4c4157d0759fc9f05e2d36a39fc26f6e59809a91a9, artefact sha256:40754e978af0c9c035f67c4c4157d0759fc9f05e2d36a39fc26f6e59809a91a9 
-  ok    network[ch3] whole-WSG area: pre- and post-subset digests agree: recorded sha256:40754e978af0c9c035f67c4c4157d0759fc9f05e2d36a39fc26f6e59809a91a9, artefact sha256:40754e978af0c9c035f67c4c4157d0759fc9f05e2d36a39fc26f6e59809a91a9 
-  ok    floodplain[ch_ff02] valley_cells: recorded 383050, artefact 383050 
-  ok    floodplain[ch_ff02] floodplain_content_sha256: recorded sha256:2708d7061e76e3cca494b1334aa5ff3e13c87ee63e0fc3f6066eec5b3018ee8d, artefact sha256:2708d7061e76e3cca494b1334aa5ff3e13c87ee63e0fc3f6066eec5b3018ee8d 
-  ok    floodplain[ch_ff02] floodplain_ch_ff02.tif carries no stray container tags 
-  ok    floodplain[ch_ff02] dem_content_sha256 not reconcilable (the DEM is never written) 
-  ok    floodplain[ch_ff04] valley_cells: recorded 428310, artefact 428310 
-  ok    floodplain[ch_ff04] floodplain_content_sha256: recorded sha256:db4644162243a72cb827a57e4b500b334baed6c58a3512c01bc45325a3714c8d, artefact sha256:db4644162243a72cb827a57e4b500b334baed6c58a3512c01bc45325a3714c8d 
-  ok    floodplain[ch_ff04] floodplain_ch_ff04.tif carries no stray container tags 
-  ok    floodplain[ch_ff04] dem_content_sha256 not reconcilable (the DEM is never written) 
-  ok    floodplain[ch_ff06] valley_cells: recorded 467135, artefact 467135 
-  ok    floodplain[ch_ff06] floodplain_content_sha256: recorded sha256:40a295ad255cf51962ca88b25cd09fede1493bbca07ee627f2d9d313643d3893, artefact sha256:40a295ad255cf51962ca88b25cd09fede1493bbca07ee627f2d9d313643d3893 
-  ok    floodplain[ch_ff06] floodplain_ch_ff06.tif carries no stray container tags 
-  ok    floodplain[ch_ff06] dem_content_sha256 not reconcilable (the DEM is never written) 
-  ok    landcover[ch_ff04] transition_content_sha256: recorded sha256:3b557ce1090fce45bb8eadb4e3d302a2f63cffba3d7e47233f99d4a4cb9f6559, artefact sha256:3b557ce1090fce45bb8eadb4e3d302a2f63cffba3d7e47233f99d4a4cb9f6559 
-  ok    landcover[ch_ff04] transition_patches: recorded 5692, artefact 5692 
-  ok    landcover[ch_ff04] classified tif years reconcile (disk {2017,2018,2019,2020,2021,2022,2023} vs recorded {2017,2018,2019,2020,2021,2022,2023}) 
-  ok    landcover[ch_ff04] classified_content_sha256 is keyed by year (7 of 7 named) 
-  ok    landcover[ch_ff04] all 7 classified_content_sha256 re-derive from their .tif 
-  ok    landcover[ch_ff04] no classified_*.tif carries stray container tags 
-  ok    landcover[ch_ff04] transition.tif carries no stray container tags 
-  ok    landcover[ch_ff04] composition rows: recorded 485, artefact 485 
-  ok    landcover[ch_ff04] composition table_content_sha256: recorded sha256:a2fb2db733d95a35e118924bdd7742d027184563d790f94f42fac70eb9160802, artefact sha256:a2fb2db733d95a35e118924bdd7742d027184563d790f94f42fac70eb9160802 
-  ok    landcover[ch_ff04] classified gpkg layer years reconcile (gpkg {2017,2018,2019,2020,2021,2022,2023} vs recorded {2017,2018,2019,2020,2021,2022,2023}) 
+  ok    network[co3] n_segments: recorded 1915, artefact 1915 
+  ok    network[co3] streams_content_sha256: recorded sha256:1f88bf8b3bdb42cc25b6abd196aaff6563745b222ad3b852fb63ab6e139ec19c, artefact sha256:1f88bf8b3bdb42cc25b6abd196aaff6563745b222ad3b852fb63ab6e139ec19c 
+  ok    network[co3] inputs.network_content_sha256 not reconcilable (pre-subset, never written) 
+  ok    floodplain[co_ff02] valley_cells: recorded 141504, artefact 141504 
+  ok    floodplain[co_ff02] floodplain_content_sha256: recorded sha256:bf2c4b0cd900f9dc81479662cbe9ac2ed86b0a247cc8a00eb45a9ad1ac62cb16, artefact sha256:bf2c4b0cd900f9dc81479662cbe9ac2ed86b0a247cc8a00eb45a9ad1ac62cb16 
+  ok    floodplain[co_ff02] floodplain_co_ff02.tif carries no stray container tags 
+  ok    floodplain[co_ff02] dem_content_sha256 not reconcilable (the DEM is never written) 
+  ok    floodplain[co_ff04] valley_cells: recorded 153836, artefact 153836 
+  ok    floodplain[co_ff04] floodplain_content_sha256: recorded sha256:8eb759465c44c159b26e15ca6c903b848eb3a6e13ce94bff88245c8bcb096764, artefact sha256:8eb759465c44c159b26e15ca6c903b848eb3a6e13ce94bff88245c8bcb096764 
+  ok    floodplain[co_ff04] floodplain_co_ff04.tif carries no stray container tags 
+  ok    floodplain[co_ff04] dem_content_sha256 not reconcilable (the DEM is never written) 
+  ok    floodplain[co_ff06] valley_cells: recorded 161555, artefact 161555 
+  ok    floodplain[co_ff06] floodplain_content_sha256: recorded sha256:9c2b058078190c11ca3d07063aae5300670103d5370f99a4a531aa69fa8ce84c, artefact sha256:9c2b058078190c11ca3d07063aae5300670103d5370f99a4a531aa69fa8ce84c 
+  ok    floodplain[co_ff06] floodplain_co_ff06.tif carries no stray container tags 
+  ok    floodplain[co_ff06] dem_content_sha256 not reconcilable (the DEM is never written) 
+  ok    landcover[co_ff04] transition_content_sha256: recorded sha256:1e379aeed3059fcdcb2d4856ba536689550682caebe48fda71ad33b96f743d01, artefact sha256:1e379aeed3059fcdcb2d4856ba536689550682caebe48fda71ad33b96f743d01 
+  ok    landcover[co_ff04] transition_patches: recorded 2032, artefact 2032 
+  ok    landcover[co_ff04] classified tif years reconcile (disk {2017,2020,2023} vs recorded {2017,2020,2023}) 
+  ok    landcover[co_ff04] classified_content_sha256 is keyed by year (3 of 3 named) 
+  ok    landcover[co_ff04] all 3 classified_content_sha256 re-derive from their .tif 
+  ok    landcover[co_ff04] no classified_*.tif carries stray container tags 
+  ok    landcover[co_ff04] transition.tif carries no stray container tags 
+  ok    landcover[co_ff04] composition rows: recorded 336, artefact 336 
+  ok    landcover[co_ff04] composition table_content_sha256: recorded sha256:3872b25980ae73645663ebdb658e1293402f33bf074c1b209c5986fde11b9fe6, artefact sha256:3872b25980ae73645663ebdb658e1293402f33bf074c1b209c5986fde11b9fe6 
+  ok    landcover[co_ff04] classified gpkg layer years reconcile (gpkg {2017,2020,2023} vs recorded {2017,2020,2023}) 
   ok    real file checked against all properties 
 
 PASS — all properties hold, and each was shown able to fail.
