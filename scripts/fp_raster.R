@@ -146,3 +146,18 @@ fp_rast_write <- function(r, path, ...) {
   }
   invisible(path)
 }
+
+#' 1 where a cell's CENTRE lies inside any polygon, NA elsewhere, on `template`'s grid.
+#'
+#' The ONE definition of "this cell is in that overlay" (#108). The accuracy strata (#93) and the
+#' composition table both decide membership per cell with it, so a wetland or ALR share read off one
+#' cannot disagree with the other over a rule. `touches = FALSE` is the point: `terra::mask()` and
+#' any-touch flags like `in_alr` count a cell the polygon merely grazes, and that is the overstatement
+#' a share must not inherit. Overlapping polygons count once. A zero-row input gives an all-NA grid,
+#' not an error, because "no ALR in this floodplain" is a legitimate answer.
+fp_rast_cells <- function(polys, template) {
+  if (!nrow(polys)) return(terra::init(terra::rast(template), NA))
+  polys <- sf::st_transform(polys, terra::crs(template))
+  terra::rasterize(terra::vect(sf::st_geometry(polys)), terra::rast(template), field = 1L,
+                   touches = FALSE, background = NA)
+}

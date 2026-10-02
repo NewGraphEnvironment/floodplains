@@ -15,6 +15,7 @@
 #
 # Outputs (data/<area>/):
 #   floodplain_landcover.gpkg       -- classified_{scenario}_{year} + transition layer
+#                                      + composition_{scenario}_{from}_{to} (cell-level, #108)
 #   lulc_summary_{scenario_id}.rds  -- area/pct by class, sub-basin, year
 #   lulc_summary.rds                -- copy of active scenario (report reads this)
 #   rasters/{scenario_id}/          -- classified + transition tifs
@@ -418,8 +419,7 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
   # last-writer-wins pointer to the most recently run scenario, kept for the report / 05 /
   # run_region cache (all coho today); with two species in one dir it reflects whichever ran step 3
   # last -- read the per-scenario file for a specific species/scenario (#23).
-  saveRDS(lulc_summary, file.path(out_dir, paste0("lulc_summary_", scenario_id, ".rds")))
-  saveRDS(lulc_summary, file.path(out_dir, "lulc_summary.rds"))
+  # (saved at the END of this function, after the composition -- see there)
 
   # --- Machine-readable provenance (#33) ---
   # The sharp edge this issue exists for: io-lulc-annual-v02 is a REMOTE collection that can be
@@ -430,6 +430,25 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
   # res/crs/dt/aggregation/resampling are read from formals(): fp_lulc passes NONE of them, so the
   # defaults ARE what ran, and reading them keeps the record honest if drift ever changes one.
   # stac_url/collection/asset come from drift's own exported resolver rather than being restated.
+  # The composition table describes THIS run's rasters, and the record about to be written replaces
+  # landcover[<scenario>] whole -- its `composition` sibling included. So an earlier run's table goes
+  # now, before anything can fail between here and its rebuild below: a stale table left in a gpkg
+  # the publisher copies whole would describe rasters that no longer exist (#55's orphan class).
+  # EVERY span's table for this scenario, not just today's: after a change_interval edit the old-span
+  # layer would otherwise outlive the record that described it, under a name nothing asks about.
+  comp_gpkg <- file.path(out_dir, "floodplain_landcover.gpkg")
+  comp_pat  <- paste0("^composition_", scenario_id, "_[0-9]{4}_[0-9]{4}$")
+  if (file.exists(comp_gpkg)) {
+    for (comp_lyr in grep(comp_pat, sf::st_layers(comp_gpkg)$name, value = TRUE)) {
+      sf::st_delete(comp_gpkg, layer = comp_lyr, quiet = TRUE)
+      if (comp_lyr %in% sf::st_layers(comp_gpkg)$name)   # measure the file, not st_delete's return
+        stop("could not remove stale ", comp_lyr, " from ", basename(comp_gpkg), call. = FALSE)
+    }
+  }
+  # ...and the PREVIOUS run's resume marker with it. It is rewritten at the end of this function, after
+  # the composition; left in place, a re-run that dies in between would be skipped by run_region.R as
+  # done, with no composition, and 7c would read the area as merely predating #108.
+  unlink(file.path(out_dir, c(paste0("lulc_summary_", scenario_id, ".rds"), "lulc_summary.rds")))
   dft_defaults <- formals(drift::dft_stac_fetch)
   lc_cfg <- drift::dft_stac_config("io-lulc")
   fp_prov_set(cfg, "landcover", scenario_id, list(
@@ -466,6 +485,22 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
       transition_content_sha256 = transition_sha,
       transition_patches        = n_transition_patches),
     run = fp_prov_run(toolchain = fp_toolchain())))
+
+  # --- Composition (#108) ---
+  # What the floodplain is made of and where its change sat, counted per CELL so stable land is in
+  # it and no share inherits the any-touch overstatement of an in_<context> flag. AFTER the landcover
+  # record above, for two reasons: it reads the rasters this step just wrote (the same files
+  # composition_build.R reads, so the two paths cannot disagree), and its provenance is a sibling
+  # INSIDE landcover[<scenario>] -- fp_prov_set replaces the whole entry, so writing it first would
+  # have it wiped. Runs whatever the patch count: a run with no change still has a composition.
+  # Opens its own DB connection only when context overlays are configured.
+  fp_composition_build(cfg, scenario_id)
+
+  # The summaries LAST: lulc_summary.rds is run_region.R's "this group is done" marker, so writing it
+  # before the composition would let a composition failure (DB down, OOM) be skipped on every resume
+  # and never rebuilt. A step 3 that dies here is re-run whole, or repaired with composition_build.R.
+  saveRDS(lulc_summary, file.path(out_dir, paste0("lulc_summary_", scenario_id, ".rds")))
+  saveRDS(lulc_summary, file.path(out_dir, "lulc_summary.rds"))
 
   message("\nDone. Scenario: ", scenario_id, " -- outputs in ", out_dir)
   invisible(out_lc_gpkg)

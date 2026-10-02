@@ -32,9 +32,12 @@ scenario_of <- function(lyr) {
   # <species>_ff<NN>, so one rule covers every suffix a layer name can carry — year, transition
   # span, _disturbance, _fire, _patches, and anything added later. Stripping suffixes instead
   # means enumerating them, and any unlisted one silently yields a bogus scenario value.
-  s <- sub("^classified_", "", sub("^transition_", "", lyr))
-  m <- regmatches(s, regexpr("^[a-z]{2,4}_ff[0-9]+", s))
-  if (length(m)) m else s
+  #
+  # Unanchored, so a PREFIX is found wherever it sits: stripping only classified_/transition_ left
+  # `composition_co_ff04_2017_2023` (#108) and `patch_watercourse_co_ff04_...` (#54) unmatched,
+  # and the fallthrough would have keyed them species "composition" / "patch".
+  m <- regmatches(lyr, regexpr("(^|_)[a-z]{2,4}_ff[0-9]+", lyr))
+  if (length(m)) sub("^_", "", m) else lyr
 }
 
 for (g in c("floodplain.gpkg", "floodplain_landcover.gpkg")) {

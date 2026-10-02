@@ -72,10 +72,10 @@ stays one-way.
   rollout is forward-only).
 
 ## Phase 3: Composition table
-- [ ] Move the cell-centre rasterize rule into `scripts/fp_raster.R` as `fp_rast_cells(polys, template)`.
+- [x] Move the cell-centre rasterize rule into `scripts/fp_raster.R` as `fp_rast_cells(polys, template)`.
   `fp_acc_rasterize()` (`scripts/landcover_accuracy/fp_accuracy.R`) delegates to it, so there is
   one definition of membership.
-- [ ] Add `scripts/floodplain_lcc/fp_composition.R`. It has three parts.
+- [x] Add `scripts/floodplain_lcc/fp_composition.R`. It has three parts.
   - **`fp_composition(from, to, trans, overlays)`** (pure, rasters in, data.frame out):
     - it encodes class pair, status and overlay bits into one integer raster and reads it with a
       single `terra::freq()` (C++ fast path);
@@ -94,12 +94,12 @@ stays one-way.
       - `outputs`: a `fp_table_content_sha256` over the table.
   - No context configured ⇒ the table is still written (class × status only), so no #55 orphan is
     possible.
-- [ ] Step 3 (`03_lulc_classify.R`) calls `fp_composition_build()` after the transition write.
+- [x] Step 3 (`03_lulc_classify.R`) calls `fp_composition_build()` after the transition write.
   It opens a DB conn only when context is configured, and runs in the zero-transition case too
   (stable composition is still true).
-- [ ] Add `scripts/floodplain_lcc/composition_build.R <area> [scenario]`, a standalone backfill.
+- [x] Add `scripts/floodplain_lcc/composition_build.R <area> [scenario]`, a standalone backfill.
   It pins the gpkg date (`fp_gpkg_pin_date()`, #45) and does not source `packages.R`.
-- [ ] Add `scripts/floodplain_lcc/composition-check.R`.
+- [x] Add `scripts/floodplain_lcc/composition-check.R`.
   - **Offline**, on tiny hand-built rasters, each rule with a must-fail arm:
     - the four statuses partition the footprint;
     - sieved ≠ change;
@@ -115,7 +115,7 @@ stays one-way.
       stated tolerance;
     - change-in-ALR ≤ change;
     - the provenance `outputs` digest re-derives from the table.
-- [ ] `provenance-check.R`: a `composition` entry is required when the gpkg holds a
+- [x] `provenance-check.R`: a `composition` entry is required when the gpkg holds a
   `composition_*` table (an artifact-derived expectation) and well-formed when present.
 
 ## Phase 4: Roll out to NECR and BULK

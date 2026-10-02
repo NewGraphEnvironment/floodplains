@@ -147,9 +147,14 @@ results <- list()
 for (i in seq_len(nrow(runnable))) {
   w <- runnable$wsg[i]; sp <- runnable$species[i]; area <- tolower(w)
   log <- file.path(log_dir, sprintf("region_%s_%s_%s.log", region, area, ts))
-  # Resumable: a group whose lulc_summary.rds already exists is complete — skip it so a
+  # Resumable: a group whose primary scenario's summary already exists is complete — skip it so a
   # re-run after an interruption picks up where it left off. FORCE=1 redoes everything.
-  summary_rds <- file.path(here::here("data", area), "lulc_summary.rds")
+  #
+  # Keyed on the PRIMARY scenario's own summary, not the shared lulc_summary.rds: that one is
+  # last-writer-wins across species, so another species' successful step 3 would mark this group done
+  # while this scenario's step 3 had died before its composition (#108), and been skipped thereafter.
+  # Step 3 unlinks both files at the start of its record write and rewrites them last.
+  summary_rds <- file.path(here::here("data", area), paste0("lulc_summary_", sp, "_ff04.rds"))
   # A cached group never runs the child, so its provenance record (#33) is whatever the last real
   # run wrote -- and the group still reports `ok` and still reaches the publish hint. Publishing a
   # stale block as the provenance of a current release is worse than publishing none, because
@@ -172,7 +177,7 @@ for (i in seq_len(nrow(runnable))) {
   }
   cached <- file.exists(summary_rds) && file.exists(prov_json) && !nzchar(Sys.getenv("FORCE"))
   if (cached) {
-    message("\n### ", w, " -> ", sp, ": complete (lulc_summary.rds present) — SKIP (FORCE=1 to redo)",
+    message("\n### ", w, " -> ", sp, ": complete (", basename(summary_rds), " present) — SKIP (FORCE=1 to redo)",
             " [provenance ", if (is.na(prov_date)) "present, date unread" else prov_date, "] ###")
     rc <- 0L
   } else if (file.exists(summary_rds) && !file.exists(prov_json)) {

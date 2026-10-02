@@ -55,9 +55,26 @@ Relates: #92, #95, #88, #100, #96, #103, #106
 - `bcdata info WHSE_LEGAL_ADMIN_BOUNDARIES.OATS_ALR_POLYS`: count 3,226; columns ALR_POLY_ID, STATUS, FEATURE_CODE, GEOMETRY, OBJECTID, SE_ANNO_CAD_DATA, FEATURE_AREA_SQM, FEATURE_LENGTH_M. Updated quarterly (end Jan/Apr/Jul/Oct).
 - WFS GetFeature (STATUS, FEATURE_CODE), all 3,226 rows: STATUS = 'ALR' on every row, FEATURE_CODE NULL on every row -> no load filter needed.
 - fwapg: no table matching alr/oats (only link scratch tables `zz_lnk_mc_scratch_salr`).
-- stac_floodplains_bc `scripts/01_stage.R` extracts named layers only, so a new gpkg table is ignored until that repo opts in.
+- ~~stac_floodplains_bc `scripts/01_stage.R` extracts named layers only, so a new gpkg table is ignored until that repo opts in.~~ **Wrong** (plan review A1): `01_stage.R:296-298` copies `floodplain_landcover.gpkg` WHOLE, so `composition_*` publishes on the next rebuild. What IS by name is the provenance reader, which refuses an unknown TOP-level key (`fp_provenance.R:172-178`) -- hence the `composition` sibling inside `landcover[<scenario>]`.
+
+## Measurements during build (2026-10-02)
+
+- transition.tif carries STABLE cells too (NECR 3,605,869 of 4,078,867 non-NA); sieved change is NA in
+  it, stable cells are never NA. So `change` = trans non-NA AND from != to.
+- The classified footprint is the terra::mask(touches = TRUE) ring: +5.5% NECR, +6.3% BULK over the
+  vector floodplain. ALR on the NECR footprint 17,809 ha vs vector 16,894.7; on centre-in-floodplain
+  cells 16,885.5 (0.05%). -> `in_floodplain` is always a column, and the share denominator.
+- Change cells exceed the transition patches by +0.37% NECR / +0.34% BULK (sub-basin clipping).
+- NECR footprint FWA wetland 6,436.64 ha == accuracy/wetland_composition.csv exactly.
+- Cost: NECR ~45 s / 12-13 GB RSS; BULK ~130 s / 13 GB (169 Mcell grid).
+- Recorded hashes cannot be re-derived from parsed provenance.json (JSON round trip changes types);
+  provenance-check never does either.
 
 ## Errors Encountered
 
 | Error | Resolution |
 |-------|------------|
+| composition-check FAIL: ALR cells 17,809 vs vector 16,895 (5.4%) | the footprint ring; added `in_floodplain` and compare on it |
+| composition-check FAIL: inputs_hash re-derive from JSON | wrong premise (round trip changes types); assert format instead |
+| `stats::aggregate()` would drop the nodata reference rows (NA in `by`) | count by string key |
+| progress bars in the BULK build log | stripped `(\|-+){4}\|=*` from the committed log |
