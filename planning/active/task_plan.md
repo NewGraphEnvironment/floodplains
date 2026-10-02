@@ -60,15 +60,15 @@ stays one-way.
 - [x] Run it, and commit the log under `scripts/fwapg/logs/`.
 
 ## Phase 2: Tag change patches with `in_alr`
-- [ ] Add `config/disturbance.yml` `context:` entry `alr`: `table: whse_legal_admin_boundaries.oats_alr_polys`,
+- [x] Add `config/disturbance.yml` `context:` entry `alr`: `table: whse_legal_admin_boundaries.oats_alr_polys`,
   `geom_col: geom`, `carry: [alr_poly_id]`. Carry the key only, with a comment that `feature_area_sqm`
   is deliberately not carried.
-- [ ] `disturbance-check.R` offline:
+- [x] `disturbance-check.R` offline:
   - a must-fail arm where an `alr` context entry carrying `{feature_area_sqm: area_ha}` is refused;
   - an accepted arm for the real entry;
   - the tag fixture extended so `in_alr` + `alr_poly_id` appear and never reach the report's
     causes.
-- [ ] `disturbance-check.R` live: `in_alr` present on a re-tagged layer (INFO when absent, since
+- [x] `disturbance-check.R` live: `in_alr` present on a re-tagged layer (INFO when absent, since
   rollout is forward-only).
 
 ## Phase 3: Composition table

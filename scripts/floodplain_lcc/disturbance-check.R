@@ -267,6 +267,24 @@ if (any(!mine))
   message("  INFO  other cfg prefix pairs (not this check's; #97): ",
           paste(sprintf("%s<%s", pairs$prefix[!mine], pairs$longer[!mine]), collapse = ", "))
 
+# ALR (#108): a second context entry, on a table whose own area column must never reach a patch.
+alr <- list(name = "alr", table = "s.alr", geom_col = "geom", carry = list("alr_poly_id"))
+ok("a second context entry (alr, key-only carry) is accepted",
+   accepted(fp_disturbance_validate(list(sources = list(fire, harvest), context = list(wetland, alr)))))
+alr_area <- alr; alr_area$carry <- list(feature_area_sqm = "area_ha")
+ok("must-fail arm: an alr carry aliasing the ALR's own area onto the patch's area_ha is refused",
+   refused(fp_disturbance_validate(list(sources = list(fire), context = list(wetland, alr_area)))))
+polys$alr <- sf::st_sf(alr_poly_id = c(901, 902),
+                       geom = sf::st_sfc(sq(0, 50, 30), sq(590, 0, 300), crs = 3005))
+t_alr <- fp_disturbance_tag(patches, list(fire, harvest, wetland, alr), NULL, fetch = stub)
+ok("in_alr and alr_poly_id land on the patches (any-touch; patch 4 dominant 902)",
+   identical(t_alr$in_alr, c(TRUE, FALSE, FALSE, TRUE)) &&
+     identical(t_alr$alr_poly_id, c(901, NA, NA, 902)))
+ok("the attribution residual is unchanged by the alr context entry",
+   identical(residual(t_alr, list(fire, harvest)), r_all))
+ok("must-fail arm: the report REFUSES alr passed as a cause",
+   refused(fp_disturbance_report(t_alr, list(fire, harvest, alr), "check")))
+
 geom_clash <- wetland; geom_clash$carry <- list("geom")
 ok("carrying the patches' geometry column is refused at tag time",
    refused(fp_disturbance_tag(patches, list(geom_clash), NULL, fetch = stub)))
@@ -343,9 +361,12 @@ if (is.na(a[1])) {
     for (s in c(dst$context, dst$lookback)) {
       in_c <- tr[[paste0("in_", s$name)]]
       # A lookback can be correctly empty: 9 of 23 areas have no 2002-2016 fire on their floodplain
-      # (measured), so "tagged nothing" is a fact there, not a failed fetch. Context is never empty.
-      if (s$name %in% lb_names) {
-        message(sprintf("  INFO  in_%s: %d patches (zero is legitimate for a lookback)", s$name,
+      # (measured), so "tagged nothing" is a fact there, not a failed fetch. So can the ALR (#108):
+      # a headwater group may hold no reserve land at all. Whether an empty in_alr is a fact or a
+      # failed fetch is decided by composition-check.R, against the cell-level composition table --
+      # any change cell inside the ALR forces at least one any-touch patch.
+      if (s$name %in% c(lb_names, "alr")) {
+        message(sprintf("  INFO  in_%s: %d patches (zero is legitimate here)", s$name,
                         sum(in_c %in% TRUE)))
       } else {
         ok(sprintf("in_%s tagged something (an empty fetch would leave it all FALSE)", s$name),
