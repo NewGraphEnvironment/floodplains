@@ -99,20 +99,33 @@ FP_ACC_STRATA_FIXED <- data.frame(
   kind    = c(rep("change", 9), "sieved", rep("stable", 3))
 )
 
-# The strata table for a given ordered set of cause names: causes 1..k, then the fixed strata.
-fp_acc_strata_table <- function(causes) {
+# Published change inside a fire from the `lookback:` years before the interval (#103). NOT a cause:
+# it sits after every cause stratum, its label is not "change: <cause>" (which is how fp_acc_estimate
+# finds cause strata), and its cells stay in criterion 2's unattributed loss. It exists so the labels
+# can say whether change inside older burns is real -- the decision that would make it a cause. Drawn
+# only for the lookback entry of this name; any other lookback has no stratum (sample_draw refuses it).
+FP_ACC_PRIOR_NAME <- "fire_prior"
+FP_ACC_STRATUM_PRIOR <- data.frame(stratum = 19L, label = "change in prior fire", kind = "change")
+
+# The strata table for a given ordered set of cause names: causes 1..k, then the prior-fire stratum
+# when one is drawn, then the fixed strata.
+fp_acc_strata_table <- function(causes, prior = FALSE) {
   rbind(data.frame(stratum = seq_along(causes), label = paste0("change: ", causes), kind = "change"),
+        if (prior) FP_ACC_STRATUM_PRIOR,
         FP_ACC_STRATA_FIXED)
 }
 
 # from, to:  IO classified endpoints (raw codes). trans: published transition (NA = outside or sieved).
 # causes:    NAMED list of 1/NA rasters, in precedence order (published patch flags, rasterised).
 # wet:       1/NA raster of FWA wetland cells.
+# prior:     OPTIONAL 1/NA raster of cells inside a lookback fire (#103), at CELL level like `wet`:
+#            the polygons cover stable and sieved land too, and only published change cells take the
+#            stratum -- so there is no stray-cell guard here, unlike the patch-level cause flags.
 # Returns list(strata = factor SpatRaster, reported = the published map claim per cell, table).
-fp_acc_strata <- function(from, to, trans, causes, wet) {
+fp_acc_strata <- function(from, to, trans, causes, wet, prior = NULL) {
   if (is.null(names(causes)) || any(!nzchar(names(causes))))
     stop("`causes` must be a named list in precedence order", call. = FALSE)
-  tb   <- fp_acc_strata_table(names(causes))
+  tb   <- fp_acc_strata_table(names(causes), prior = !is.null(prior))
   code <- function(lbl) tb$stratum[tb$label == lbl]
   foot <- !is.na(from) & !is.na(to)
   chg  <- foot & !is.na(trans) & ((trans %/% 1000L) != (trans %% 1000L))
@@ -143,6 +156,7 @@ fp_acc_strata <- function(from, to, trans, causes, wet) {
   s <- terra::ifel(chg & (f == 11L) & (t == 2L), code("Rangeland -> Trees"), s)
   s <- terra::ifel(chg & (f == 2L) & (t == 11L), code("Trees -> Rangeland"), s)
   s <- terra::ifel(chg & ((f == 4L) | (t == 4L) | inw), code("wetland change"), s)
+  if (!is.null(prior)) s <- terra::ifel(chg & !is.na(prior), code(FP_ACC_STRATUM_PRIOR$label), s)
   for (k in rev(seq_along(causes))) {
     s <- terra::ifel(chg & !is.na(causes[[k]]), k, s)
   }
@@ -179,7 +193,81 @@ fp_acc_fetch <- function(conn, src, fp, window) {
 FP_ACC_IO_CODES   <- c(1L, 2L, 4L, 5L, 7L, 8L, 9L, 11L)
 FP_ACC_STATUS     <- c("labelled", "cannot_label")
 FP_ACC_CONFIDENCE <- c("high", "medium", "low")
-FP_ACC_IMAGERY    <- c("s2_composite", "esri", "google", "bing", "several")
+# `orthophoto` and `airphoto` are the DATED high-resolution sources (#103); which epoch covers a point
+# is in reference/<area>/imagery.csv. labels_form.qml's value map must list exactly these.
+FP_ACC_IMAGERY    <- c("s2_composite", "orthophoto", "airphoto", "esri", "google", "bing", "several")
+
+# Which dated imagery epochs earn a review theme (#103), from reference/<area>/imagery.csv: a source-year
+# covering >= 25% of the sample's points, and for air photos digital frames only -- fly_georef skips a
+# film frame with a flight bearing until its roll's rotation is known (fly#53). One definition, read by
+# imagery_index-dated.R (to report it) and imagery_build-dated.R (to build it), so the two cannot differ.
+FP_ACC_THEME_MIN_SHARE <- 0.25
+fp_acc_imagery_themes <- function(imagery, n_points) {
+  imagery <- imagery[!is.na(imagery$source) & nzchar(imagery$source), ]   # rows for uncovered points
+  if (!nrow(imagery)) return(data.frame(source = character(0), year = integer(0), points = integer(0),
+                                        share = numeric(0), digital = logical(0), theme = logical(0)))
+  key <- paste(imagery$source, imagery$year)
+  out <- do.call(rbind, lapply(split(imagery, key), function(g) data.frame(
+    source = g$source[1], year = as.integer(g$year[1]), points = length(unique(g$point_id)),
+    digital = all(grepl("^Digital", g$media[g$source == "airphoto"])))))
+  out$share <- out$points / n_points
+  out$theme <- out$share >= FP_ACC_THEME_MIN_SHARE & (out$source == "orthophoto" | out$digital)
+  out[order(out$source, out$year), c("source", "year", "points", "share", "digital", "theme")]
+}
+
+# --- the private orthophoto catalogue (#103) ----------------------------------------------------
+# This repo is PUBLIC and its run logs are committed, while the orthophoto catalogue is private: its
+# endpoint lives only in FP_ORTHO_STAC. rstac and GDAL put URLs in their errors and warnings ("Can't
+# open /vsicurl/https://...tif. Skipping it"), so every condition leaving these calls is caught and
+# its URLs redacted before it can reach a console or a log. A URL is not the only form the host takes:
+# curl names it bare and in brackets ("Could not resolve hostname [host]: ... host: host",
+# "Timeout was reached [10.255.255.1]"), so the endpoint's own host, any bracketed token and any
+# "host:" tail are redacted too.
+fp_acc_redact <- function(x) {
+  x <- gsub("https?://[^[:space:]'\"]+", "<url>", x)
+  host <- sub("^[a-z]+://([^/:]+).*$", "\\1", Sys.getenv("FP_ORTHO_STAC"))
+  if (nzchar(host)) x <- gsub(host, "<host>", x, fixed = TRUE)
+  x <- gsub("\\[[^]]*\\]", "[<host>]", x)
+  x <- gsub("[0-9]{1,3}([.][0-9]{1,3}){3}", "<ip>", x)
+  gsub("(host:?)[[:space:]]+[^[:space:]]+", "\\1 <host>", x, ignore.case = TRUE)
+}
+fp_acc_quiet_urls <- function(expr, what) {
+  warns <- character(0)
+  value <- withCallingHandlers(
+    tryCatch(expr, error = function(e)
+      stop(what, " failed: ", fp_acc_redact(conditionMessage(e)), call. = FALSE)),
+    warning = function(w) {
+      warns <<- c(warns, fp_acc_redact(conditionMessage(w)))
+      invokeRestart("muffleWarning")
+    })
+  list(value = value, warnings = warns)
+}
+
+# Every orthophoto item intersecting a lon/lat bbox: year, cog, gsd_m, epsg, href + footprint. The
+# catalogue's one collection is discovered, never named here. `href` is for building a VRT inside the
+# gitignored review project only -- no caller may write it to a committed file.
+fp_acc_ortho_items <- function(bbox4326) {
+  url <- Sys.getenv("FP_ORTHO_STAC")
+  if (!nzchar(url)) stop("FP_ORTHO_STAC is unset; add it to ~/.Renviron (the value is not in this repo)",
+                         call. = FALSE)
+  it <- fp_acc_quiet_urls({
+    s  <- rstac::stac(url)
+    cl <- rstac::get_request(rstac::collections(s))$collections
+    if (length(cl) != 1) stop("the catalogue holds ", length(cl), " collections; expected 1")
+    rstac::stac_search(s, collections = cl[[1]]$id, bbox = bbox4326, limit = 500) |>
+      rstac::post_request() |> rstac::items_fetch(progress = FALSE)
+  }, "the orthophoto catalogue request")$value
+  if (!length(it$features)) stop("the orthophoto search returned no items", call. = FALSE)
+  # geometry from rstac's own converter; properties from the features (proj:transform is a list)
+  p <- function(f, k) f$properties[[k]]
+  sf::st_sf(
+    year  = vapply(it$features, function(f) as.integer(substr(p(f, "datetime"), 1, 4)), 1L),
+    cog   = vapply(it$features, function(f) isTRUE(p(f, "cog")), TRUE),
+    gsd_m = vapply(it$features, function(f) abs(as.numeric(p(f, "proj:transform")[[1]] %||% NA)), 0),
+    epsg  = vapply(it$features, function(f) as.integer(p(f, "proj:epsg") %||% NA), 1L),
+    href  = vapply(it$features, function(f) f$assets$image$href %||% NA_character_, ""),
+    geometry = sf::st_geometry(rstac::items_as_sf(it)))
+}
 
 # The review project directory (gitignored: chips are large and labels.gpkg is a working copy)
 fp_acc_review_dir <- function(cfg) file.path(cfg$dir_acc, "review", paste0(cfg$area, "_lulc_review"))

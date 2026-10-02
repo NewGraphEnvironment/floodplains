@@ -12,7 +12,10 @@
 #   table     fwapg schema.table (loaded via bc2pg)
 #   geom_col  geometry column
 #   year_col  temporal field used to window to the change interval
-#   carry     source columns copied onto the patch from the dominant overlapping feature
+#   carry     source columns copied onto the patch from the dominant overlapping feature: a list
+#             (`[fire_year]`, copied under its own name) or a map (`{fire_year: fire_prior_year}`,
+#             copied under the alias -- how a second entry on the same table avoids writing the
+#             first one's column)
 #   filter    OPTIONAL extra SQL predicate (e.g. a pest-species subset)
 #   window    OPTIONAL [from, to] override (default = the change interval passed in)
 #
@@ -26,6 +29,15 @@
 # in_wetland would shrink the "not yet attributed" share for a reason that explains nothing.
 # fp_disturbance_validate() enforces the split, since the only difference between the two lists
 # in the tagging code is whether the query carries a year predicate.
+#
+# LOOKBACK entries (#103) -- `lookback:` -- are DATED but sit BEFORE the change interval: `lookback: 15`
+# windows the entry to the 15 years ending the year before the interval starts (2002-2016 for
+# 2017-2023). A fire in 2010 can explain change inside 2017-2023 (regrowth, delayed mortality) without
+# being a cause the way an in-window fire is, and in NECR those fires hold 27% of the unattributed tree
+# loss -- too much to file silently either way. So a lookback is tagged and REPORTED as its own line,
+# and never counted as explained: fp_disturbance_report() refuses one passed as a source, and the
+# README figure reads `sources:` only. Promoting it to a cause is a decision for the accuracy labels
+# (#93), not for this file.
 
 suppressMessages({library(sf); library(dplyr)})
 
@@ -39,13 +51,35 @@ suppressMessages({library(sf); library(dplyr)})
 FP_PATCH_CORE <- c("patch_id", "transition", "area_ha", "name_basin", "from_class", "to_class",
                    "wsg", "species", "scenario")
 
-# Every key a `sources:` or `context:` entry may carry. `confidence` is documentation (a label).
+# Every key a `sources:`, `context:` or `lookback:` entry may carry. `confidence` is documentation
+# (a label). Which list may use `window` / `lookback` / `year_col` is fp_disturbance_validate()'s call.
 FP_DST_ENTRY_KEYS <- c("name", "table", "geom_col", "year_col", "carry", "filter", "window",
-                       "confidence")
+                       "lookback", "confidence")
+FP_DST_LISTS <- c("sources", "context", "lookback")
 
 .dst_refuse <- function(...) {
   stop(structure(class = c("fp_disturbance_config_error", "error", "condition"),
                  list(message = paste0("config/disturbance.yml: ", ...), call = NULL)))
+}
+
+# A carry's SOURCE columns, in the order of its patch columns. `unlist(s[["carry"]])` is the PATCH
+# names for both forms -- a list's values, a map's values (the aliases) -- which is why every reader
+# of patch columns keeps using it; only the SQL needs the other side.
+.dst_carry_src <- function(s) {
+  v <- unlist(s[["carry"]])
+  if (is.null(names(v))) unname(v) else names(v)
+}
+
+# A carry is a list of column names or a map of source -> patch name, every element one non-empty
+# string. Anything else (a nested list, a number, a half-named list) would reach the SQL as garbage.
+.dst_carry_shape <- function(s) {
+  v <- s[["carry"]]
+  if (is.null(v)) return(invisible())
+  ok_elt <- vapply(v, function(x) is.character(x) && length(x) == 1 && nzchar(x), logical(1))
+  nms <- names(v)
+  if (!all(ok_elt) || (!is.null(nms) && !all(nzchar(nms))))
+    .dst_refuse("`", s[["name"]] %|null|% "?", "` has a malformed `carry`: a list of column names, or ",
+                "a map `{source_col: patch_col}`")
 }
 
 # A carried column copied under the name of a patch column (or its geometry) would overwrite it.
@@ -62,14 +96,14 @@ FP_DST_ENTRY_KEYS <- c("name", "table", "geom_col", "year_col", "carry", "filter
 # Validate the whole parsed config/disturbance.yml (both lists) before anything is tagged. Every
 # rule here guards a failure that would otherwise run to completion with wrong columns.
 fp_disturbance_validate <- function(dst) {
-  unknown <- setdiff(names(dst), c("sources", "context"))
+  unknown <- setdiff(names(dst), FP_DST_LISTS)
   if (length(unknown))
     .dst_refuse("unknown top-level key(s) ", paste(unknown, collapse = ", "),
-                " -- only `sources:` and `context:` are read, so these entries would be dropped")
+                " -- only `sources:`, `context:` and `lookback:` are read, so these entries would be dropped")
   # Entry keys are checked on the RAW entry: a misspelt optional key (`filtr:`, `cary:`, `windw:`)
   # is otherwise read as absent, and the entry runs unfiltered, uncarried or on the default window.
   # Checked before the list tag is attached, so an entry cannot carry its own `.list` either.
-  for (lst in c("sources", "context")) {
+  for (lst in FP_DST_LISTS) {
     for (s in dst[[lst]]) {
       bad <- setdiff(names(s), FP_DST_ENTRY_KEYS)
       if (length(bad))
@@ -77,8 +111,8 @@ fp_disturbance_validate <- function(dst) {
                     paste(bad, collapse = ", "), "; known: ", paste(FP_DST_ENTRY_KEYS, collapse = ", "))
     }
   }
-  entries <- c(lapply(dst[["sources"]], function(s) c(s, list(.list = "sources"))),
-               lapply(dst[["context"]], function(s) c(s, list(.list = "context"))))
+  entries <- unlist(lapply(FP_DST_LISTS, function(lst)
+    lapply(dst[[lst]], function(s) c(s, list(.list = lst)))), recursive = FALSE)
   for (s in entries) {
     for (f in c("name", "table", "geom_col")) {
       v <- s[[f]]
@@ -88,9 +122,26 @@ fp_disturbance_validate <- function(dst) {
     if (s[[".list"]] == "sources" && is.null(s[["year_col"]]))
       .dst_refuse("source `", s[["name"]], "` has no `year_col`; a cause must be windowed to the change ",
                   "interval (an undated overlay belongs under `context:`)")
-    if (s[[".list"]] == "context" && (!is.null(s[["year_col"]]) || !is.null(s[["window"]])))
-      .dst_refuse("context `", s[["name"]], "` has a `year_col`/`window`; context is undated -- a dated ",
-                  "overlay that explains change belongs under `sources:`")
+    if (s[[".list"]] == "context" && (!is.null(s[["year_col"]]) || !is.null(s[["window"]]) ||
+                                      !is.null(s[["lookback"]])))
+      .dst_refuse("context `", s[["name"]], "` has a `year_col`/`window`/`lookback`; context is ",
+                  "undated -- a dated overlay belongs under `sources:` or `lookback:`")
+    # A source with `lookback:` would be read as an in-window cause and the key ignored.
+    if (s[[".list"]] == "sources" && !is.null(s[["lookback"]]))
+      .dst_refuse("source `", s[["name"]], "` has a `lookback`; a source is windowed to the change ",
+                  "interval -- an entry looking before it belongs under `lookback:`, which is not a cause")
+    if (s[[".list"]] == "lookback") {
+      if (is.null(s[["year_col"]]))
+        .dst_refuse("lookback `", s[["name"]], "` has no `year_col`; a lookback is a dated window")
+      lb <- s[["lookback"]]
+      if (!is.numeric(lb) || length(lb) != 1 || !is.finite(lb) || lb < 1 || lb > 200 || lb != round(lb))
+        .dst_refuse("lookback `", s[["name"]], "` needs `lookback:` as a whole number of years, 1 to 200")
+      # Two ways to say the window would disagree the moment the change interval moved.
+      if (!is.null(s[["window"]]))
+        .dst_refuse("lookback `", s[["name"]], "` has a `window`; its window is `lookback:` years ",
+                    "before the change interval, derived, never stated")
+    }
+    .dst_carry_shape(s)
     .dst_core_clash(s)
   }
   # Case-folded, like the core clash: GeoPackage field names are case-insensitive, so `fire` and
@@ -106,12 +157,25 @@ fp_disturbance_validate <- function(dst) {
   invisible(dst)
 }
 
-# The SQL for one entry: its carried columns + geometry, limited server-side to the AOI bbox
-# (EPSG:4326 xmin/ymin/xmax/ymax), and windowed to the change interval only when the entry has a
-# year_col -- which validation makes true of every source and false of every context entry.
+# The year window one entry is queried over, given the change interval `window` = c(from, to):
+#   lookback entry  the `lookback` years ending the year before the interval starts
+#   source          its own `window` override, else the change interval
+#   context         unused (no year_col, so no predicate)
+.dst_window <- function(src, window) {
+  if (!is.null(src[["lookback"]]))
+    return(c(min(window) - as.integer(src[["lookback"]]), min(window) - 1L))
+  src[["window"]] %|null|% window
+}
+
+# The SQL for one entry: its carried columns (aliased to their patch names) + geometry, limited
+# server-side to the AOI bbox (EPSG:4326 xmin/ymin/xmax/ymax), and windowed (.dst_window) only when the
+# entry has a year_col -- which validation makes true of every source and lookback entry and false of
+# every context entry.
 .dst_query <- function(src, bbox4326, window) {
-  w     <- src[["window"]] %|null|% window
-  carry <- paste(c(unlist(src[["carry"]]), paste(src[["geom_col"]], "AS geom")), collapse = ", ")
+  w     <- .dst_window(src, window)
+  out   <- unlist(src[["carry"]]); from <- .dst_carry_src(src)
+  sel   <- if (length(out)) ifelse(from == out, out, paste(from, "AS", out)) else character(0)
+  carry <- paste(c(sel, paste(src[["geom_col"]], "AS geom")), collapse = ", ")
   when  <- if (!is.null(src[["year_col"]]))
     sprintf("%s BETWEEN %d AND %d AND ", src[["year_col"]], as.integer(w[1]), as.integer(w[2])) else ""
   filt  <- if (!is.null(src[["filter"]]) && nzchar(src[["filter"]])) paste0(" AND (", src[["filter"]], ")") else ""
@@ -208,13 +272,23 @@ fp_same_values <- function(x, y) {
 # `sources` must be CAUSES only. An undated (context) entry is refused rather than counted: the
 # report cannot tell a wetland from a fire by its column, so the list it is handed is the only
 # thing keeping in_wetland out of the residual.
-fp_disturbance_report <- function(patches, sources, area = "") {
+#
+# `lookback` (#103) entries are reported AFTER the residual, as the share of it lying in each -- a
+# line, never a subtraction. A lookback passed as a source is refused for the same reason a context
+# entry is: it carries a year_col, so the undated test alone would let it through and count it.
+fp_disturbance_report <- function(patches, sources, area = "", lookback = list()) {
   undated <- vapply(sources, function(s) is.null(s[["year_col"]]), logical(1))
   if (any(undated))
     .dst_refuse("fp_disturbance_report() was given context entr",
                 if (sum(undated) == 1) "y " else "ies ",
                 paste(vapply(sources[undated], function(s) s[["name"]], character(1)), collapse = ", "),
                 "; pass `sources:` only -- context locates change, it never explains it")
+  prior <- vapply(sources, function(s) !is.null(s[["lookback"]]), logical(1))
+  if (any(prior))
+    .dst_refuse("fp_disturbance_report() was given lookback entr",
+                if (sum(prior) == 1) "y " else "ies ",
+                paste(vapply(sources[prior], function(s) s[["name"]], character(1)), collapse = ", "),
+                " as sources; pass them as `lookback =` -- a prior disturbance is reported, not counted")
   # `[[`, not `$`: on a data frame `$` partial-matches, so an absent column can answer with a longer
   # name's values, and a NULL makes `loss` empty and the report print zeros.
   for (k in c("from_class", "to_class", "area_ha"))
@@ -224,7 +298,8 @@ fp_disturbance_report <- function(patches, sources, area = "") {
   in_cols <- vapply(sources, function(s) paste0("in_", s[["name"]]), character(1))
   # A missing column is NULL, `%in%` makes it zero-length, and OR-ing that into the running mask
   # empties the mask -- the residual then sums nothing and the report says everything is explained.
-  absent <- setdiff(in_cols, names(patches))
+  lb_cols <- vapply(lookback, function(s) paste0("in_", s[["name"]]), character(1))
+  absent <- setdiff(c(in_cols, lb_cols), names(patches))
   if (length(absent))
     .dst_refuse("the patches were never tagged with ", paste(absent, collapse = ", "),
                 " -- re-tag (fire_tag.R) before reporting, or the residual reads 0")
@@ -239,5 +314,10 @@ fp_disturbance_report <- function(patches, sources, area = "") {
                    rep(FALSE, nrow(loss)))
   resid  <- sum(loss[["area_ha"]][!any_in])
   cat(sprintf(" residual (noise): %.1f ha (%.0f%%)\n", resid, 100 * resid / tot))
+  for (ic in lb_cols) {
+    ha <- sum(loss[["area_ha"]][!any_in & loss[[ic]] %in% TRUE])
+    cat(sprintf("   of which %-13s: %.1f ha (%.0f%% of residual; prior, not counted)\n", ic, ha,
+                if (resid > 0) 100 * ha / resid else 0))
+  }
   invisible(loss)
 }

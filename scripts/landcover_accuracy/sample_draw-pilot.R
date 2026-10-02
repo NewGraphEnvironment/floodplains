@@ -10,6 +10,8 @@
 #                            cell level -- the reference side of criterion 2 needs it for EVERY point,
 #                            and the published patch flags exist on changed patches only
 #   in_fwa_wetland           cell inside an FWA wetland polygon
+#   in_fire_prior_poly       cell inside a fire from the `lookback:` years before the interval (#103);
+#                            what stratum 19 ("change in prior fire") is drawn from, at cell level
 #   use = "accuracy"         never training (research note, "Accuracy labels and training labels never mix")
 #
 # PILOT -> FULL: keep SEED and raise N. drift draws each stratum from its own stream, so the first
@@ -44,6 +46,13 @@ dst    <- fp_disturbance_validate(yaml::read_yaml(here::here("config", "disturba
 causes <- vapply(dst$sources, `[[`, "", "name")          # precedence = list order
 wet_src <- Filter(function(s) identical(s$name, "wetland"), dst$context)
 if (length(wet_src) != 1) stop("config/disturbance.yml has no `wetland` context entry", call. = FALSE)
+# Lookback (#103): only `fire_prior` has a stratum. Any other entry would be tagged on the patches and
+# silently absent from the design, so it is refused until it has one.
+lb_names <- vapply(dst$lookback, `[[`, "", "name")
+if (length(setdiff(lb_names, FP_ACC_PRIOR_NAME)))
+  stop("lookback entr(ies) ", paste(setdiff(lb_names, FP_ACC_PRIOR_NAME), collapse = ", "),
+       " have no accuracy stratum; only `", FP_ACC_PRIOR_NAME, "` does (fp_accuracy.R)", call. = FALSE)
+prior_src <- Filter(function(s) identical(s$name, FP_ACC_PRIOR_NAME), dst$lookback)
 
 lc  <- file.path(cfg$dir_out, "floodplain_landcover.gpkg")
 lyr <- sprintf("transition_%s_%d_%d", cfg$primary_scenario, cfg$change_interval[1], cfg$change_interval[2])
@@ -57,11 +66,14 @@ conn <- DBI::dbConnect(RPostgres::Postgres())
 wet  <- fp_acc_fetch(conn, wet_src[[1]], fp, cfg$change_interval)
 cause_poly <- lapply(dst$sources, fp_acc_fetch, conn = conn, fp = fp, window = cfg$change_interval)
 names(cause_poly) <- causes
+# The CHANGE INTERVAL, not the lookback years: .dst_window() derives those from it.
+prior <- if (length(prior_src)) fp_acc_fetch(conn, prior_src[[1]], fp, cfg$change_interval)
 DBI::dbDisconnect(conn)
 wet_r        <- fp_acc_rasterize(wet, g$trans)
 cause_poly_r <- lapply(cause_poly, fp_acc_rasterize, template = g$trans)
+prior_r      <- if (!is.null(prior)) fp_acc_rasterize(prior, g$trans)
 
-st <- fp_acc_strata(g$from, g$to, g$trans, cause_r, wet_r)
+st <- fp_acc_strata(g$from, g$to, g$trans, cause_r, wet_r, prior = prior_r)
 
 # Coverage: the strata must partition the footprint, and every published change cell must be in a
 # change stratum (a cell the patches missed falls through to its transition-class stratum, by design).
@@ -75,11 +87,18 @@ message(sprintf("strata partition the footprint: %d cells (%.1f ha)", foot_n,
 map <- c(list(class = st$reported),
          stats::setNames(g$cls, g$years),
          stats::setNames(cause_poly_r, paste0(causes, "_poly")),
-         list(fwa_wetland = wet_r))
+         list(fwa_wetland = wet_r),
+         if (!is.null(prior_r)) stats::setNames(list(prior_r), paste0(FP_ACC_PRIOR_NAME, "_poly")))
 s <- drift::dft_accuracy_sample(st$strata, n = N, seed = SEED, map = map)
 
+# drift draws from the strata it finds cells for, so a configured stratum with no cells is simply
+# absent from the design. Say so rather than let "19 is drawn" be assumed.
+if (!is.null(prior_r) && !FP_ACC_STRATUM_PRIOR$stratum %in% s$strata$stratum)
+  message("NOTE: `", FP_ACC_PRIOR_NAME, "` is configured but no published change lies in it here; ",
+          "stratum ", FP_ACC_STRATUM_PRIOR$stratum, " is not drawn")
+
 pts <- s$points
-for (nm in c(paste0(causes, "_poly"), "fwa_wetland")) {
+for (nm in c(paste0(causes, "_poly"), "fwa_wetland", if (!is.null(prior_r)) paste0(FP_ACC_PRIOR_NAME, "_poly"))) {
   pts[[paste0("in_", nm)]] <- !is.na(pts[[paste0("map_", nm)]])
   pts[[paste0("map_", nm)]] <- NULL
 }
@@ -107,7 +126,11 @@ out_gpkg <- file.path(cfg$dir_ref, "sample.gpkg")
 if (file.exists(out_gpkg)) unlink(out_gpkg)   # a fresh write is the byte-deterministic one (#45)
 sf::st_write(pts, out_gpkg, layer = "sample", quiet = TRUE)
 utils::write.csv(strata_tbl, file.path(cfg$dir_ref, "strata.csv"), row.names = FALSE, na = "")
-design <- c(s$design, list(area = area, n_per_stratum = N, causes = causes,
+# lookback: the entry the prior-fire stratum was drawn from, with the years it covered, or null.
+# accuracy_estimate.R refuses a config that no longer matches it, as it does for causes.
+lookback <- if (length(prior_src)) list(name = FP_ACC_PRIOR_NAME, lookback = prior_src[[1]]$lookback,
+                                        years = .dst_window(prior_src[[1]], cfg$change_interval))
+design <- c(s$design, list(area = area, n_per_stratum = N, causes = causes, lookback = lookback,
                            transition_layer = lyr, drift = as.character(utils::packageVersion("drift"))))
 jsonlite::write_json(design, file.path(cfg$dir_ref, "design.json"), auto_unbox = TRUE, pretty = TRUE,
                      digits = NA, null = "null", na = "null")

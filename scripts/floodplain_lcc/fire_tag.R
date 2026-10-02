@@ -2,15 +2,15 @@
 #
 # Runs fp_disturbance_tag over every `transition_<scenario>_<from>_<to>` layer WITHOUT re-running
 # step 3's ~30-min STAC fetch, and writes the result back onto the SAME layer, exactly as step 3
-# would have: cause columns (`sources:`), context columns (`context:`, e.g. in_wetland), then the
-# item keys last. It used to write a `_disturbance` sibling, which is the orphan class #55 swept --
+# would have: cause columns (`sources:`), context columns (`context:`, e.g. in_wetland), lookback
+# columns (`lookback:`, e.g. in_fire_prior, #103), then the item keys last. It used to write a `_disturbance` sibling, which is the orphan class #55 swept --
 # the published layer never gained the new columns and the gpkg gained a layer nobody read.
 #
 # The name is historical (it began as the fire-only prototype); it tags whatever the yml lists.
 #
 # Because the write REPLACES a published layer, it compares before it writes. Re-tagging must not
 # move a cause: if any `sources:` column would change -- a reloaded cutblock table, a new source --
-# the layer is left alone and the differing columns are named. The geometry is never rewritten. FORCE=1 writes anyway. Context columns are free to change; adding them is the point.
+# the layer is left alone and the differing columns are named. The geometry is never rewritten. FORCE=1 writes anyway. Context and lookback columns are free to change; adding them is the point.
 #
 # The change window is read from the layer name's `_<from>_<to>` suffix, which step 3 wrote from
 # cfg$change_interval, so a re-tag windows the causes the way the run that made the layer did.
@@ -38,9 +38,12 @@ fire_tag_main <- function(area, scenario = NA, force = FALSE) {
   if (!length(lyrs)) stop("no transition layer matching ", pat, " in ", gpkg, call. = FALSE)
 
   dst     <- fp_disturbance_validate(yaml::read_yaml(here::here("config", "disturbance.yml")))
-  entries <- c(dst[["sources"]], dst[["context"]])
+  entries <- c(dst[["sources"]], dst[["context"]], dst[["lookback"]])
   nms     <- function(x) paste(vapply(x, function(s) s[["name"]], character(1)), collapse = ",")
   cause_cols <- unlist(lapply(dst[["sources"]], function(s) c(paste0("in_", s[["name"]]), unlist(s[["carry"]]))))
+  # Lookback columns may move -- `lookback: 15` is a number #93 may revisit, and fire_load-prior.sh
+  # documents a delete-and-reload -- but once published, a move is REPORTED, never silent.
+  lb_cols <- unlist(lapply(dst[["lookback"]], function(s) c(paste0("in_", s[["name"]]), unlist(s[["carry"]]))))
 
   conn <- DBI::dbConnect(RPostgres::Postgres())
   on.exit(DBI::dbDisconnect(conn), add = TRUE)   # inside a function, so it fires
@@ -48,8 +51,9 @@ fire_tag_main <- function(area, scenario = NA, force = FALSE) {
   refused <- character(0)
   for (tlyr in lyrs) {
     yrs <- as.integer(regmatches(tlyr, regexec(pat, tlyr))[[1]][3:4])
-    cat(sprintf("\narea=%s  layer=%s  window=%d-%d  sources=%s  context=%s\n",
-                area, tlyr, yrs[1], yrs[2], nms(dst[["sources"]]), nms(dst[["context"]])))
+    cat(sprintf("\narea=%s  layer=%s  window=%d-%d  sources=%s  context=%s  lookback=%s\n",
+                area, tlyr, yrs[1], yrs[2], nms(dst[["sources"]]), nms(dst[["context"]]),
+                nms(dst[["lookback"]])))
 
     # promote_to_multi = FALSE: step 3 writes a MIX of POLYGON and MULTIPOLYGON (declared GEOMETRY),
     # and st_read's default promotes every POLYGON on read. Written back, that re-declared the layer
@@ -75,11 +79,16 @@ fire_tag_main <- function(area, scenario = NA, force = FALSE) {
       next
     }
     if (length(moved)) cat(sprintf("  FORCE: writing despite changes to %s\n", paste(moved, collapse = ", ")))
+    lb_had   <- intersect(lb_cols, names(tr))
+    lb_moved <- lb_had[!vapply(lb_had, function(k) fp_same_values(tr[[k]], tagged[[k]]), logical(1))]
+    if (length(lb_moved))
+      cat(sprintf("  NOTE: published lookback column(s) change: %s (lookback years or the fire table moved)\n",
+                  paste(lb_moved, collapse = ", ")))
 
     sf::st_write(tagged, gpkg, layer = tlyr, append = TRUE, delete_layer = TRUE, quiet = TRUE)
     cat(sprintf("  wrote layer: %s (%d patches)\n", tlyr, nrow(tagged)))
 
-    fp_disturbance_report(tagged, dst[["sources"]], area)
+    fp_disturbance_report(tagged, dst[["sources"]], area, lookback = dst[["lookback"]])
     for (s in dst[["context"]]) {
       hit <- tagged[[paste0("in_", s[["name"]])]] %in% TRUE
       cat(sprintf(" context in_%-10s: %d patches, %.1f ha\n", s[["name"]], sum(hit),

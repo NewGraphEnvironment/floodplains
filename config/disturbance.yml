@@ -22,6 +22,15 @@
 # one under `sources:` would count every wetland patch as "explained" and shrink the residual for
 # nothing. fp_disturbance_validate() refuses a source with no year_col and a context entry with one.
 #
+# LOOKBACK (#103) is a third list: DATED, but before the change interval. `lookback: 15` windows an
+# entry to the 15 years ending the year before the interval starts (2002-2016 for 2017-2023), derived
+# from cfg$change_interval so it moves with it. A fire in 2010 can explain change in 2017-2023
+# (regrowth, delayed mortality), but in NECR those fires hold 27% of the unattributed tree loss, so
+# counting them as a cause is a claim the accuracy labels (#93) have to earn first. Until then a
+# lookback is tagged (in_<name> + carries) and reported as a share of the residual, never subtracted
+# from it. Its carries are ALIASED (`{fire_year: fire_prior_year}`): the same table as `fire`, so an
+# unaliased carry would write fire's own columns, which the validator refuses.
+#
 # Carry the feature KEY, not its attributes: a carried column is copied onto the patch under its own
 # name, and fwa_wetlands_poly has an `area_ha` that would overwrite the patch's area. The validator
 # refuses any carry that collides with a patch column (FP_PATCH_CORE in fp_disturbance.R).
@@ -32,6 +41,10 @@ sources:
     year_col: fire_year
     carry: [fire_year, fire_number]
     confidence: high
+    # Loaded via bc2pg (Fire Perimeters - Historical) as fire_year >= 2017, 2026-07-16; the years
+    # before 2017 were APPENDED 2026-10-02 by scripts/floodplain_lcc/fire_load-prior.sh (#103) for
+    # the `fire_prior` lookback, with the in-window rows proven unchanged (md5). The window keeps
+    # this source to 2017-2023 whatever the table holds.
   - name: harvest
     table: whse_forest_vegetation.veg_consolidated_cut_blocks_sp
     geom_col: geom
@@ -50,3 +63,12 @@ context:
     carry: [waterbody_poly_id]
     # FWA wetland polygons (1:20,000). The floodplain delineation also seeds wetlands
     # (flood_scenarios.csv `wetlands = TRUE`).
+
+lookback:
+  - name: fire_prior
+    table: whse_land_and_natural_resource.prot_historical_fire_polys_sp
+    geom_col: geom
+    year_col: fire_year
+    lookback: 15
+    carry: {fire_year: fire_prior_year, fire_number: fire_prior_number}
+    confidence: medium
