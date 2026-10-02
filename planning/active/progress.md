@@ -10,3 +10,7 @@
   (e7d9181) before any criterion was applied, stating what had been seen.
 - Phase 2: `fp_channel.R` + `channel_probe-migration.R` + `channel_probe-check.R`. The check was
   mutation-tested and `/code-check` ran three rounds.
+- Phase 3: NECR and BULK re-run from a frozen copy of 9eeb5e5 (the first NECR run predated the round-1
+  fixes and was discarded). Both anchors held. Verdict, read off the outcome table: **does not
+  separate**. A, B, C and D fail in NECR on both sets, and BULK's direction fails. No tag issue
+  filed. Published gpkg/raster mtimes are unchanged (all predate the runs).

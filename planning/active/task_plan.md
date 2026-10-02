@@ -89,13 +89,13 @@ applied.
 
 ## Phase 3: Run and verdict
 
-- [ ] Run NECR, then BULK (`caffeinate -s`, log to file, gate on in-band errors and output
+- [x] Run NECR, then BULK (`caffeinate -s`, log to file, gate on in-band errors and output
       mtime). Commit the logs.
-- [ ] Apply the pre-registered rule as written and fill in the results and decision in
+- [x] Apply the pre-registered rule as written and fill in the results and decision in
       `research/channel_migration.md`. State the misregistration-vs-migration
       discriminators and the limits (only wide channels register as Water, the 6-year
       window, water level).
-- [ ] If it separates, file the tag issue (`in_channel_change` + `channel_role` as an
+- [x] If it separates, file the tag issue (`in_channel_change` + `channel_role` as an
       additive context tag, never a cause; fire_tag/disturbance-check/stac#6 consequences;
       a drift issue for generic elongation or class-pair reciprocity if step 3 would need
       them) and link it. If it doesn't, record the negative result so it closes #106.

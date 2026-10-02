@@ -3,8 +3,8 @@
 **Verified:** 2026-10-02 · **Issues:** #106 (this work); relates #54 (patch–watercourse bridge),
 #93 (accuracy sample, stratum 16 "any ↔ Water"), #95 / #103 (context and lookback tags),
 drift `dft_transition_artifact()` · **Produced by:** `scripts/floodplain_lcc/channel_probe-migration.R`
-(logs `scripts/floodplain_lcc/logs/*_channel-migration_*`) · **Status:** OPEN. Rule v2 is
-pre-registered and no result exists yet.
+(logs `scripts/floodplain_lcc/logs/*_channel-migration_*`) · **Status:** CLOSED. It does not
+separate (NECR and BULK, 2026-10-02).
 
 When a river migrates it erodes one bank (land → Water) and builds a bar on the other
 (Water → Bare Ground / Rangeland, which later vegetates). Inside our floodplains that change
@@ -38,7 +38,7 @@ the probe has to say which signals tell the two apart rather than assume them:
 **Version 2, committed 2026-10-02, before any candidate was computed or any criterion applied.**
 Version 1 (943c0ec) was revised in review of the PR that first committed it. A plan review
 showed four places where v1 could not separate migration from the things it is meant to
-reject (`planning/archive/…-issue-106-…/review-plan.md`). It also showed one where v1 could
+reject (`planning/archive/2026-10-issue-106-channel-migration-probe/review-plan.md`). It also showed one where v1 could
 never pass under real migration: a meander puts erosion and deposition on the **same** side
 within 300 m, which fills v1's same-side null.
 
@@ -188,7 +188,55 @@ left open; no threshold changed.
   WSG but gives the lake margin no limit, so the lakes are queried by the floodplain grid's
   extent plus 50 m. A lake assigned to the neighbouring group still counts.
 
-*Results pending: Phase 3 of #106.*
+### Verdict: does not separate
+
+Rule v2 was applied as written, and the outcome table gives **does not separate**. All four
+criteria fail in NECR on both sets, and so does BULK's direction test. IO LULC at 10 m over
+2017–2023 cannot nominate migrating reaches in these floodplains. Nothing here is a tag
+candidate, so no tag issue was filed.
+
+Logs: `scripts/floodplain_lcc/logs/20261002_channel-migration_{necr,bulk}.{md,csv}`, run from
+commit 9eeb5e5 (drift 0.20.0, terra 1.9.50). Both exact anchors held on NECR: re-sieving reproduced
+`transition.tif` with 0 differing cells, and unsieved change was 5,779.45 ha against the strata's
+5,779.45. On BULK anchor 1 held and anchor 2 does not apply (no strata.csv).
+
+| area, set | Water-involving ha | candidates (ha) | A: share | B: sustained cand / width-matched | C: opposite / same | D: R (pairs) |
+|---|---|---|---|---|---|---|
+| NECR unsieved | 509.73 | 23 (27.83) | 0.055 | 0.304 / 0.472 | 0 / 0 | — (0) |
+| NECR sieved | 230.49 | 15 (23.71) | 0.103 | 0.260 / 0.493 | 0 / 0 | — (0) |
+| BULK unsieved | 696.08 | 96 (99.83) | 0.143 | 0.549 / 0.617 | 0.051 / 0.089 | 0.55 (4) |
+| BULK sieved | 390.41 | 53 (77.18) | 0.198 | 0.594 / 0.633 | 0 / 0.093 | — (0) |
+
+### What the numbers say
+
+- **Most of IO's water change is the misregistration shape.** Patches under 1.5 px wide hold
+  **69%** of NECR's unsieved Water-involving area and **63%** of BULK's. The 1 ha sieve brings
+  that down to 41% and 43%. Exact reverse pairs (drift's reciprocity) are a minor part:
+  2.6% / 9.8% unsieved.
+- **The long, thin, channel-adjacent strips are *less* persistent than other wide water
+  change, not more.** B's lead is negative everywhere, from −0.04 to −0.23. A migration strip
+  should leave its class once and stay out. These strips come back more often than the
+  comparison set, which is the water-level or bar-flicker reading.
+- **Erosion and deposition do not face each other.** NECR's 23 candidates (21 on one mainstem
+  `blue_line_key`) have no opposite-role partner at the same station; the nearest one is
+  3.4 km away. BULK has 4 opposite pairs and 4 same-side ones. Three of the four opposite pairs
+  are exact reverses, and their directions are not dispersed (R = 0.55).
+- **The cluster is small.** Even before pairing, candidates are 5–20% of Water-involving area.
+- **Half of NECR's erosion and deposition area is lake margin.** 48% lies within 50 m of an FWA
+  lake (BULK 27%). That is a lake-level signal, and v1 would have counted it as channel.
+- **Land → Water outweighs Water → land about 2:1 in both areas** (erosion 315 vs deposition 169 ha
+  in NECR unsieved, 467 vs 195 in BULK). That runs against the dry 2023 endpoint. It is not
+  explained here and is recorded for #93's stratum 16, which labels exactly this change.
+
+### What this does and does not rule out
+
+It rules out IO 10 m annual land cover, over a six-year window, as the thing that finds migrating
+reaches for us. It says nothing about whether these rivers migrate. A 30 m river moving 2 m a year
+moves about one cell in this window, which is the sliver class, and that class is
+indistinguishable here from misregistration. Decadal migration from the #103 dated air photos and
+orthophotos has to choose its reaches some other way: by channel planform, field knowledge, or a
+reach list. `data/<area>/channel/probe_*.gpkg` (gitignored) keeps every patch's measurements and
+the pairs if anyone wants to look, but by this rule they are not nominations.
 
 ## Limits
 
