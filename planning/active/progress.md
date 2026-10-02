@@ -17,3 +17,5 @@
 - Phase 6: dated layers built (ortho warped VRT 0.15 m; air photo 4.43 m thumbnails; fly#88 filed, then withdrawn as MY caller error (subset without roll neighbours, warning suppressed) — fixed: 250/250 frames, 480/480 points); themes Review + per-layer; re-chip running
 - Filed floodplains#104 (user request): serve whole floodplains with habitat tags on blue_line_key polygons
 - User: a lookback follow-up issue to be filed "once we understand" — drafted in findings.md, NOT filed
+- Phase 4-6 committed (5ea92e7) after 3 code-check rounds + closing URL-egress enumeration; ortho coverage corrected to 204 (pixel-read)
+- Phase 7: research/landcover_accuracy.md "Dated reference imagery" section; CLAUDE.md lookback + imagery rules; README.Rmd one sentence on in_fire_prior, both targets re-rendered (determinism OK)

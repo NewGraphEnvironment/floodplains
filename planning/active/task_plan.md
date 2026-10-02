@@ -91,19 +91,19 @@ Approved plan (2026-10-01 plan gate): lookback list not a cause; 15 yr; one stra
 - [ ] Re-chip finishes (`chip_build-composite.R necr`, started 2026-10-02 07:44 UTC, ~3.4 h), then `review_build-qgis.R necr` once more to add the S2 layers + their themes.
 
 ## Phase 7: Docs
-- [ ] `research/landcover_accuracy.md`:
+- [x] `research/landcover_accuracy.md`:
   - dated imagery sources and coverage;
   - why `windows.csv` is unchanged;
   - film air photos are waiting on fly#53.
-- [ ] `CLAUDE.md`:
+- [x] `CLAUDE.md`:
   - a bullet on the lookback list, alongside #95's causes/context;
   - the env var and the privacy rule;
   - fix the "fire table" facts.
-- [ ] README check (`readme_content-check.py`) still passes; the figure is unchanged because it reads `sources:` only.
+- [x] README check (`readme_content-check.py`) still passes; the figure is unchanged because it reads `sources:` only.
 
 ## Validation
 
-- [ ] Tests pass (disturbance-check, accuracy-check, provenance-check, region_config-check)
-- [ ] `/code-check` clean on each commit
-- [ ] PWF checkboxes match landed work
+- [x] Tests pass (disturbance-check, accuracy-check, provenance-check, region_config-check, README determinism + content)
+- [x] `/code-check` on each code commit (phase 2: 3 rounds; phases 4-6: 3 rounds + closing enumeration; phase 1's shell script was reviewed inside phase 2's rounds)
+- [x] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion
