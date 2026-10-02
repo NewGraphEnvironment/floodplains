@@ -60,6 +60,13 @@ Exploration findings that shape the work:
     opposite-role partner on the same `blue_line_key` on the other side of the channel.
     BULK must reproduce the direction, not the magnitudes.
 
+**Authority:** `research/channel_migration.md` (rule v2) supersedes the draft rule above. The
+plan review (`review-plan.md`) found blockers in v1, and v2 answers them before any criterion is
+applied.
+
+- [x] Fold the plan review into rule v2 (pairing at the same station, sustained with onset ≤ 2021,
+      per-role patches, direction test D, exact anchors) and commit it before the probe runs
+
 ## Phase 2: Probe script
 
 - [ ] `scripts/floodplain_lcc/channel_probe-migration.R <area>` (noun_verb-detail). It reads

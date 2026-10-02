@@ -3,7 +3,7 @@
 **Verified:** 2026-10-02 · **Issues:** #106 (this work); relates #54 (patch–watercourse bridge),
 #93 (accuracy sample, stratum 16 "any ↔ Water"), #95 / #103 (context and lookback tags),
 drift `dft_transition_artifact()` · **Produced by:** `scripts/floodplain_lcc/channel_probe-migration.R`
-(logs `scripts/floodplain_lcc/logs/*_channel-migration_*`) · **Status:** OPEN. The rule is
+(logs `scripts/floodplain_lcc/logs/*_channel-migration_*`) · **Status:** OPEN. Rule v2 is
 pre-registered and no result exists yet.
 
 When a river migrates it erodes one bank (land → Water) and builds a bar on the other
@@ -28,38 +28,68 @@ the probe has to say which signals tell the two apart rather than assume them:
 - **Class asymmetry.** Misregistration reverses exactly (A→Water / Water→A). After erosion, a
   bar is deposited as Bare Ground or Rangeland, not as the trees that were eroded. drift's
   reciprocity only tests exact reverses, so it cannot see this pair.
-- **Persistence.** With `lulc_annual: true` all seven years are on disk. Erosion switches once
-  and stays switched, while a water-level flip moves back and forth.
+- **Persistence.** With `lulc_annual: true` all seven years are on disk. Erosion leaves its
+  class once and stays out. A water-level flip comes back.
+- **Direction.** A registration shift moves every reach the same compass way. Migration follows
+  the bends.
 
 ## Pre-registered rule
 
-**Committed 2026-10-02, before the probe was written or run.** It is editable only in review
-of the PR that first commits it, and still only before any result exists. Thresholds are set
-from what the geometry implies, not from data.
+**Version 2, committed 2026-10-02, before any candidate was computed or any criterion applied.**
+Version 1 (943c0ec) was revised in review of the PR that first committed it. A plan review
+showed four places where v1 could not separate migration from the things it is meant to
+reject (`planning/archive/…-issue-106-…/review-plan.md`). It also showed one where v1 could
+never pass under real migration: a meander puts erosion and deposition on the **same** side
+within 300 m, which fills v1's same-side null.
+
+**What had been seen when v2 was written**, so a reader can judge the revision:
+
+- A prototype run after v1 was committed. It vectorised NECR's unsieved Water-involving change:
+  8,228 patches, 509.73 ha. It counted patches per transition, which showed Water → Trees
+  2,592 and Water → Bare Ground 6. It also returned `dft_transition_artifact()`'s width
+  distribution, with a median of 0.5 px.
+- The reviewer's read-only population counts: BULK 696.1 ha unsieved and 390.4 ha sieved, and
+  NECR's total unsieved change, 5,779 ha.
+
+None of the v1 thresholds moved. Every change below answers a named review finding. Class
+asymmetry (exact reverse or not) stays **reported, never decisive**, because the transition
+counts above were seen before v2.
 
 ### Population
 
-- Patches are vectorised from the **unsieved** 2017 → 2023 transition, re-derived from the
-  on-disk endpoint rasters `data/<area>/rasters/<scenario>/classified_{2017,2023}.tif` with
-  `drift::dft_rast_transition(patch_area_min = NULL)`, primary scenario only. Only patches
-  where exactly one side is Water (code 1) are kept.
-- The published, 1 ha-sieved layer is reported beside it. The rule is applied to both, and
-  the verdict states each result.
+- **Two sets, one pipeline.**
+  - **unsieved:** 2017 → 2023, re-derived from the on-disk endpoint rasters
+    `data/<area>/rasters/<scenario>/classified_{2017,2023}.tif`
+    (`drift::dft_rast_transition(patch_area_min = NULL)`), primary scenario only.
+  - **sieved:** the published `transition.tif` (1 ha).
+
+  The rule is applied to each set, and the verdict states both results.
+- Only cells where exactly one endpoint is Water (code 1) are kept. Each kept cell gets a
+  **role**:
+  - **erosion:** X → Water, with X ∈ {Trees, Flooded Vegetation, Crops, Bare Ground, Rangeland}
+  - **deposition:** Water → Y, with Y ∈ {Trees, Flooded Vegetation, Bare Ground, Rangeland}
+  - **other:** every remaining Water-involving transition
+- **A patch is an 8-connected run of cells with one role**, built with `terra::patches()` per
+  role. It is not a run of one transition value, because a bank eroding through mixed cover
+  would otherwise split into short single-class pieces (review 6). Each patch records its
+  dominant transition (modal cell code).
+- `dft_transition_artifact()` still runs on the transition-level patches, both sets, for
+  the misregistration report: sliver share and exact-reciprocal share.
 
 ### Per-patch measurements
 
 | measurement | definition |
 |---|---|
-| `role` | **erosion**: X → Water with X ∈ {Trees, Flooded Vegetation, Crops, Bare Ground, Rangeland}. **deposition**: Water → Y with Y ∈ {Trees, Flooded Vegetation, Bare Ground, Rangeland}. Every other Water-involving transition is **other** |
-| `width_px` | from `dft_transition_artifact()`, 2A/P in pixels |
-| `elong` | long / short side of `sf::st_minimum_rotated_rectangle()` |
-| `compact` | 4πA/P² |
-| `io_adjacent` | erosion: a 2017 Water cell lies within 3 cells of the patch. Deposition: a 2023 Water cell lies within 3 cells of it. The patch's own cells are excluded |
-| `fwa_dist_m` | distance to the nearest `whse_basemapping.fwa_rivers_poly` polygon in the WSG, or to the FWA stream line where no river polygon lies within 500 m |
-| `channel_adjacent` | `io_adjacent`, **or** `fwa_dist_m` ≤ 50 m. The 50 m allows for 1:20k offset |
-| `blk`, `side` | `blue_line_key` of the nearest FWA stream-line segment, and which side of that segment's direction the patch centroid lies on (sign of the cross product) |
-| `align_deg` | angle between the MRR long axis and the bearing of the nearest stream segment, folded to 0–90° |
-| `single_switch` | share of patch cells whose 2017–2023 annual class sequence changes **exactly once** |
+| `width_px` | 2A/P in pixels, on the raw cell-edge perimeter. This is drift's sliver metric |
+| `elong` | **equivalent-rectangle** long/short ratio from area A and perimeter P′, where P′ is taken after a 1-cell (10 m) Douglas–Peucker simplify to remove raster staircase: L, W = P′/4 ± √(P′²/16 − A), and 1 when the root is imaginary. It is invariant to bending, so a crescent on an outside bend scores as the strip it is (review 7). The MRR ratio is reported beside it |
+| `compact` | 4πA/P², reported only |
+| `io_adjacent` | erosion: 2017 Water within 3 cells. Deposition: 2023 Water within 3 cells |
+| `fwa_dist_m` | distance to the nearest `fwa_rivers_poly` polygon in the WSG, or to the FWA stream line where no river polygon lies within 500 m |
+| `lake_margin` | within 50 m of a `whse_basemapping.fwa_lakes_poly` polygon. Drawdown strips on lake shores are long, thin and adjacent, and they are not channel change (review 8) |
+| `channel_adjacent` | `io_adjacent` **and** `fwa_dist_m` ≤ 50 m **and** not `lake_margin` |
+| `blk`, `side`, `station_m` | from the nearest segment of the FWA stream line (`streams_<sp><order>`) to the patch's `st_point_on_surface()`: its `blue_line_key`, the sign of the cross product against the digitised direction, and the along-stream position `downstream_route_measure` + distance along the feature. FWA lines are digitised upstream, and the probe asserts that against the measures |
+| `align_deg` | angle between the MRR long axis and the nearest segment's bearing, folded to 0–90° |
+| `sustained` | share of patch cells that **left their 2017 class once and never returned**, with onset (first year away) ≤ **2021**. Snow/Ice (9), Clouds (10) and NA years count as missing, not as switches. Succession such as Water → Bare → Rangeland → Trees counts as sustained. A cell exposed only in the drought year 2023 does not (reviews 3, 4) |
 
 ### Candidate
 
@@ -71,50 +101,79 @@ A patch is a **candidate** when **all** of these hold:
 - `channel_adjacent`
 - `align_deg` ≤ 30
 
-A candidate is **paired** when a candidate of the **opposite role** lies on the same `blk`, on
-the **opposite** `side`, within 300 m edge to edge.
+### Pairs
+
+Two candidates of **opposite role** on the same `blk` can pair when both of these hold:
+
+- they lie within 300 m edge to edge
+- their **station intervals overlap**, where a patch's interval is `station_m` ± half its
+  MRR long side. Opposite banks of one bend sit at the same station; the next bend does not
+  (review 2)
+
+Such a pair is:
+
+- **opposite** if the FWA `side`s differ **and** the straight line between the two patches'
+  surface points crosses an IO **stable Water** cell (Water in both 2017 and 2023). That is
+  IO's own channel between them, and FWA's offset at half-channel width cannot fake it
+  (review 9).
+- **same-side** (the null) if the FWA `side`s are equal.
+
+A patch with both kinds of partner counts in both shares.
 
 ### Separation
 
-Areas are summed per patch. The cluster **separates** in NECR when all three of these hold:
+Areas are summed per patch. In NECR, the cluster **separates** when all four of these hold:
 
 - **A. Material.** Candidate area is ≥ 20% of all Water-involving change area.
-- **B. Persistent.** Area-weighted `single_switch` among candidates is at least **15
-  percentage points** above the same measure among non-candidate Water-involving patches.
-- **C. Paired, above the null.** ≥ 25% of candidate area is paired, **and** the paired share is
-  greater than the **same-side** null: the share of candidate area that would pair if the
-  partner had to be on the same side (same `blk`, opposite role, within 300 m). A water-level
-  flip on a single bar produces same-side pairs. Migration produces opposite-side ones.
+- **B. Sustained.** Area-weighted `sustained` among candidates is at least **15 percentage
+  points** above the same measure among **width-matched non-candidates**: Water-involving
+  patches with `width_px` ≥ 1.5 that fail any other condition. The filter alone cannot
+  produce the lead (review 5).
+- **C. Paired, above the null.** ≥ 25% of candidate area is opposite-paired, **and** the
+  opposite share is at least **10 percentage points** above the same-side share (review 14).
+- **D. Not a registration shift.** Over all opposite pairs (at least 10), take the compass
+  direction from the deposition patch's surface point to the erosion patch's. The mean
+  resultant length R of those unit vectors must be < **0.5**. A rigid shift between epochs
+  points every pair the same way (R → 1). Migration follows the bends, so the directions
+  scatter (review 1). Fewer than 10 opposite pairs means D fails.
 
-**BULK** must reproduce the direction of B and C: the persistence difference is > 0 and the
-paired share is greater than the same-side null. It does not have to reproduce the
-magnitudes, because it is a different river.
+**BULK** reproduces the direction:
+
+- B's lead is > 0
+- the opposite share is greater than the same-side share
+- R < 0.5
+
+It does not have to reproduce the magnitudes, because it is a different river.
 
 ### Outcomes, decided in advance
 
-- **Separates on both the unsieved and the sieved sets.** File the tag issue, designed from
-  the measured distributions.
-- **Separates unsieved only.** File the tag issue as above. Its first decision is the sieve:
-  the published layer cannot carry what the 1 ha sieve removed.
-- **Does not separate.** Close #106 on the negative result. IO cannot nominate migrating
-  reaches here, and decadal migration from the #103 dated imagery has to find its reaches some
-  other way.
+| NECR unsieved | NECR sieved | BULK direction | verdict |
+|---|---|---|---|
+| separates | separates | holds | **Separates.** File the tag issue from the measured distributions |
+| separates | fails | holds | **Separates below the sieve.** File the tag issue; its first decision is the sieve, because the published layer cannot carry what the 1 ha sieve removed |
+| separates | either | fails | **NECR only.** No tag issue; record it as a NECR finding that BULK did not reproduce |
+| fails | separates | either | **Does not separate.** The sieve selects big patches, and the pre-registered population is the unsieved one |
+| fails | fails | either | **Does not separate.** Close #106 on the negative result |
 
-Whichever way it falls, the sliver share (Water-involving area with `width_px` < 1.5) is
-reported. It measures how much of IO's water change is the misregistration drift describes.
+Whichever way it falls, three numbers are reported:
 
-### Sanity anchor
+- the sliver share: Water-involving area with `width_px` < 1.5
+- the exact-reciprocal share from `dft_transition_artifact()`
+- the share of opposite pairs that are exact reverses (erosion from-class = deposition
+  to-class)
 
-`reference/necr/strata.csv` stratum 16 "any ↔ Water" is **126.06 ha**. That is the
-**sieved** Water-involving change left once the first-match precedence in
-`fp_acc_strata()` (`scripts/landcover_accuracy/fp_accuracy.R`) has taken everything ranked
-above it: fire, harvest, prior fire, wetland change (either side Flooded Vegetation, or the
-cell inside an FWA wetland) and Snow/Ice → any. The sieved Water-involving area the probe
-reports must therefore be ≥ 126.06 ha. After the probe drops the transitions with a Flooded
-Vegetation or Snow/Ice side, which are the two exclusions it can make from classes alone, the
-remainder must still be ≥ 126.06 ha. A probe that reports less has read the wrong raster. This
-is a lower bound and not a reconstruction. The exact figure needs `fp_acc_strata()`'s cause,
-wetland and prior-fire rasters, and rebuilding those is #93's job.
+These measure how much of IO's water change is the misregistration drift describes.
+
+### Anchors
+
+Both are exact. Either failing stops the probe: it has read the wrong raster.
+
+1. Re-sieving the endpoint rasters at 10,000 m² (`dft_rast_transition(patch_area_min =
+   10000)`) reproduces the published `transition.tif` cell for cell.
+2. Where `reference/<area>/strata.csv` exists, the unsieved total change area (every cell with
+   from ≠ to) equals the summed area of its `change` and `sieved` strata. For NECR that is
+   **5,779.45 ha**, to within 0.01 ha. The strata were built by `fp_acc_strata()`, independently
+   of this probe.
 
 ## Results
 
