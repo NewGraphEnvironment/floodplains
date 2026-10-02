@@ -1,4 +1,4 @@
-# disturbance-check.R — assert context overlays locate change without ever explaining it (#95).
+# disturbance-check.R — assert context and lookback overlays locate change without ever explaining it (#95, #103).
 #
 # config/disturbance.yml carries two lists. `sources:` are CAUSES: fp_disturbance_report() counts
 # every in_<source> as explaining tree loss, and the README attribution figure reads the same list.
@@ -47,7 +47,10 @@ harvest <- list(name = "harvest", table = "s.cut", geom_col = "geom",
                 carry = list("harvest_start_year_calendar"))
 wetland <- list(name = "wetland", table = "s.wet", geom_col = "geom",
                 carry = list("waterbody_poly_id"))
+fire_prior <- list(name = "fire_prior", table = "s.fire", geom_col = "geom", year_col = "fire_year",
+                   lookback = 15L, carry = list(fire_year = "fire_prior_year"))
 dst_ok <- list(sources = list(fire, harvest), context = list(wetland))
+dst_lb <- c(dst_ok, list(lookback = list(fire_prior)))
 
 # ---------------------------------------------------------------------------------------------
 message("\nvalidator: a config that breaks a rule is refused, not silently run")
@@ -92,6 +95,40 @@ ok("names differing only in case are refused (GeoPackage fields are case-insensi
 ok("an unknown top-level key is refused (a typo like `contxt:` would drop every entry)",
    refused(fp_disturbance_validate(c(dst_ok, list(contxt = list(wetland))))))
 
+# lookback (#103): dated, before the change interval, never a cause
+ok("a well-formed lookback entry (aliased carry) is accepted", accepted(fp_disturbance_validate(dst_lb)))
+lb_window <- fire_prior; lb_window$window <- list(2002, 2016)
+ok("a lookback entry with a `window` is refused (its window is derived, never stated)",
+   refused(fp_disturbance_validate(c(dst_ok, list(lookback = list(lb_window))))))
+lb_noyear <- fire_prior; lb_noyear$year_col <- NULL
+ok("a lookback entry with no year_col is refused",
+   refused(fp_disturbance_validate(c(dst_ok, list(lookback = list(lb_noyear))))))
+for (bad in list(0L, -5L, 2.5, "15", c(10L, 15L), Inf, 1e10, NA_integer_)) {
+  lb_bad <- fire_prior; lb_bad$lookback <- bad
+  ok(sprintf("`lookback: %s` is refused (whole years, 1 to 200)", deparse(bad)),
+     refused(fp_disturbance_validate(c(dst_ok, list(lookback = list(lb_bad))))))
+}
+# its own name and an aliased carry, so ONLY the lookback rule can refuse it (with fire's carry it was
+# refused as a column collision, and the arm stayed green with the rule deleted)
+src_lb <- fire; src_lb$name <- "fire2"; src_lb$lookback <- 15L; src_lb$carry <- list(fire_year = "fire2_year")
+ok("a SOURCE carrying `lookback:` is refused (it would be read as an in-window cause)",
+   refused(fp_disturbance_validate(list(sources = list(fire, src_lb)))))
+ctx_lb <- wetland; ctx_lb$lookback <- 15L
+ok("a context entry carrying `lookback:` is refused",
+   refused(fp_disturbance_validate(list(sources = list(fire), context = list(ctx_lb)))))
+lb_unaliased <- fire_prior; lb_unaliased$carry <- list("fire_year")
+ok("must-fail arm: an UNALIASED lookback carry on fire's table collides with fire's column",
+   refused(fp_disturbance_validate(c(dst_ok, list(lookback = list(lb_unaliased))))))
+lb_core <- fire_prior; lb_core$carry <- list(fire_year = "area_ha")
+ok("an alias landing on a patch core column is refused",
+   refused(fp_disturbance_validate(c(dst_ok, list(lookback = list(lb_core))))))
+for (shape in list(list(list("a", "b")), list(fire_year = 1L), list(fire_year = c("a", "b")),
+                   stats::setNames(list("a", "b"), c("fire_year", "")), list(""))) {
+  lb_shape <- fire_prior; lb_shape$carry <- shape
+  ok(sprintf("a malformed carry is refused (%s)", gsub("\\s+", " ", paste(deparse(shape), collapse = ""))),
+     refused(fp_disturbance_validate(c(dst_ok, list(lookback = list(lb_shape))))))
+}
+
 # ---------------------------------------------------------------------------------------------
 message("\nquery: the year window applies to causes and only to causes")
 # ---------------------------------------------------------------------------------------------
@@ -103,6 +140,15 @@ ok("a source's query is windowed to the change interval",
 ok("a context entry's query has no year predicate", !grepl("BETWEEN", q_ctx, fixed = TRUE))
 ok("both queries are bbox-limited server-side",
    grepl("ST_Intersects", q_src) && grepl("ST_Intersects", q_ctx))
+q_lb <- .dst_query(fire_prior, bb, c(2017, 2023))
+ok("a lookback query covers the 15 years BEFORE the interval, from the interval itself",
+   grepl("fire_year BETWEEN 2002 AND 2016", q_lb, fixed = TRUE), sub(".*(BETWEEN [0-9]+ AND [0-9]+).*", "\\1", q_lb))
+ok("the lookback window follows the change interval (2018-2024 -> 2003-2017)",
+   grepl("BETWEEN 2003 AND 2017", .dst_query(fire_prior, bb, c(2018, 2024)), fixed = TRUE))
+ok("an aliased carry is selected AS its patch name",
+   grepl("SELECT fire_year AS fire_prior_year, geom AS geom", q_lb, fixed = TRUE))
+ok("a plain-list carry emits no alias", !grepl(" AS fire_year", q_src, fixed = TRUE) &&
+     grepl("SELECT fire_year, geom AS geom", q_src, fixed = TRUE))
 
 # ---------------------------------------------------------------------------------------------
 message("\ntagging: context columns land, cause columns and the residual do not move")
@@ -146,6 +192,25 @@ wet_as_src <- c(wetland, list(year_col = "yr"))
 r_leak <- residual(t_all, list(fire, harvest, wet_as_src))
 ok("must-fail arm: filing wetland under sources DOES shrink the residual", r_leak < r_all,
    sprintf("%.1f ha < %.1f ha", r_leak, r_all))
+# lookback: patch 4 (in nothing else) sits in a 2010 fire. The stub fetch returns poly columns by
+# PATCH name, as the aliasing SQL does.
+polys$fire_prior <- sf::st_sf(fire_prior_year = 2010L, geom = sf::st_sfc(sq(610, 10, 50), crs = 3005))
+t_lb <- fp_disturbance_tag(patches, list(fire, harvest, wetland, fire_prior), NULL, fetch = stub)
+ok("in_fire_prior and its aliased year land on the patches, fire's own columns untouched",
+   identical(t_lb$in_fire_prior, c(FALSE, FALSE, FALSE, TRUE)) &&
+     identical(t_lb$fire_prior_year, c(NA, NA, NA, 2010L)) &&
+     identical(t_lb$fire_year, t_all$fire_year))
+r_lb <- residual(t_lb, list(fire, harvest))
+ok("the attribution residual is unchanged by a lookback entry", identical(r_lb, r_all),
+   sprintf("%.1f ha vs %.1f ha", r_lb, r_all))
+out_lb <- capture.output(fp_disturbance_report(t_lb, list(fire, harvest), "check", lookback = list(fire_prior)))
+ok("the report states the lookback as a share of the residual, not a subtraction",
+   any(grepl("of which in_fire_prior *: 1.0 ha", out_lb)) &&
+     identical(residual(t_lb, list(fire, harvest)), r_all))
+ok("must-fail arm: the report REFUSES a lookback entry passed as a source (it has a year_col)",
+   refused(fp_disturbance_report(t_lb, list(fire, harvest, fire_prior), "check")))
+ok("the report refuses a lookback whose in_ column was never tagged",
+   refused(fp_disturbance_report(t_all, list(fire, harvest), "check", lookback = list(fire_prior))))
 t_again <- fp_disturbance_tag(t_all, list(fire, harvest, wetland), NULL, fetch = stub)
 ok("re-tagging an already-tagged layer reproduces it (fire_tag.R's path)",
    identical(sf::st_drop_geometry(t_again), sf::st_drop_geometry(t_all)))
@@ -168,8 +233,8 @@ ok("carried values follow the ROW, not a repeated patch_id",
 # The README figure's cause list is the other reader of the file; it must not see context names.
 source(here::here("scripts", "readme_functions.R"), local = (rf <- new.env()))
 dst_live <- yaml::read_yaml(here::here("config", "disturbance.yml"))
-ok("the README figure's cause list excludes every context name",
-   !any(vapply(dst_live$context, function(s) s$name, character(1)) %in%
+ok("the README figure's cause list excludes every context and lookback name",
+   !any(vapply(c(dst_live$context, dst_live$lookback), function(s) s$name, character(1)) %in%
           rf$fp_readme_sources(here::here("config", "disturbance.yml"))))
 
 ok("must-fail arm: the report refuses patches missing a source's in_ column (it read 0 ha)",
@@ -194,9 +259,9 @@ k2 <- gsub("cfg\\[\\[\"|\"\\]\\]", "",
 keys <- sort(unique(c(k1, k2)))
 pairs <- which(outer(keys, keys, function(x, y) x != y & startsWith(y, x)), arr.ind = TRUE)
 pairs <- data.frame(prefix = keys[pairs[, 1]], longer = keys[pairs[, 2]])
-mine <- pairs$prefix %in% c("disturbance", "context_overlays") |
-  pairs$longer %in% c("disturbance", "context_overlays")
-ok("no cfg key is a prefix of the disturbance/context keys (or vice versa)", !any(mine),
+dst_keys <- c("disturbance", "context_overlays", "lookback_overlays")
+mine <- pairs$prefix %in% dst_keys | pairs$longer %in% dst_keys
+ok("no cfg key is a prefix of the disturbance/context/lookback keys (or vice versa)", !any(mine),
    paste(sprintf("%s<%s", pairs$prefix[mine], pairs$longer[mine]), collapse = ","))
 if (any(!mine))
   message("  INFO  other cfg prefix pairs (not this check's; #97): ",
@@ -261,20 +326,31 @@ if (is.na(a[1])) {
      !any(grepl("^transition_.*_(disturbance|fire)$", L$all)),
      paste(grep("_(disturbance|fire)$", L$all, value = TRUE), collapse = ","))
   dst <- yaml::read_yaml(here::here("config", "disturbance.yml"))
-  tag_cols <- unlist(lapply(c(dst$sources, dst$context),
+  # unlist(carry) is the PATCH-side names for a list and for an aliased map alike
+  tag_cols <- unlist(lapply(c(dst$sources, dst$context, dst$lookback),
                             function(s) c(paste0("in_", s$name), unlist(s$carry))))
-  ctx_cols <- unlist(lapply(dst$context, function(s) c(paste0("in_", s$name), unlist(s$carry))))
+  # context and lookback columns may be ADDED by a re-tag; cause columns may not move
+  ctx_cols <- unlist(lapply(c(dst$context, dst$lookback),
+                            function(s) c(paste0("in_", s$name), unlist(s$carry))))
   snap <- if (!is.na(snap_path) && file.exists(snap_path)) readRDS(snap_path) else NULL
 
   for (lyr in L$transition) {
     message("  -- ", lyr)
     cur <- read_layer(L$gpkg, lyr); tr <- cur$attrs
-    ok("every context column is present", all(ctx_cols %in% names(tr)),
+    ok("every context and lookback column is present", all(ctx_cols %in% names(tr)),
        paste(setdiff(ctx_cols, names(tr)), collapse = ","))
-    for (s in dst$context) {
+    lb_names <- vapply(dst$lookback, function(s) s$name, character(1))
+    for (s in c(dst$context, dst$lookback)) {
       in_c <- tr[[paste0("in_", s$name)]]
-      ok(sprintf("in_%s tagged something (an empty fetch would leave it all FALSE)", s$name),
-         sum(in_c %in% TRUE) > 0, sprintf("%d patches", sum(in_c %in% TRUE)))
+      # A lookback can be correctly empty: 9 of 23 areas have no 2002-2016 fire on their floodplain
+      # (measured), so "tagged nothing" is a fact there, not a failed fetch. Context is never empty.
+      if (s$name %in% lb_names) {
+        message(sprintf("  INFO  in_%s: %d patches (zero is legitimate for a lookback)", s$name,
+                        sum(in_c %in% TRUE)))
+      } else {
+        ok(sprintf("in_%s tagged something (an empty fetch would leave it all FALSE)", s$name),
+           sum(in_c %in% TRUE) > 0, sprintf("%d patches", sum(in_c %in% TRUE)))
+      }
       for (k in unlist(s$carry)) {
         ok(sprintf("`%s` is set exactly where in_%s is TRUE", k, s$name),
            identical(!is.na(tr[[k]]), in_c %in% TRUE))

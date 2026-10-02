@@ -158,10 +158,13 @@ fp_read_config <- function(area) {
   # The context key must NOT start with "disturbance": `$` partial-matches, so with no sources
   # (cfg$disturbance NULL, i.e. absent) `cfg$disturbance` would return a `disturbance_context` list
   # and step 3 would tag and log the wetlands as causes.
+  # `lookback:` (#103, prior fires) is tagged the same way and is not a cause either; its key keeps
+  # clear of both prefixes for the same reason (disturbance-check.R sweeps every cfg key).
   dst_path <- here::here("config", "disturbance.yml")
   dst <- if (file.exists(dst_path)) fp_disturbance_validate(yaml::read_yaml(dst_path)) else list()
-  cfg$disturbance      <- dst[["sources"]]
-  cfg$context_overlays <- dst[["context"]]
+  cfg$disturbance       <- dst[["sources"]]
+  cfg$context_overlays  <- dst[["context"]]
+  cfg$lookback_overlays <- dst[["lookback"]]
   cfg
 }
 

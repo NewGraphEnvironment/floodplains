@@ -26,21 +26,21 @@ Approved plan (2026-10-01 plan gate): lookback list not a cause; 15 yr; one stra
 - [x] Update the `config/disturbance.yml` comment on what the table holds.
 
 ## Phase 2: A `lookback:` list in the disturbance framework (`fp_disturbance.R`)
-- [ ] `fp_disturbance_validate()`:
+- [x] `fp_disturbance_validate()`:
   - accept a new top-level `lookback:` list;
   - an entry needs `year_col` and a positive integer `lookback:` in years, and may not carry `window`;
   - add `lookback` to `FP_DST_ENTRY_KEYS`.
-- [ ] Carry aliasing: `carry:` may be a map `{source_col: patch_col}` (e.g. `fire_year: fire_prior_year`). Collision and ownership checks run on the **patch** names, case-folded. A plain list keeps working unchanged.
-- [ ] `.dst_query()`:
+- [x] Carry aliasing: `carry:` may be a map `{source_col: patch_col}` (e.g. `fire_year: fire_prior_year`). Collision and ownership checks run on the **patch** names, case-folded. A plain list keeps working unchanged.
+- [x] `.dst_query()`:
   - emit `col AS alias`;
   - for a lookback entry, the window is `[start - lookback, start - 1]`, derived from the change interval passed in, so it follows `cfg$change_interval`.
-- [ ] The tagger writes `in_<name>` plus the aliased carries for lookback entries. Rows are still joined by position.
-- [ ] Config entry: `lookback: [{name: fire_prior, table: <fire table>, year_col: fire_year, lookback: 15, carry: {fire_year: fire_prior_year, fire_number: fire_prior_number}}]`.
-- [ ] Plumbing:
+- [x] The tagger writes `in_<name>` plus the aliased carries for lookback entries. Rows are still joined by position.
+- [x] Config entry: `lookback: [{name: fire_prior, table: <fire table>, year_col: fire_year, lookback: 15, carry: {fire_year: fire_prior_year, fire_number: fire_prior_number}}]`.
+- [x] Plumbing:
   - step 3 (`03_lulc_classify.R`) and `fire_tag.R` pass `cfg$lookback_overlays` to the tagger. The name is deliberately not a `disturbance_*` prefix, because `$` partial-matches.
   - `fire_tag.R` treats lookback columns like context: they are never cause columns.
-- [ ] `fp_disturbance_report()`: causes are unchanged. Add one informational line, "of the residual, X ha lies in <lookback>". It never counts as explained.
-- [ ] `disturbance-check.R` offline arms, each with a must-fail:
+- [x] `fp_disturbance_report()`: causes are unchanged. Add one informational line, "of the residual, X ha lies in <lookback>". It never counts as explained.
+- [x] `disturbance-check.R` offline arms, each with a must-fail:
   - a lookback entry with `window` is refused;
   - a lookback entry with no `year_col` is refused;
   - an alias that collides with a cause carry or a patch column is refused;

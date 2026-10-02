@@ -215,9 +215,10 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
     # Disturbance attribution (#19): tag each change patch by configured overlay layer, in memory
     # before the write so the transition layer carries in_<source> + carried attrs. Context overlays
     # (#95, e.g. in_wetland) ride the same pass -- they locate change and never explain it, which is
-    # why only cfg$disturbance ever reaches the attribution report. Open a DB conn ONLY when
-    # something is configured, so offline step-3 runs are unaffected.
-    dst_entries <- c(cfg[["disturbance"]], cfg[["context_overlays"]])
+    # why only cfg$disturbance ever reaches the attribution report. Lookback overlays (#103, prior
+    # fires) ride it too and are not causes either. Open a DB conn ONLY when something is
+    # configured, so offline step-3 runs are unaffected.
+    dst_entries <- c(cfg[["disturbance"]], cfg[["context_overlays"]], cfg[["lookback_overlays"]])
     if (length(dst_entries)) {
       conn <- DBI::dbConnect(RPostgres::Postgres())
       on.exit(try(DBI::dbDisconnect(conn), silent = TRUE), add = TRUE)  # norm: disconnect even on error
@@ -226,7 +227,8 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
       DBI::dbDisconnect(conn)
       nms <- function(x) paste(vapply(x, function(s) s$name, character(1)), collapse = ", ")
       message("  Tagged disturbance: ", nms(cfg[["disturbance"]]),
-              if (length(cfg[["context_overlays"]])) paste0("; context: ", nms(cfg[["context_overlays"]])))
+              if (length(cfg[["context_overlays"]])) paste0("; context: ", nms(cfg[["context_overlays"]])),
+              if (length(cfg[["lookback_overlays"]])) paste0("; lookback: ", nms(cfg[["lookback_overlays"]])))
     }
 
     # Item key (#30) — set after disturbance tagging so the keys sit alongside the tagged columns.

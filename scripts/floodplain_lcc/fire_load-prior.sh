@@ -14,6 +14,9 @@
 # taken before and after, must match or the script exits non-zero.
 #
 # Refuses to run twice: rows < 2017 already present means it has run (a second append duplicates).
+# A load that died part-way leaves some of them, and is recovered by removing exactly what this adds,
+# then re-running:  psql -c "DELETE FROM whse_land_and_natural_resource.prot_historical_fire_polys_sp
+#                            WHERE fire_year < 2017"
 #
 # Connection: the libpq PG* variables. They live in ~/.Renviron, which bash does not read, so they are
 # taken from there when PGHOST is unset (CLAUDE.md, "The database is a Docker container").
