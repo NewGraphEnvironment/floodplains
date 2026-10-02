@@ -168,6 +168,15 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
     `reference/<area>/windows.csv`, which `chip_build-composite.R` reads. Failed gdalcubes chunk
     reads are invisible to R (drift#87), so every mode runs with `> log 2>&1` and every log that
     filled the count cache is grepped for `repoprted` before `windows.csv` is trusted.
+- **Channel migration (#106): measured, and it does not separate.**
+  `scripts/floodplain_lcc/channel_probe-migration.R <area>` applies a pre-registered rule
+  (`research/channel_migration.md`) to IO's Water-involving change. The rule asks whether long, thin,
+  channel-adjacent erosion/deposition strips stand apart from flicker and misregistration. In NECR
+  and BULK they do not: the strips are *less* persistent than other wide water change, and they
+  do not face each other across the channel. Most water change is sliver-width, which is the
+  misregistration shape. So there is **no `in_channel_change` tag**, and IO cannot nominate
+  reaches for decadal imagery. `fp_channel.R` holds the helpers, and `channel_probe-check.R`
+  asserts them offline. The probe writes only gitignored `data/<area>/channel/` plus logs.
 - `DESCRIPTION` + `NEWS.md` — the repo is versioned (since 0.1.0, 2026-09-29). The version lives
   in `DESCRIPTION` alone; do not restate it in prose. `/gh-pr-merge` adds the NEWS section, bumps
   the version and tags `v<X.Y.Z>` on merge. `DESCRIPTION` deliberately has no `Imports:`:

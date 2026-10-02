@@ -99,7 +99,7 @@ applied.
       additive context tag, never a cause; fire_tag/disturbance-check/stac#6 consequences;
       a drift issue for generic elongation or class-pair reciprocity if step 3 would need
       them) and link it. If it doesn't, record the negative result so it closes #106.
-- [ ] Update `CLAUDE.md` with a short pointer to the research file and the probe. Edit the
+- [x] Update `CLAUDE.md` with a short pointer to the research file and the probe. Edit the
       #106 body so it reflects the verdict.
 
 ## Out of scope
@@ -118,7 +118,7 @@ any step-3 or published-layer change, and drift changes.
 
 ## Validation
 
-- [ ] Tests pass
-- [ ] `/code-check` clean on each commit
-- [ ] PWF checkboxes match landed work
+- [x] Tests pass
+- [x] `/code-check` clean on each commit
+- [x] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion
