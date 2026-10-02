@@ -31,3 +31,5 @@
   (outputs + composition section), README.Rmd paragraph (rendered; determinism check OK). No
   research/ file: the durable findings (footprint ring, tolerances) live in CLAUDE.md and the log; no
   topic file's verdict moved.
+- Handoffs: filed stac_floodplains_bc#70 (describe composition table + in_alr); #108 body revised to
+  the shipped design; pointer comment on #92.

@@ -132,9 +132,9 @@ stays one-way.
   note.
 - [x] Add `research/README.md` / topic-file notes only if a measurement changes what is known (the
   tolerances, for example).
-- [ ] File a `stac_floodplains_bc` issue: publish `composition_*` and add `in_alr`/`alr_poly_id` to
+- [x] File a `stac_floodplains_bc` issue: publish `composition_*` and add `in_alr`/`alr_poly_id` to
   the transition schema (stac#6).
-- [ ] Revise the #108 body to the shipped design. Point #92 at the table.
+- [x] Revise the #108 body to the shipped design. Point #92 at the table.
 
 ## Critical files
 - `config/disturbance.yml`
@@ -160,7 +160,7 @@ stays one-way.
 
 ## Validation
 
-- [ ] Tests pass
-- [ ] `/code-check` clean on each commit
-- [ ] PWF checkboxes match landed work
-- [ ] `/planning-archive` on completion
+- [x] Tests pass
+- [x] `/code-check` clean on each commit
+- [x] PWF checkboxes match landed work
+- [x] `/planning-archive` on completion
