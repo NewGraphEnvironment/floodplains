@@ -29,5 +29,5 @@ cmd: bcdata bc2pg b1b647a6-... --query 'HARVEST_START_YEAR_CALENDAR >= 2017'
 2026-07-21 03:48:34,412:INFO:bcdata.wfs: https://openmaps.gov.bc.ca/geo/pub/wfs?service=WFS&version=2.0.0&request=GetFeature&typeName=WHSE_FOREST_VEGETATION.VEG_CONSOLIDATED_CUT_BLOCKS_SP&outputFormat=json&SRSNAME=EPSG%3A3005&sortby=VCCB_SYSID&CQL_FILTER=HARVEST_START_YEAR_CALENDAR+%3E%3D+2017&startIndex=120000&count=1836
 2026-07-21 03:48:34,666:INFO:bcdata.bc2pg: Writing WHSE_FOREST_VEGETATION.VEG_CONSOLIDATED_CUT_BLOCKS_SP to database as whse_forest_vegetation.veg_consolidated_cut_blocks_sp
 2026-07-21 03:48:35,087:INFO:bcdata.database: Logging download date to bcdata.log
-2026-07-21 03:48:35,090:INFO:bcdata.cli: Load of b1b647a6-f271-42e0-9cd0-89ec24bce9f7 to whse_forest_vegetation.veg_consolidated_cut_blocks_sp in postgresql://postgres:postgres@localhost:5432/fwapg complete
+2026-07-21 03:48:35,090:INFO:bcdata.cli: Load of b1b647a6-f271-42e0-9cd0-89ec24bce9f7 to whse_forest_vegetation.veg_consolidated_cut_blocks_sp in postgresql://<redacted>@localhost:5432/fwapg complete
 EXIT=0 finished Tue Jul 21 03:48:35 PDT 2026

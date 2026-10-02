@@ -71,3 +71,23 @@ Probes: scratch scripts, not committed.
 | Error | Resolution |
 |-------|------------|
 | `st_transform` on a fetch with a missing CRS during the prior-fire probe | The query returned 0 rows: the table holds only fires from 2017 on. I sized the effect from DataBC directly instead. |
+
+## Phase 1: prior fires loaded (2026-10-02)
+
+- `fire_load-prior.sh` appended **21,186** rows with `FIRE_YEAR < 2017` (1910s–2010s).
+  - Rows from 2017 on: **3,565** before and after.
+  - Their md5 was `893d6cc40378a56564eb1fadcaf6b34b` before and after.
+  - Log: `scripts/fwapg/logs/20261002_000925_bc2pg_append_fire-prior.log`.
+- Prior fires by decade: 1910 263, 1920 3,992, 1930 4,118, 1940 1,901, 1950 1,530, 1960 1,570,
+  1970 1,502, 1980 1,410, 1990 956, 2000 1,879, 2010 2,065.
+- A second run is refused, because rows before 2017 are now present. Tested.
+- `bcdata.log.latest_download` for the fire table now reads 2026-10-02. That row describes the
+  append only; the in-window rows still date from 2026-07-16.
+- **bcdata logs its connection URL with the password in it.** I redacted it from the committed
+  log, and the script now pipes bcdata output through a redaction `sed`. The 2026-07-21 cutblock
+  log, committed in #19, DID carry it: `postgres:<default>@localhost`, the container's default.
+  I redacted it in this commit. Git history and the public Pages copy still hold the old text.
+  The risk is low (localhost-only default), but the password should be rotated if the container is
+  ever exposed.
+- Backed up `data/necr/floodplain_landcover.gpkg` and took a `disturbance-check.R` snapshot before
+  the load (`necr_pre103.rds`, scratchpad).

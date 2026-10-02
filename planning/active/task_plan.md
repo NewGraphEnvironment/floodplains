@@ -12,18 +12,18 @@ Separately, **fire attribution is windowed to the change interval** (`cfg$change
 Approved plan (2026-10-01 plan gate): lookback list not a cause; 15 yr; one stratum "change in prior fire"; digital air photo themes now, film after fly#53; windows.csv unchanged.
 
 ## Phase 0: Issue hygiene
-- [ ] Edit #103's body:
+- [x] Edit #103's body:
   - remove the private repo name and endpoint, and say "our private orthophoto STAC";
   - record the measured numbers and the decisions above;
   - correct the premise: prior fire bears on tree *loss* (criterion 2) as well as regrowth, and the lookback is deliberately not a cause.
-- [ ] Note in the final report that GitHub's edit history still shows the old text.
+- [x] Note in the final report that GitHub's edit history still shows the old text.
 
 ## Phase 1: Prior fires into fwapg
-- [ ] Add `scripts/floodplain_lcc/fire_load-prior.sh`, which runs `bcdata bc2pg --append --query "FIRE_YEAR < 2017"` into `whse_land_and_natural_resource.prot_historical_fire_polys_sp`. The header carries the BCDC record and states why it appends rather than refreshes.
-- [ ] Guard: take an md5 over the ordered in-window rows (`fire_year >= 2017`: `fire_number`, `fire_year`, `ST_AsBinary(geom)`) before and after. Refuse if they differ.
-- [ ] Take a `disturbance-check.R` live snapshot of necr before loading.
-- [ ] Run the load and record the row counts by year band in `findings.md`.
-- [ ] Update the `config/disturbance.yml` comment on what the table holds.
+- [x] Add `scripts/floodplain_lcc/fire_load-prior.sh`, which runs `bcdata bc2pg --append --query "FIRE_YEAR < 2017"` into `whse_land_and_natural_resource.prot_historical_fire_polys_sp`. The header carries the BCDC record and states why it appends rather than refreshes.
+- [x] Guard: take an md5 over the ordered in-window rows (`fire_year >= 2017`: `fire_number`, `fire_year`, `ST_AsBinary(geom)`) before and after. Refuse if they differ.
+- [x] Take a `disturbance-check.R` live snapshot of necr before loading.
+- [x] Run the load and record the row counts by year band in `findings.md`.
+- [x] Update the `config/disturbance.yml` comment on what the table holds.
 
 ## Phase 2: A `lookback:` list in the disturbance framework (`fp_disturbance.R`)
 - [ ] `fp_disturbance_validate()`:

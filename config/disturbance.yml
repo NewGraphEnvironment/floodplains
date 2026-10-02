@@ -32,6 +32,10 @@ sources:
     year_col: fire_year
     carry: [fire_year, fire_number]
     confidence: high
+    # Loaded via bc2pg (Fire Perimeters - Historical) as fire_year >= 2017, 2026-07-16; the years
+    # before 2017 were APPENDED 2026-10-02 by scripts/floodplain_lcc/fire_load-prior.sh (#103) for
+    # the `fire_prior` lookback, with the in-window rows proven unchanged (md5). The window keeps
+    # this source to 2017-2023 whatever the table holds.
   - name: harvest
     table: whse_forest_vegetation.veg_consolidated_cut_blocks_sp
     geom_col: geom
