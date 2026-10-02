@@ -127,10 +127,10 @@ stays one-way.
   three headline numbers per area, which are derived from the table and stated nowhere in prose (#77).
 
 ## Phase 5: Docs and handoffs
-- [ ] `CLAUDE.md`: add an ALR context entry, the composition table (its definitions and the
+- [x] `CLAUDE.md`: add an ALR context entry, the composition table (its definitions and the
   "report by intersection, never by flag" rule) and the snapshot policy, and update the forward-only
   note.
-- [ ] Add `research/README.md` / topic-file notes only if a measurement changes what is known (the
+- [x] Add `research/README.md` / topic-file notes only if a measurement changes what is known (the
   tolerances, for example).
 - [ ] File a `stac_floodplains_bc` issue: publish `composition_*` and add `in_alr`/`alr_poly_id` to
   the transition schema (stac#6).

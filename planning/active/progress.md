@@ -27,3 +27,7 @@
 - Phase 4: NECR + BULK snapshot -> fire_tag (in_alr; BULK also gained #103's in_fire_prior) ->
   composition_build -> composition/disturbance/provenance checks, all exit 0, causes + WKB unchanged.
   Log: scripts/floodplain_lcc/logs/20261002_composition_build-rollout_necr-bulk.md (+ dir).
+- Phase 5 docs: CLAUDE.md (composition/ALR bullet, resume key, lookback rollout), scripts README
+  (outputs + composition section), README.Rmd paragraph (rendered; determinism check OK). No
+  research/ file: the durable findings (footprint ring, tolerances) live in CLAUDE.md and the log; no
+  topic file's verdict moved.

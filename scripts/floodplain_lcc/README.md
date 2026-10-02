@@ -49,9 +49,9 @@ self-documenting.
 | `subbasins.gpkg` | 2 | Single layer |
 | `floodplain_{scenario_id}.tif` | 2 | Floodplain raster per scenario |
 | `floodplain.gpkg` | 2 | One layer per scenario (`co_ff02`, `co_ff04`, ...) |
-| `floodplain_landcover.gpkg` | 3 | `classified_{scenario}_{year}`, `transition_{scenario}_{from}_{to}` |
+| `floodplain_landcover.gpkg` | 3 | `classified_{scenario}_{year}`, `transition_{scenario}_{from}_{to}`, `composition_{scenario}_{from}_{to}` (non-spatial, #108) |
 | `rasters/{scenario_id}/` | 3 | Classified + transition tifs |
-| `lulc_summary_{scenario_id}.rds`, `lulc_summary.rds` | 3 | Per-scenario store; `lulc_summary.rds` = last-writer-wins pointer |
+| `lulc_summary_{scenario_id}.rds`, `lulc_summary.rds` | 3 | Per-scenario store; `lulc_summary.rds` = last-writer-wins pointer. Written LAST, after the composition; `run_region.R` resumes on the primary scenario's own file |
 
 ## Multiple species per area
 
@@ -87,12 +87,37 @@ geometry and refuses to write if a cause column would change (`FORCE=1` override
 **Context overlays** (`context:` in the same file, #95) are tagged the same way and never count as a
 cause. They are undated, excluded from the report and the README figure, and refused by the
 validator if given a `year_col`. `in_wetland` + `waterbody_poly_id` (FWA wetlands) locates wetland
-change so it can be filtered and reviewed. `disturbance-check.R` asserts the split.
+change so it can be filtered and reviewed, and `in_alr` + `alr_poly_id` (Agricultural Land Reserve,
+#108) change on reserve land. Both are any-touch flags: an AREA in the ALR or a wetland comes from the
+composition table, never from summing flagged patches. `disturbance-check.R` asserts the split.
 
 The attribution split itself is computed into the README figure (`fig/attribution.png`) and stated
 in no prose here, so it cannot go stale (#77). **Scope:** fire + harvest wired; pest/forest-health deferred (the config contract already supports
 it via `filter:` + `confidence:`). The transition layer now carries N disturbance attributes → the
 STAC publish schema must carry them (NewGraphEnvironment/stac_floodplains_bc#6).
+
+## Floodplain composition (#108)
+
+`composition_{scenario}_{from}_{to}` answers what the floodplain is made of and where its change sat,
+counted per **cell** so stable land is in it and no share inherits an `in_<context>` flag's any-touch
+overstatement. One row per `(from_code, to_code, status, in_floodplain, in_<context>...)` with `cells`
+and `ha`; every share is a sum over it, and `fp_composition_summary()` is the one definition of the
+headline numbers.
+
+- `status`: `stable`, `change` (what the transition layer vectorises), `sieved` (removed by the 1 ha
+  sieve), `nodata` (an endpoint unlabelled). The population is the classified footprint, which runs a
+  `terra::mask(touches = TRUE)` ring past the floodplain polygon; `in_floodplain` (cell centre in the
+  polygon) is the denominator for any share "of the floodplain".
+- Overlay membership is the cell centre (`fp_rast_cells()` in `scripts/fp_raster.R`, shared with the
+  accuracy module). Every `context:` entry in `config/disturbance.yml` becomes a column.
+- Step 3 builds it after its landcover record; `composition_build.R <area> [scenario]` builds it from
+  the rasters already on disk. Both refuse unless the rasters, the span and the floodplain are the ones
+  `landcover[<scenario>]` records. Provenance is the `composition` sibling inside that entry.
+- `composition-check.R [area]` reconciles the table against things it was not derived from (the
+  transition patches, vector intersections, the accuracy module's wetland count).
+
+The ALR (`alr` context entry) is a frozen snapshot loaded by `scripts/fwapg/alr_load.sh`, which stamps
+its date on the table; reloading it (`REFRESH=1`) moves `in_alr` and every ALR share.
 
 ## Adding scenarios
 

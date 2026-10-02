@@ -22,7 +22,9 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   a pre-pass resolves one species per WSG (first in the ordered `species` preference modelled at
   `order ≥ min_order`, via province-wide `fresh.streams_vw_bcfp`), generates each group's config,
   runs the pipeline per-WSG (soft-fail + log), and writes a coverage CSV. Resumable — a group whose
-  `lulc_summary.rds` exists is skipped (`FORCE=1` redoes). `scripts/floodplain_lcc/fp_region.R` holds
+  primary scenario's `lulc_summary_<sp>_ff04.rds` exists is skipped (`FORCE=1` redoes). Not the
+  shared `lulc_summary.rds`: that is last-writer-wins across species, so another species' success
+  would mark a group done whose own step 3 died before its composition (#108). `scripts/floodplain_lcc/fp_region.R` holds
   `fp_wsg_subbasin` (the whole-WSG sub-basin = group polygon).
 - `config/<area>/` — per-area config: `area.yml` + `flood_scenarios.csv` (+ optional `break_points.csv`;
   absent ⇒ whole-WSG single sub-basin = group polygon, present ⇒ interior sub-basins).
@@ -105,8 +107,9 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   `in_wetland` on its next step 3 run, or from `fire_tag.R` **only where its cause columns would
   not move** -- `mcgr` and `pine` carry no cause columns at all, so `fire_tag.R` refuses them, as it
   refuses any area whose fire or cutblock table has changed since it was tagged; those need step 3
-  or `FORCE=1`. `run_region.R` also skips a group whose `lulc_summary.rds` exists. `in_wetland` sits on **changed**
-  patches only (`changes_only = TRUE`), so "stable land inside a wetland" needs its own overlay.
+  or `FORCE=1`. `run_region.R` also skips a group whose primary summary exists. `in_wetland` sits on **changed**
+  patches only (`changes_only = TRUE`); stable land inside a wetland is the composition table's job
+  (#108, below).
 
   **Lookback overlays (#103) are a third list, `lookback:`, and are not causes either.**
   - **What it is.** An entry is DATED but sits before the change interval. `lookback: 15` derives
@@ -124,8 +127,46 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   - **A lookback is legitimately empty.** 9 of 23 areas have no 2002–2016 fire on their floodplain,
     so the live check reports its count as INFO, and anything downstream must test for the column,
     never for a TRUE (stac_floodplains_bc#6).
-  - **Forward-only.** Only necr is re-tagged. `fire_tag.R` may rewrite published lookback columns,
-    and it says so when it does.
+  - **Forward-only.** necr and bulk are re-tagged (bulk under #108). `fire_tag.R` may rewrite
+    published lookback columns, and it says so when it does.
+- **Floodplain composition + the ALR (#108).** `composition_<scen>_<from>_<to>` in
+  `floodplain_landcover.gpkg` is a non-spatial table with one row per `(from_code, to_code, status,
+  in_floodplain, in_<context>...)`, plus `cells` and `ha`. Every share "of the floodplain" or "of
+  its change" is a sum over it. `fp_composition_summary()` is the one definition, which #92 and the
+  logs share. `fp_composition.R` holds it; step 3 builds it after its landcover record, and
+  `composition_build.R <area> [scenario]` backfills from the rasters on disk.
+  - **Report by cell, never by flag.** `in_alr` / `in_wetland` on the patches are any-touch.
+    Summed, they overstate change in the ALR by ~5% on NECR and BULK. The cell-centre rule is
+    `fp_rast_cells()` (`scripts/fp_raster.R`), which the accuracy module shares.
+  - **Two populations.**
+    - The classified footprint is the `terra::mask(touches = TRUE)` ring, +5.5% NECR and +6.3% BULK
+      over the polygon. It carries `change`, which reconciles one-sided with the transition patches
+      (+0.37% / +0.34%, from sub-basin clipping).
+    - `in_floodplain` (cell centre in the polygon) is every share's denominator. On it, ALR agrees
+      with the vector intersection to 0.05%. On the footprint it was off by 5.4%, which is why the
+      column exists.
+  - **`status`.** `stable` / `change` / `sieved` / `nodata`. `transition.tif` carries STABLE cells,
+    so "non-NA" is not "changed".
+  - **Guarded, not merely tied (4 review rounds).** The build refuses BEFORE any write unless all of
+    these match the `landcover[<scen>]` record:
+    - the classified and transition digests;
+    - the `change_interval`;
+    - the floodplain, which must not be newer than the landcover run.
+
+    Each was once read "now" from a mutable store and only caught afterwards.
+  - **Provenance.** Recorded as a `composition` SIBLING inside `landcover[<scen>]`
+    (`fp_prov_set_sibling`). Never top-level: stac_floodplains_bc's reader refuses an unknown
+    top-level key, and that would stop every area from publishing.
+    - `provenance-check.R` 3c (offline) checks the sibling is well-formed and never stale.
+    - `provenance-check.R` 7c (live) checks table ⇔ record, flags orphan spans, and FAILs on a
+      record with no composition and no `lulc_summary_<scen>.rds`, which is a step 3 that died in
+      its composition.
+  - **The ALR is a FROZEN snapshot.** `scripts/fwapg/alr_load.sh` loads it, refuses a reload
+    without `REFRESH=1`, and stamps `snapshot=<UTC>; rows=…; record=…` with `COMMENT ON TABLE`. The
+    composition copies that stamp into its provenance. A reload moves `in_alr` and every ALR share.
+  - **Forward-only:** necr and bulk carry both the table and `in_alr` (backfilled). neexdzii carries
+    them from a full step 3, which reproduced parity: 770.0 ha, 2,032 patches, and the transition
+    `outputs_hash` byte-identical. Every other area gains them on its next step 3. `composition-check.R [area]` asserts it all.
 - **IO LULC accuracy (#93): `scripts/landcover_accuracy/` + `reference/<area>/`.** Measures the
   error of the land cover under every number here with a stratified reference sample (Olofsson
   2014). drift owns the sampler and estimators (`dft_accuracy_*`, drift ≥ 0.19.0); this module
