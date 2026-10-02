@@ -1,0 +1,102 @@
+Spherical geometry (s2) switched off
+
+validator: a config that breaks a rule is refused, not silently run
+  PASS  a well-formed sources + context config is accepted
+  PASS  the committed config/disturbance.yml is accepted
+  PASS  a source with no year_col is refused (it would be silently un-windowed)
+  PASS  a context entry WITH a year_col is refused (context is undated by definition)
+  PASS  a context entry with a window is refused
+  PASS  a name used in both lists is refused (two writers of one in_<name> column)
+  PASS  a carry column shared by two entries is refused (the second overwrites the first)
+  PASS  an entry with no table is refused
+  PASS  carrying `area_ha` is refused (it would overwrite the patch's own column)
+  PASS  carrying `patch_id` is refused (it would overwrite the patch's own column)
+  PASS  carrying `from_class` is refused (it would overwrite the patch's own column)
+  PASS  carrying `wsg` is refused (it would overwrite the patch's own column)
+  PASS  a misspelt entry key is refused (`filtr:` would run the source unfiltered)
+  PASS  an entry cannot smuggle its own `.list` tag past the year_col rule
+  PASS  names differing only in case are refused (GeoPackage fields are case-insensitive)
+  PASS  an unknown top-level key is refused (a typo like `contxt:` would drop every entry)
+  PASS  a well-formed lookback entry (aliased carry) is accepted
+  PASS  a lookback entry with a `window` is refused (its window is derived, never stated)
+  PASS  a lookback entry with no year_col is refused
+  PASS  `lookback: 0L` is refused (whole years, 1 to 200)
+  PASS  `lookback: -5L` is refused (whole years, 1 to 200)
+  PASS  `lookback: 2.5` is refused (whole years, 1 to 200)
+  PASS  `lookback: "15"` is refused (whole years, 1 to 200)
+  PASS  `lookback: c(10L, 15L)` is refused (whole years, 1 to 200)
+  PASS  `lookback: Inf` is refused (whole years, 1 to 200)
+  PASS  `lookback: 1e+10` is refused (whole years, 1 to 200)
+  PASS  `lookback: NA_integer_` is refused (whole years, 1 to 200)
+  PASS  a SOURCE carrying `lookback:` is refused (it would be read as an in-window cause)
+  PASS  a context entry carrying `lookback:` is refused
+  PASS  must-fail arm: an UNALIASED lookback carry on fire's table collides with fire's column
+  PASS  an alias landing on a patch core column is refused
+  PASS  a malformed carry is refused (list(list("a", "b")))
+  PASS  a malformed carry is refused (list(fire_year = 1L))
+  PASS  a malformed carry is refused (list(fire_year = c("a", "b")))
+  PASS  a malformed carry is refused (list(fire_year = "a", "b"))
+  PASS  a malformed carry is refused (list(""))
+
+query: the year window applies to causes and only to causes
+  PASS  a source's query is windowed to the change interval
+  PASS  a context entry's query has no year predicate
+  PASS  both queries are bbox-limited server-side
+  PASS  a lookback query covers the 15 years BEFORE the interval, from the interval itself  (BETWEEN 2002 AND 2016)
+  PASS  the lookback window follows the change interval (2018-2024 -> 2003-2017)
+  PASS  an aliased carry is selected AS its patch name
+  PASS  a plain-list carry emits no alias
+
+tagging: context columns land, cause columns and the residual do not move
+  PASS  in_wetland and its carried id land on the patches
+  PASS  cause columns are identical with and without the context entry
+  PASS  the attribution residual is unchanged by a context entry  (2.0 ha vs 2.0 ha)
+  PASS  must-fail arm: filing wetland under sources DOES shrink the residual  (1.0 ha < 2.0 ha)
+  PASS  in_fire_prior and its aliased year land on the patches, fire's own columns untouched
+  PASS  the attribution residual is unchanged by a lookback entry  (2.0 ha vs 2.0 ha)
+  PASS  the report states the lookback as a share of the residual, not a subtraction
+  PASS  must-fail arm: the report REFUSES a lookback entry passed as a source (it has a year_col)
+  PASS  the report refuses a lookback whose in_ column was never tagged
+  PASS  re-tagging an already-tagged layer reproduces it (fire_tag.R's path)
+  PASS  must-fail arm: the report REFUSES a context entry rather than counting it
+  PASS  a carried column stays typed when nothing matches (not Boolean on write)  (integer integer)
+  PASS  carried values follow the ROW, not a repeated patch_id  (11,NA)
+  PASS  the README figure's cause list excludes every context and lookback name
+  PASS  must-fail arm: the report refuses patches missing a source's in_ column (it read 0 ha)
+  PASS  an upper-case carry of a core column is refused (Postgres folds it onto area_ha)
+  PASS  a carry the fetch did not return is refused, not silently dropped
+  PASS  no cfg key is a prefix of the disturbance/context/lookback keys (or vice versa)
+  INFO  other cfg prefix pairs (not this check's; #97): network_source<network_source_tol
+  PASS  a second context entry (alr, key-only carry) is accepted
+  PASS  must-fail arm: an alr carry aliasing the ALR's own area onto the patch's area_ha is refused
+  PASS  in_alr and alr_poly_id land on the patches (any-touch; patch 4 dominant 902)
+  PASS  the attribution residual is unchanged by the alr context entry
+  PASS  must-fail arm: the report REFUSES alr passed as a cause
+  PASS  carrying the patches' geometry column is refused at tag time
+
+live: area=necr  gpkg=/Users/airvine/Projects/repo/floodplains/data/necr/floodplain_landcover.gpkg  layers=transition_ch_ff04_2017_2023
+  PASS  at least one transition layer
+  PASS  no legacy `_disturbance` / `_fire` sibling (#55)
+  -- transition_ch_ff04_2017_2023
+  PASS  every context and lookback column is present
+  PASS  in_wetland tagged something (an empty fetch would leave it all FALSE)  (1820 patches)
+  PASS  `waterbody_poly_id` is set exactly where in_wetland is TRUE
+  PASS  `waterbody_poly_id` is typed, not Boolean  (integer)
+  INFO  in_alr: 3571 patches (zero is legitimate here)
+  PASS  `alr_poly_id` is set exactly where in_alr is TRUE
+  PASS  `alr_poly_id` is typed, not Boolean  (numeric)
+  INFO  in_fire_prior: 314 patches (zero is legitimate here)
+  PASS  `fire_prior_year` is set exactly where in_fire_prior is TRUE
+  PASS  `fire_prior_year` is typed, not Boolean  (numeric)
+  PASS  `fire_prior_number` is set exactly where in_fire_prior is TRUE
+  PASS  `fire_prior_number` is typed, not Boolean  (character)
+  PASS  the protected core columns are exactly the layer's non-tag columns  (area_ha,from_class,name_basin,patch_id,scenario,species,to_class,transition,wsg)
+  PASS  item keys stay the last columns, as step 3 writes them
+  PASS  patch set identical to the snapshot, by (name_basin, patch_id)  (5692 vs 5692 patches)
+  PASS  no snapshot column was dropped by the re-tag
+  PASS  every cause, carried and core column holds the same values as the snapshot
+  PASS  declared geometry type and srs_id unchanged  (GEOMETRY/32610 vs GEOMETRY/32610)
+  PASS  declared field types unchanged (BOOLEAN -> typed allowed for carries)
+  PASS  geometry is byte-identical to the snapshot (WKB, unpromoted)  (0 rows differ)
+
+ALL PASS

@@ -1,0 +1,22 @@
+Spherical geometry (s2) switched off
+composition: area=necr scenario=ch_ff04 wsg=NECR species=ch context=wetland,alr
+Provenance: landcover[ch_ff04].composition -> provenance.json
+  Layer: composition_ch_ff04_2017_2023 (485 rows; floodplain 39627.4 ha of a 41838.1 ha footprint; change 4730.0 ha; wetland 6295.7 ha, change in wetland 1076.8 ha; alr 16885.5 ha, change in alr 2457.5 ha)
+       44.33 real        29.80 user        12.64 sys
+         13215055872  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             2222089  page reclaims
+                  24  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                  30  messages sent
+                 351  messages received
+                   0  signals received
+                 362  voluntary context switches
+                9514  involuntary context switches
+        430345030998  instructions retired
+        133867393451  cycles elapsed
+         10907201920  peak memory footprint

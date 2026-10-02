@@ -119,11 +119,11 @@ stays one-way.
   `composition_*` table (an artifact-derived expectation) and well-formed when present.
 
 ## Phase 4: Roll out to NECR and BULK
-- [ ] Run `fire_tag.R necr` and `fire_tag.R bulk`, which add `in_alr`. If either refuses
+- [x] Run `fire_tag.R necr` and `fire_tag.R bulk`, which add `in_alr`. If either refuses
   because a cause would move, stop and report; do not `FORCE`.
-- [ ] Run `composition_build.R necr` and `composition_build.R bulk`, then `composition-check.R`,
+- [x] Run `composition_build.R necr` and `composition_build.R bulk`, then `composition-check.R`,
   `disturbance-check.R` and `provenance-check.R` for both.
-- [ ] Commit a log `scripts/floodplain_lcc/logs/<date>_composition_necr-bulk.md` with the
+- [x] Commit a log `scripts/floodplain_lcc/logs/<date>_composition_necr-bulk.md` with the
   three headline numbers per area, which are derived from the table and stated nowhere in prose (#77).
 
 ## Phase 5: Docs and handoffs

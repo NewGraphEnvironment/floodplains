@@ -24,3 +24,6 @@
   write that precedes a guard, and its one remaining row (step 3 dying in composition, read by 7c as
   pre-#108) is now a 7c FAIL keyed on the absent per-scenario summary marker, proven both ways on a mork
   copy. Mechanism: inputs read NOW from mutable stores, made GUARDED (refused pre-write) not merely TIED.
+- Phase 4: NECR + BULK snapshot -> fire_tag (in_alr; BULK also gained #103's in_fire_prior) ->
+  composition_build -> composition/disturbance/provenance checks, all exit 0, causes + WKB unchanged.
+  Log: scripts/floodplain_lcc/logs/20261002_composition_build-rollout_necr-bulk.md (+ dir).
