@@ -233,6 +233,10 @@ labelled; the 2026-10-02 log has the per-stratum detail.
   each from 30 chips. The worst chip is 1.0% NA (2017) and every other year is complete. Log:
   `scripts/landcover_accuracy/logs/20260930_chip_build-composite_necr.md`. The review project
   carries one "S2 same season_<year>" layer per window-year, at one fixed stretch.
+  - **Re-chipped after the #103 redraw.** 480 points × 4 windows gave **1,920 chips with 0
+    missing** in 282 min on 2026-10-02. Unmoved points came from the per-point cache, and the log
+    has no gdalcubes failed-read line. Log:
+    `scripts/landcover_accuracy/logs/20261002_chip_build-composite_necr.md`.
 - **2017 summer imagery is thin.** Under the 20% scene-cloud filter, **5 of 15** test points had
   no usable July–August 2017 scene at all ("no scenes"). Only Sentinel-2A was flying, and 2017 was
   a heavy smoke year. The window measurement settled it: July 2017 has no scene at all on the
