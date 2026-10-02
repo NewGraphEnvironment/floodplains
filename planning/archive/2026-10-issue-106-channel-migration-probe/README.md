@@ -2,8 +2,10 @@
 
 The question was whether IO LULC's Water-involving change inside the floodplain holds a separable
 channel-migration cluster: long, thin, channel-adjacent erosion and deposition strips on opposite
-banks. It was measured on NECR and BULK under a rule fixed before any criterion was applied. **It
-does not separate**, so no `in_channel_change` tag was built. The probe, its helpers and an offline
+banks. It was measured on NECR and BULK under a rule fixed before any criterion was applied. **Rule
+v2 does not separate on those two groups**, so no `in_channel_change` tag was built. That is not
+yet a verdict on IO: nothing is labelled, and the groups were not chosen for active channels. #106
+stays open for labelled review. The probe, its helpers and an offline
 check stay in `scripts/floodplain_lcc/`. The durable verdict is
 [`research/channel_migration.md`](../../../research/channel_migration.md).
 
@@ -32,8 +34,9 @@ before any criterion ran, with a statement of what data had been seen by then.
 - **Both anchors held to the cell.** Re-sieving reproduced `transition.tif` with 0 differing
   cells (NECR and BULK). NECR's unsieved change was 5,779.45 ha, equal to the #93 strata.
 - **What changed because of it:**
-  - IO is dropped as the nominator of migrating reaches for the #103 dated imagery.
+  - No tag is built.
   - Nothing new is published.
+  - The next step is labelled review, not a decision about IO.
 - **Wrong turns kept:**
   - Two fixture rotation bugs.
   - A first NECR run discarded because it predated the round-1 code-check fixes (the first-year
@@ -44,4 +47,4 @@ before any criterion ran, with a statement of what data had been seen by then.
 
 `scripts/floodplain_lcc/logs/20261002_channel-migration_*`
 
-Closed by: PR for #106 (branch `106-channel-migration-tag-long-thin-channel`)
+Landed by: PR #107 (relates to #106, which stays open)

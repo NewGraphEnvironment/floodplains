@@ -3,8 +3,9 @@
 **Verified:** 2026-10-02 · **Issues:** #106 (this work); relates #54 (patch–watercourse bridge),
 #93 (accuracy sample, stratum 16 "any ↔ Water"), #95 / #103 (context and lookback tags),
 drift `dft_transition_artifact()` · **Produced by:** `scripts/floodplain_lcc/channel_probe-migration.R`
-(logs `scripts/floodplain_lcc/logs/*_channel-migration_*`) · **Status:** CLOSED. It does not
-separate (NECR and BULK, 2026-10-02).
+(logs `scripts/floodplain_lcc/logs/*_channel-migration_*`) · **Status:** OPEN. Rule v2 is
+negative on NECR and BULK (2026-10-02); not yet validated against labels or tried on groups
+chosen for active channels.
 
 When a river migrates it erodes one bank (land → Water) and builds a bar on the other
 (Water → Bare Ground / Rangeland, which later vegetates). Inside our floodplains that change
@@ -188,12 +189,22 @@ left open; no threshold changed.
   WSG but gives the lake margin no limit, so the lakes are queried by the floodplain grid's
   extent plus 50 m. A lake assigned to the neighbouring group still counts.
 
-### Verdict: does not separate
+### Result: rule v2 does not separate on NECR and BULK
 
 Rule v2 was applied as written, and the outcome table gives **does not separate**. All four
-criteria fail in NECR on both sets, and so does BULK's direction test. IO LULC at 10 m over
-2017–2023 cannot nominate migrating reaches in these floodplains. Nothing here is a tag
-candidate, so no tag issue was filed.
+criteria fail in NECR on both sets, and so does BULK's direction test. No tag is built on this
+evidence.
+
+**This is a verdict on the rule over two groups, not on IO.** Nobody has yet looked at an
+image of a single candidate. Both groups were chosen because they were on disk, not because their
+channels are known to be active, and NECR is lake-heavy. Some of the rule's assumptions could be
+why it failed (see "Open: assumptions that could be wrong" below). #106 stays open for the test
+that can answer that: labelled review on more groups.
+
+**This departs from the outcome table**, which said to close #106 on a negative result and
+conclude that IO cannot nominate reaches. The table was written before anyone asked how much two
+unlabelled groups can carry. The departure is in the decision drawn, not in the criteria or the
+numbers, which stand as measured (review of PR #107, 2026-10-02).
 
 Logs: `scripts/floodplain_lcc/logs/20261002_channel-migration_{necr,bulk}.{md,csv}`, run from
 commit 9eeb5e5 (drift 0.20.0, terra 1.9.50). Both exact anchors held on NECR: re-sieving reproduced
@@ -228,15 +239,31 @@ commit 9eeb5e5 (drift 0.20.0, terra 1.9.50). Both exact anchors held on NECR: re
   in NECR unsieved, 467 vs 195 in BULK). That runs against the dry 2023 endpoint. It is not
   explained here and is recorded for #93's stratum 16, which labels exactly this change.
 
-### What this does and does not rule out
+### Open: assumptions that could be wrong
 
-It rules out IO 10 m annual land cover, over a six-year window, as the thing that finds migrating
-reaches for us. It says nothing about whether these rivers migrate. A 30 m river moving 2 m a year
-moves about one cell in this window, which is the sliver class, and that class is
-indistinguishable here from misregistration. Decadal migration from the #103 dated air photos and
-orthophotos has to choose its reaches some other way: by channel planform, field knowledge, or a
-reach list. `data/<area>/channel/probe_*.gpkg` (gitignored) keeps every patch's measurements and
-the pairs if anyone wants to look, but by this rule they are not nominations.
+The rule may be what failed, not IO. Each of these is testable with labels:
+
+- **The width filter may throw out the signal.** A 30 m river moving 2 m a year moves about one
+  cell in six years. That is the sliver class the rule excludes as misregistration, so the
+  migration most rivers do would never reach a candidate.
+- **IO may map new bars as Trees.** Water → Trees outnumbers Water → Bare Ground about 2,600
+  patches to 6 in NECR unsieved. If IO labels a vegetating bar Trees, an "exact reverse" pair
+  (Trees → Water / Water → Trees) can be real erosion plus deposition, not misregistration.
+- **The two groups may be the wrong test.** Half of NECR's erosion and deposition area is lake
+  margin. Neither group was picked for active, wide, migrating mainstems.
+
+### Next: labelled review
+
+- The #93 NECR sample already has 30 points in stratum 16, "any ↔ Water". They are in the review
+  project beside the 2021 orthophoto and 2012 air photos from #103. Labelling them measures how
+  much of IO's water change is real.
+- Add a few dozen candidate and non-candidate patches from 2–3 groups with known active
+  mainstems, run the probe there, and label those against the same dated imagery.
+- If labelled candidates are mostly real channel change, revise the rule (a v3, pre-registered
+  against the labels) rather than this one.
+
+`data/<area>/channel/probe_*.gpkg` (gitignored) keeps every patch's measurements and pairs.
+That is the sampling frame for the review.
 
 ## Limits
 
