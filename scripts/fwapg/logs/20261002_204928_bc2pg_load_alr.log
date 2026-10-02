@@ -1,0 +1,11 @@
+remote: 3226 features in WHSE_LEGAL_ADMIN_BOUNDARIES.OATS_ALR_POLYS
+local:  whse_legal_admin_boundaries.oats_alr_polys absent
+2026-10-02 13:49:32,078:INFO:bcdata.wfs: Total features requested: 3226
+2026-10-02 13:49:34,790:INFO:bcdata.wfs: https://openmaps.gov.bc.ca/geo/pub/wfs?service=WFS&version=2.0.0&request=GetFeature&typeName=WHSE_LEGAL_ADMIN_BOUNDARIES.OATS_ALR_POLYS&outputFormat=json&SRSNAME=EPSG%3A3005&count=3226
+2026-10-02 13:49:35,683:INFO:bcdata.database: Schema whse_legal_admin_boundaries does not exist, creating it
+2026-10-02 13:49:36,704:INFO:bcdata.database: Creating table whse_legal_admin_boundaries.oats_alr_polys
+2026-10-02 13:49:36,778:INFO:bcdata.bc2pg: Writing WHSE_LEGAL_ADMIN_BOUNDARIES.OATS_ALR_POLYS to database as whse_legal_admin_boundaries.oats_alr_polys
+2026-10-02 13:49:38,369:INFO:bcdata.database: Logging download date to bcdata.log
+2026-10-02 13:49:38,375:INFO:bcdata.cli: Load of WHSE_LEGAL_ADMIN_BOUNDARIES.OATS_ALR_POLYS to whse_legal_admin_boundaries.oats_alr_polys in postgresql://<redacted>@localhost:5432/fwapg complete
+OK: 3226 rows, all STATUS = 'ALR'
+comment: snapshot=2026-10-02T20:49:31Z; rows=3226; record=92e17599-ac8a-47c8-877c-107768cb373c; layer=WHSE_LEGAL_ADMIN_BOUNDARIES.OATS_ALR_POLYS

@@ -50,14 +50,14 @@ stays one-way.
   columns, so either wetland definition is a sum over the table.
 
 ## Phase 1: Load the ALR snapshot
-- [ ] `scripts/fwapg/alr_load.sh`:
+- [x] `scripts/fwapg/alr_load.sh`:
   - `bc2pg WHSE_LEGAL_ADMIN_BOUNDARIES.OATS_ALR_POLYS` into `whse_legal_admin_boundaries.oats_alr_polys`.
   - Then `COMMENT ON TABLE` with the load date (UTC), row count and record id `92e17599-…`.
   - It refuses if the table exists unless `REFRESH=1`, and `DRY=1` reports the remote count only.
   - PG* vars come from `~/.Renviron` and the password is redacted in logs, both as in `fire_load-prior.sh`.
-- [ ] Assert loaded rows == the WFS `numberMatched` and that `STATUS` is all `ALR` (fail otherwise,
+- [x] Assert loaded rows == the WFS `numberMatched` and that `STATUS` is all `ALR` (fail otherwise,
   naming the values).
-- [ ] Run it, and commit the log under `scripts/fwapg/logs/`.
+- [x] Run it, and commit the log under `scripts/fwapg/logs/`.
 
 ## Phase 2: Tag change patches with `in_alr`
 - [ ] Add `config/disturbance.yml` `context:` entry `alr`: `table: whse_legal_admin_boundaries.oats_alr_polys`,
