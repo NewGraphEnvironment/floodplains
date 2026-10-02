@@ -91,3 +91,19 @@ Probes: scratch scripts, not committed.
   ever exposed.
 - Backed up `data/necr/floodplain_landcover.gpkg` and took a `disturbance-check.R` snapshot before
   the load (`necr_pre103.rds`, scratchpad).
+
+## Phase 3: NECR re-tagged (2026-10-02)
+
+- `fire_tag.R necr` needed no FORCE. **314 patches (506.4 ha) are `in_fire_prior`.**
+  - Fire years: 2015 223, 2010 89, 2014 2.
+  - By transition: Trees→Rangeland 282.5 ha, Rangeland→Trees 176.8, Rangeland→Crops 21.4, other <6.
+  - Tree loss 1,943.2 ha in all: fire 565.6, harvest 588.9, residual 886.3, of which **242.8 ha
+    (27%) is in a prior fire**.
+- `disturbance-check.R necr <pre-load snapshot>` is ALL PASS. Cause columns, core columns and WKB
+  geometry are all unchanged.
+- Log: `scripts/floodplain_lcc/logs/20261002_fire_tag_necr_prior.md`.
+- **Round 3 of code-check:** every area not yet re-tagged now fails the live check's "every context
+  and lookback column is present" (bulk included). That is expected and forward-only, the same as
+  at #95.
+- **Schema:** stac_floodplains_bc#6 gained a section (body edit). Lookback columns are context, not
+  attribution, are forward-only, and are legitimately all-FALSE in 9 of 23 areas.

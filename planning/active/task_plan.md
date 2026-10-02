@@ -49,9 +49,9 @@ Approved plan (2026-10-01 plan gate): lookback list not a cause; 15 yr; one stra
   - the cfg prefix sweep covers `lookback_overlays`.
 
 ## Phase 3: Re-tag NECR and the data contract
-- [ ] Run `fire_tag.R necr`. Cause columns must not move (no `FORCE`). Run the `disturbance-check.R` live comparison against the Phase 1 snapshot.
-- [ ] Record `in_fire_prior` patch counts and ha in `findings.md`. Other areas pick it up forward-only, on their next step 3.
-- [ ] File a `stac_floodplains_bc` issue for the transition-layer schema: `in_fire_prior`, `fire_prior_year`, `fire_prior_number`. The coupling stays one-way.
+- [x] Run `fire_tag.R necr`. Cause columns must not move (no `FORCE`). Run the `disturbance-check.R` live comparison against the Phase 1 snapshot.
+- [x] Record `in_fire_prior` patch counts and ha in `findings.md`. Other areas pick it up forward-only, on their next step 3.
+- [x] Schema: added a "lookback columns are context, not attribution" section to the existing spec issue stac_floodplains_bc#6 (body edit, not a new issue; #6 already owns carrying disturbance into the schema). The coupling stays one-way.
 
 ## Phase 4: The "change in prior fire" stratum and the NECR redraw
 - [ ] `fp_accuracy.R`:
