@@ -104,6 +104,51 @@ bad <- causes; terra::values(bad$fire)[cases$case == "stable_trees"] <- 1
 ok("a cause flag on a stable cell is refused",
    inherits(tryCatch(fp_acc_strata(from, to, trans, bad, wet), error = function(e) e), "error"))
 
+message("Prior-fire stratum (#103):")
+# The lookback polygons are CELL level, so they reach stable and sieved land; only published change
+# takes stratum 19, a cause still wins, and 19 wins over every transition-class stratum.
+pc <- read.table(header = TRUE, text = "
+case                 from to trans  fire wet prior expect
+prior_regrowth        11   2 11002    NA  NA     1  'change in prior fire'
+prior_beats_wetland    2  11  2011    NA   1     1  'change in prior fire'
+fire_beats_prior       2  11  2011     1  NA     1  'change: fire'
+prior_stable           2   2  2002    NA  NA     1  'stable Trees'
+prior_sieved           2  11    NA    NA  NA     1  'sieved change (<1 ha)'
+no_prior_RT           11   2 11002    NA  NA    NA  'Rangeland -> Trees'
+", stringsAsFactors = FALSE)
+p_res <- fp_acc_strata(grid(pc$from), grid(pc$to), grid(pc$trans),
+                       list(fire = grid(pc$fire), harvest = grid(rep(NA, nrow(pc)))), grid(pc$wet),
+                       prior = grid(pc$prior))
+p_got <- got_labels(p_res)
+for (i in seq_len(nrow(pc)))
+  ok(sprintf("%-22s -> %s", pc$case[i], pc$expect[i]), identical(p_got[i], pc$expect[i]), paste("got", p_got[i]))
+ok("stratum 19 is in the table only when `prior` is given",
+   19L %in% p_res$table$stratum && !19L %in% res$table$stratum)
+ok("stratum 19's label is not a cause label (fp_acc_estimate finds causes by 'change: <name>')",
+   !startsWith(p_res$table$label[p_res$table$stratum == 19L], "change: "))
+p_none <- got_labels(fp_acc_strata(grid(pc$from), grid(pc$to), grid(pc$trans),
+                                   list(fire = grid(pc$fire), harvest = grid(rep(NA, nrow(pc)))),
+                                   grid(pc$wet)))
+ok("must-fail arm: without `prior` the regrowth cell is plain Rangeland -> Trees",
+   identical(p_none[pc$case == "prior_regrowth"], "Rangeland -> Trees"))
+
+message("Review form imagery values (#103):")
+# The form's value map and FP_ACC_IMAGERY are two lists of one fact; labels_export refuses any value
+# outside FP_ACC_IMAGERY, so a form offering a value the list lacks makes a reviewer's choice unexportable.
+form_values <- function(qml) {
+  x <- xml2::read_xml(qml)
+  xml2::xml_attr(xml2::xml_find_all(x, "//field[@name='imagery']//Option[@value]"), "value")
+}
+for (q in Sys.glob(here::here("reference", "*", "labels_form.qml"))) {
+  ok(sprintf("%s imagery values == FP_ACC_IMAGERY", basename(dirname(q))),
+     setequal(form_values(q), FP_ACC_IMAGERY),
+     paste(sort(union(setdiff(form_values(q), FP_ACC_IMAGERY), setdiff(FP_ACC_IMAGERY, form_values(q)))),
+           collapse = ","))
+}
+ok("must-fail arm: a form missing `orthophoto` is caught",
+   !setequal(setdiff(form_values(Sys.glob(here::here("reference", "*", "labels_form.qml"))[1]),
+                     "orthophoto"), FP_ACC_IMAGERY))
+
 message("Omission:")
 # 4 Trees cells in a harvest polygon; IO keeps 1 as Trees; the published map sieved 1 of the 3 losses.
 om <- fp_acc_omission(from = grid(c(2, 2, 2, 2, 5)), to = grid(c(2, 11, 11, 8, 11)),

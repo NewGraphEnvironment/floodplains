@@ -71,6 +71,7 @@ Probes: scratch scripts, not committed.
 | Error | Resolution |
 |-------|------------|
 | `st_transform` on a fetch with a missing CRS during the prior-fire probe | The query returned 0 rows: the table holds only fires from 2017 on. I sized the effect from DataBC directly instead. |
+| 87 of 250 2012 air photo frames 'skipped rather than written squashed' by `fly_georef`; diagnosed as a fly defect and filed as fly#88 | **Wrong diagnosis.** The build passed `fly_georef` only the frames being fetched, so frames lacked their roll neighbours, got no bearing, were drawn landscape against portrait thumbnails, and the stretch guard refused them. fly WARNED, and `suppressWarnings()` in the build hid it. Code-check (round 1, phases 4-6) caught it. Verified on frame 219: skipped alone, georeferenced with 218 and 220. fly#88 was corrected and closed as a caller error. The fix passes the year's full frame set, with no warning suppression. |
 
 ## Phase 1: prior fires loaded (2026-10-02)
 
@@ -107,3 +108,59 @@ Probes: scratch scripts, not committed.
   at #95.
 - **Schema:** stac_floodplains_bc#6 gained a section (body edit). Lookback columns are context, not
   attribution, are forward-only, and are legitimately all-FALSE in 9 of 23 areas.
+
+## DRAFT, not filed: follow-up floodplains issue on the lookback (per user, 2026-10-02: "file … once we understand")
+
+**Title:** Should prior fire (lookback) become a cause? Decide from the #93 labels
+
+The text to file, once the stratum-19 labels exist:
+
+> #103 tags patches with fires from the 15 years before the change interval (`in_fire_prior`) and
+> keeps them out of attribution. In NECR they overlap 242.8 ha (27%) of the unattributed tree loss
+> (Trees→Rangeland 282.5 ha inside 2002–2016 fires, mostly from 2015 and 2010) and 176.8 ha of
+> Rangeland→Trees. Stratum 19 ("change in prior fire", 453 ha, 30 points) was drawn so the labels can
+> say whether that change is real. Then decide:
+> - **Real loss** (delayed mortality, snag fall, salvage outside the cutblock window) → promote
+>   `fire_prior` to a cause, perhaps split by years-since-fire, and recompute the README attribution.
+> - **IO flicker in burned stands** → it stays context, and the finding is evidence for criterion 2/3
+>   rather than for attribution.
+> - **Regrowth** labelled correctly → no attribution change. Report it as recovery.
+>
+> Also: the published lookback columns may move on a re-tag (`fire_tag.R` NOTEs it), so pick the
+> lookback length here, before other areas are re-tagged.
+
+## Phase 4–6 code-check, round 1 (2026-10-02)
+
+- **HIGH:** the fly#88 misdiagnosis above.
+- **MEDIUM:** the build's staleness guard compared mtimes, and git does not keep mtimes, so it
+  failed both ways. `imagery.csv` now carries `stratum, cell, map_class`, and the build runs
+  `fp_acc_design_check` on it.
+- **LOW:** a project built before this change keeps the old form value map in its `.qgs`. That
+  affects only the archived `necr_lulc_review_pre103`; the rebuilt project has all values.
+
+## Phase 4–6 code-check, rounds 2–3 and the closing enumeration (2026-10-02)
+
+- **Round 2** found a defect inside the round-1 fix. The content check could not see MISSING rows
+  in a sparse index. Fixed: every point is listed, and the point set is checked. It also found:
+  - buildvrt counting the tiles requested, not the tiles opened, and leaking hrefs in warnings
+    (fixed: `fp_acc_quiet_urls`, a SourceFilename count);
+  - a stale georef cache (fixed: `overwrite = TRUE`);
+  - patches refreshed on columns only (fixed: refreshed on content, WAL sidecars removed);
+  - two doc numbers.
+- **Round 3**, an enumeration of 36 sites, found five that do not hold. Two of them sit inside
+  round-2 fixes:
+  - redaction missed bare and bracketed hosts and IPs (fixed);
+  - orthophoto coverage was taken from footprints, and 25 points sit on a zero collar. It is now
+    read from pixels: **204, not 229**;
+  - the air photo VRT had no source count (fixed);
+  - an orphaned layer left its theme behind (fixed);
+  - the review build did not check the index (fixed).
+- **Closing enumeration (mine): every call that can touch an orthophoto href or the endpoint.**
+  - All sit inside `fp_acc_quiet_urls`: `fp_acc_ortho_items`, the index pixel reads, buildvrt,
+    warp, `res_m`, and the review `rfp_qgs_raster_add`. The last two were found by this
+    enumeration and wrapped.
+  - No `http`, objectstore or private host appears in the run logs, `imagery.csv`, the committed
+    logs or tracked files.
+- **Reviewer spend for #103 so far:** 1 plan review plus 3 code-check rounds (phase 2) plus 3
+  (phases 4–6). That is 7 agents, past the ~5 bound. Each round past the second found a real
+  defect.

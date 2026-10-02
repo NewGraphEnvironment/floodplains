@@ -54,40 +54,41 @@ Approved plan (2026-10-01 plan gate): lookback list not a cause; 15 yr; one stra
 - [x] Schema: added a "lookback columns are context, not attribution" section to the existing spec issue stac_floodplains_bc#6 (body edit, not a new issue; #6 already owns carrying disturbance into the schema). The coupling stays one-way.
 
 ## Phase 4: The "change in prior fire" stratum and the NECR redraw
-- [ ] `fp_accuracy.R`:
+- [x] `fp_accuracy.R`:
   - add stratum **19 "change in prior fire"**, kind `change`, ranked directly after the cause strata;
-  - `fp_acc_strata()` gains a `prior` argument, a 1/NA cell-level raster (`fp_acc_fetch` with the lookback window), and keeps the stray-cell guard;
+  - `fp_acc_strata()` gains a `prior` argument, a 1/NA cell-level raster (`fp_acc_fetch` with the lookback window), with NO stray-cell guard -- the polygons cover stable/sieved land, so `chg & !is.na(prior)` like wetland (plan review B1);
   - stratum 19 is present only when the area configures a lookback.
-- [ ] `sample_draw-pilot.R`:
+- [x] `sample_draw-pilot.R`:
   - fetch the lookback polygons cell-level;
   - each point carries `in_fire_prior_poly`;
   - `design.json` records the lookback (name and window).
   - Check how drift handles an empty stratum.
-- [ ] `accuracy-check.R` arms:
+- [x] `accuracy-check.R` arms:
   - precedence: a cause wins over prior, and prior wins over the transition-class strata;
-  - a prior cell outside published change is refused;
+  - a prior cell on stable/sieved land never takes 19 (replaces the stray-guard arm, per plan review B1);
   - each arm has a must-fail.
-- [ ] Confirm `labels.gpkg` holds 0 labels and no `labels.csv` exists. Then redraw necr with the same `SEED` and `N`, and commit `sample.gpkg`, `strata.csv` and `design.json`.
-- [ ] `research/landcover_accuracy.md`: add a dated amendment to "Strata" stating that it was made before any label. The pre-registered criteria are not touched.
+- [x] Confirm `labels.gpkg` holds 0 labels and no `labels.csv` exists. Then redraw necr with the same `SEED` and `N`, and commit `sample.gpkg`, `strata.csv` and `design.json`.
+- [x] `research/landcover_accuracy.md`: add a dated amendment to "Strata" stating that it was made before any label. The pre-registered criteria are not touched.
 
 ## Phase 5: Per-point dated imagery index
-- [ ] `scripts/landcover_accuracy/imagery_index-dated.R <area>`:
+- [x] `scripts/landcover_accuracy/imagery_index-dated.R <area>`:
   - **Ortho:** rstac search over the sample bbox, paginated, endpoint from `FP_ORTHO_STAC`. Fail loudly if it is unset. Join item footprints to points.
   - **Air photos:** BCDC centroids over the buffered sample bbox → `fly::fly_footprint(dem = flooded::fl_dem_aoi(...))`, so digital frames get sized → `st_join` to points.
-- [ ] Write `reference/<area>/imagery.csv` with one row per (point, source, epoch): `point_id, source, epoch, year, date, gsd_m, media, scale, n_images, airp_id` (air photo only, public ids). No ortho hrefs or ids.
-- [ ] Print per-epoch coverage and which epochs earn a theme: those covering **≥ 25% of points**, and for air photos only digital media.
-- [ ] Append `FP_ORTHO_STAC=<endpoint>` to `~/.Renviron`, the only machine change. The repo documents the variable name only.
+- [x] Write `reference/<area>/imagery.csv` with one row per (point, source, epoch): `point_id, source, epoch, year, date, gsd_m, media, scale, n_images, airp_id` (air photo only, public ids). No ortho hrefs or ids.
+- [x] Print per-epoch coverage and which epochs earn a theme: those covering **≥ 25% of points**, and for air photos only digital media.
+- [x] Append `FP_ORTHO_STAC=<endpoint>` to `~/.Renviron`, the only machine change. The repo documents the variable name only.
 
 ## Phase 6: Imagery layers and map themes in the review project
-- [ ] `scripts/landcover_accuracy/imagery_build-dated.R <area>` writes into the project directory, which is gitignored:
+- [x] `scripts/landcover_accuracy/imagery_build-dated.R <area>` writes into the project directory, which is gitignored:
   - **Ortho:** one VRT per themed epoch over the `/vsicurl/` COG tiles covering the points.
-  - **Air photos:** per themed digital epoch, one frame per point, the centroid nearest the point → `fly_fetch(type = "thumbnail")` + `fly_georef()` → one VRT per epoch.
-- [ ] `review_build-qgis.R`:
+  - **Air photos:** per themed digital epoch, per point the nearest covering frame that georeferences, with `fly_georef` given the year's FULL frame set so every frame has its roll neighbours for a bearing (the first build passed only the fetched sample and lost 87 of 250 frames; fly#88 filed then withdrawn as a caller error): 250/250 frames, 480/480 points → `fly_fetch(type = "thumbnail")` + `fly_georef()` → one VRT per epoch. Ortho VRT is WARPED to EPSG:3005 (tiles are UTM 10 / EPSG:3157, which rfp refuses).
+- [x] `review_build-qgis.R`:
   - add the dated layers to a "Reference imagery - dated" group;
-  - create a base **"Review"** theme (labels, patches, wetland and lakes), plus **one theme per imagery layer** (each S2 window-year, Ortho 2021, Airphoto 2012…), using `rfp_qgs_theme_create(base = "Review", add = <layer>)`;
+  - create a base **"Review"** theme (labels, patches, wetland and lakes), plus **one theme per imagery layer** (each S2 window-year, Ortho 2021, Airphoto 2012…), rewritten every run with `rfp_qgs_theme_set()` (no base theme exists to `theme_create` from -- plan review);
   - rebuild `patches.gpkg` when its columns lag the source layer.
-- [ ] Add `orthophoto` and `airphoto` to `FP_ACC_IMAGERY` and to the `labels_form.qml` value map, keeping them consistent with `accuracy-check.R`.
-- [ ] Rebuild the necr review project: move the old project aside (0 labels), rebuild, re-run `chip_build-composite.R` for the redrawn points, then the dated imagery. Check the themes with `rfp_qgs_themes()` and check the XML.
+- [x] Add `orthophoto` and `airphoto` to `FP_ACC_IMAGERY` and to the `labels_form.qml` value map, keeping them consistent with `accuracy-check.R`.
+- [x] Rebuild the necr review project: old project moved aside to `necr_lulc_review_pre103` (0 labels), chip cache carried over, rebuilt, dated imagery built, themes checked in the XML.
+- [ ] Re-chip finishes (`chip_build-composite.R necr`, started 2026-10-02 07:44 UTC, ~3.4 h), then `review_build-qgis.R necr` once more to add the S2 layers + their themes.
 
 ## Phase 7: Docs
 - [ ] `research/landcover_accuracy.md`:

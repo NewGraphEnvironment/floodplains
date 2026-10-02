@@ -1,7 +1,7 @@
 # IO LULC accuracy inside our floodplains
 
-**Verified:** 2026-09-30 · **Issues:** #93 (this work), #92 (report), #94 (review surface), #95
-(wetland flag), drift#79 / drift#81 (composites, sampling + estimators); spawned #100 (patch-level
+**Verified:** 2026-10-02 · **Issues:** #93 (this work), #92 (report), #94 (review surface), #95
+(wetland flag), #103 (prior-fire stratum, dated imagery), drift#79 / drift#81 (composites, sampling + estimators); spawned #100 (patch-level
 harvest attribution) and drift#92 (clear-observation counts) · **Produced by:**
 `scripts/landcover_accuracy/` (logs under `scripts/landcover_accuracy/logs/`) · **Status:**
 OPEN — criteria and definitions pre-registered; drought years and free reference measured
@@ -104,6 +104,17 @@ transition is `from * 1000 + to`.
   is any-touch and would take 78% of Trees→Rangeland into the wetland stratum.
 - **Causes** are the names under `sources:` in `config/disturbance.yml`, taken in that order. They
   use the published patch flags, because that is the attribution the report states.
+- **Change in prior fire** (stratum 19). This is an amendment of 2026-10-02 (#103), made **before
+  any label existed**; the criteria above are untouched.
+  - The stratum is published change inside a fire from the `lookback:` window in
+    `config/disturbance.yml` (`fire_prior`, the 15 years before the interval: 2002–2016).
+  - It is decided per **cell**, like wetland. The polygons also cover stable and sieved land, and
+    only change cells take the stratum.
+  - It ranks after the causes and before every transition-class stratum.
+  - **It is not a cause.** Its label is not `change: <name>`, and its cells stay in criterion 2's
+    unattributed tree loss. It exists because 2002–2016 fires overlap 27% of NECR's unattributed
+    tree loss and 172 ha of Rangeland→Trees (cell level; 177 ha by patch any-touch). The labels have to say whether that change is real
+    before it can be credited to anything.
 
 ## Free reference: results
 
@@ -157,27 +168,33 @@ the 41,838 ha footprint.
 
 ## Reference sample (NECR pilot)
 
-**Drawn:** 2026-09-29 · **Produced by:** `scripts/landcover_accuracy/sample_draw-pilot.R`, log
-`scripts/landcover_accuracy/logs/20260929_sample_draw-pilot_necr.md` · **Record:**
+**Drawn:** 2026-09-29, redrawn 2026-10-02 with stratum 19 (#103) · **Produced by:**
+`scripts/landcover_accuracy/sample_draw-pilot.R`, logs
+`scripts/landcover_accuracy/logs/2026*_sample_draw-pilot_necr.md` · **Record:**
 `reference/necr/{sample.gpkg,strata.csv,design.json}` · seed 930093, 30 points per stratum.
 
-The 15 strata partition the 41,838 ha footprint exactly. The change strata sum to the 472,998
+The 16 strata partition the 41,838 ha footprint exactly. The change strata sum to the 472,998
 published change cells, and the sieved stratum holds the 104,947 cells the 1 ha sieve removed.
 The design record redraws **byte-identical**.
+
+The 2026-10-02 redraw added stratum 19. Strata that lost no cells to it kept every point, across
+drift 0.19.0 → 0.20.0. Eight gave it cells; seven moved under the same ids, and Crops ↔ Trees (0.02 ha given) kept its points. Nothing had been
+labelled; the 2026-10-02 log has the per-stratum detail.
 
 | stratum | ha | weight |
 |---|---:|---:|
 | change: fire | 582.5 | 0.0139 |
 | change: harvest | 621.5 | 0.0149 |
-| wetland change | 950.5 | 0.0227 |
-| Trees → Rangeland | 274.3 | 0.0066 |
-| Rangeland → Trees | 532.7 | 0.0127 |
-| Crops ↔ Rangeland | 1,319.1 | 0.0315 |
+| wetland change | 758.0 | 0.0181 |
+| Trees → Rangeland | 180.6 | 0.0043 |
+| Rangeland → Trees | 390.1 | 0.0093 |
+| Crops ↔ Rangeland | 1,304.4 | 0.0312 |
 | Crops ↔ Trees | 178.8 | 0.0043 |
-| Snow/Ice → any | 3.9 | 0.0001 |
-| any ↔ Water | 132.7 | 0.0032 |
+| Snow/Ice → any | 3.4 | 0.0001 |
+| any ↔ Water | 126.1 | 0.0030 |
 | other tree loss | 31.8 | 0.0008 |
-| other change | 102.2 | 0.0024 |
+| other change | 99.5 | 0.0024 |
+| change in prior fire (2002–2016) | 453.4 | 0.0108 |
 | sieved change (<1 ha) | 1,049.5 | 0.0251 |
 | stable wetland (FWA or Flooded Vegetation) | 5,198.5 | 0.1243 |
 | stable Trees | 13,206.1 | 0.3156 |
@@ -225,6 +242,53 @@ The design record redraws **byte-identical**.
   flipped, `SYNTHETIC=1`) it returns the nonresponse table, error-adjusted areas with CIs for
   tree loss, unattributed tree loss and wetland change, the four criteria, and the full-sample
   size. Those synthetic numbers mean nothing and are never written to `reference/`.
+
+## Dated reference imagery (#103)
+
+**Verified:** 2026-10-02 · **Produced by:** `scripts/landcover_accuracy/imagery_index-dated.R`
+(writes `reference/necr/imagery.csv`), `imagery_build-dated.R`, `review_build-qgis.R` · **Issues:**
+#103, fly#88 (withdrawn: a caller error, see below).
+
+The Sentinel-2 chips are dated but 10 m; Esri/Google/Bing are sharp and undated. Two sources are
+both dated and sharper, and `imagery.csv` records per point which of their epochs cover it. Every
+sample point is listed, so a stale index can be detected and not just a disagreeing one.
+
+| source | epoch | points covered (of 480) | resolution | review theme |
+|---|---|---:|---|---|
+| orthophoto (private catalogue) | 2021 | 204 (42.5%) | 0.15 m | yes |
+| air photo, digital | 2012 | 480 (100%) | 4.43 m (georeferenced thumbnails) | yes |
+| air photo, digital | 2019 | 14 | | no (< 25%) |
+| air photo, film | 1963–2006 | up to 480 (1988, 1996, 2000) | | no: indexed only |
+
+- **Orthophoto coverage is measured from pixels, not footprints.** The footprints touch 229 points,
+  but 25 of them sit on a tile's zero-filled collar. The orthophotos are read remotely from the
+  private catalogue, through a VRT warped to BC Albers inside the gitignored review project.
+  **That catalogue's endpoint is never written into this public repo, and every remote call
+  redacts URLs and hosts from its messages.**
+- **2012 air photos are the only themed pre-interval view**, five years before the 2017 endpoint.
+  - **The 4.43 m thumbnails are the limit.** They are sharper than the chips, not sharper than the
+    orthophoto, and they help with structure (stand edges, channel position) more than with
+    class.
+- **Film epochs wait for per-roll rotations (fly#53).** `fly_georef` skips a film frame that has a
+  flight bearing but no measured rotation.
+- **fly#88 was a caller error, and the wrong turn is kept here deliberately.**
+  - The first build passed `fly_georef` only the frames being fetched. A frame needs its roll
+    neighbours for a bearing, so 87 of 250 frames had none, met the stretch guard, and were
+    skipped, while `suppressWarnings()` hid fly's warning naming the cause.
+  - It was filed as a fly defect. Code review traced it back, and the issue was corrected and
+    withdrawn.
+  - Passing the year's full frame set georeferences 250 of 250 frames.
+- **`windows.csv` does not change.**
+  - The windows come from a pre-registered rule over clear-day counts (Composite windows).
+  - No dated epoch falls on an endpoint: the orthophoto is 2021, and the latest themed air photo is
+    2012.
+  - Re-choosing windows to suit an ortho year would mean editing a pre-registered definition after
+    seeing data. Dated imagery is instead extra evidence the reviewer records through the label's
+    `imagery` field (`orthophoto`, `airphoto`), with the epoch per point in `imagery.csv`.
+- **Map themes.** The review project carries "Review" (labels, patches, FWA context, Esri), plus
+  one theme per reference imagery layer: base vectors plus that one image. A theme hides layers by
+  absence, so switching theme flips epochs. The themes are rewritten on every build, and a layer
+  whose index or VRT went stale is removed together with its theme.
 
 ## Accuracy labels and training labels never mix
 

@@ -119,6 +119,12 @@
             <Option value="s2_composite" name="Sentinel-2 dated composite" type="QString"/>
           </Option>
           <Option type="Map">
+            <Option value="orthophoto" name="Orthophoto (dated)" type="QString"/>
+          </Option>
+          <Option type="Map">
+            <Option value="airphoto" name="Air photo (dated)" type="QString"/>
+          </Option>
+          <Option type="Map">
             <Option value="esri" name="Esri basemap" type="QString"/>
           </Option>
           <Option type="Map">

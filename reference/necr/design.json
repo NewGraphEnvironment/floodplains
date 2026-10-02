@@ -1,7 +1,7 @@
 {
   "seed": 930093,
   "rng_kind": ["Mersenne-Twister", "Inversion", "Rejection"],
-  "n_requested": [30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
+  "n_requested": [30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
   "census": [],
   "r_version": "R version 4.5.2 (2025-10-31)",
   "terra_version": "1.9.50",
@@ -11,6 +11,11 @@
   "area": "necr",
   "n_per_stratum": 30,
   "causes": ["fire", "harvest"],
+  "lookback": {
+    "name": "fire_prior",
+    "lookback": 15,
+    "years": [2002, 2016]
+  },
   "transition_layer": "transition_ch_ff04_2017_2023",
-  "drift": "0.19.0"
+  "drift": "0.20.0"
 }

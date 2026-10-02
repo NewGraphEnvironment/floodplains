@@ -43,6 +43,14 @@ if (!identical(causes, vapply(dst$sources, `[[`, "", "name")))
   stop("config/disturbance.yml sources (", paste(vapply(dst$sources, `[[`, "", "name"), collapse = ", "),
        ") differ from the design's causes (", paste(causes, collapse = ", "), "); redraw the sample ",
        "before estimating with new causes", call. = FALSE)
+# Same rule for the prior-fire stratum (#103): it exists in the design only if the lookback did.
+lb_cfg <- Filter(function(s) identical(s$name, FP_ACC_PRIOR_NAME), dst$lookback)
+lb_now <- if (length(lb_cfg)) as.integer(lb_cfg[[1]]$lookback) else NULL
+lb_was <- if (!is.null(design$lookback)) as.integer(design$lookback$lookback) else NULL
+if (!identical(lb_now, lb_was))
+  stop("config/disturbance.yml lookback `", FP_ACC_PRIOR_NAME, "` (", if (is.null(lb_now)) "absent" else lb_now,
+       ") differs from the design's (", if (is.null(lb_was)) "absent" else lb_was, "); redraw the sample ",
+       "before estimating", call. = FALSE)
 
 lab <- if (synthetic) {
   fp_acc_synthetic_labels(smp, p_flip = 0.2, seed = 1L)
