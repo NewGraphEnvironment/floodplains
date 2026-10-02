@@ -1,3 +1,13 @@
+# floodplains 0.1.4 (2026-10-02)
+
+* Channel-migration probe (#106; NECR, BULK). `scripts/floodplain_lcc/channel_probe-migration.R <area>`
+  applies a rule pre-registered in `research/channel_migration.md` to IO's Water-involving change. It
+  asks whether long, thin, channel-adjacent erosion/deposition strips separate from flicker and
+  misregistration. On NECR and BULK rule v2 does not separate: the strips are less persistent than
+  other wide water change, and they do not face each other across the channel. That is a result
+  about the rule on two unlabelled groups, not about IO. #106 stays open for labelled review, and no
+  `in_channel_change` tag is built. Nothing published changes.
+
 # floodplains 0.1.3 (2026-10-02)
 
 * Prior fires and dated reference imagery (#103; NECR). A new `lookback:` list in
