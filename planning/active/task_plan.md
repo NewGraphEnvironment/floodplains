@@ -69,7 +69,7 @@ applied.
 
 ## Phase 2: Probe script
 
-- [ ] `scripts/floodplain_lcc/channel_probe-migration.R <area>` (noun_verb-detail). It reads
+- [x] `scripts/floodplain_lcc/channel_probe-migration.R <area>` (noun_verb-detail). It reads
       `area.yml` via `fp_read_config()`, keeps the run read-only (no gpkg writes), and
       writes `scripts/floodplain_lcc/logs/<yyyymmdd>_channel-migration_<area>.{csv,md}`.
   - two patch sets: the published sieved layer, and the unsieved set re-derived in memory from
@@ -82,7 +82,7 @@ applied.
     the stream line
   - read the DB with a parameterised query, use `promote_to_multi = FALSE`, and refuse to run
     when the expected year tifs are missing
-- [ ] `scripts/floodplain_lcc/channel_probe-check.R`: offline fixture assertions with
+- [x] `scripts/floodplain_lcc/channel_probe-check.R`: offline fixture assertions with
       must-fail arms. A synthetic straight channel with a known erosion/deposition pair
       must pair; a same-bank pair and a one-px reciprocal sliver must not. Check that the
       elongation and alignment arithmetic is correct on a rotated rectangle.

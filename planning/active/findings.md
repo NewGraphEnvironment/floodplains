@@ -62,7 +62,28 @@ Relates: #54, #93, #95, #103, fly#53
   polygons, while opposite-bank geometry needs the centreline. This deviates from the plan's
   wording; recorded here.
 
+## Probe implementation (2026-10-02)
+
+- Helpers live in `scripts/floodplain_lcc/fp_channel.R` (pure functions plus two terra-algebra
+  ones) so `channel_probe-check.R` can assert them offline. The driver reuses `fp_acc_area()` and
+  `fp_acc_grid()` from the accuracy module, which also verifies that `transition.tif` is in sync with
+  the classified series.
+- Both exact anchors held on NECR on the first live run. Re-sieving at 1 ha reproduced
+  `transition.tif` with 0 differing cells, and the unsieved total change was 5,779.45 ha =
+  strata change + sieved.
+- The check was mutation-tested with ten restored defects. Two survived at first, both because
+  the fixture could not reach the failure: the Snow/Ice case never produced a return, and the
+  "staircase" fixture was a genuinely elongated diagonal band. Both fixtures were replaced.
+- `/code-check` ran three rounds (round 1: 1 bug + 2 rule/code readings; round 2: clean; round 3:
+  2 assertions that could not fail). None of the defects sat inside a previous fix. Round 3's
+  fixes were verified by mutation, and each now fails under its defect.
+- The first NECR run predates the round-1 fixes (first-year Snow/Ice, lake query). It was
+  discarded and both areas re-run.
+
 ## Errors Encountered
 
 | Error | Resolution |
 |-------|------------|
+| MRR axis named `axis_deg.X` (a coordinate name leaking through `c()`), so `out["axis_deg", ]` was out of bounds | `unname()` the coordinates |
+| Rotation fixture rotated the wrong way, twice: `(x, y) %*% M` uses the transpose of the textbook matrix | Fixed the matrix; closed the ring by copying the first vertex |
+| `Points of LinearRing do not form a closed linestring` after rotating a fixture | Copy the first vertex to close the ring rather than recomputing it (code-check-spatial) |

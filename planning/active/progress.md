@@ -6,3 +6,7 @@
 - Created branch `106-channel-migration-tag-long-thin-channel` off main
 - Scaffolded PWF baseline from issue #106 with approved phases
 - Next: start Phase 1
+- Phase 1: rule v1 committed (943c0ec). The Plan review found blockers, and rule v2 was committed
+  (e7d9181) before any criterion was applied, stating what had been seen.
+- Phase 2: `fp_channel.R` + `channel_probe-migration.R` + `channel_probe-check.R`. The check was
+  mutation-tested and `/code-check` ran three rounds.

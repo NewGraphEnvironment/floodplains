@@ -177,7 +177,18 @@ Both are exact. Either failing stops the probe: it has read the wrong raster.
 
 ## Results
 
-*Pending: Phase 3 of #106.*
+### Applying the rule
+
+These notes were written before any BULK number was read. They settle readings the rule text
+left open; no threshold changed.
+
+- **BULK's R test also needs at least 10 opposite pairs.** D's minimum is applied wherever R is
+  read, because an R over fewer than 10 vectors is not decidable.
+- **Lake margins are found by footprint, not by WSG.** The rule limits the river polygons to the
+  WSG but gives the lake margin no limit, so the lakes are queried by the floodplain grid's
+  extent plus 50 m. A lake assigned to the neighbouring group still counts.
+
+*Results pending: Phase 3 of #106.*
 
 ## Limits
 
