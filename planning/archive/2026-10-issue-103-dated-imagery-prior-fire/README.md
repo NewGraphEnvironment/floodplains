@@ -63,9 +63,8 @@ The user asked to file it "once we understand", meaning once stratum 19 is label
 - `scripts/landcover_accuracy/logs/20261002_*` (the redraw)
 - code-check reports: `review-*.md` in this directory
 
-**Not finished at archive time:** the NECR re-chip for the moved and new points
-(`chip_build-composite.R necr`, started 2026-10-02 07:44 UTC, about 4–5 h), then one more
-`review_build-qgis.R necr` to add the S2 layers and their themes. Both are data steps in the
-gitignored review project; no code change is pending.
+**Re-chip done after archiving.** It produced 1,920 chips with 0 missing in 282 min. The final
+`review_build-qgis.R necr` run added the four S2 layers, so the project now carries "Review" plus 6
+imagery themes. Log: `scripts/landcover_accuracy/logs/20261002_chip_build-composite_necr.md`.
 
 Closed by: the PR for branch `103-dated-orthophotos-and-air-photos-as-revi`
