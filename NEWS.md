@@ -1,3 +1,21 @@
+# floodplains 0.1.5 (2026-10-02)
+
+* Agricultural Land Reserve and floodplain composition (#108; NECR, BULK, neexdzii).
+  `scripts/fwapg/alr_load.sh` loads the ALR as a frozen, dated snapshot. Change patches gain
+  `in_alr` + `alr_poly_id` as a context overlay, so they are never a cause. A new non-spatial table,
+  `composition_<scenario>_<from>_<to>`, counts every classified cell by class pair, by status
+  (stable/change/sieved/nodata), and by whether its centre lies in the floodplain, an FWA wetland
+  and the ALR. Every "share of the floodplain" or "share of its change" is now a sum over that table
+  (`fp_composition_summary()`), never off the any-touch flags, which overstate change in the ALR by
+  about 5%.
+  * **How it is built.** Step 3 builds the table, and `composition_build.R` backfills from rasters
+    on disk. Both refuse before writing unless the rasters, the span and the floodplain match the
+    landcover record.
+  * **Provenance.** The table is recorded as a `composition` block inside `landcover[<scenario>]`
+    in `provenance.json`.
+  * **Region runs** now resume on the primary scenario's own summary.
+  * **Publishing.** The table publishes with the next stac rebuild (stac_floodplains_bc#70).
+
 # floodplains 0.1.4 (2026-10-02)
 
 * Channel-migration probe (#106; NECR, BULK). `scripts/floodplain_lcc/channel_probe-migration.R <area>`
