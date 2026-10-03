@@ -2207,7 +2207,7 @@ Five habits:
   sits in three documents is not fixed by repairing the one that was quoted; the other two
   still read as authoritative.
 
-*31 lines of evidence for this rule are in `conventions/karpathy.md`, which `/code-check` reads in full.*
+*39 lines of evidence for this rule are in `conventions/karpathy.md`, which `/code-check` reads in full.*
 
 ### "It can only be answered by testing" is a claim with an author
 
@@ -2351,7 +2351,7 @@ Sibling of *"An inventory is only complete relative to a boundary"* in `code-che
 step earlier: that one is about a search that was complete for the wrong scope, this is
 about never having searched the scope where the answer lived.
 
-*25 lines of evidence for this rule are in `conventions/karpathy.md`, which `/code-check` reads in full.*
+*26 lines of evidence for this rule are in `conventions/karpathy.md`, which `/code-check` reads in full.*
 
 #### The storage version: one store is not the world
 
