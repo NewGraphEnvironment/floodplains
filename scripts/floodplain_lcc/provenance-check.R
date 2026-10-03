@@ -66,7 +66,15 @@ RUN_FIELDS <- c("datetime_utc", "run_date", "elapsed", "host", "operator", "run_
 # RUN_FIELDS, invisible to the run-field guard because that guard reads names(inputs). Adding
 # `outputs` as a third unguarded sibling would ratify the pattern, so close it in the same change.
 KEYS_BODY <- c("inputs", "inputs_hash", "outputs", "outputs_hash", "run",
-               "link_log", "link_log_note")
+               "link_log", "link_log_note", unlist(FP_PROV_SIBLINGS))
+
+# The composition table's record (#108): a SIBLING inside landcover[<scenario>] (fp_prov_set_sibling),
+# never a top-level section -- stac_floodplains_bc refuses an unknown top-level key. Its own
+# inputs/outputs pair, whitelisted the same way, and checked by viol_composition below.
+KEYS_COMPOSITION_INPUTS  <- c("change_interval", "floodplain_layer", "floodplain_outputs_hash",
+                              "classified_content_sha256",
+                              "transition_content_sha256", "membership", "population", "overlays")
+KEYS_COMPOSITION_OUTPUTS <- c("layer", "rows", "footprint_cells", "table_content_sha256")
 
 # The closed vocabulary fp_pkg_stamp() may report (#65). It used to interpolate the checkout PATH
 # and the checkout VERSION into this string, inside hashed `inputs` -- measured live in
@@ -201,6 +209,57 @@ viol_split <- function(prov) {
         sprintf("%s[%s] inputs/run key sets overlap: %s", e$section, e$key,
                 paste(intersect(inp, run), collapse = ", ")),
       out_problem, tc_problem)
+  }))
+}
+
+# The composition sibling (#108). Allowed only where FP_PROV_SIBLINGS declares it; declared keys in
+# both halves; hashes and a run block present; and -- the arm with an EXTERNAL reference -- its
+# recorded raster digests equal the ones its own landcover entry vouches for. That is the
+# stale-composition detector: step 3 re-runs and rewrites the rasters, the composition does not
+# follow (DB down, a crash after the landcover record), and the old table describes rasters that no
+# longer exist while every shape check passes.
+viol_composition <- function(prov) {
+  unlist(lapply(prov_sections(prov), function(e) {
+    fp_rec <- prov[["floodplain"]][[e$key]][["outputs_hash"]]
+    cp <- e$body[["composition"]]
+    if (is.null(cp)) return(NULL)
+    if (!"composition" %in% FP_PROV_SIBLINGS[[e$section]])
+      return(sprintf("%s[%s] carries a `composition` block; only landcover may", e$section, e$key))
+    ci <- names(cp[["inputs"]] %||% list()); co <- names(cp[["outputs"]] %||% list())
+    lc_cls <- e$body[["inputs"]][["classified_content_sha256"]] %||% list()
+    cp_cls <- cp[["inputs"]][["classified_content_sha256"]] %||% list()
+    c(if (length(setdiff(KEYS_COMPOSITION_INPUTS, ci)))
+        sprintf("%s[%s].composition.inputs missing: %s", e$section, e$key,
+                paste(setdiff(KEYS_COMPOSITION_INPUTS, ci), collapse = ", ")),
+      if (length(setdiff(ci, KEYS_COMPOSITION_INPUTS)))
+        sprintf("%s[%s].composition.inputs has UNDECLARED key(s): %s", e$section, e$key,
+                paste(setdiff(ci, KEYS_COMPOSITION_INPUTS), collapse = ", ")),
+      if (length(setdiff(KEYS_COMPOSITION_OUTPUTS, co)) || length(setdiff(co, KEYS_COMPOSITION_OUTPUTS)))
+        sprintf("%s[%s].composition.outputs key set is not {%s}", e$section, e$key,
+                paste(KEYS_COMPOSITION_OUTPUTS, collapse = ", ")),
+      if (is.null(cp[["inputs_hash"]]) || is.null(cp[["outputs_hash"]]))
+        sprintf("%s[%s].composition is missing inputs_hash/outputs_hash", e$section, e$key),
+      if (is.null(cp[["run"]][["datetime_utc"]]))
+        sprintf("%s[%s].composition.run has no datetime_utc", e$section, e$key),
+      if (length(intersect(ci, RUN_FIELDS)))
+        sprintf("%s[%s].composition.inputs carries run-event field(s)", e$section, e$key),
+      if (!length(cp_cls) || is.null(names(cp_cls)) ||
+          !identical(unlist(cp_cls), unlist(lc_cls[names(cp_cls)])))
+        sprintf("%s[%s].composition is STALE: its classified digests are not the ones landcover records",
+                e$section, e$key),
+      if (!identical(sort(as.integer(unlist(cp[["inputs"]][["change_interval"]]))),
+                     sort(as.integer(unlist(e$body[["inputs"]][["change_interval"]])))))
+        sprintf("%s[%s].composition is STALE: its change_interval is not the one landcover records",
+                e$section, e$key),
+      if (!identical(cp[["inputs"]][["transition_content_sha256"]],
+                     e$body[["outputs"]][["transition_content_sha256"]]))
+        sprintf("%s[%s].composition is STALE: its transition digest is not the one landcover records",
+                e$section, e$key),
+      # in_floodplain is rasterised from floodplain.gpkg at composition time; a step 2 re-run since
+      # then moves the floodplain record, and the shares no longer describe the masked rasters.
+      if (!is.null(fp_rec) && !identical(cp[["inputs"]][["floodplain_outputs_hash"]], fp_rec))
+        sprintf("%s[%s].composition is STALE: its floodplain is not the one the floodplain section records",
+                e$section, e$key))
   }))
 }
 
@@ -667,6 +726,50 @@ cat("\n3. Declared keys — present, null where absent\n")
     check(fired, "must-fail: an outputs block in a section that declares none IS reported")
   })
   check(length(viol_keys(g)) == 0, "... and the scope is restored (the clean fixture still passes)")
+}
+
+# --- 3c. The composition sibling (#108) -----------------------------------------------------------
+cat("\n3c. Composition sibling — declared, landcover-only, and never stale\n")
+{
+  g <- good_prov()
+  g$landcover$co_ff04$inputs$change_interval <- list(2017L, 2023L)
+  cp <- list(
+    inputs = utils::modifyList(
+      stats::setNames(as.list(rep(NA, length(KEYS_COMPOSITION_INPUTS))), KEYS_COMPOSITION_INPUTS),
+      list(classified_content_sha256 = list(`2017` = "sha256:11", `2023` = "sha256:22"),
+           floodplain_outputs_hash = "sha256:bb2", change_interval = list(2017L, 2023L))),
+    inputs_hash = "sha256:dd",
+    outputs = stats::setNames(as.list(rep(NA, length(KEYS_COMPOSITION_OUTPUTS))), KEYS_COMPOSITION_OUTPUTS),
+    outputs_hash = "sha256:dd2",
+    run = list(datetime_utc = "2026-10-02T00:00:00Z", toolchain = TOOLCHAIN_FIXTURE))
+  g$landcover$co_ff04$composition <- cp
+  check(length(c(viol_composition(g), viol_body(g), viol_keys(g), viol_split(g))) == 0,
+        "a landcover entry with a well-formed composition sibling passes every property")
+  check(length(viol_composition(good_prov())) == 0, "an entry with NO composition passes (forward-only)")
+  st <- g; st$landcover$co_ff04$composition$inputs$classified_content_sha256$`2023` <- "sha256:old"
+  check(any(grepl("STALE: its classified", viol_composition(st))),
+        "must-fail: a composition computed from other classified rasters IS reported stale")
+  st2 <- g; st2$landcover$co_ff04$composition$inputs$transition_content_sha256 <- "sha256:old"
+  check(any(grepl("STALE: its transition", viol_composition(st2))),
+        "must-fail: a composition computed from another transition IS reported stale")
+  wh <- g; wh$floodplain$co_ff04$composition <- cp
+  check(any(grepl("only landcover may", viol_composition(wh))),
+        "must-fail: a composition block outside landcover IS reported")
+  ud <- g; ud$landcover$co_ff04$composition$inputs$surprise <- 1
+  check(any(grepl("UNDECLARED", viol_composition(ud))),
+        "must-fail: an undeclared composition input IS reported")
+  ci <- g; ci$landcover$co_ff04$composition$inputs$change_interval <- list(2018L, 2023L)
+  check(any(grepl("STALE: its change_interval", viol_composition(ci))),
+        "must-fail: a composition over another change_interval IS reported stale")
+  sf2 <- g; sf2$floodplain$co_ff04$outputs_hash <- "sha256:new"
+  check(any(grepl("STALE: its floodplain", viol_composition(sf2))),
+        "must-fail: a composition whose floodplain record has since moved IS reported stale")
+  nh <- g; nh$landcover$co_ff04$composition$outputs_hash <- NULL
+  check(any(grepl("outputs_hash", viol_composition(nh))),
+        "must-fail: a composition with no outputs_hash IS reported")
+  ob <- g; ob$landcover$co_ff04$surprise_sibling <- list()
+  check(any(grepl("UNDECLARED body", viol_body(ob))),
+        "must-fail: an undeclared SIBLING is still reported by the body whitelist")
 }
 
 # --- 3b. The config that produced the network -----------------------------------------------------
@@ -1497,7 +1600,7 @@ if (length(args) >= 1 && nzchar(args[1])) {
     if (n == 0) bad("provenance.json has ZERO sections — nothing was checked") else
       ok(sprintf("%d section(s) to check", n))
     for (f in list(viol_split, viol_keys, viol_body, viol_sha_source, viol_config_name,
-                   viol_schema_version, viol_coverage)) {
+                   viol_schema_version, viol_coverage, viol_composition)) {
       v <- f(prov); if (length(v)) for (m in v) bad(m)
     }
     v <- viol_creds(txt); if (!is.null(v)) bad(v)
@@ -1737,7 +1840,40 @@ if (length(args) >= 1 && nzchar(args[1])) {
             }
           }
 
+          # The composition table (#108), BOTH directions: a table with no record is an output nobody
+          # vouches for; a record with no table describes a file that does not exist. Then the
+          # recorded digest and row count, re-derived from the table.
           gl <- file.path(dd, "floodplain_landcover.gpkg")
+          if (file.exists(gl)) {
+            span <- unlist(e$body[["inputs"]][["change_interval"]])
+            clyr <- paste0("composition_", e$key, "_", span[1], "_", span[2])
+            all_c <- grep(paste0("^composition_", e$key, "_"), sf::st_layers(gl)$name, value = TRUE)
+            has_t <- clyr %in% all_c
+            cp <- e$body[["composition"]]
+            # Any OTHER span's table for this scenario is an orphan: its record was replaced.
+            for (o in setdiff(all_c, clyr))
+              bad(sprintf("landcover[%s]: %s is an orphan -- the record describes %s", e$key, o, clyr))
+            if (has_t && is.null(cp)) {
+              bad(sprintf("landcover[%s]: %s exists with no composition record", e$key, clyr))
+            } else if (!has_t && !is.null(cp)) {
+              bad(sprintf("landcover[%s].composition names %s, which is not in the gpkg", e$key, clyr))
+            } else if (has_t) {
+              if (!exists("fp_composition_digest"))
+                source(file.path(fp_root, "scripts", "floodplain_lcc", "fp_composition.R"))
+              ct <- sf::st_read(gl, layer = clyr, quiet = TRUE)
+              eq(as.integer(cp[["outputs"]][["rows"]]), nrow(ct), sprintf("landcover[%s] composition rows", e$key))
+              eq(as.character(cp[["outputs"]][["table_content_sha256"]]), fp_composition_digest(ct),
+                 sprintf("landcover[%s] composition table_content_sha256", e$key))
+            } else if (!file.exists(file.path(dd, paste0("lulc_summary_", e$key, ".rds")))) {
+              # Step 3 unlinks this marker when it writes the landcover record and rewrites it only
+              # AFTER the composition, so record-present + marker-absent + no table is a step 3 that
+              # died in its composition -- not an area predating #108, which still has its marker.
+              bad(sprintf("landcover[%s] has no composition and no lulc_summary_%s.rds: step 3 died in its composition (re-run step 3, or composition_build.R)",
+                          e$key, e$key))
+            } else {
+              ok(sprintf("landcover[%s] has no composition table yet (forward-only, #108)", e$key))
+            }
+          }
           if (!file.exists(gl)) {
             bad(sprintf("landcover[%s]: no floodplain_landcover.gpkg to reconcile layer years", e$key))
           } else {

@@ -1,0 +1,13 @@
+Spherical geometry (s2) switched off
+
+area=necr  layer=transition_ch_ff04_2017_2023  window=2017-2023  sources=fire,harvest  context=wetland,alr  lookback=fire_prior
+  wrote layer: transition_ch_ff04_2017_2023 (5692 patches)
+
+=== NECR Trees->non-Trees LOSS vs disturbance ===
+ total loss      : 1943.2 ha
+ in_fire        : 565.6 ha (29%)
+ in_harvest     : 588.9 ha (30%)
+ residual (noise): 886.3 ha (46%)
+   of which in_fire_prior: 242.8 ha (27% of residual; prior, not counted)
+ context in_wetland   : 1820 patches touching, 2482.8 ha of patch (any-touch, not an area share)
+ context in_alr       : 3571 patches touching, 2591.4 ha of patch (any-touch, not an area share)

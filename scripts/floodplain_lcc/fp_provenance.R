@@ -217,6 +217,44 @@ fp_prov_set <- function(cfg, section, key, value) {
   invisible(prov)
 }
 
+# --- Set one SIBLING block inside an existing entry (#108) --------------------------------------
+# A product computed AFTER a step's own record -- the composition table, which step 3 and the
+# standalone composition_build.R both derive from the rasters step 3 wrote -- is recorded beside that
+# entry's `inputs`, the way `link_log` sits beside the network's. Never as a new top-level section:
+# stac_floodplains_bc's reader refuses an unrecognised top-level key (by design, so a renamed section
+# cannot read as a step that did not run), and a fourth section would stop it publishing every area
+# that gained one. It reads explicit paths below that level, so a sibling is inert there.
+#
+# The entry's own `inputs_hash` / `outputs_hash` are NOT recomputed: they describe the step's run,
+# and re-deriving them from a JSON round trip of that run would be a second derivation of a fact
+# already recorded. The sibling gets its own pair. Declared per section so provenance-check.R can
+# whitelist it rather than meet it as an undeclared body key.
+FP_PROV_SIBLINGS <- list(landcover = "composition")
+
+fp_prov_set_sibling <- function(cfg, section, key, sibling, value) {
+  stopifnot(section %in% names(FP_PROV_SIBLINGS), sibling %in% FP_PROV_SIBLINGS[[section]],
+            is.character(key), length(key) == 1L, nzchar(key))
+  if (is.null(value[["inputs"]])) stop("provenance: ", section, "[", key, "].", sibling,
+                                       " was written with no `inputs` block.", call. = FALSE)
+  path <- fp_prov_path(cfg)
+  before <- if (file.exists(path)) file.mtime(path) else NA
+  prov <- fp_prov_read(cfg)
+  if (is.null(prov[[section]][[key]])) {
+    stop("provenance: no ", section, "[", key, "] entry to attach `", sibling, "` to -- the step ",
+         "that produces it has not run (or not since #33) for this area.", call. = FALSE)
+  }
+  value$inputs_hash <- fp_prov_hash(value[["inputs"]])
+  if (!is.null(value[["outputs"]])) value$outputs_hash <- fp_prov_hash(value[["outputs"]])
+  prov[[section]][[key]][[sibling]] <- value
+  if (!is.na(before) && file.exists(path) && !identical(file.mtime(path), before)) {
+    stop("provenance: ", basename(path), " changed while this run was writing it -- another ",
+         "process is writing the same area. Run areas/species SEQUENTIALLY.", call. = FALSE)
+  }
+  fp_prov_write(cfg, prov)
+  message("Provenance: ", section, "[", key, "].", sibling, " -> ", basename(path))
+  invisible(prov)
+}
+
 # Canonical sha256 over a subtree: keys sorted at every level, no auto_unbox (so a length-1 and a
 # length-2 field cannot serialize to different SHAPES and hash apart for that reason alone),
 # digits = NA so no float is silently rounded before hashing.

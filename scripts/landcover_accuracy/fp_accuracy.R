@@ -6,6 +6,7 @@
 # level, so the minimum of area.yml this module needs is read here.
 
 `%||%` <- function(a, b) if (is.null(a)) b else a
+source(here::here("scripts", "fp_raster.R"))   # fp_rast_cells; defines functions only
 
 # area name -> the few facts the accuracy scripts need, with the same defaults run_area.R applies
 fp_acc_area <- function(area) {
@@ -59,12 +60,9 @@ fp_acc_grid <- function(cfg, years = NULL) {
 }
 
 # 1 inside any polygon (cell centre), NA elsewhere, on `template`'s grid. Overlaps count once.
-fp_acc_rasterize <- function(polys, template) {
-  if (!nrow(polys)) return(terra::init(terra::rast(template), NA))
-  polys <- sf::st_transform(polys, terra::crs(template))
-  terra::rasterize(terra::vect(sf::st_geometry(polys)), terra::rast(template), field = 1L,
-                   touches = FALSE, background = NA)
-}
+# Delegates to fp_rast_cells() (scripts/fp_raster.R), which the composition table (#108) uses too:
+# one membership rule for both.
+fp_acc_rasterize <- function(polys, template) fp_rast_cells(polys, template)
 
 # Omission of tree loss inside reference-disturbance cells (criterion 4 and its published twin).
 #   denominator: footprint cells in `inpoly` that IO labelled Trees at `from`

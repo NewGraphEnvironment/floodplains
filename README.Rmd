@@ -174,8 +174,11 @@ third that used to sit undifferentiated. The framework is layer-agnostic: **any 
 can get is a config line**, not a code change. Confirmed riparian clearing for agriculture,
 forest health, tenure — each is one entry away. A patch can carry several tags at once, which is
 the honest answer for salvage logging after a fire. Some layers locate change without explaining
-it: a patch touching a mapped FWA wetland carries `in_wetland`, so wetland change can be found and
-reviewed, and it never counts toward the attributed share above. The same holds for a fire in the
+it: a patch touching a mapped FWA wetland carries `in_wetland`, and one touching the Agricultural
+Land Reserve carries `in_alr`, so that change can be found and reviewed; neither counts toward the
+attributed share above. How much of the floodplain, and of its change, lies in the ALR or in a
+wetland is counted per cell in a separate composition table, because a patch that merely touches the
+reserve is not all inside it. The same holds for a fire in the
 15 years *before* the change window (`in_fire_prior`): it may explain regrowth or delayed tree loss,
 but it is reported beside the unattributed share rather than subtracted from it until reference
 labels say whether that change is real.

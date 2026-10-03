@@ -63,6 +63,16 @@ context:
     carry: [waterbody_poly_id]
     # FWA wetland polygons (1:20,000). The floodplain delineation also seeds wetlands
     # (flood_scenarios.csv `wetlands = TRUE`).
+  - name: alr
+    table: whse_legal_admin_boundaries.oats_alr_polys
+    geom_col: geom
+    carry: [alr_poly_id]
+    # Agricultural Land Reserve (#108). A FROZEN snapshot loaded by scripts/fwapg/alr_load.sh, which
+    # stamps the load date, row count and catalogue record onto the table (COMMENT ON TABLE); the
+    # boundary moves with ALC decisions, so a reload is deliberate (REFRESH=1) and moves in_alr.
+    # Present-day boundary, so it says where change sat, never why it happened -- context, not a cause.
+    # Key only: the ALR's own area must never reach a patch, and `in_alr` is ANY-TOUCH -- an area
+    # "in the ALR" is read from the composition table (cell-level), never summed off this flag.
 
 lookback:
   - name: fire_prior

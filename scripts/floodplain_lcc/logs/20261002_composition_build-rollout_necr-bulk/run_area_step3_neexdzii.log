@@ -1,0 +1,157 @@
+Loading required package: sf
+Linking to GEOS 3.13.0, GDAL 3.8.5, PROJ 9.5.1; sf_use_s2() is TRUE
+Loading required package: terra
+terra 1.9.50
+Loading required package: stars
+Loading required package: abind
+Loading required package: DBI
+Loading required package: RPostgres
+Loading required package: here
+here() starts at <repos>/floodplains
+Loading required package: fs
+Loading required package: yaml
+Loading required package: jsonlite
+Loading required package: digest
+Loading required package: dplyr
+
+Attaching package: ‘dplyr’
+
+The following objects are masked from ‘package:terra’:
+
+    intersect, union
+
+The following objects are masked from ‘package:stats’:
+
+    filter, lag
+
+The following objects are masked from ‘package:base’:
+
+    intersect, setdiff, setequal, union
+
+Loading required package: readr
+Loading required package: stringr
+Loading required package: link
+Loading required package: flooded
+
+ 'The bible is God's written word, and the universe is God's expressed word. By studying one or the other equally, we are studying God's work.' - Katharine Hayhoe
+  source
+Loading required package: drift
+
+ 'I think about how many lives I actually am responsible for when it comes to my music.' - YoungBoy Never Broke Again
+  source
+Loading required package: fresh
+
+ 'We have to get rid of this notion that the past is a provider of anecdotes and the present is a provider of knowledge.' - Daniel Pauly
+  source
+Area: neexdzii | WSG: BULK | order >= 3 | schema: neexdzii | subset: reach | steps: 3
+
+### Step 3: LULC classify + transition ###
+Spherical geometry (s2) switched off
+=== Scenario: co_ff04 (ff=4) ===
+  Functional floodplain
+=== Whole floodplain ===
+although coordinates are longitude/latitude, st_union assumes that they are
+planar
+Querying STAC: io-lulc-annual-v02 (2017-2023)...
+  14 items returned
+  2017: cached
+  2020: cached
+  2023: cached
+Floodplain rasters saved to <repos>/floodplains/data/neexdzii/rasters/co_ff04
+Vectorizing to floodplain_landcover.gpkg...
+  Layer: classified_co_ff04_2017
+  Layer: classified_co_ff04_2020
+  Layer: classified_co_ff04_2023
+  Tagged disturbance: fire, harvest; context: wetland, alr; lookback: fire_prior
+  Layer: transition_co_ff04_2017_2023 (2032 change patches >= 1 ha)
+  Layer: patch_watercourse_co_ff04_2017_2023 (4311 pairs over 2031 patches and 77 watercourses; union coverage 0.958, unbridged patches 1)
+
+=== Per-sub-basin summaries ===
+although coordinates are longitude/latitude, st_intersection assumes that they
+are planar
+although coordinates are longitude/latitude, st_union assumes that they are
+planar
+Processing: Bulkley Confluence-McKilligan
+although coordinates are longitude/latitude, st_intersection assumes that they
+are planar
+although coordinates are longitude/latitude, st_union assumes that they are
+planar
+Processing: Barren - McQuarrie
+although coordinates are longitude/latitude, st_intersection assumes that they
+are planar
+although coordinates are longitude/latitude, st_union assumes that they are
+planar
+Processing: Perow-Byman
+although coordinates are longitude/latitude, st_intersection assumes that they
+are planar
+although coordinates are longitude/latitude, st_union assumes that they are
+planar
+Processing: Johnny David-Richfield
+although coordinates are longitude/latitude, st_intersection assumes that they
+are planar
+although coordinates are longitude/latitude, st_union assumes that they are
+planar
+Processing: Cesford-Ailport
+although coordinates are longitude/latitude, st_intersection assumes that they
+are planar
+although coordinates are longitude/latitude, st_union assumes that they are
+planar
+Processing: Bulkley River Above Falls
+although coordinates are longitude/latitude, st_intersection assumes that they
+are planar
+although coordinates are longitude/latitude, st_union assumes that they are
+planar
+Processing: Buck Creek Below Falls
+although coordinates are longitude/latitude, st_intersection assumes that they
+are planar
+although coordinates are longitude/latitude, st_union assumes that they are
+planar
+Processing: Maxan Creek
+although coordinates are longitude/latitude, st_intersection assumes that they
+are planar
+although coordinates are longitude/latitude, st_union assumes that they are
+planar
+Processing: Buck Creek Above Falls
+although coordinates are longitude/latitude, st_intersection assumes that they
+are planar
+although coordinates are longitude/latitude, st_union assumes that they are
+planar
+Processing: Maxan Lake
+although coordinates are longitude/latitude, st_intersection assumes that they
+are planar
+although coordinates are longitude/latitude, st_union assumes that they are
+planar
+Processing: Aitken Creek
+although coordinates are longitude/latitude, st_intersection assumes that they
+are planar
+although coordinates are longitude/latitude, st_union assumes that they are
+planar
+Processing: Foxy Creek
+although coordinates are longitude/latitude, st_intersection assumes that they
+are planar
+although coordinates are longitude/latitude, st_union assumes that they are
+planar
+Processing: Taman Creek
+although coordinates are longitude/latitude, st_intersection assumes that they
+are planar
+although coordinates are longitude/latitude, st_union assumes that they are
+planar
+Processing: Gilmore-Day Lakes
+  provenance: drift checkout at <repos>/drift is 0.22.0, installed is 0.20.0 -- SHA unresolved (versions disagree)
+Provenance: landcover[co_ff04] -> provenance.json
+Provenance: landcover[co_ff04].composition -> provenance.json
+  Layer: composition_co_ff04_2017_2023 (336 rows; floodplain 14282.8 ha of a 15030.5 ha footprint; change 1289.0 ha; wetland 1802.0 ha, change in wetland 147.7 ha; alr 4461.3 ha, change in alr 701.0 ha)
+
+Done. Scenario: co_ff04 -- outputs in <repos>/floodplains/data/neexdzii
+There were 30 warnings (use warnings() to see them)
+
+Done: neexdzii (steps 3).
+
+------------------------------------------------------------------------------
+Publish neexdzii to the STAC catalogue:
+  cd ../stac_floodplains_bc
+  bash scripts/run_pipeline.sh        # rebuild data/stac from these outputs
+  bash scripts/catalogue_release.sh   # validate -> sync -> register -> verify
+Both are idempotent. Retract an item with scripts/item_unregister.sh.
+Suppress this note with FP_NO_PUBLISH_HINT=1.
+------------------------------------------------------------------------------

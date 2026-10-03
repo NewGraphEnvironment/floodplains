@@ -1,0 +1,243 @@
+
+1. Determinism — `inputs` is byte-stable across two writes
+Provenance: landcover[co_ff04] -> provenance.json
+Provenance: landcover[co_ff04] -> provenance.json
+  ok    two writes of identical content produce identical bytes 
+Provenance: landcover[co_ff04] -> provenance.json
+Provenance: landcover[co_ff04] -> provenance.json
+  ok    must-fail: a run-event field in `inputs` DOES break byte stability 
+  ok    criterion 2: changing a model parameter MOVES inputs_hash 
+  ok    criterion 2: bumping a package version MOVES inputs_hash 
+  ok    premise: the digest being perturbed below actually exists in the fixture 
+  ok    criterion 2: a reprocessed landcover raster MOVES inputs_hash 
+  ok    an unchanged input does NOT move inputs_hash 
+Provenance: floodplain[co_ff04] -> provenance.json
+Provenance: floodplain[co_ff04] -> provenance.json
+  ok    premise: fp_prov_set actually wrote an outputs_hash for both 
+  ok    a changed OUTPUT does NOT move inputs_hash (the two questions stay separate) 
+  ok    a changed OUTPUT DOES move outputs_hash 
+  ok    premise: the mutant really has no outputs block 
+Provenance: floodplain[co_ff04] -> provenance.json
+  ok    an entry with no `outputs` gets NO outputs_hash key at all, not a null one 
+  ok    must-fail: an outputs-only write IS refused (it would blank the inputs half) 
+  ok    premise: `$` DOES partial-match inputs -> inputs_hash (why fp_prov_set uses `[[`) 
+  ok    restored defect: an entry with ONLY an inputs_hash IS refused, not partial-matched 
+
+2. Split — `inputs` carries no run-event field
+  ok    clean fixture reports no split violation 
+  ok    must-fail: a run-event field in `inputs` IS reported 
+  ok    must-fail: an overlapping inputs/run key IS reported 
+  ok    must-fail: a section that LOST its whole run block IS reported 
+  ok    must-fail: a run block without datetime_utc IS reported 
+  ok    must-fail: a missing inputs_hash IS reported 
+  ok    must-fail: a landcover run with NO toolchain IS reported 
+  ok    must-fail: a toolchain missing one member IS reported 
+  ok    must-fail: an all-NA toolchain IS reported (an absence wearing a key) 
+  ok    the network section is not required to carry a toolchain (it writes no raster) 
+  ok    must-fail: had network been in scope, its missing toolchain WOULD be reported 
+  ok    premise: the fixture carries a well-formed outputs/outputs_hash pair 
+  ok    a well-formed outputs/outputs_hash pair passes 
+  ok    must-fail: an `outputs` block with no outputs_hash IS reported 
+  ok    must-fail: an outputs_hash with no `outputs` block IS reported (the inverse) 
+  ok    must-fail: a run-event field in `outputs` IS reported 
+  ok    must-fail: a key in BOTH inputs and outputs IS reported 
+  ok    must-fail: a key in BOTH outputs and run IS reported 
+  ok    clean fixture declares every BODY key 
+  ok    must-fail: an undeclared SIBLING of `inputs` IS reported 
+  ok    outputs/outputs_hash are declared body keys 
+  ok    fp_pkg_stamp() reports a declared sha_source (got: unresolved) 
+  ok    a closed-vocabulary sha_source passes 
+  ok    restored defect: the OLD free-text sha_source IS reported (why the vocabulary closed) 
+
+3. Declared keys — present, null where absent
+  ok    clean fixture declares every key 
+  ok    must-fail: one dropped key IS reported 
+  ok    must-fail: a UNIFORMLY dropped key IS reported (no variance to detect) 
+  ok    must-fail: a null link_log with no note IS reported 
+  ok    must-fail: an UNDECLARED key IS reported (whitelist, not just completeness) 
+  ok    a null link_log WITH a note passes 
+  ok    premise: `$` DOES partial-match link_log -> link_log_note (why this file uses `[[`) 
+  ok    must-fail: a dropped OUTPUTS key IS reported 
+  ok    must-fail: an undeclared OUTPUTS key IS reported 
+  ok    must-fail: an outputs block in a section that declares none IS reported 
+  ok    ... and the scope is restored (the clean fixture still passes) 
+
+3c. Composition sibling — declared, landcover-only, and never stale
+  ok    a landcover entry with a well-formed composition sibling passes every property 
+  ok    an entry with NO composition passes (forward-only) 
+  ok    must-fail: a composition computed from other classified rasters IS reported stale 
+  ok    must-fail: a composition computed from another transition IS reported stale 
+  ok    must-fail: a composition block outside landcover IS reported 
+  ok    must-fail: an undeclared composition input IS reported 
+  ok    must-fail: a composition over another change_interval IS reported stale 
+  ok    must-fail: a composition whose floodplain record has since moved IS reported stale 
+  ok    must-fail: a composition with no outputs_hash IS reported 
+  ok    must-fail: an undeclared SIBLING is still reported by the body whitelist 
+
+3b. link_config_name — a GRAB may not assert a locally-assumed config
+  ok    clean fixture reports no config-name violation 
+  ok    restored defect: a GRAB claiming a built_literal config IS reported 
+  ok    a BUILD reporting its own literal is NOT a false refusal 
+  ok    must-fail: an out-of-vocabulary config source IS reported 
+  ok    must-fail: a link_log-sourced name that disagrees with the log row IS reported 
+  ok    must-fail: an unresolved source that still names a config IS reported 
+  ok    unresolved WITH a null name passes 
+  ok    clean fixture carries the current schema_version 
+  ok    must-fail: a stale schema_version IS reported 
+  ok    must-fail: a missing schema_version IS reported 
+  ok    premise: a v1-content section under a v2 label passes the VERSION check (it cannot see it) 
+  ok    ... and viol_keys IS what reports it -- the two together, never the version alone 
+
+4. Credentials — no SAS token reaches the file
+Provenance: landcover[co_ff04] -> provenance.json
+  ok    clean fixture carries no credential-shaped parameter 
+  ok    must-fail: an actual SAS token IS matched 
+  ok    a `sig`/`se`-prefixed WORD is not a false positive 
+
+5. Coverage — completeness flag and non-empty year groups
+  ok    clean fixture reports full coverage 
+  ok    must-fail: a missing completeness flag IS reported 
+  ok    must-fail: an EMPTY year group IS reported (the `datetime` vs `start_datetime` trap) 
+  ok    must-fail: item_ids_complete = FALSE is a FAILURE, not a note 
+  ok    must-fail: a landcover section with NO content digest IS reported 
+  ok    must-fail: ONE year missing its digest IS reported (not just all years) 
+  ok    must-fail: a NULL-valued year IS reported (unlist() would have dropped it) 
+  ok    must-fail: a year DROPPED from the digest map IS reported 
+  ok    must-fail: 2 digests for a 3-year run IS reported 
+
+5b. Database-shaped values
+  ok    premise: the inner value is the raw array literal, not a vector 
+  ok    a pq__text column parses to a character vector, not one brace-wrapped string 
+  ok    an EMPTY pg array is recorded as absent, not as the literal "{}" 
+  ok    a quoted element containing a comma survives the split 
+  ok    a one-element array keeps ARRAY shape (auto_unbox would collapse it to a scalar) 
+  ok    a timestamp serializes in UTC regardless of session TZ 
+  ok    the session TZ is restored (on.exit would not have) 
+  ok    must-fail: an unserializable value IS reported, naming its path 
+  ok    a clean object is not a false alarm 
+
+5c. Content digest is invariant to the container
+  ok    premise: the two containers really do differ in bytes 
+  ok    premise: the two rasters carry identical cell values 
+  ok    content digest AGREES across differing containers (the #64 property) 
+  ok    must-fail: ONE changed cell value MOVES the content digest 
+  ok    must-fail: ONE cell becoming nodata MOVES the content digest 
+  ok    restored defect: the OLD file hash disagrees on the same values (why this changed) 
+  ok    block_rows defaults to 512 -- changing it would invalidate every digest ever recorded 
+  ok    premise: block_rows really does change the digest (sizes that actually split 40 rows) 
+  ok    the digest is pinned to serializeVersion 2 -- a session option cannot move it 
+  ok    premise: one fixture is in memory and the other is file-backed (two real code paths) 
+  ok    the SpatRaster form AGREES with the path form (the #65 property) 
+  ok    must-fail: the object form still MOVES on a changed cell (it is not a constant) 
+  ok    float: the two forms agree at FLT8S, where the file round-trips float64 exactly 
+  ok    must-fail: at FLT4S the file and the float64 object DIFFER -- the agreement has a precondition 
+  ok    NULL digests to NA (the object form's absence) 
+  ok    an absent path digests to NA 
+  ok    an NA path digests to NA, it does not error 
+  ok    the fixture directory is cleaned up (on.exit would not have fired here) 
+
+5d. Value normalization (the lines the fix turns on)
+  ok    premise: all.equal() cannot tell the two shapes apart 
+  ok    premise: `!=` with na.rm cannot tell them apart 
+  ok    premise: the NA counts are equal 
+  ok    must-fail: storage.mode() ALONE leaves NaN != NA_real_ (why the second line exists) 
+  ok    both normalizations together make the two shapes identical 
+  ok    must-fail: the half-normalized vectors DIGEST differently 
+  ok    fully normalized, they digest the same 
+  ok    premise: integer and double digest differently when there are no NAs at all 
+  ok    an all-present integer block normalizes to the same thing as its double twin 
+  ok    float: NaN and NA_real_ collapse (the Float32 nodata case the DEM actually hits) 
+  ok    must-fail: without the collapse, a float NaN and NA_real_ still digest apart 
+  ok    premise: R treats -0 and 0 as identical() VALUES (which is why this looked safe) 
+  ok    must-fail: un-normalized, a signed zero DOES move the digest (why the third line exists) 
+  ok    float: normalized, a signed zero does NOT move the digest 
+  ok    must-fail: the zero collapse does NOT swallow a near-zero value 
+
+5e. Table content digest
+  ok    row order does NOT move the digest (it is a set, not a sequence) 
+  ok    must-fail: a 1e-5 m length change MOVES the digest 
+  ok    must-fail: a DROPPED segment MOVES the digest 
+  ok    must-fail: an ADDED segment MOVES the digest 
+  ok    must-fail: a changed upstream_area_ha MOVES it (it feeds the VCA, so it is not decoration) 
+  ok    must-fail: a different COLUMN SET digests differently (the header carries it) 
+  ok    an EMPTY table digests distinguishably from a one-row table 
+  ok    premise: as.character() IS scipen-dependent (1.23e+15 vs 1230000000000000) 
+  ok    the digest is scipen-immune (sprintf, never as.character) 
+  ok    premise: radix and locale ordering CAN disagree (why method = 'radix' is pinned) 
+  ok    an NA value is distinguishable from a zero 
+  ok    premise: the fixture really does carry a duplicate composite key 
+  ok    row order does not move the digest even when the KEY is duplicated 
+  ok    must-fail: ... and duplicate keys do not make it blind to a changed value 
+  ok    must-fail: a text column IS refused (a driver setting must not pick the rendering) 
+  ok    premise: the two columns being swapped carry identical values 
+  ok    two column sets with IDENTICAL rendered values digest apart (only the header sees this) 
+
+5f. The written raster container carries only the allowlist (#83)
+  ok    premise: an UNSTRIPPED write lands all 10 tags (got 10) 
+  ok    premise: and they come back by NAME, so a failure can say which tag it found 
+  ok    fp_rast_write() completes without tripping its own guard 
+  ok    fp_rast_write() leaves NO tag outside the allowlist 
+  ok    the written container is exactly AREA_OR_POINT (got {AREA_OR_POINT}) 
+  ok    must-fail: fp_rast_write() REFUSES when the strip does not take (the refusal can fire) 
+  ok    must-fail: and the refusal names a tag and the terra that wrote it 
+  ok    premise: with the real strip restored the same write succeeds (the guard is not blanket) 
+  ok    premise: terra::metags() on a tag-free raster is NULL, not a 0-row frame 
+  ok    fp_rast_strip_tags() does not error on a raster that has no tags 
+  ok    fp_rast_write() round-trips a tag-free raster (the m1 step-3 path) 
+  ok    premise: IMAGE_STRUCTURE really is present on the file just written 
+  ok    negative control: IMAGE_STRUCTURE is NOT flagged 
+  ok    premise: a sidecar's dataset <Metadata> IS merged into the default domain by GDAL 
+  ok    a PAM sidecar does not make a clean raster report dirty (the guard reads the TIFF) 
+  ok    must-fail: an ABSENT file errors rather than reporting clean 
+
+6. Producer/guard key drift
+  ok    premise: the scanner resolves keys at all (positive control) 
+  ok    network producer writes exactly the 11 declared key(s) 
+  ok    network outputs producer writes exactly the 3 declared key(s) 
+  ok    floodplain producer writes exactly the 21 declared key(s) 
+  ok    floodplain outputs producer writes exactly the 3 declared key(s) 
+  ok    landcover producer writes exactly the 19 declared key(s) 
+  ok    landcover outputs producer writes exactly the 3 declared key(s) 
+  ok    premise: the link_log null-fill list is readable from the producer 
+  ok    KEYS_LINK_LOG matches 01's null-fill list 
+  ok    KEYS_TOOLCHAIN matches what fp_toolchain() returns (terra, sf, gdal, geos, proj) 
+  ok    every producer declared to write `outputs` still does (found: network, floodplain, landcover; declared: network, floodplain, landcover) 
+  ok    01's LNK_BUILD_CONFIG is 'default', matching the guard's expectation 
+  ok    no lnk_config() call site names a bundle literally (found: none) 
+  ok    every raster-writing producer still records run$toolchain (found: floodplain, landcover) 
+
+7. Real area: <repos>/floodplains/data/bulk/provenance.json
+   (repo root resolved from this script: <repos>/floodplains)
+  ok    5 section(s) to check 
+  ok    all 5 config-derived entries present 
+
+7c. Reconcile — published `outputs` values against the artefacts they name
+  ok    premise: the digest column lists parse out of 01 (key=2, value=6) 
+  ok    network[co3] n_segments: recorded 6858, artefact 6858 
+  ok    network[co3] streams_content_sha256: recorded sha256:fcfd9d313598da21e18977117ae8d2aedd0e6caebc20af21f2dfa3e304f80af9, artefact sha256:fcfd9d313598da21e18977117ae8d2aedd0e6caebc20af21f2dfa3e304f80af9 
+  ok    network[co3] whole-WSG area: pre- and post-subset digests agree: recorded sha256:fcfd9d313598da21e18977117ae8d2aedd0e6caebc20af21f2dfa3e304f80af9, artefact sha256:fcfd9d313598da21e18977117ae8d2aedd0e6caebc20af21f2dfa3e304f80af9 
+  ok    floodplain[co_ff02] valley_cells: recorded 370201, artefact 370201 
+  ok    floodplain[co_ff02] floodplain_content_sha256: recorded sha256:68fc02c0baa97c384b0b1719691d9efc4dea226ca35db5e2cc6836dc305b178b, artefact sha256:68fc02c0baa97c384b0b1719691d9efc4dea226ca35db5e2cc6836dc305b178b 
+  ok    floodplain[co_ff02] floodplain_co_ff02.tif carries no stray container tags 
+  ok    floodplain[co_ff02] dem_content_sha256 not reconcilable (the DEM is never written) 
+  ok    floodplain[co_ff04] valley_cells: recorded 415100, artefact 415100 
+  ok    floodplain[co_ff04] floodplain_content_sha256: recorded sha256:aceae2548a7f7c90b81d8496c14cb9698270ceced1dbbbec81b666d2e0a8b803, artefact sha256:aceae2548a7f7c90b81d8496c14cb9698270ceced1dbbbec81b666d2e0a8b803 
+  ok    floodplain[co_ff04] floodplain_co_ff04.tif carries no stray container tags 
+  ok    floodplain[co_ff04] dem_content_sha256 not reconcilable (the DEM is never written) 
+  ok    floodplain[co_ff06] valley_cells: recorded 445227, artefact 445227 
+  ok    floodplain[co_ff06] floodplain_content_sha256: recorded sha256:d373bc6706eded0ca5e99bb697d82b0d41405d4270018dad2065fa28991ca838, artefact sha256:d373bc6706eded0ca5e99bb697d82b0d41405d4270018dad2065fa28991ca838 
+  ok    floodplain[co_ff06] floodplain_co_ff06.tif carries no stray container tags 
+  ok    floodplain[co_ff06] dem_content_sha256 not reconcilable (the DEM is never written) 
+  ok    landcover[co_ff04] transition_content_sha256: recorded sha256:f01448474986563c48fbd454d891f64e786797f3150a7c159e83f0b1d765a2fb, artefact sha256:f01448474986563c48fbd454d891f64e786797f3150a7c159e83f0b1d765a2fb 
+  ok    landcover[co_ff04] transition_patches: recorded 7161, artefact 7161 
+  ok    landcover[co_ff04] classified tif years reconcile (disk {2017,2018,2019,2020,2021,2022,2023} vs recorded {2017,2018,2019,2020,2021,2022,2023}) 
+  ok    landcover[co_ff04] classified_content_sha256 is keyed by year (7 of 7 named) 
+  ok    landcover[co_ff04] all 7 classified_content_sha256 re-derive from their .tif 
+  ok    landcover[co_ff04] no classified_*.tif carries stray container tags 
+  ok    landcover[co_ff04] transition.tif carries no stray container tags 
+  ok    landcover[co_ff04] composition rows: recorded 497, artefact 497 
+  ok    landcover[co_ff04] composition table_content_sha256: recorded sha256:c33c811c73e21d1af6d4fa8620baa76f42d55db70d0de7e8745d394c3da18a8b, artefact sha256:c33c811c73e21d1af6d4fa8620baa76f42d55db70d0de7e8745d394c3da18a8b 
+  ok    landcover[co_ff04] classified gpkg layer years reconcile (gpkg {2017,2018,2019,2020,2021,2022,2023} vs recorded {2017,2018,2019,2020,2021,2022,2023}) 
+  ok    real file checked against all properties 
+
+PASS — all properties hold, and each was shown able to fail.
