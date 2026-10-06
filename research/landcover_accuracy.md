@@ -1,6 +1,6 @@
 # IO LULC accuracy inside our floodplains
 
-**Verified:** 2026-10-02 · **Issues:** #93 (this work), #92 (report), #94 (review surface), #95
+**Verified:** 2026-10-06 · **Issues:** #93 (this work), #111 (blind review, labelling key), #92 (report), #94 (review surface), #95
 (wetland flag), #103 (prior-fire stratum, dated imagery), drift#79 / drift#81 (composites, sampling + estimators); spawned #100 (patch-level
 harvest attribution) and drift#92 (clear-observation counts) · **Produced by:**
 `scripts/landcover_accuracy/` (logs under `scripts/landcover_accuracy/logs/`) · **Status:**
@@ -213,10 +213,113 @@ labelled; the 2026-10-02 log has the per-stratum detail.
   chosen at the plan gate. The full sample should raise the stable strata first: same seed, larger
   `n`, and the pilot's labels carry over.
 
+## Labelling key
+
+**Pre-registered 2026-10-06, before any label existed** (#111). Labels are judged against these
+rules and these definitions. **Never edit this section to fit labels already made.** A change here
+after labelling begins invalidates the labels made under the old text, exactly as a change to the
+criteria above would. `review_build-qgis.R` copies this section into the review project as
+`labelling_key.md`, so the reviewer reads this text and no other.
+
+### What is labelled
+
+- **The outlined 10 m cell, not the point and not the patch.** Each point sits in one cell of the
+  classified grid, and the project draws that cell's square. The label is the land cover of that
+  square.
+- **Two labels per point, judged independently:** `ref_from` is the cell's class in the first
+  endpoint year (2017), and `ref_to` its class in the last (2023). Never infer one from the other or
+  from any change layer. The change patches stay out of the labelling views for that reason.
+- **The growing season of that year.** IO's annual map is a composite over the year, and the
+  reference describes the cell as it stood through that year's growing season.
+- **Classes are IO's**, with the definitions below. "Cannot label" is a status, never a class.
+
+### IO's class definitions
+
+Quoted from Esri / Impact Observatory, *Sentinel-2 10m Land Use/Land Cover Time Series*, ArcGIS
+Living Atlas item `cfcb7609de5f478eb7666240902d4d3d`, fetched 2026-10-06. The Planetary Computer
+collection `io-lulc-annual-v02` (CC-BY-4.0) names the classes but does not define them.
+
+| code | class | IO's definition |
+|---:|---|---|
+| 1 | Water | Areas where water was predominantly present throughout the year; may not cover areas with sporadic or ephemeral water; contains little to no sparse vegetation, no rock outcrop nor built up features like docks; examples: rivers, ponds, lakes, oceans, flooded salt plains. |
+| 2 | Trees | Any significant clustering of tall (~15 feet or higher) dense vegetation, typically with a closed or dense canopy; examples: wooded vegetation, clusters of dense tall vegetation within savannas, plantations, swamp or mangroves (dense/tall vegetation with ephemeral water or canopy too thick to detect water underneath). |
+| 4 | Flooded vegetation | Areas of any type of vegetation with obvious intermixing of water throughout a majority of the year; seasonally flooded area that is a mix of grass/shrub/trees/bare ground; examples: flooded mangroves, emergent vegetation, rice paddies and other heavily irrigated and inundated agriculture. |
+| 5 | Crops | Human planted/plotted cereals, grasses, and crops not at tree height; examples: corn, wheat, soy, fallow plots of structured land. |
+| 7 | Built Area | Human made structures; major road and rail networks; large homogenous impervious surfaces including parking structures, office buildings and residential housing; examples: houses, dense villages / towns / cities, paved roads, asphalt. |
+| 8 | Bare ground | Areas of rock or soil with very sparse to no vegetation for the entire year; large areas of sand and deserts with no to little vegetation; examples: exposed rock or soil, desert and sand dunes, dry salt flats/pans, dried lake beds, mines. |
+| 9 | Snow/Ice | Large homogenous areas of permanent snow or ice, typically only in mountain areas or highest latitudes; examples: glaciers, permanent snowpack, snow fields. |
+| 11 | Rangeland | Open areas covered in homogenous grasses with little to no taller vegetation; wild cereals and grasses with no obvious human plotting (i.e., not a plotted field); examples: natural meadows and fields with sparse to no tree cover, open savanna with few to no trees, parks/golf courses/lawns, pastures. Mix of small clusters of plants or single plants dispersed on a landscape that shows exposed soil or rock; scrub-filled clearings within dense forests that are clearly not taller than trees; examples: moderate to sparse cover of bushes, shrubs and tufts of grass, savannas with very sparse grasses, trees or other plants. |
+
+IO's own note: "for the built area classification, yards, parks, and groves will appear as built
+area rather than trees or rangeland classes." Class 10 (Clouds) is not a reference class: a cell
+the imagery cannot resolve is `cannot_label`.
+
+### Decision rules
+
+Decided at the #111 plan gate (2026-10-06). The first two follow IO's text above rather than local
+usage, so a disagreement measures IO's error rather than a mismatch of definitions.
+
+1. **Hay versus pasture.** A cut or planted grass field (hay, forage) with visible plotting, field
+   boundaries, rows, mowing or tillage is **Crops**. Grazed pasture is **Rangeland**, because IO
+   names pastures under Rangeland. When imagery cannot tell hay from pasture, label the more likely
+   class with `confidence = low`, and say why in `note`.
+2. **Regenerating stands** (after harvest or fire) are **Trees only once they read as dense
+   vegetation at or above roughly 15 ft (~4.6 m) over most of the cell**, IO's threshold. Before
+   that they are Rangeland ("scrub-filled clearings … clearly not taller than trees"), or Bare
+   ground if nearly unvegetated.
+3. **Flooded vegetation needs visible water.** It needs standing water or obvious saturation among
+   the vegetation in the imagery. A wetland that reads dry in that year's imagery is labelled by its
+   vegetation: Rangeland, or Trees if treed. Mapped FWA wetland outlines are context, never
+   evidence.
+4. **Mixed cells take the plurality class.** If no class clearly covers more of the cell than any
+   other, the status is `cannot_label`.
+5. **Imagery date sets the ceiling on confidence.**
+   - Imagery within ±1 year of the endpoint supports `high` or `medium`.
+   - Older or newer imagery supports `low` at most.
+   - The undated basemaps (Esri, Google, Bing) support `low` at most, and never alone for a change
+     call.
+6. **`imagery` records what decided the label**, not everything looked at. Use `several` when no
+   one source decided it.
+7. **`cannot_label`** applies when no imagery near the endpoint resolves the cell (cloud, smoke,
+   resolution, missing coverage), or when rule 4 finds no plurality. The two `ref_*` fields stay
+   blank, and `note` says which case.
+
 ## Review setup
 
-**Verified:** 2026-09-29 · **Produced by:** `review_build-qgis.R`, `chip_build-composite.R`,
-`labels_export.R`, `accuracy_estimate.R` in `scripts/landcover_accuracy/`.
+**Verified:** 2026-10-06 (blind review, #111) · **Produced by:** `review_build-qgis.R`,
+`chip_build-composite.R`, `labels_export.R`, `accuracy_estimate.R` in `scripts/landcover_accuracy/`.
+
+- **The review is blind (#111).** The reviewer must not see the map's answer, because seeing it pulls a
+  label toward agreeing and inflates the very accuracy being measured.
+  - drift names points `<stratum>_<k>`, so even the id leaks the stratum. The working copy
+    (`labels.gpkg`) therefore carries an opaque, shuffled `review_id` (which is also the working order),
+    the `cell`, the dated imagery covering the point, and the label fields. It carries no `point_id`,
+    stratum, IO class or cause flag.
+  - `reference/<area>/review_key.csv` (committed, never shipped in the project) maps `review_id` back.
+    It is append-only and drawn from a seed stream of the design seed.
+  - The export unblinds through the key and checks every cell against it.
+  - IO's change patches and the FWA wetlands (a stratifier) appear only in the `9 After labelling`
+    theme, and are unchecked in the layer tree.
+  - Each point's 10 m cell is drawn, because the label is about that square.
+  - Blinding is procedural for anyone holding this public repo, which carries `sample.gpkg` and the key.
+    That was accepted.
+- **Growth is not blind to its batch (known limit).** When the pilot grows to the full sample (same seed,
+  larger `n`), the new points take ids above the pilot's. The growth is expected to raise the stable
+  strata first, so an id above the pilot's count hints at "no change". Labels made on a growth batch are
+  made knowing that batch's stratum mix. Before growing, decide whether to accept this (and report it)
+  or to label the full sample in one blind pass.
+- **Second labeller (pre-registered 2026-10-06, before any label).**
+  - A fixed subset of 3 points per stratum (48 for NECR) is drawn once from its own seed stream and
+    recorded in the key's `second` column. It never grows with the sample.
+  - Labeller B works in a separate project holding only that subset (`REVIEWER=b review_build-qgis.R`),
+    blind to the map and to A's labels. The export writes B's copy to `labels_b.csv`, deciding from what
+    the copy holds rather than from a flag.
+  - **Agreement rules:**
+    - class agreement and Cohen's kappa per endpoint (`ref_from`, `ref_to`) over IO codes, on the
+      points **both** labellers labelled;
+    - `cannot_label` disagreements (one could read the cell, the other could not) are counted
+      separately, never as class disagreements;
+    - agreement is **information about the reference** and never enters the estimates or the criteria.
 
 - **Project.** `review_build-qgis.R` builds an rfp restoration-template project, which needs QGIS
   4.x, under `data/<area>/accuracy/review/` (gitignored). It holds the label layer with a
@@ -289,10 +392,16 @@ sample point is listed, so a stale index can be detected and not just a disagree
   - Re-choosing windows to suit an ortho year would mean editing a pre-registered definition after
     seeing data. Dated imagery is instead extra evidence the reviewer records through the label's
     `imagery` field (`orthophoto`, `airphoto`), with the epoch per point in `imagery.csv`.
-- **Map themes.** The review project carries "Review" (labels, patches, FWA context, Esri), plus
-  one theme per reference imagery layer: base vectors plus that one image. A theme hides layers by
-  absence, so switching theme flips epochs. The themes are rewritten on every build, and a layer
-  whose index or VRT went stale is removed together with its theme.
+- **Map themes (named for the work, #111).** QGIS lists themes alphabetically, so every name starts
+  with a sort key and the drop-down reads in working order:
+  - `0 Start - Esri satellite (undated, for finding your way)`;
+  - one theme per reference imagery year, oldest first, naming its source and (for Sentinel-2) its
+    composite months, with the two endpoints tagged `FIRST YEAR` / `LAST YEAR`;
+  - `9 After labelling - IO change patches and FWA wetlands`.
+
+  A theme hides layers by absence, so switching theme flips epochs. The template's own themes are
+  removed. The themes are rewritten on every build, and a layer whose index or VRT went stale is removed
+  together with its theme.
 
 ## Accuracy labels and training labels never mix
 

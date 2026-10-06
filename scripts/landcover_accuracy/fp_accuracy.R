@@ -517,3 +517,219 @@ fp_acc_window_widen <- function(wp, year, span) {
 }
 
 fp_acc_months_str <- function(m) if (length(m) == 1) as.character(m) else paste0(min(m), "-", max(m))
+
+# The pre-registered labelling key (#111): the `## Labelling key` section of research/landcover_accuracy.md,
+# up to the next `## ` heading. Extracted, never re-typed, so the reviewer reads the committed text and
+# nothing else. Refuses a missing or empty section rather than shipping a project with no key.
+fp_acc_labelling_key <- function(path = here::here("research", "landcover_accuracy.md")) {
+  x <- readLines(path, warn = FALSE)
+  i <- which(x == "## Labelling key")
+  if (length(i) != 1) stop(path, " has ", length(i), " `## Labelling key` sections; expected one", call. = FALSE)
+  nxt <- which(startsWith(x, "## ") & seq_along(x) > i)
+  j <- if (length(nxt)) nxt[1] - 1L else length(x)
+  out <- x[i:j]
+  while (length(out) && !nzchar(trimws(out[length(out)]))) out <- out[-length(out)]
+  if (length(out) < 5) stop("the labelling key in ", path, " is empty", call. = FALSE)
+  out
+}
+
+# --- Blind review (#111) ----------------------------------------------------------------------------
+# The reviewer must not see the map's answer: seeing it pulls a label toward agreement and inflates the
+# very accuracy #93 measures. Hiding columns is not enough, because point_id ENCODES the stratum
+# (`<stratum>_<k>`, drift's naming), so the working copy carries an opaque review_id instead. A
+# committed key (reference/<area>/review_key.csv) maps it back to point_id and the design.
+#
+# The columns the review layer may NEVER carry: the id that encodes the stratum, the design, IO's
+# map classes for every year, the cause and wetland flags, and the use tag.
+fp_acc_blind_leaks <- function(nm) nm[nm %in% c("point_id", "stratum", "stratum_label", "map_class", "use") |
+                                        grepl("^map_[0-9]{4}$|^in_", nm)]
+
+# A seed for one named purpose, derived from the design seed so the review order and the second-labeller
+# subset are reproducible from design.json alone. Hashed from a purpose string, drift's idiom
+# (digest2int over "<namespace>:<seed>:<code>"): an arithmetic offset let two streams collide (the review
+# order's append batch at n0 = 111 equalled the second-labeller seed).
+FP_ACC_SEED_PURPOSES <- c("review_order", "second_labeller")
+fp_acc_seed <- function(design_seed, purpose, n0 = 0L) {
+  if (!purpose %in% FP_ACC_SEED_PURPOSES) stop("unknown seed purpose ", purpose, call. = FALSE)
+  digest::digest2int(sprintf("floodplains-accuracy-review:%s:%s:%d", format(design_seed, scientific = FALSE),
+                             purpose, as.integer(n0)))
+}
+# Draw under the design's own RNG kind, leaving the session's RNG state and kind exactly as found.
+# Base R only (no withr: it is not a declared dependency, and m4 or a fresh machine may not have it).
+fp_acc_with_seed <- function(seed, rng_kind, expr) {
+  g <- globalenv()
+  old_kind <- RNGkind()
+  had <- exists(".Random.seed", envir = g, inherits = FALSE)
+  if (had) old_seed <- get(".Random.seed", envir = g, inherits = FALSE)
+  on.exit({
+    suppressWarnings(RNGkind(old_kind[1], old_kind[2], old_kind[3]))
+    if (had) assign(".Random.seed", old_seed, envir = g)
+    else if (exists(".Random.seed", envir = g, inherits = FALSE)) rm(".Random.seed", envir = g)
+  }, add = TRUE)
+  suppressWarnings(RNGkind(rng_kind[[1]], rng_kind[[2]], rng_kind[[3]]))
+  set.seed(seed)
+  expr
+}
+
+# The key: review_id (a random permutation, which is also the review ORDER) -> point_id and the design
+# columns. APPEND-ONLY: given the committed key (`have`), existing ids never change; points new to the
+# sample (pilot -> full, same seed) take the next ids, shuffled among themselves with a seed that
+# depends on how many were already keyed, so the append is reproducible too.
+fp_acc_review_key <- function(smp, design_seed, rng_kind, have = NULL) {
+  d <- as.data.frame(smp)[, c("point_id", "cell", "stratum", "map_class")]
+  d <- d[order(d$point_id, method = "radix"), , drop = FALSE]
+  n0 <- 0L
+  if (!is.null(have) && nrow(have)) {
+    if (anyDuplicated(have$review_id) || anyDuplicated(have$point_id))
+      stop("review_key has duplicate review_id or point_id", call. = FALSE)
+    gone <- setdiff(have$point_id, d$point_id)
+    if (length(gone)) stop(length(gone), " keyed point(s) are not in sample.gpkg (",
+                           paste(utils::head(gone, 3), collapse = ", "), "): the sample was redrawn; ",
+                           "a key from another draw would send labels to the wrong cells", call. = FALSE)
+    fp_acc_design_check(have, d, "review_key.csv")
+    if (!identical(sort(as.integer(have$review_id)), seq_len(nrow(have))))
+      stop("review_key.csv ids are not 1..", nrow(have), call. = FALSE)
+    n0 <- nrow(have)
+  }
+  new <- d[!d$point_id %in% (if (n0) have$point_id else character(0)), , drop = FALSE]
+  if (nrow(new)) {
+    perm <- fp_acc_with_seed(fp_acc_seed(design_seed, "review_order", n0), rng_kind, sample.int(nrow(new)))
+    new$review_id <- n0 + perm
+  } else new$review_id <- integer(0)
+  # `batch` records WHEN a point was keyed: 1 for the first draw, +1 for each growth. It is what lets a
+  # working copy made before a growth be told apart from one that lost its last rows (both hold a run of
+  # low ids; only the first holds exactly whole batches).
+  if (n0 && !"batch" %in% names(have)) have$batch <- 1L
+  new$batch <- rep(if (n0) max(have$batch) + 1L else 1L, nrow(new))
+  cols <- c("review_id", "point_id", "cell", "stratum", "map_class", "batch")
+  if (n0 && "second" %in% names(have)) {
+    cols <- c(cols, "second"); new$second <- rep(FALSE, nrow(new))
+  }
+  out <- rbind(if (n0) have[, cols], new[, cols])
+  out$review_id <- as.integer(out$review_id)
+  out[order(out$review_id), , drop = FALSE]
+}
+fp_acc_review_key_read <- function(path) {
+  if (!file.exists(path)) return(NULL)
+  k <- utils::read.csv(path, colClasses = c(review_id = "integer", point_id = "character", cell = "numeric",
+                                            stratum = "integer", map_class = "integer"))
+  if ("second" %in% names(k)) k$second <- as.logical(k$second)
+  if ("batch" %in% names(k)) k$batch <- as.integer(k$batch)
+  k
+}
+
+# Working copy -> the frame fp_acc_labels_frame() takes: review_id mapped back to point_id, the design
+# columns taken from the KEY (never from the working copy, which does not carry them), and the working
+# copy's own `cell` checked against the key so a working copy from another draw is refused here too.
+fp_acc_unblind <- function(wc, key) {
+  if (is.null(key)) stop("no review_key.csv: the labels cannot be mapped to points", call. = FALSE)
+  if (anyDuplicated(wc$review_id)) stop("duplicate review_id in the working copy", call. = FALSE)
+  m <- match(wc$review_id, key$review_id)
+  if (anyNA(m)) stop(sum(is.na(m)), " review_id(s) not in review_key.csv: ",
+                     paste(utils::head(wc$review_id[is.na(m)], 3), collapse = ", "), call. = FALSE)
+  bad <- is.na(wc$cell) | as.numeric(wc$cell) != key$cell[m]
+  if (any(bad)) stop(sum(bad), " working-copy row(s) whose cell disagrees with review_key.csv (review_id ",
+                     paste(utils::head(wc$review_id[bad], 3), collapse = ", "), "): labels from another ",
+                     "draw or another key", call. = FALSE)
+  wc$point_id  <- key$point_id[m]
+  wc$stratum   <- key$stratum[m]
+  wc$map_class <- key$map_class[m]
+  wc
+}
+
+# --- Second labeller (#111) -------------------------------------------------------------------------
+# A fixed subset labelled again, blind to the first labeller, so IO's "error" can be separated from
+# imagery that is genuinely ambiguous: if two people disagree on a cell, IO disagreeing with either is
+# not evidence against IO. n_per points per stratum, drawn once from the design seed's own stream and
+# recorded in review_key.csv (`second`). Points added when the sample grows are never added to it.
+fp_acc_second_subset <- function(key, design_seed, rng_kind, n_per = 3L) {
+  if ("second" %in% names(key) && any(key$second %in% TRUE)) {
+    key$second <- key$second %in% TRUE
+    return(key)
+  }
+  k <- key[order(key$point_id, method = "radix"), ]
+  pick <- fp_acc_with_seed(fp_acc_seed(design_seed, "second_labeller"), rng_kind, {
+    unlist(lapply(sort(unique(k$stratum)), function(st) {
+      ids <- k$point_id[k$stratum == st]
+      ids[sample.int(length(ids), min(n_per, length(ids)))]
+    }))
+  })
+  key$second <- key$point_id %in% pick
+  key
+}
+
+# Agreement between the two labellers, by the rules pre-registered in research/landcover_accuracy.md
+# ("Second labeller"): class agreement and Cohen's kappa per endpoint over the points BOTH labelled, and
+# the cannot_label disagreements counted apart (one labeller could read the cell, the other could not).
+# INFORMATION about the reference, never an input to the estimates.
+fp_acc_agreement <- function(a, b) {
+  both <- merge(a[, c("point_id", "label_status")], b[, c("point_id", "label_status")], by = "point_id")
+  cant <- c(both_cannot = sum(both$label_status.x == "cannot_label" & both$label_status.y == "cannot_label"),
+            a_only_cannot = sum(both$label_status.x == "cannot_label" & both$label_status.y == "labelled"),
+            b_only_cannot = sum(both$label_status.x == "labelled" & both$label_status.y == "cannot_label"))
+  m <- merge(a[a$label_status == "labelled", c("point_id", "ref_from", "ref_to")],
+             b[b$label_status == "labelled", c("point_id", "ref_from", "ref_to")], by = "point_id")
+  kappa <- function(x, y) {
+    lv <- sort(unique(c(x, y))); t <- table(factor(x, lv), factor(y, lv)) / length(x)
+    po <- sum(diag(t)); pe <- sum(rowSums(t) * colSums(t))
+    if (isTRUE(all.equal(pe, 1))) NA_real_ else (po - pe) / (1 - pe)
+  }
+  out <- data.frame(endpoint = c("first year (ref_from)", "last year (ref_to)"), n = nrow(m),
+                    agree = c(mean(m$ref_from.x == m$ref_from.y), mean(m$ref_to.x == m$ref_to.y)),
+                    kappa = c(kappa(m$ref_from.x, m$ref_from.y), kappa(m$ref_to.x, m$ref_to.y)))
+  attr(out, "cannot_label") <- cant
+  out
+}
+
+# Hard-link every file under `from` into `to` (same filesystem: no extra disk, and the links are real
+# files INSIDE `to`, which rfp requires of a project's rasters -- a symlink resolves outside it). A file
+# already linked is left alone; a rewritten source (new inode) is relinked.
+fp_acc_link_tree <- function(from, to) {
+  if (!dir.exists(from)) return(invisible(0L))
+  f <- list.files(from, recursive = TRUE, all.files = FALSE)
+  n <- 0L
+  for (x in f) {
+    src <- file.path(from, x); dst <- file.path(to, x)
+    dir.create(dirname(dst), recursive = TRUE, showWarnings = FALSE)
+    if (file.exists(dst) && identical(file.info(dst)$ino, file.info(src)$ino)) next
+    if (file.exists(dst)) unlink(dst)
+    if (!file.link(src, dst)) stop("could not hard-link ", src, " -> ", dst, call. = FALSE)
+    n <- n + 1L
+  }
+  invisible(n)
+}
+
+# The blind working-copy rows for `pts` (sample points, sf, in the review CRS): review_id from the key,
+# the cell, the dated imagery covering the point, and empty label fields -- nothing of the design. The
+# geometry column is `geom`, what a GeoPackage hands back on read, so rows built here append to an
+# existing working copy by name (with `geometry` they did not: "undefined columns selected").
+fp_acc_blind_points <- function(pts, key, cover) {
+  m <- match(pts$point_id, key$point_id)
+  if (anyNA(m)) stop(sum(is.na(m)), " point(s) are not in the review key", call. = FALSE)
+  x <- sf::st_sf(review_id = key$review_id[m], cell = as.numeric(pts$cell),
+                 dated_imagery = unname(cover[pts$point_id]), geom = sf::st_geometry(pts))
+  x$ref_from <- NA_integer_; x$ref_to <- NA_integer_
+  x$label_status <- NA_character_; x$confidence <- NA_character_; x$imagery <- NA_character_
+  x$note <- NA_character_; x$reviewer <- NA_character_; x$labelled_on <- as.Date(NA)
+  x[order(x$review_id), ]   # feature order = review order, so the attribute table opens in it
+}
+
+# Which labeller a working copy belongs to, from WHAT IT HOLDS rather than from a flag someone has to
+# remember: labeller A's copy holds every keyed point, B's exactly the second-labeller subset. Anything
+# else is refused, so B's 48 labels can never be exported as the record of 480.
+fp_acc_working_copy_role <- function(ids, key) {
+  if (setequal(ids, key$review_id)) return("a")
+  # A copy made before the sample grew holds exactly the points of batches 1..j (growth appends whole
+  # batches) and its labels are valid -- the Mergin working copy is this, since it is never overwritten.
+  # A run of low ids that is NOT whole batches is a copy that lost rows, and is refused: exporting it
+  # would silently drop labels that were never exported.
+  if ("batch" %in% names(key)) {
+    for (j in sort(unique(key$batch))) {
+      if (j < max(key$batch) && setequal(ids, key$review_id[key$batch <= j])) return("a")
+    }
+  }
+  if ("second" %in% names(key) && any(key$second %in% TRUE) && setequal(ids, key$review_id[key$second %in% TRUE]))
+    return("b")
+  stop("the working copy holds ", length(unique(ids)), " point(s): neither the whole keyed sample (",
+       nrow(key), ") nor the second-labeller subset (", sum(key$second %in% TRUE), ")", call. = FALSE)
+}

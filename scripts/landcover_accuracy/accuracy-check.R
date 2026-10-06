@@ -186,6 +186,112 @@ ok("cannot_label with reference classes filled is refused", refused(fp_acc_label
 w4 <- wc; w4$point_id[1] <- "99_00001"
 ok("a point not in the sample is refused", refused(fp_acc_labels_frame(w4, smp)))
 
+message("Blind review (#111):")
+# 16 strata x 30 points named the way drift names them, so the id carries the stratum
+bsmp <- do.call(rbind, lapply(1:16, function(st) data.frame(
+  point_id = sprintf("%d_%05d", st, 1:30), cell = st * 1000 + 1:30, stratum = st, map_class = st * 1000L + 2L)))
+rk <- c("Mersenne-Twister", "Inversion", "Rejection")
+k1 <- fp_acc_review_key(bsmp, 930093, rk)
+ok("review_id is a permutation of 1..n", identical(sort(k1$review_id), seq_len(nrow(bsmp))))
+ok("the key is reproducible from the design seed", identical(k1, fp_acc_review_key(bsmp, 930093, rk)))
+rho <- stats::cor(k1$review_id, k1$stratum, method = "spearman")
+ok("review order is not stratum order (|rho| < 0.2)", abs(rho) < 0.2, sprintf("rho %.3f", rho))
+sorted <- bsmp[order(bsmp$point_id, method = "radix"), ]
+ok("must-fail arm: ordering by point_id IS stratum order (the leak the shuffle removes)",
+   abs(stats::cor(seq_len(nrow(sorted)), sorted$stratum, method = "spearman")) > 0.2)
+set.seed(7); r0 <- runif(1); set.seed(7); invisible(fp_acc_review_key(bsmp, 930093, rk))
+ok("drawing the key leaves the session RNG untouched", identical(runif(1), r0))
+pilot <- bsmp[as.integer(sub(".*_", "", bsmp$point_id)) <= 20, ]
+kp <- fp_acc_review_key(pilot, 930093, rk)
+kg <- fp_acc_review_key(bsmp, 930093, rk, have = kp)
+ok("growing the sample keeps every pilot id", identical(kg$review_id[match(kp$point_id, kg$point_id)], kp$review_id))
+ok("new points take the next ids", setequal(kg$review_id[!kg$point_id %in% kp$point_id], (nrow(kp) + 1):nrow(bsmp)))
+ok("a key from another draw (a point the sample lacks) is refused",
+   refused(fp_acc_review_key(bsmp[-1, ], 930093, rk, have = k1)))
+kc <- k1; kc$cell[1] <- -1
+ok("must-fail arm: a key whose cell disagrees with the sample is refused",
+   refused(fp_acc_review_key(bsmp, 930093, rk, have = kc)))
+schema <- c("review_id", "cell", "dated_imagery", "ref_from", "ref_to", "label_status", "confidence",
+            "imagery", "note", "reviewer", "labelled_on", "geom")
+ok("the blind working-copy schema carries no design column", !length(fp_acc_blind_leaks(schema)))
+ok("must-fail arm: point_id, a map year, a cause flag and the stratum are each caught",
+   setequal(fp_acc_blind_leaks(c(schema, "point_id", "map_2017", "in_fire_poly", "stratum_label")),
+            c("point_id", "map_2017", "in_fire_poly", "stratum_label")))
+bw <- data.frame(review_id = k1$review_id[1:3], cell = k1$cell[1:3], ref_from = 2L, ref_to = 11L,
+                 label_status = "labelled", confidence = NA, imagery = NA, note = NA, reviewer = "check",
+                 labelled_on = as.Date("2026-10-06"))
+ub <- fp_acc_unblind(bw, k1)
+ok("unblinding maps review_id back to the keyed point_id and design",
+   identical(ub$point_id, k1$point_id[1:3]) && identical(ub$stratum, k1$stratum[1:3]))
+bsmp2 <- transform(bsmp, stratum_label = "x", use = "accuracy")
+ok("an unblinded working copy passes the labels contract", !refused(fp_acc_labels_frame(ub, bsmp2)))
+bu <- bw; bu$review_id[1] <- 9999L
+ok("must-fail arm: an unknown review_id is refused", refused(fp_acc_unblind(bu, k1)))
+bcell <- bw; bcell$cell[2] <- 1
+ok("must-fail arm: a working-copy cell that disagrees with the key is refused", refused(fp_acc_unblind(bcell, k1)))
+ok("no key, no export", refused(fp_acc_unblind(bw, NULL)))
+
+# Literal values, measured 2026-10-06 (R 4.5.2, digest::digest2int): a change of RNG, of seed
+# derivation, or of the shuffle reorders every committed review_key.csv, and must be seen.
+ok("golden: the toy key's first review ids and the stream seed are pinned",
+   identical(head(k1$point_id[order(k1$review_id)], 3), c("1_00009", "4_00029", "5_00016")) &&
+     identical(fp_acc_seed(930093, "review_order", 0L), 1981194545L))
+ok("seed streams do not collide across purposes and append batches",
+   !anyDuplicated(c(vapply(0:500, function(n) fp_acc_seed(930093, "review_order", n), 1L),
+                    fp_acc_seed(930093, "second_labeller"))))
+pts <- sf::st_sf(point_id = bsmp$point_id[1:4], cell = bsmp$cell[1:4],
+                 geometry = sf::st_sfc(lapply(1:4, function(i) sf::st_point(c(i, i))), crs = 3005))
+cov <- stats::setNames(c("airphoto 2012", NA, NA, NA), pts$point_id)
+gp <- tempfile(fileext = ".gpkg")
+sf::st_write(fp_acc_blind_points(pts[1:2, ], k1, cov), gp, layer = "labels", quiet = TRUE)
+have_gp <- sf::st_read(gp, layer = "labels", quiet = TRUE)
+appended <- tryCatch({
+  sf::st_write(fp_acc_blind_points(pts[3:4, ], k1, cov)[, names(have_gp)], gp, layer = "labels",
+               append = TRUE, quiet = TRUE); nrow(sf::st_read(gp, layer = "labels", quiet = TRUE)) }, error = function(e) NA)
+ok("blind rows append to an existing working copy by name (geometry column `geom`)", identical(appended, 4L))
+ok("the written working copy is blind", !length(fp_acc_blind_leaks(names(have_gp))))
+unlink(gp)
+ks0 <- fp_acc_second_subset(k1, 930093, rk)
+ok("a copy holding every keyed point is labeller A's", identical(fp_acc_working_copy_role(ks0$review_id, ks0), "a"))
+ok("a copy holding exactly the subset is labeller B's",
+   identical(fp_acc_working_copy_role(ks0$review_id[ks0$second], ks0), "b"))
+ok("must-fail arm: a scattered partial copy is neither, and refused",
+   refused(fp_acc_working_copy_role(ks0$review_id[ks0$review_id %% 2 == 0][1:10], ks0)))
+
+message("Second labeller (#111):")
+ks <- fp_acc_second_subset(k1, 930093, rk)
+ok("the subset is 3 points in every stratum", all(tapply(ks$second, ks$stratum, sum) == 3L))
+ok("the subset is reproducible from the design seed", identical(ks, fp_acc_second_subset(k1, 930093, rk)))
+ok("the subset is a different stream from the review order (not the 3 lowest ids per stratum)",
+   !all(tapply(ks$review_id, ks$stratum, function(v) TRUE)[] & with(ks, all(tapply(seq_along(second), stratum,
+     function(i) identical(which(second[i]), order(review_id[i])[1:3]))))))
+kgs <- fp_acc_review_key(bsmp, 930093, rk, have = fp_acc_second_subset(kp, 930093, rk))
+kgs <- fp_acc_second_subset(kgs, 930093, rk)
+ok("growing the sample never adds to the subset", sum(kgs$second) == sum(fp_acc_second_subset(kp, 930093, rk)$second) &&
+     !any(kgs$second[!kgs$point_id %in% kp$point_id]))
+la <- data.frame(point_id = c("p1", "p2", "p3", "p4"), label_status = "labelled",
+                 ref_from = c(2L, 2L, 11L, 11L), ref_to = c(11L, 2L, 11L, 5L))
+lb <- la; lb$ref_to[4] <- 11L; lb$label_status[3] <- "cannot_label"
+ag <- fp_acc_agreement(la, lb)
+ok("agreement uses only points both labelled (3 of 4)", identical(ag$n, c(3L, 3L)))
+ok("agreement per endpoint: first 3/3, last 2/3", isTRUE(all.equal(ag$agree, c(1, 2 / 3))))
+ok("kappa is 1 on perfect agreement", isTRUE(all.equal(ag$kappa[1], 1)))
+ok("cannot_label disagreements are counted apart (A labelled, B could not: 1)",
+   identical(attr(ag, "cannot_label")[["b_only_cannot"]], 1L))
+ok("the first draw is batch 1, a growth batch 2", all(kp$batch == 1L) &&
+     identical(sort(unique(kg$batch)), 1:2) && all(kg$batch[!kg$point_id %in% kp$point_id] == 2L))
+ok("a copy made before the sample grew (exactly batch 1) is labeller A's",
+   identical(fp_acc_working_copy_role(kg$review_id[kg$batch == 1L], kg), "a"))
+ok("must-fail arm: a copy that lost its last rows (ids 1..n, not whole batches) is refused",
+   refused(fp_acc_working_copy_role(1:10, ks0)) && refused(fp_acc_working_copy_role(seq_len(nrow(kp) - 1L), kg)))
+td <- tempfile("linktree"); dir.create(file.path(td, "a", "sub"), recursive = TRUE)
+writeLines("x", file.path(td, "a", "sub", "f.txt"))
+n1 <- fp_acc_link_tree(file.path(td, "a"), file.path(td, "b"))
+ok("hard links share the inode (no copy)",
+   identical(file.info(file.path(td, "b", "sub", "f.txt"))$ino, file.info(file.path(td, "a", "sub", "f.txt"))$ino))
+ok("linking again is a no-op", identical(n1, 1L) && identical(fp_acc_link_tree(file.path(td, "a"), file.path(td, "b")), 0L))
+unlink(td, recursive = TRUE)
+
 message("Recode-then-estimate targets (perfect labels reproduce mapped areas):")
 strata <- data.frame(stratum = c(1, 17, 31), stratum_label = c("change: fire", "other tree loss", "stable Trees"),
                      n_cells = c(1000, 500, 8500), area = c(10, 5, 85), weight = c(0.10, 0.05, 0.85))

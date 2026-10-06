@@ -13,7 +13,8 @@
 # Output, all inside the review project so rfp can reference it (rfp stops on a raster outside the
 # project directory):
 #   <project>/chips/cache/      drift's COG cache (cache_dir)
-#   <project>/chips/manifest.csv  point_id x window x year -> file
+#   <acc>/chips_manifest.csv    point_id x window x year -> file (OUTSIDE the project: point_id
+#                               encodes the stratum, and the review is blind, #111)
 #   <project>/chips/<window>_<year>.vrt  one mosaic per window-year: the layers the reviewer toggles
 #
 # usage: Rscript scripts/landcover_accuracy/chip_build-composite.R [area] [n_points]
@@ -82,7 +83,7 @@ man <- do.call(rbind, rows)
 # paths relative to the project, so the project moves as one directory
 man$file <- ifelse(is.na(man$file), NA_character_,
                    sub(paste0("^", normalizePath(dir_proj), "/"), "", normalizePath(man$file, mustWork = FALSE)))
-utils::write.csv(man, file.path(dir_chips, "manifest.csv"), row.names = FALSE, na = "")
+utils::write.csv(man, file.path(cfg$dir_acc, "chips_manifest.csv"), row.names = FALSE, na = "")
 
 for (k in unique(paste(man$window, man$year))) {
   sel <- man[paste(man$window, man$year) == k & !is.na(man$file), ]
