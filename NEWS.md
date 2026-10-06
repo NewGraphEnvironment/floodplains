@@ -1,3 +1,18 @@
+# floodplains 0.1.6 (2026-10-06)
+
+* Blind, randomised, cell-level NECR accuracy review (#111), ready for rtj#367 to put on Mergin.
+  * **Blind working copy.** The labels layer carries an opaque, shuffled `review_id` and no design
+    column, because `point_id` encodes the stratum. `reference/<area>/review_key.csv` maps it back.
+  * **Pre-registered labelling key** in `research/landcover_accuracy.md`, quoting IO's class
+    definitions. Hay is Crops and grazed pasture is Rangeland, as IO's legend says.
+  * **The 10 m cell is drawn** for every point.
+  * **The map's answer stays hidden.** IO's change patches and the FWA wetlands appear only in the
+    `9 After labelling` theme.
+  * **Themes read in working order** in the drop-down.
+  * **A second labeller works in a separate 48-point project.** Agreement is reported, never
+    estimated from.
+  * **The export decides labeller A or B** from what the working copy holds.
+
 # floodplains 0.1.5 (2026-10-02)
 
 * Agricultural Land Reserve and floodplain composition (#108; NECR, BULK, neexdzii).
