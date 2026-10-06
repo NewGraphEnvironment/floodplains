@@ -43,20 +43,20 @@ Already decided in the issues:
 - [x] `review_build-qgis.R` copies that section into the project as `labelling_key.md`, extracted from the research file so there is one source.
 
 ## Phase 2: Opaque review IDs and a blind labels layer
-- [ ] Add `fp_acc_review_key(smp, seed, have = NULL)` in `fp_accuracy.R`:
+- [x] Add `fp_acc_review_key(smp, seed, have = NULL)` in `fp_accuracy.R`:
   - It shuffles the points with a seed derived from `design.json`'s `seed`, giving `review_id` 1..n.
   - It is **append-only**: when the sample grows (pilot to full sample), existing IDs never change and new points take the next IDs, shuffled among themselves.
   - Columns: `review_id`, `point_id`, `cell`, `stratum`, `map_class`.
-- [ ] Commit `reference/<area>/review_key.csv`, written by the build. It is never hand-edited, and it is checked against `sample.gpkg` with `fp_acc_design_check`.
-- [ ] Rebuild `labels.gpkg` with schema `review_id`, `cell`, `dated_imagery`, plus the label fields. It carries **no** `point_id`, stratum, `map_*`, `in_*` or `use`.
+- [x] Commit `reference/<area>/review_key.csv`, written by the build. It is never hand-edited, and it is checked against `sample.gpkg` with `fp_acc_design_check`.
+- [x] Rebuild `labels.gpkg` with schema `review_id`, `cell`, `dated_imagery`, plus the label fields. It carries **no** `point_id`, stratum, `map_*`, `in_*` or `use`.
   - The build refuses to replace an old-schema `labels.gpkg` that holds any `label_status`.
   - Today it holds none, so the old one is moved aside.
-- [ ] Move `chips/manifest.csv` out of the shipped project, to `data/<area>/accuracy/chips_manifest.csv`. Update `chip_build-composite.R` and its readers.
-- [ ] `labels_export.R <area> [labels.gpkg]` takes an optional path, so it can read the Mergin working copy for rtj#367.
+- [x] Move `chips/manifest.csv` out of the shipped project, to `data/<area>/accuracy/chips_manifest.csv`. Update `chip_build-composite.R` and its readers.
+- [x] `labels_export.R <area> [labels.gpkg]` takes an optional path, so it can read the Mergin working copy for rtj#367.
   - It maps `review_id` to `point_id` through the key.
   - It refuses an unknown `review_id`, or a working-copy `cell` that disagrees with the key.
   - Everything else goes through `fp_acc_labels_frame` unchanged, so `labels.csv` keeps its format.
-- [ ] `accuracy-check.R` gains these arms:
+- [x] `accuracy-check.R` gains these arms:
   - **Must-fail:** the built labels schema contains no design column, and a schema with `point_id` or `map_2017` is caught.
   - The key is not ordered by stratum (rank correlation near 0), and the must-fail arm sorts it by `point_id`.
   - Growing the sample keeps the pilot IDs.

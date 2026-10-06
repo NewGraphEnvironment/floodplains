@@ -71,36 +71,80 @@ tree_names <- function() {
 # carries a stale or hand-edited copy.
 writeLines(fp_acc_labelling_key(), file.path(dir_proj, "labelling_key.md"))
 
-# --- labels working copy ----------------------------------------------------------------------
+# --- review key + blind labels working copy (#111) -------------------------------------------
+# The reviewer labels an opaque review_id, never a point_id: drift's ids are `<stratum>_<k>`, so the id
+# alone would tell the reviewer the stratum. reference/<area>/review_key.csv maps the id back, and the
+# working copy carries no design column at all -- blind by construction, not by hidden fields.
 FP_ACC_LABEL_FIELDS <- c("ref_from", "ref_to", "label_status", "confidence", "imagery", "note",
                          "reviewer", "labelled_on")
+design <- jsonlite::read_json(file.path(cfg$dir_ref, "design.json"))
 smp <- sf::st_transform(sf::st_read(file.path(cfg$dir_ref, "sample.gpkg"), layer = "sample", quiet = TRUE),
                        REVIEW_EPSG)
-blank <- function(x) {
+key_csv <- file.path(cfg$dir_ref, "review_key.csv")
+key <- fp_acc_review_key(sf::st_drop_geometry(smp), design$seed, unlist(design$rng_kind),
+                         fp_acc_review_key_read(key_csv))
+utils::write.csv(key, key_csv, row.names = FALSE)
+
+# Which dated imagery covers each point (imagery.csv, #103), so the reviewer knows which themes are
+# worth opening. Text only: source and year, never an href.
+img_csv <- file.path(cfg$dir_ref, "imagery.csv")
+cover <- stats::setNames(rep(NA_character_, nrow(smp)), smp$point_id)
+if (file.exists(img_csv)) {
+  im <- utils::read.csv(img_csv, colClasses = c(point_id = "character"), stringsAsFactors = FALSE)
+  im <- im[!is.na(im$source) & nzchar(im$source), ]
+  if (nrow(im)) {
+    lbl <- tapply(paste(im$source, im$year), im$point_id, function(v) paste(sort(unique(v)), collapse = "; "))
+    cover[names(lbl)] <- lbl
+  }
+}
+blind <- function(pts) {
+  m <- match(pts$point_id, key$point_id)
+  x <- sf::st_sf(review_id = key$review_id[m], cell = as.numeric(pts$cell),
+                 dated_imagery = unname(cover[pts$point_id]), geometry = sf::st_geometry(pts))
   x$ref_from <- NA_integer_; x$ref_to <- NA_integer_
   x$label_status <- NA_character_; x$confidence <- NA_character_; x$imagery <- NA_character_
   x$note <- NA_character_; x$reviewer <- NA_character_; x$labelled_on <- as.Date(NA)
-  x
+  x[order(x$review_id), ]   # feature order = review order, so the attribute table opens in it
 }
 lab_gpkg <- file.path(dir_proj, "labels.gpkg")
+if (file.exists(lab_gpkg) && !"review_id" %in% names(sf::st_read(lab_gpkg, layer = "labels", quiet = TRUE))) {
+  # Pre-#111 working copy: point_id and the design in plain sight. Replaced only if nobody has labelled
+  # in it -- a label made seeing the map's answer is not a label this design can use, but it is still
+  # somebody's work, and deleting it is a decision for a person.
+  old <- sf::st_read(lab_gpkg, layer = "labels", quiet = TRUE)
+  if (any(!is.na(old$label_status) & nzchar(trimws(old$label_status))))
+    stop(lab_gpkg, " is a pre-#111 (unblinded) working copy holding labels; refusing to replace it. ",
+         "Move it aside deliberately.", call. = FALSE)
+  unlink(paste0(lab_gpkg, c("", "-wal", "-shm", "-journal")))
+  if ("Reference labels" %in% tree_names()) rfp::rfp_qgs_layer_rm(qgs, "Reference labels")
+  message("labels.gpkg: replaced the unlabelled pre-#111 working copy with the blind schema")
+}
 if (!file.exists(lab_gpkg)) {
-  sf::st_write(blank(smp), lab_gpkg, layer = "labels", quiet = TRUE)
-  message("labels.gpkg: ", nrow(smp), " points")
+  sf::st_write(blind(smp), lab_gpkg, layer = "labels", quiet = TRUE)
+  message("labels.gpkg: ", nrow(smp), " points, blind")
 } else {
   have <- sf::st_read(lab_gpkg, layer = "labels", quiet = TRUE)
   if (!all(FP_ACC_LABEL_FIELDS %in% names(have)))
     stop(lab_gpkg, " is missing label fields; refusing to touch it", call. = FALSE)
-  gone <- setdiff(have$point_id, smp$point_id)
-  if (length(gone)) stop(length(gone), " labelled points are not in sample.gpkg (",
-                         paste(utils::head(gone, 3), collapse = ", "), "): the sample was redrawn ",
-                         "with a different seed or grid; labels would be scored against the wrong map",
-                         call. = FALSE)
-  fp_acc_design_check(have, smp, lab_gpkg)
-  new <- smp[!smp$point_id %in% have$point_id, ]
+  fp_acc_unblind(sf::st_drop_geometry(have), key)   # every id keyed, every cell the key's
+  new <- smp[!key$review_id[match(smp$point_id, key$point_id)] %in% have$review_id, ]
   if (nrow(new)) {
-    sf::st_write(blank(new)[, names(have)], lab_gpkg, layer = "labels", append = TRUE, quiet = TRUE)
+    sf::st_write(blind(new)[, names(have)], lab_gpkg, layer = "labels", append = TRUE, quiet = TRUE)
     message("labels.gpkg: appended ", nrow(new), " new points (", nrow(have), " kept as they were)")
   } else message("labels.gpkg: unchanged (", nrow(have), " points)")
+}
+leak <- fp_acc_blind_leaks(names(sf::st_read(lab_gpkg, layer = "labels", quiet = TRUE)))
+if (length(leak)) stop("labels.gpkg carries design column(s) ", paste(leak, collapse = ", "),
+                       ": the review would not be blind", call. = FALSE)
+
+# chips/manifest.csv maps point_id -> chip; it moved out of the project (chip_build-composite.R), and an
+# old copy left in the folder would hand the reviewer the stratum of every point.
+old_man <- file.path(dir_proj, "chips", "manifest.csv")
+if (file.exists(old_man)) {
+  new_man <- file.path(cfg$dir_acc, "chips_manifest.csv")
+  if (!file.exists(new_man)) file.copy(old_man, new_man)
+  unlink(old_man)
+  message("chips/manifest.csv moved out of the project to ", new_man)
 }
 
 # --- change patches ---------------------------------------------------------------------------
@@ -147,8 +191,7 @@ if (!length(vrts)) message("no chips yet: run chip_build-composite.R once refere
 dated <- sort(list.files(file.path(dir_proj, "dated"), pattern = "^(orthophoto|airphoto)_[0-9]{4}[.]vrt$"))
 # The dated VRTs were built for the points imagery.csv lists. After a redraw or a larger sample they
 # describe other points, so they are not offered (and any already in the project are removed below)
-# until imagery_index-dated.R and imagery_build-dated.R have been re-run.
-img_csv <- file.path(cfg$dir_ref, "imagery.csv")
+# until imagery_index-dated.R and imagery_build-dated.R have been re-run. (img_csv: set above.)
 if (length(dated) && (!file.exists(img_csv) ||
     !setequal(unique(utils::read.csv(img_csv, stringsAsFactors = FALSE)$point_id), smp$point_id))) {
   message("dated layers skipped: ", img_csv, " does not list exactly sample.gpkg's points -- re-run ",

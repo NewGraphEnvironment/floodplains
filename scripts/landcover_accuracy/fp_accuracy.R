@@ -532,3 +532,82 @@ fp_acc_labelling_key <- function(path = here::here("research", "landcover_accura
   if (length(out) < 5) stop("the labelling key in ", path, " is empty", call. = FALSE)
   out
 }
+
+# --- Blind review (#111) ----------------------------------------------------------------------------
+# The reviewer must not see the map's answer: seeing it pulls a label toward agreement and inflates the
+# very accuracy #93 measures. Hiding columns is not enough, because point_id ENCODES the stratum
+# (`<stratum>_<k>`, drift's naming), so the working copy carries an opaque review_id instead. A
+# committed key (reference/<area>/review_key.csv) maps it back to point_id and the design.
+#
+# The columns the review layer may NEVER carry: the id that encodes the stratum, the design, IO's
+# map classes for every year, the cause and wetland flags, and the use tag.
+fp_acc_blind_leaks <- function(nm) nm[nm %in% c("point_id", "stratum", "stratum_label", "map_class", "use") |
+                                        grepl("^map_[0-9]{4}$|^in_", nm)]
+
+# A seed for one named purpose, derived from the design seed so the review order and the second-labeller
+# subset are reproducible from design.json alone and independent of each other (different streams).
+FP_ACC_SEED_STREAM <- c(review_order = 111L, second_labeller = 222L)
+fp_acc_seed <- function(design_seed, purpose) {
+  if (!purpose %in% names(FP_ACC_SEED_STREAM)) stop("unknown seed purpose ", purpose, call. = FALSE)
+  as.integer((as.numeric(design_seed) * 1000 + FP_ACC_SEED_STREAM[[purpose]]) %% .Machine$integer.max)
+}
+# Draw under the design's own RNG kind, without touching the session's RNG state.
+fp_acc_with_seed <- function(seed, rng_kind, expr) {
+  withr::with_seed(seed, expr, .rng_kind = rng_kind[[1]], .rng_normal_kind = rng_kind[[2]],
+                   .rng_sample_kind = rng_kind[[3]])
+}
+
+# The key: review_id (a random permutation, which is also the review ORDER) -> point_id and the design
+# columns. APPEND-ONLY: given the committed key (`have`), existing ids never change; points new to the
+# sample (pilot -> full, same seed) take the next ids, shuffled among themselves with a seed that
+# depends on how many were already keyed, so the append is reproducible too.
+fp_acc_review_key <- function(smp, design_seed, rng_kind, have = NULL) {
+  d <- as.data.frame(smp)[, c("point_id", "cell", "stratum", "map_class")]
+  d <- d[order(d$point_id, method = "radix"), , drop = FALSE]
+  n0 <- 0L
+  if (!is.null(have) && nrow(have)) {
+    if (anyDuplicated(have$review_id) || anyDuplicated(have$point_id))
+      stop("review_key has duplicate review_id or point_id", call. = FALSE)
+    gone <- setdiff(have$point_id, d$point_id)
+    if (length(gone)) stop(length(gone), " keyed point(s) are not in sample.gpkg (",
+                           paste(utils::head(gone, 3), collapse = ", "), "): the sample was redrawn; ",
+                           "a key from another draw would send labels to the wrong cells", call. = FALSE)
+    fp_acc_design_check(have, d, "review_key.csv")
+    if (!identical(sort(as.integer(have$review_id)), seq_len(nrow(have))))
+      stop("review_key.csv ids are not 1..", nrow(have), call. = FALSE)
+    n0 <- nrow(have)
+  }
+  new <- d[!d$point_id %in% (if (n0) have$point_id else character(0)), , drop = FALSE]
+  if (nrow(new)) {
+    perm <- fp_acc_with_seed(fp_acc_seed(design_seed, "review_order") + n0, rng_kind, sample.int(nrow(new)))
+    new$review_id <- n0 + perm
+  } else new$review_id <- integer(0)
+  out <- rbind(if (n0) have[, c("review_id", "point_id", "cell", "stratum", "map_class")],
+               new[, c("review_id", "point_id", "cell", "stratum", "map_class")])
+  out$review_id <- as.integer(out$review_id)
+  out[order(out$review_id), , drop = FALSE]
+}
+fp_acc_review_key_read <- function(path) {
+  if (!file.exists(path)) return(NULL)
+  utils::read.csv(path, colClasses = c(review_id = "integer", point_id = "character", cell = "numeric",
+                                       stratum = "integer", map_class = "integer"))
+}
+
+# Working copy -> the frame fp_acc_labels_frame() takes: review_id mapped back to point_id, the design
+# columns taken from the KEY (never from the working copy, which does not carry them), and the working
+# copy's own `cell` checked against the key so a working copy from another draw is refused here too.
+fp_acc_unblind <- function(wc, key) {
+  if (is.null(key)) stop("no review_key.csv: the labels cannot be mapped to points", call. = FALSE)
+  if (anyDuplicated(wc$review_id)) stop("duplicate review_id in the working copy", call. = FALSE)
+  m <- match(wc$review_id, key$review_id)
+  if (anyNA(m)) stop(sum(is.na(m)), " review_id(s) not in review_key.csv: ",
+                     paste(utils::head(wc$review_id[is.na(m)], 3), collapse = ", "), call. = FALSE)
+  bad <- is.na(wc$cell) | as.numeric(wc$cell) != key$cell[m]
+  if (any(bad)) stop(sum(bad), " working-copy row(s) whose cell disagrees with review_key.csv (review_id ",
+                     paste(utils::head(wc$review_id[bad], 3), collapse = ", "), "): labels from another ",
+                     "draw or another key", call. = FALSE)
+  wc$point_id  <- key$point_id[m]
+  wc$stratum   <- key$stratum[m]
+  wc$map_class <- key$map_class[m]
+  wc
+}

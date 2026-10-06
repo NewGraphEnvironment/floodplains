@@ -186,6 +186,51 @@ ok("cannot_label with reference classes filled is refused", refused(fp_acc_label
 w4 <- wc; w4$point_id[1] <- "99_00001"
 ok("a point not in the sample is refused", refused(fp_acc_labels_frame(w4, smp)))
 
+message("Blind review (#111):")
+# 16 strata x 30 points named the way drift names them, so the id carries the stratum
+bsmp <- do.call(rbind, lapply(1:16, function(st) data.frame(
+  point_id = sprintf("%d_%05d", st, 1:30), cell = st * 1000 + 1:30, stratum = st, map_class = st * 1000L + 2L)))
+rk <- c("Mersenne-Twister", "Inversion", "Rejection")
+k1 <- fp_acc_review_key(bsmp, 930093, rk)
+ok("review_id is a permutation of 1..n", identical(sort(k1$review_id), seq_len(nrow(bsmp))))
+ok("the key is reproducible from the design seed", identical(k1, fp_acc_review_key(bsmp, 930093, rk)))
+rho <- stats::cor(k1$review_id, k1$stratum, method = "spearman")
+ok("review order is not stratum order (|rho| < 0.2)", abs(rho) < 0.2, sprintf("rho %.3f", rho))
+sorted <- bsmp[order(bsmp$point_id, method = "radix"), ]
+ok("must-fail arm: ordering by point_id IS stratum order (the leak the shuffle removes)",
+   abs(stats::cor(seq_len(nrow(sorted)), sorted$stratum, method = "spearman")) > 0.2)
+set.seed(7); r0 <- runif(1); set.seed(7); invisible(fp_acc_review_key(bsmp, 930093, rk))
+ok("drawing the key leaves the session RNG untouched", identical(runif(1), r0))
+pilot <- bsmp[as.integer(sub(".*_", "", bsmp$point_id)) <= 20, ]
+kp <- fp_acc_review_key(pilot, 930093, rk)
+kg <- fp_acc_review_key(bsmp, 930093, rk, have = kp)
+ok("growing the sample keeps every pilot id", identical(kg$review_id[match(kp$point_id, kg$point_id)], kp$review_id))
+ok("new points take the next ids", setequal(kg$review_id[!kg$point_id %in% kp$point_id], (nrow(kp) + 1):nrow(bsmp)))
+ok("a key from another draw (a point the sample lacks) is refused",
+   refused(fp_acc_review_key(bsmp[-1, ], 930093, rk, have = k1)))
+kc <- k1; kc$cell[1] <- -1
+ok("must-fail arm: a key whose cell disagrees with the sample is refused",
+   refused(fp_acc_review_key(bsmp, 930093, rk, have = kc)))
+schema <- c("review_id", "cell", "dated_imagery", "ref_from", "ref_to", "label_status", "confidence",
+            "imagery", "note", "reviewer", "labelled_on", "geom")
+ok("the blind working-copy schema carries no design column", !length(fp_acc_blind_leaks(schema)))
+ok("must-fail arm: point_id, a map year, a cause flag and the stratum are each caught",
+   setequal(fp_acc_blind_leaks(c(schema, "point_id", "map_2017", "in_fire_poly", "stratum_label")),
+            c("point_id", "map_2017", "in_fire_poly", "stratum_label")))
+bw <- data.frame(review_id = k1$review_id[1:3], cell = k1$cell[1:3], ref_from = 2L, ref_to = 11L,
+                 label_status = "labelled", confidence = NA, imagery = NA, note = NA, reviewer = "check",
+                 labelled_on = as.Date("2026-10-06"))
+ub <- fp_acc_unblind(bw, k1)
+ok("unblinding maps review_id back to the keyed point_id and design",
+   identical(ub$point_id, k1$point_id[1:3]) && identical(ub$stratum, k1$stratum[1:3]))
+bsmp2 <- transform(bsmp, stratum_label = "x", use = "accuracy")
+ok("an unblinded working copy passes the labels contract", !refused(fp_acc_labels_frame(ub, bsmp2)))
+bu <- bw; bu$review_id[1] <- 9999L
+ok("must-fail arm: an unknown review_id is refused", refused(fp_acc_unblind(bu, k1)))
+bcell <- bw; bcell$cell[2] <- 1
+ok("must-fail arm: a working-copy cell that disagrees with the key is refused", refused(fp_acc_unblind(bcell, k1)))
+ok("no key, no export", refused(fp_acc_unblind(bw, NULL)))
+
 message("Recode-then-estimate targets (perfect labels reproduce mapped areas):")
 strata <- data.frame(stratum = c(1, 17, 31), stratum_label = c("change: fire", "other tree loss", "stable Trees"),
                      n_cells = c(1000, 500, 8500), area = c(10, 5, 85), weight = c(0.10, 0.05, 0.85))
