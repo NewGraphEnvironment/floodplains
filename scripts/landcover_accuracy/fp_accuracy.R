@@ -517,3 +517,18 @@ fp_acc_window_widen <- function(wp, year, span) {
 }
 
 fp_acc_months_str <- function(m) if (length(m) == 1) as.character(m) else paste0(min(m), "-", max(m))
+
+# The pre-registered labelling key (#111): the `## Labelling key` section of research/landcover_accuracy.md,
+# up to the next `## ` heading. Extracted, never re-typed, so the reviewer reads the committed text and
+# nothing else. Refuses a missing or empty section rather than shipping a project with no key.
+fp_acc_labelling_key <- function(path = here::here("research", "landcover_accuracy.md")) {
+  x <- readLines(path, warn = FALSE)
+  i <- which(x == "## Labelling key")
+  if (length(i) != 1) stop(path, " has ", length(i), " `## Labelling key` sections; expected one", call. = FALSE)
+  nxt <- which(startsWith(x, "## ") & seq_along(x) > i)
+  j <- if (length(nxt)) nxt[1] - 1L else length(x)
+  out <- x[i:j]
+  while (length(out) && !nzchar(trimws(out[length(out)]))) out <- out[-length(out)]
+  if (length(out) < 5) stop("the labelling key in ", path, " is empty", call. = FALSE)
+  out
+}

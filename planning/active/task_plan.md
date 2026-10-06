@@ -28,7 +28,7 @@ Already decided in the issues:
 - The second labeller is in scope.
 
 ## Phase 1: Labelling key (pre-registered before any label)
-- [ ] Add a `## Labelling key` section to `research/landcover_accuracy.md`, committed before labelling starts:
+- [x] Add a `## Labelling key` section to `research/landcover_accuracy.md`, committed before labelling starts:
   - **IO's class definitions,** quoted from Impact Observatory / Esri's published legend and cited (fetched, not recalled).
   - **Decision rules:**
     - The label is the class of the outlined 10 m cell at each endpoint (2017, 2023), and the two endpoints are judged independently.
@@ -40,7 +40,7 @@ Already decided in the issues:
     - `cannot_label` applies when no imagery resolves the cell near the endpoint, or when no plurality can be judged.
     - `imagery` records what actually decided the label.
   - **Pre-registration rule:** never edit the key to fit labels already made. This is the same rule as the criteria.
-- [ ] `review_build-qgis.R` copies that section into the project as `labelling_key.md`, extracted from the research file so there is one source.
+- [x] `review_build-qgis.R` copies that section into the project as `labelling_key.md`, extracted from the research file so there is one source.
 
 ## Phase 2: Opaque review IDs and a blind labels layer
 - [ ] Add `fp_acc_review_key(smp, seed, have = NULL)` in `fp_accuracy.R`:

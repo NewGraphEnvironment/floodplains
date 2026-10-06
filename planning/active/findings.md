@@ -54,3 +54,10 @@ Relates: #93, #94, #103
 
 | Error | Resolution |
 |-------|------------|
+
+## IO class definitions (fetched 2026-10-06)
+
+- Planetary Computer `io-lulc-annual-v02` STAC names the classes but carries no definitions.
+- Definitions come from Esri Living Atlas item `cfcb7609de5f478eb7666240902d4d3d` ("Sentinel-2 10m Land Use/Land Cover Time Series").
+- **IO's Rangeland explicitly includes "pastures"; Crops is "human planted/plotted cereals, grasses".** The gate decision "hay+pasture = Crops" (my recommendation, claimed to follow IO) was wrong for pasture. Re-asked, and the user chose to follow IO exactly: hay = Crops, pasture = Rangeland.
+- **Trees threshold is "~15 feet or higher"** (~4.6 m), not 15 m.

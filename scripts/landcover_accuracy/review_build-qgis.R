@@ -66,6 +66,11 @@ tree_names <- function() {
   xml2::xml_attr(xml2::xml_find_all(q, "//layer-tree-layer"), "name")
 }
 
+# --- labelling key (#111) -----------------------------------------------------------------------
+# The pre-registered key, copied from research/landcover_accuracy.md on every run, so the project never
+# carries a stale or hand-edited copy.
+writeLines(fp_acc_labelling_key(), file.path(dir_proj, "labelling_key.md"))
+
 # --- labels working copy ----------------------------------------------------------------------
 FP_ACC_LABEL_FIELDS <- c("ref_from", "ref_to", "label_status", "confidence", "imagery", "note",
                          "reviewer", "labelled_on")
