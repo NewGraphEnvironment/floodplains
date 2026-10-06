@@ -64,14 +64,14 @@ Already decided in the issues:
   - **Must-fail:** the export refuses an unknown `review_id`.
 
 ## Phase 3: Review surface
-- [ ] Cell outlines: `cells.gpkg` holds one square per point, built from `cell` on the design grid (`dims`, `extent` and `crs` in `design.json`), keyed by `review_id` and displayed in BC Albers.
-- [ ] `dated_imagery` text per point from `reference/<area>/imagery.csv`, e.g. `orthophoto 2021; airphoto 2012`.
-- [ ] `labels_form.qml`:
+- [x] Cell outlines: `cells.gpkg` holds one square per point, built from `cell` on the design grid (`dims`, `extent` and `crs` in `design.json`), keyed by `review_id` and displayed in BC Albers.
+- [x] `dated_imagery` text per point from `reference/<area>/imagery.csv`, e.g. `orthophoto 2021; airphoto 2012`.
+- [x] `labels_form.qml`:
   - Drop the design-field configs; add `review_id`, `cell` and `dated_imagery` as read-only.
   - Keep every label field a drop-down, with `note` the only free text.
   - Add a renderer that shows progress by `label_status` (blank, labelled, cannot label).
   - Label each point with its `review_id`.
-- [ ] Themes:
+- [x] Themes:
   - `Change patches` leaves the shared base layers.
   - A new **`After labelling - change patches`** theme is picked from the drop-down.
   - The cell outlines join every labelling theme.

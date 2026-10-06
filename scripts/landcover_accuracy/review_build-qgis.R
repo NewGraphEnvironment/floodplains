@@ -4,7 +4,9 @@
 #   Reference labels      the sample points + empty label fields, with the constrained form in
 #                         reference/<area>/labels_form.qml (IO class codes only; "cannot label" is
 #                         a status, never a class)
-#   Change patches        the published transition layer, with its in_* flags
+#   Sample cells          the 10 m cell each label is about (#111)
+#   Change patches        the published transition layer, with its in_* flags -- IO's answer, so in
+#                         its own "After labelling - change patches" theme only, never a labelling one
 #   Reference imagery     one layer per window-year of dated Sentinel-2 chips, when chip_build-composite.R has run
 #   Reference imagery - dated   one layer per themed orthophoto / digital air photo epoch (#103), when
 #                         imagery_build-dated.R has run (sharper than the chips, and dated, unlike the basemaps)
@@ -18,9 +20,10 @@
 # a sample that has grown (pilot -> full, same seed) only APPENDS the new points. Chip layers are
 # added once per window-year.
 #
-# MAP THEMES (#103), rewritten on every run so they always match the layers present: "Review" (the
-# labels, the change patches, FWA context, Esri), and one theme per reference imagery layer -- the
-# base vectors plus that one image, with nothing else drawn under it. A theme hides a layer by
+# MAP THEMES (#103, #111), rewritten on every run so they always match the layers present: "Review"
+# (the labels, the sample cells, FWA context, Esri), one theme per reference imagery layer, and
+# "After labelling - change patches". An imagery theme is the base vectors plus that one image, with
+# nothing else drawn under it. A theme hides a layer by
 # ABSENCE (rfp's declared membership), so switching theme is how a reviewer flips between epochs.
 #
 # usage: Rscript scripts/landcover_accuracy/review_build-qgis.R [area]
@@ -86,12 +89,16 @@ key <- fp_acc_review_key(sf::st_drop_geometry(smp), design$seed, unlist(design$r
 utils::write.csv(key, key_csv, row.names = FALSE)
 
 # Which dated imagery covers each point (imagery.csv, #103), so the reviewer knows which themes are
-# worth opening. Text only: source and year, never an href.
+# worth opening. Only epochs the project actually carries a theme for (a dated/<source>_<year>.vrt):
+# imagery.csv lists every epoch back to the 1970s, and naming one the reviewer cannot open is noise.
+# Text only: source and year, never an href. Written when a point enters labels.gpkg, not refreshed.
 img_csv <- file.path(cfg$dir_ref, "imagery.csv")
 cover <- stats::setNames(rep(NA_character_, nrow(smp)), smp$point_id)
+avail <- sub("_", " ", sub("[.]vrt$", "", list.files(file.path(dir_proj, "dated"),
+                                                      pattern = "^(orthophoto|airphoto)_[0-9]{4}[.]vrt$")))
 if (file.exists(img_csv)) {
   im <- utils::read.csv(img_csv, colClasses = c(point_id = "character"), stringsAsFactors = FALSE)
-  im <- im[!is.na(im$source) & nzchar(im$source), ]
+  im <- im[!is.na(im$source) & nzchar(im$source) & paste(im$source, im$year) %in% avail, ]
   if (nrow(im)) {
     lbl <- tapply(paste(im$source, im$year), im$point_id, function(v) paste(sort(unique(v)), collapse = "; "))
     cover[names(lbl)] <- lbl
@@ -147,6 +154,30 @@ if (file.exists(old_man)) {
   message("chips/manifest.csv moved out of the project to ", new_man)
 }
 
+# --- sample cells (#111) ----------------------------------------------------------------------
+# The label is about one 10 m cell, and a point on a 0.5 m orthophoto gives no sense of the square being
+# judged. Each cell is rebuilt from its number on the design grid (design.json), keyed by review_id only,
+# and drawn in the review CRS. Rewritten when the keyed set changes (a grown sample).
+cells_gpkg <- file.path(dir_proj, "cells.gpkg")
+grid <- terra::rast(nrows = design$dims[[1]], ncols = design$dims[[2]],
+                    xmin = design$extent[[1]], xmax = design$extent[[2]],
+                    ymin = design$extent[[3]], ymax = design$extent[[4]], crs = design$crs)
+fp_acc_cell_squares <- function(key, grid) {
+  xy <- terra::xyFromCell(grid, key$cell); h <- terra::res(grid) / 2
+  sq <- lapply(seq_len(nrow(xy)), function(i) sf::st_polygon(list(rbind(
+    c(xy[i, 1] - h[1], xy[i, 2] - h[2]), c(xy[i, 1] + h[1], xy[i, 2] - h[2]),
+    c(xy[i, 1] + h[1], xy[i, 2] + h[2]), c(xy[i, 1] - h[1], xy[i, 2] + h[2]),
+    c(xy[i, 1] - h[1], xy[i, 2] - h[2])))))
+  sf::st_sf(review_id = key$review_id, geometry = sf::st_sfc(sq, crs = terra::crs(grid)))
+}
+if (!file.exists(cells_gpkg) ||
+    !setequal(sf::st_read(cells_gpkg, layer = "cells", quiet = TRUE)$review_id, key$review_id)) {
+  unlink(paste0(cells_gpkg, c("", "-wal", "-shm", "-journal")))
+  sf::st_write(sf::st_transform(fp_acc_cell_squares(key, grid), REVIEW_EPSG), cells_gpkg,
+               layer = "cells", quiet = TRUE)
+  message("cells.gpkg: ", nrow(key), " sample cells")
+}
+
 # --- change patches ---------------------------------------------------------------------------
 pat_gpkg <- file.path(dir_proj, "patches.gpkg")
 lyr <- sprintf("transition_%s_%d_%d", cfg$primary_scenario, cfg$change_interval[1], cfg$change_interval[2])
@@ -173,6 +204,10 @@ if (!"Reference labels" %in% have_lyrs)
   rfp::rfp_qgs_vector_add(qgs, gpkg = "labels.gpkg", table = "labels", name = "Reference labels",
                           qml = qml_form, geometry = "Point", group = "Project Specific",
                           position = "top")
+if (!"Sample cells" %in% have_lyrs)
+  rfp::rfp_qgs_vector_add(qgs, gpkg = "cells.gpkg", table = "cells", name = "Sample cells",
+                          qml = here::here("scripts", "landcover_accuracy", "cells_outline.qml"),
+                          geometry = "Polygon", group = "Project Specific", position = "top")
 if (!"Change patches" %in% have_lyrs)
   rfp::rfp_qgs_vector_add(qgs, gpkg = "patches.gpkg", table = "patches", name = "Change patches",
                           geometry = "Polygon", group = "Project Specific", position = "bottom")
@@ -224,12 +259,31 @@ for (v in dated) {
 
 # --- map themes -------------------------------------------------------------------------------
 have  <- tree_names()
-base  <- intersect(c("Reference labels", "Change patches", "Watershed group boundary", "Wetland", "Lake"), have)
+# Change patches show IO's own transition -- the map's answer -- so they are in NO labelling theme
+# (#111). They get one theme of their own, picked from the theme drop-down after a point is labelled.
+base  <- intersect(c("Reference labels", "Sample cells", "Watershed group boundary", "Wetland", "Lake"), have)
 imgs  <- c(paste("S2", sub("\\.vrt$", "", sub("_", " ", sort(vrts)))), vapply(dated, dated_name, ""))
 imgs  <- intersect(imgs, have)
+FP_ACC_AFTER_THEME <- "After labelling - change patches"
 th <- rbind(data.frame(theme = "Review", layer = c(base, intersect("Esri Satellite", have))),
-            do.call(rbind, lapply(imgs, function(l) data.frame(theme = l, layer = c(base, l)))))
+            do.call(rbind, lapply(imgs, function(l) data.frame(theme = l, layer = c(base, l)))),
+            data.frame(theme = FP_ACC_AFTER_THEME,
+                       layer = c(base, intersect(c("Change patches", "Esri Satellite"), have))))
+leaky <- setdiff(th$theme[th$layer == "Change patches"], FP_ACC_AFTER_THEME)
+if (length(leaky)) stop("Change patches would show in labelling theme(s) ", paste(leaky, collapse = ", "),
+                        call. = FALSE)
 rfp::rfp_qgs_theme_set(qgs, th, on_missing_layer = "error", backup = FALSE)
-message("themes: Review + ", length(imgs), " imagery (", paste(imgs, collapse = ", "), ")")
+# The template ships its own themes (crossings, tenure, fish models) and a newly added layer joins them,
+# so they would show the change patches too. The review project carries only the themes defined here.
+foreign <- setdiff(rfp::rfp_qgs_theme_names(qgs), unique(th$theme))
+if (length(foreign)) rfp::rfp_qgs_theme_rm(qgs, themes = foreign, backup = FALSE)
+# Checked on the WRITTEN project, every theme in it -- the guard above saw only the themes this script
+# sets, which is how five template themes kept showing IO's answer.
+tl <- rfp::rfp_qgs_themes(qgs)$layers
+shown <- unique(tl$theme[tl$layer == "Change patches" & tl$visible])
+if (length(setdiff(shown, FP_ACC_AFTER_THEME)))
+  stop("Change patches are visible in theme(s) ", paste(setdiff(shown, FP_ACC_AFTER_THEME), collapse = ", "),
+       " of the written project", call. = FALSE)
+message("themes: Review + ", length(imgs), " imagery (", paste(imgs, collapse = ", "), ") + ", FP_ACC_AFTER_THEME)
 
 message("project: ", qgs)

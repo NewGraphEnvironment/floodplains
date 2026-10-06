@@ -61,3 +61,10 @@ Relates: #93, #94, #103
 - Definitions come from Esri Living Atlas item `cfcb7609de5f478eb7666240902d4d3d` ("Sentinel-2 10m Land Use/Land Cover Time Series").
 - **IO's Rangeland explicitly includes "pastures"; Crops is "human planted/plotted cereals, grasses".** The gate decision "hay+pasture = Crops" (my recommendation, claimed to follow IO) was wrong for pasture. Re-asked, and the user chose to follow IO exactly: hay = Crops, pasture = Rangeland.
 - **Trees threshold is "~15 feet or higher"** (~4.6 m), not 15 m.
+- **The rfp template ships 5 themes** (High Detail - Crossings, Land Tenure, Low Detail ×3), and a newly
+  added layer joins them, so they showed Change patches after the first rebuild. My first guard checked
+  only the themes the build sets (the wrong population). Fixed: foreign themes removed, and the guard reads
+  every theme of the WRITTEN .qgs via `rfp_qgs_themes()`; shown to fire on 12 themes of the pre-fix file.
+- `imagery.csv` lists every epoch back to 1971; `dated_imagery` now lists only epochs with a theme in the
+  project (NECR: airphoto 2012, orthophoto 2021).
+- XML comments cannot contain `--`; the form qml failed to parse until the comment was reworded.

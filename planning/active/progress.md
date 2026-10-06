@@ -14,3 +14,8 @@
   fields), replaces an unlabelled pre-#111 copy and refuses a labelled one; chips manifest moved out of
   the project; `labels_export.R <area> [labels.gpkg]` unblinds through the key. 16 accuracy-check arms.
   Verified on the NECR sample: 480 ids, Spearman(review_id, stratum) = -0.013. Live build after Phase 3.
+- Phase 3: `cells.gpkg` (480 squares from `cell` on the design grid, keyed by review_id) + outline qml;
+  form qml rewritten (rule renderer by label_status, review_id labels, read-only review_id/cell/
+  dated_imagery, no design fields); themes: Change patches only in "After labelling - change patches";
+  template themes removed; written-file guard. NECR rebuilt live: labels.gpkg blind, 8 themes, 0 labels.
+  Visual check of the hand-written renderer/labeling needs QGIS (user, on m4).
