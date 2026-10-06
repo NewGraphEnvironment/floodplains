@@ -9,7 +9,8 @@
      stratum; no IO map class), only an opaque review_id, the cell, the dated imagery covering the
      point, and the label fields. review_key.csv (committed, never shipped) maps the id back. Points are
      coloured by label progress and labelled with their review_id; work through them in id order. -->
-<qgis version="3.34.0" styleCategories="Symbology|Labeling|Fields|Forms">
+<qgis version="3.34.0" styleCategories="Symbology|Labeling|Fields|Forms" labelsEnabled="1">
+ <previewExpression>"review_id"</previewExpression>
  <renderer-v2 type="RuleRenderer" symbollevels="0" enableorderby="0" forceraster="0" referencescale="-1">
   <rules key="root">
    <rule key="todo" symbol="0" label="Not yet labelled" filter="&quot;label_status&quot; IS NULL OR &quot;label_status&quot; = ''"/>

@@ -231,6 +231,58 @@ bcell <- bw; bcell$cell[2] <- 1
 ok("must-fail arm: a working-copy cell that disagrees with the key is refused", refused(fp_acc_unblind(bcell, k1)))
 ok("no key, no export", refused(fp_acc_unblind(bw, NULL)))
 
+# Literal values, measured 2026-10-06 (R 4.5.2, digest::digest2int): a change of RNG, of seed
+# derivation, or of the shuffle reorders every committed review_key.csv, and must be seen.
+ok("golden: the toy key's first review ids and the stream seed are pinned",
+   identical(head(k1$point_id[order(k1$review_id)], 3), c("1_00009", "4_00029", "5_00016")) &&
+     identical(fp_acc_seed(930093, "review_order", 0L), 1981194545L))
+ok("seed streams do not collide across purposes and append batches",
+   !anyDuplicated(c(vapply(0:500, function(n) fp_acc_seed(930093, "review_order", n), 1L),
+                    fp_acc_seed(930093, "second_labeller"))))
+pts <- sf::st_sf(point_id = bsmp$point_id[1:4], cell = bsmp$cell[1:4],
+                 geometry = sf::st_sfc(lapply(1:4, function(i) sf::st_point(c(i, i))), crs = 3005))
+cov <- stats::setNames(c("airphoto 2012", NA, NA, NA), pts$point_id)
+gp <- tempfile(fileext = ".gpkg")
+sf::st_write(fp_acc_blind_points(pts[1:2, ], k1, cov), gp, layer = "labels", quiet = TRUE)
+have_gp <- sf::st_read(gp, layer = "labels", quiet = TRUE)
+appended <- tryCatch({
+  sf::st_write(fp_acc_blind_points(pts[3:4, ], k1, cov)[, names(have_gp)], gp, layer = "labels",
+               append = TRUE, quiet = TRUE); nrow(sf::st_read(gp, layer = "labels", quiet = TRUE)) }, error = function(e) NA)
+ok("blind rows append to an existing working copy by name (geometry column `geom`)", identical(appended, 4L))
+ok("the written working copy is blind", !length(fp_acc_blind_leaks(names(have_gp))))
+unlink(gp)
+ks0 <- fp_acc_second_subset(k1, 930093, rk)
+ok("a copy holding every keyed point is labeller A's", identical(fp_acc_working_copy_role(ks0$review_id, ks0), "a"))
+ok("a copy holding exactly the subset is labeller B's",
+   identical(fp_acc_working_copy_role(ks0$review_id[ks0$second], ks0), "b"))
+ok("must-fail arm: a partial copy is neither, and refused", refused(fp_acc_working_copy_role(ks0$review_id[1:10], ks0)))
+
+message("Second labeller (#111):")
+ks <- fp_acc_second_subset(k1, 930093, rk)
+ok("the subset is 3 points in every stratum", all(tapply(ks$second, ks$stratum, sum) == 3L))
+ok("the subset is reproducible from the design seed", identical(ks, fp_acc_second_subset(k1, 930093, rk)))
+ok("the subset is a different stream from the review order (not the 3 lowest ids per stratum)",
+   !all(tapply(ks$review_id, ks$stratum, function(v) TRUE)[] & with(ks, all(tapply(seq_along(second), stratum,
+     function(i) identical(which(second[i]), order(review_id[i])[1:3]))))))
+kgs <- fp_acc_review_key(bsmp, 930093, rk, have = fp_acc_second_subset(kp, 930093, rk))
+kgs <- fp_acc_second_subset(kgs, 930093, rk)
+ok("growing the sample never adds to the subset", sum(kgs$second) == sum(fp_acc_second_subset(kp, 930093, rk)$second) &&
+     !any(kgs$second[!kgs$point_id %in% kp$point_id]))
+la <- data.frame(point_id = c("p1", "p2", "p3", "p4"), label_status = "labelled",
+                 ref_from = c(2L, 2L, 11L, 11L), ref_to = c(11L, 2L, 11L, 5L))
+lb <- la; lb$ref_to[4] <- 11L; lb$label_status[3] <- "cannot_label"
+ag <- fp_acc_agreement(la, lb)
+ok("agreement uses only points both labelled (3 of 4)", identical(ag$n, c(3L, 3L)))
+ok("agreement per endpoint: first 3/3, last 2/3", isTRUE(all.equal(ag$agree, c(1, 2 / 3))))
+ok("kappa is 1 on perfect agreement", isTRUE(all.equal(ag$kappa[1], 1)))
+td <- tempfile("linktree"); dir.create(file.path(td, "a", "sub"), recursive = TRUE)
+writeLines("x", file.path(td, "a", "sub", "f.txt"))
+n1 <- fp_acc_link_tree(file.path(td, "a"), file.path(td, "b"))
+ok("hard links share the inode (no copy)",
+   identical(file.info(file.path(td, "b", "sub", "f.txt"))$ino, file.info(file.path(td, "a", "sub", "f.txt"))$ino))
+ok("linking again is a no-op", identical(n1, 1L) && identical(fp_acc_link_tree(file.path(td, "a"), file.path(td, "b")), 0L))
+unlink(td, recursive = TRUE)
+
 message("Recode-then-estimate targets (perfect labels reproduce mapped areas):")
 strata <- data.frame(stratum = c(1, 17, 31), stratum_label = c("change: fire", "other tree loss", "stable Trees"),
                      n_cells = c(1000, 500, 8500), area = c(10, 5, 85), weight = c(0.10, 0.05, 0.85))

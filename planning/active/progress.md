@@ -19,3 +19,15 @@
   dated_imagery, no design fields); themes: Change patches only in "After labelling - change patches";
   template themes removed; written-file guard. NECR rebuilt live: labels.gpkg blind, 8 themes, 0 labels.
   Visual check of the hand-written renderer/labeling needs QGIS (user, on m4).
+- Phase 4: `fp_acc_second_subset()` (3 per stratum = 48, own seed stream, recorded as `second` in the
+  key, never grown), `fp_acc_agreement()` (both-labelled only; % agree + kappa per endpoint),
+  `fp_acc_link_tree()` (hard links). REVIEWER=b builds `<area>_lulc_review_b` (48 points, imagery
+  hard-linked). The export picks labels.csv / labels_b.csv from the working copy's own id set.
+- Plan review folded in (planning/active/review-111.md): patches + FWA Wetland hidden in the tree and
+  out of every labelling theme; labelsEnabled="1" + previewExpression; style_set every run; blind rows
+  use `geom` (append path); imagery.csv design-checked; withr dropped; seed via digest2int (collision
+  at n0 = 111 removed) with a literal golden arm; written-project assertions.
+- Themes redesigned for the workflow (user, mid-run): names sort in working order in the drop-down
+  ("0 Start", imagery by year with FIRST/LAST YEAR tags and composite months, "9 After labelling");
+  legend names "Points to label", "Cell being labelled (10 m)". Key regenerated (seed derivation
+  changed; 0 labels). NECR A + B rebuilt; synthetic export round trip in a temp repo copy passes.

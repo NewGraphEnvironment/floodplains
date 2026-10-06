@@ -75,6 +75,13 @@ cat("\n", tag, "Pre-registered criteria (any two => pilot a local classifier):\n
 print(res$criteria, row.names = FALSE)
 cat(sprintf("\n%sCriteria holding: %d of %d evaluable -> %s\n", tag, sum(res$criteria$holds, na.rm = TRUE),
             sum(!is.na(res$criteria$holds)), res$verdict))
+# Second labeller (#111): how often two people agree on the same cells. Information about the
+# reference only -- it never enters the estimates above.
+fb <- file.path(cfg$dir_ref, "labels_b.csv")
+if (!synthetic && file.exists(fb)) {
+  cat("\nInter-labeller agreement (second-labeller subset; information, not an input):\n")
+  print(fp_acc_agreement(lab, utils::read.csv(fb, stringsAsFactors = FALSE, na.strings = "")), row.names = FALSE)
+}
 cat("\n", tag, "Full-sample size for the unattributed tree-loss target (se = 25% of the estimate / 1.96):\n", sep = "")
 print(res$size, row.names = FALSE)
 

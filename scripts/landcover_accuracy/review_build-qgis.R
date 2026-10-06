@@ -16,17 +16,24 @@
 # is the committed design record and is never edited; labels_export.R carries labels back out by
 # point_id into reference/<area>/labels.csv, the committed record every number regenerates from.
 #
-# Re-running is safe: an existing project is kept, an existing labels.gpkg is never rewritten, and
+# Re-running is safe: an existing project is kept, a labels.gpkg holding any label is never rewritten
+# (one with none is: pre-#111 schema, or stale imagery coverage), and
 # a sample that has grown (pilot -> full, same seed) only APPENDS the new points. Chip layers are
 # added once per window-year.
 #
-# MAP THEMES (#103, #111), rewritten on every run so they always match the layers present: "Review"
-# (the labels, the sample cells, FWA context, Esri), one theme per reference imagery layer, and
-# "After labelling - change patches". An imagery theme is the base vectors plus that one image, with
+# MAP THEMES (#103, #111), rewritten on every run so they always match the layers present, named so the
+# drop-down reads in working order (see NAMES ARE THE INTERFACE below): "0 Start" (points, cells,
+# boundary, lakes, Esri), one theme per reference imagery year, and "9 After labelling" (adds IO's change
+# patches and FWA wetlands, which no labelling theme shows). An imagery theme is the base vectors plus that one image, with
 # nothing else drawn under it. A theme hides a layer by
 # ABSENCE (rfp's declared membership), so switching theme is how a reviewer flips between epochs.
 #
+# SECOND LABELLER (#111): REVIEWER=b builds a separate project, <area>_lulc_review_b, holding only the
+# fixed subset (review_key.csv `second`) and none of labeller A's labels, so B labels blind to A as well
+# as to the map. Its imagery is hard-linked from A's project (no extra disk; rfp needs the files inside).
+#
 # usage: Rscript scripts/landcover_accuracy/review_build-qgis.R [area]
+#        REVIEWER=b Rscript scripts/landcover_accuracy/review_build-qgis.R [area]
 
 suppressMessages({library(sf)})
 sf::sf_use_s2(FALSE)
@@ -42,13 +49,46 @@ area <- commandArgs(trailingOnly = TRUE)[1]
 if (is.na(area)) area <- "necr"
 cfg  <- fp_acc_area(area)
 
-dir_proj <- fp_acc_review_dir(cfg)
+reviewer <- Sys.getenv("REVIEWER", "a")
+if (!reviewer %in% c("a", "b")) stop("REVIEWER must be a or b, got ", reviewer, call. = FALSE)
+dir_proj_a <- fp_acc_review_dir(cfg)
+dir_proj <- if (reviewer == "b") paste0(dir_proj_a, "_b") else dir_proj_a
 qgs      <- file.path(dir_proj, paste0(basename(dir_proj), ".qgs"))
 qml_form <- file.path(cfg$dir_ref, "labels_form.qml")
 qml_rgb  <- here::here("scripts", "landcover_accuracy", "chip_rgb.qml")
 qml_dated   <- here::here("scripts", "landcover_accuracy", "dated_rgb.qml")
 qml_dated_a <- here::here("scripts", "landcover_accuracy", "dated_rgba.qml")
 if (!file.exists(qml_form)) stop("no ", qml_form, call. = FALSE)
+
+# NAMES ARE THE INTERFACE (#111). The reviewer works point by point: open it, judge the first year, judge
+# the last year, fill the form, then (only then) look at what IO said. So:
+#   - layer names say what a layer is FOR, not what file it came from;
+#   - every theme name starts with a sort key, and QGIS lists themes alphabetically, so the drop-down
+#     reads in working order: "0 Start", then each imagery year oldest to newest, then "9 After labelling";
+#   - an imagery theme names its year, its source and (Sentinel-2) its composite months, and the two
+#     endpoint years say FIRST YEAR / LAST YEAR, since those are the two labels the form asks for.
+LYR_POINTS  <- "Points to label"
+LYR_CELLS   <- "Cell being labelled (10 m)"
+LYR_PATCHES <- "Change patches"
+THEME_START <- "0 Start - Esri satellite (undated, for finding your way)"
+FP_ACC_AFTER_THEME <- "9 After labelling - IO change patches and FWA wetlands"
+ends <- sort(as.integer(cfg$change_interval))
+endpoint_tag <- function(y) if (y == ends[1]) " - FIRST YEAR" else if (y == ends[2]) " - LAST YEAR" else ""
+months_lab <- function(m) paste(month.abb[as.integer(strsplit(as.character(m), "-", fixed = TRUE)[[1]])],
+                                collapse = "-")
+win_csv <- file.path(cfg$dir_ref, "windows.csv")
+wins <- if (file.exists(win_csv)) utils::read.csv(win_csv, stringsAsFactors = FALSE) else NULL
+s2_name <- function(v) {                       # chips/<window>_<year>.vrt
+  b <- sub("[.]vrt$", "", v); y <- as.integer(sub(".*_", "", b)); w <- sub("_[0-9]{4}$", "", b)
+  m <- if (!is.null(wins)) wins$months[wins$window == w & wins$year == y] else character(0)
+  sprintf("%d Sentinel-2%s%s", y, if (length(m)) paste0(", ", months_lab(m[1]), " composite") else "",
+          endpoint_tag(y))
+}
+dated_name <- function(v) {                    # dated/<source>_<year>.vrt
+  p <- strsplit(sub("[.]vrt$", "", v), "_", fixed = TRUE)[[1]]
+  sprintf("%s %s (dated)%s", p[2], c(orthophoto = "orthophoto", airphoto = "air photo")[[p[1]]],
+          endpoint_tag(as.integer(p[2])))
+}
 
 # --- project ----------------------------------------------------------------------------------
 if (!file.exists(qgs) && dir.exists(dir_proj))
@@ -63,6 +103,10 @@ if (!file.exists(qgs)) {
                           template = "bcrestoration_mobile", path_out = dirname(dir_proj),
                           layer_config = ctx, forms = character(0), themes = character(0),
                           services = c("esri_satellite", "google_satellite", "bing_aerial"))
+}
+if (reviewer == "b") {
+  # B sees the same imagery as A. Built by chip_build-composite.R / imagery_build-dated.R into A's project.
+  for (d in c("chips", "dated")) fp_acc_link_tree(file.path(dir_proj_a, d), file.path(dir_proj, d))
 }
 tree_names <- function() {
   q <- xml2::read_xml(qgs)
@@ -86,33 +130,36 @@ smp <- sf::st_transform(sf::st_read(file.path(cfg$dir_ref, "sample.gpkg"), layer
 key_csv <- file.path(cfg$dir_ref, "review_key.csv")
 key <- fp_acc_review_key(sf::st_drop_geometry(smp), design$seed, unlist(design$rng_kind),
                          fp_acc_review_key_read(key_csv))
+key <- fp_acc_second_subset(key, design$seed, unlist(design$rng_kind))
 utils::write.csv(key, key_csv, row.names = FALSE)
+smp_design <- sf::st_drop_geometry(smp)   # the whole sample, for design checks, before any B subset
+if (reviewer == "b") {
+  smp <- smp[smp$point_id %in% key$point_id[key$second], ]   # B's project holds the subset only
+  message("reviewer b: ", nrow(smp), " points (the second-labeller subset)")
+}
+key_here <- key[key$point_id %in% smp$point_id, ]
 
 # Which dated imagery covers each point (imagery.csv, #103), so the reviewer knows which themes are
 # worth opening. Only epochs the project actually carries a theme for (a dated/<source>_<year>.vrt):
 # imagery.csv lists every epoch back to the 1970s, and naming one the reviewer cannot open is noise.
-# Text only: source and year, never an href. Written when a point enters labels.gpkg, not refreshed.
+# Text only: source and year, never an href. Refreshed while the working copy holds no label; once
+# labelling has started the working copy is never rewritten.
 img_csv <- file.path(cfg$dir_ref, "imagery.csv")
 cover <- stats::setNames(rep(NA_character_, nrow(smp)), smp$point_id)
 avail <- sub("_", " ", sub("[.]vrt$", "", list.files(file.path(dir_proj, "dated"),
                                                       pattern = "^(orthophoto|airphoto)_[0-9]{4}[.]vrt$")))
 if (file.exists(img_csv)) {
   im <- utils::read.csv(img_csv, colClasses = c(point_id = "character"), stringsAsFactors = FALSE)
+  # Checked against the design before it is joined by point_id: after a redraw imagery.csv describes
+  # other cells under the same ids, and their coverage would be baked into the working copy.
+  fp_acc_design_check(im[!duplicated(im$point_id), ], smp_design, img_csv)
   im <- im[!is.na(im$source) & nzchar(im$source) & paste(im$source, im$year) %in% avail, ]
   if (nrow(im)) {
     lbl <- tapply(paste(im$source, im$year), im$point_id, function(v) paste(sort(unique(v)), collapse = "; "))
     cover[names(lbl)] <- lbl
   }
 }
-blind <- function(pts) {
-  m <- match(pts$point_id, key$point_id)
-  x <- sf::st_sf(review_id = key$review_id[m], cell = as.numeric(pts$cell),
-                 dated_imagery = unname(cover[pts$point_id]), geometry = sf::st_geometry(pts))
-  x$ref_from <- NA_integer_; x$ref_to <- NA_integer_
-  x$label_status <- NA_character_; x$confidence <- NA_character_; x$imagery <- NA_character_
-  x$note <- NA_character_; x$reviewer <- NA_character_; x$labelled_on <- as.Date(NA)
-  x[order(x$review_id), ]   # feature order = review order, so the attribute table opens in it
-}
+blind <- function(pts) fp_acc_blind_points(pts, key, cover)
 lab_gpkg <- file.path(dir_proj, "labels.gpkg")
 if (file.exists(lab_gpkg) && !"review_id" %in% names(sf::st_read(lab_gpkg, layer = "labels", quiet = TRUE))) {
   # Pre-#111 working copy: point_id and the design in plain sight. Replaced only if nobody has labelled
@@ -123,8 +170,18 @@ if (file.exists(lab_gpkg) && !"review_id" %in% names(sf::st_read(lab_gpkg, layer
     stop(lab_gpkg, " is a pre-#111 (unblinded) working copy holding labels; refusing to replace it. ",
          "Move it aside deliberately.", call. = FALSE)
   unlink(paste0(lab_gpkg, c("", "-wal", "-shm", "-journal")))
-  if ("Reference labels" %in% tree_names()) rfp::rfp_qgs_layer_rm(qgs, "Reference labels")
+  for (nm in intersect(c("Reference labels", "Points to label"), tree_names())) rfp::rfp_qgs_layer_rm(qgs, nm)
   message("labels.gpkg: replaced the unlabelled pre-#111 working copy with the blind schema")
+}
+if (file.exists(lab_gpkg)) {
+  have0 <- sf::st_read(lab_gpkg, layer = "labels", quiet = TRUE)
+  unlabelled <- !any(!is.na(have0$label_status) & nzchar(trimws(have0$label_status)))
+  stale_cover <- !identical(unname(cover[key$point_id[match(have0$review_id, key$review_id)]]),
+                            as.character(have0$dated_imagery))
+  if (unlabelled && stale_cover) {
+    unlink(paste0(lab_gpkg, c("", "-wal", "-shm", "-journal")))
+    message("labels.gpkg: no label yet and the dated-imagery coverage changed -- rewritten")
+  }
 }
 if (!file.exists(lab_gpkg)) {
   sf::st_write(blind(smp), lab_gpkg, layer = "labels", quiet = TRUE)
@@ -171,11 +228,11 @@ fp_acc_cell_squares <- function(key, grid) {
   sf::st_sf(review_id = key$review_id, geometry = sf::st_sfc(sq, crs = terra::crs(grid)))
 }
 if (!file.exists(cells_gpkg) ||
-    !setequal(sf::st_read(cells_gpkg, layer = "cells", quiet = TRUE)$review_id, key$review_id)) {
+    !setequal(sf::st_read(cells_gpkg, layer = "cells", quiet = TRUE)$review_id, key_here$review_id)) {
   unlink(paste0(cells_gpkg, c("", "-wal", "-shm", "-journal")))
-  sf::st_write(sf::st_transform(fp_acc_cell_squares(key, grid), REVIEW_EPSG), cells_gpkg,
+  sf::st_write(sf::st_transform(fp_acc_cell_squares(key_here, grid), REVIEW_EPSG), cells_gpkg,
                layer = "cells", quiet = TRUE)
-  message("cells.gpkg: ", nrow(key), " sample cells")
+  message("cells.gpkg: ", nrow(key_here), " sample cells")
 }
 
 # --- change patches ---------------------------------------------------------------------------
@@ -200,22 +257,49 @@ if (!file.exists(pat_gpkg) || !identical(attr_table(src_gpkg, lyr), attr_table(p
 }
 
 have_lyrs <- tree_names()
-if (!"Reference labels" %in% have_lyrs)
-  rfp::rfp_qgs_vector_add(qgs, gpkg = "labels.gpkg", table = "labels", name = "Reference labels",
+# Layers named before the rename (#111) are dropped and re-added under the new names; their files are the
+# same, so nothing labelled is touched.
+old_names <- c("Reference labels", "Sample cells",
+               grep("^S2 |^(Orthophoto|Air photo) [0-9]{4}$", have_lyrs, value = TRUE))
+for (nm in intersect(old_names, have_lyrs)) rfp::rfp_qgs_layer_rm(qgs, nm)
+have_lyrs <- tree_names()
+if (!LYR_POINTS %in% have_lyrs)
+  rfp::rfp_qgs_vector_add(qgs, gpkg = "labels.gpkg", table = "labels", name = LYR_POINTS,
                           qml = qml_form, geometry = "Point", group = "Project Specific",
                           position = "top")
-if (!"Sample cells" %in% have_lyrs)
-  rfp::rfp_qgs_vector_add(qgs, gpkg = "cells.gpkg", table = "cells", name = "Sample cells",
+if (!LYR_CELLS %in% have_lyrs)
+  rfp::rfp_qgs_vector_add(qgs, gpkg = "cells.gpkg", table = "cells", name = LYR_CELLS,
                           qml = here::here("scripts", "landcover_accuracy", "cells_outline.qml"),
                           geometry = "Polygon", group = "Project Specific", position = "top")
-if (!"Change patches" %in% have_lyrs)
+# A layer is added once, so a later qml edit would never reach it: restyle from the committed qml on
+# every run (rfp checks the qml's fields against the gpkg).
+rfp::rfp_qgs_style_set(qgs, LYR_POINTS, qml_form, backup = FALSE)
+rfp::rfp_qgs_style_set(qgs, LYR_CELLS, here::here("scripts", "landcover_accuracy", "cells_outline.qml"),
+                       backup = FALSE)
+# Change patches are IO's answer: hidden in the layer tree (a project opens with the tree's state, before
+# anyone picks a theme) and in no theme but the after-labelling one. An existing project that has them
+# checked gets them re-added hidden.
+tree_checked <- function(name) {
+  n <- xml2::xml_find_all(xml2::read_xml(qgs), sprintf("//layer-tree-layer[@name='%s']", name))
+  length(n) > 0 && any(xml2::xml_attr(n, "checked") == "Qt::Checked")
+}
+if ("Change patches" %in% have_lyrs && tree_checked("Change patches")) rfp::rfp_qgs_layer_rm(qgs, "Change patches")
+# The template's FWA Wetland layer is checked too, and rfp has no visibility setter: uncheck its tree node
+# directly. Only the `checked` attribute of that one node changes.
+if (tree_checked("Wetland")) {
+  qx <- xml2::read_xml(qgs)
+  for (n in xml2::xml_find_all(qx, "//layer-tree-layer[@name='Wetland']")) xml2::xml_set_attr(n, "checked", "Qt::Unchecked")
+  xml2::write_xml(qx, qgs)
+}
+if (!"Change patches" %in% tree_names())
   rfp::rfp_qgs_vector_add(qgs, gpkg = "patches.gpkg", table = "patches", name = "Change patches",
-                          geometry = "Polygon", group = "Project Specific", position = "bottom")
+                          geometry = "Polygon", group = "Project Specific", position = "bottom",
+                          visible = FALSE, themes = character(0))
 
 # --- reference imagery ------------------------------------------------------------------------
 vrts <- list.files(file.path(dir_proj, "chips"), pattern = "\\.vrt$", full.names = FALSE)
 for (v in sort(vrts)) {
-  nm <- paste("S2", sub("\\.vrt$", "", sub("_", " ", v)))
+  nm <- s2_name(v)
   if (nm %in% tree_names()) next
   rfp::rfp_qgs_raster_add(qgs, raster = file.path("chips", v), name = nm, qml = qml_rgb,
                           stretch = "none", group = "Reference imagery", visible = FALSE)
@@ -228,17 +312,13 @@ dated <- sort(list.files(file.path(dir_proj, "dated"), pattern = "^(orthophoto|a
 # describe other points, so they are not offered (and any already in the project are removed below)
 # until imagery_index-dated.R and imagery_build-dated.R have been re-run. (img_csv: set above.)
 if (length(dated) && (!file.exists(img_csv) ||
-    !setequal(unique(utils::read.csv(img_csv, stringsAsFactors = FALSE)$point_id), smp$point_id))) {
+    !setequal(unique(utils::read.csv(img_csv, stringsAsFactors = FALSE)$point_id), smp_design$point_id))) {
   message("dated layers skipped: ", img_csv, " does not list exactly sample.gpkg's points -- re-run ",
           "imagery_index-dated.R and imagery_build-dated.R")
   dated <- character(0)
 }
-dated_name <- function(v) {
-  p <- strsplit(sub("[.]vrt$", "", v), "_", fixed = TRUE)[[1]]
-  paste(c(orthophoto = "Orthophoto", airphoto = "Air photo")[[p[1]]], p[2])
-}
 # a dated layer whose VRT imagery_build-dated.R removed (its epoch no longer earns a theme) goes too
-orphan <- setdiff(grep("^(Orthophoto|Air photo) [0-9]{4}$", tree_names(), value = TRUE),
+orphan <- setdiff(grep("^[0-9]{4} (orthophoto|air photo) [(]dated[)]", tree_names(), value = TRUE),
                 vapply(dated, dated_name, ""))
 # the layer AND its theme: rfp_qgs_theme_set replaces the themes it is given and leaves the rest
 for (nm in orphan) {
@@ -261,14 +341,16 @@ for (v in dated) {
 have  <- tree_names()
 # Change patches show IO's own transition -- the map's answer -- so they are in NO labelling theme
 # (#111). They get one theme of their own, picked from the theme drop-down after a point is labelled.
-base  <- intersect(c("Reference labels", "Sample cells", "Watershed group boundary", "Wetland", "Lake"), have)
-imgs  <- c(paste("S2", sub("\\.vrt$", "", sub("_", " ", sort(vrts)))), vapply(dated, dated_name, ""))
+# FWA Wetland is a stratifier (stable wetland, wetland change): drawn under a point it hints at the
+# stratum and anchors a Flooded Vegetation call, so it too waits for the after-labelling theme.
+base  <- intersect(c(LYR_POINTS, LYR_CELLS, "Watershed group boundary", "Lake"), have)
+imgs  <- c(vapply(sort(vrts), s2_name, ""), vapply(dated, dated_name, ""))
 imgs  <- intersect(imgs, have)
-FP_ACC_AFTER_THEME <- "After labelling - change patches"
-th <- rbind(data.frame(theme = "Review", layer = c(base, intersect("Esri Satellite", have))),
+imgs  <- imgs[order(substr(imgs, 1, 4), imgs)]   # oldest year first, as the drop-down will show them
+th <- rbind(data.frame(theme = THEME_START, layer = c(base, intersect("Esri Satellite", have))),
             do.call(rbind, lapply(imgs, function(l) data.frame(theme = l, layer = c(base, l)))),
             data.frame(theme = FP_ACC_AFTER_THEME,
-                       layer = c(base, intersect(c("Change patches", "Esri Satellite"), have))))
+                       layer = c(base, intersect(c(LYR_PATCHES, "Wetland", "Esri Satellite"), have))))
 leaky <- setdiff(th$theme[th$layer == "Change patches"], FP_ACC_AFTER_THEME)
 if (length(leaky)) stop("Change patches would show in labelling theme(s) ", paste(leaky, collapse = ", "),
                         call. = FALSE)
@@ -280,10 +362,22 @@ if (length(foreign)) rfp::rfp_qgs_theme_rm(qgs, themes = foreign, backup = FALSE
 # Checked on the WRITTEN project, every theme in it -- the guard above saw only the themes this script
 # sets, which is how five template themes kept showing IO's answer.
 tl <- rfp::rfp_qgs_themes(qgs)$layers
-shown <- unique(tl$theme[tl$layer == "Change patches" & tl$visible])
-if (length(setdiff(shown, FP_ACC_AFTER_THEME)))
-  stop("Change patches are visible in theme(s) ", paste(setdiff(shown, FP_ACC_AFTER_THEME), collapse = ", "),
-       " of the written project", call. = FALSE)
-message("themes: Review + ", length(imgs), " imagery (", paste(imgs, collapse = ", "), ") + ", FP_ACC_AFTER_THEME)
+for (hidden in c("Change patches", "Wetland")) {
+  shown <- unique(tl$theme[tl$layer == hidden & tl$visible])
+  if (length(setdiff(shown, FP_ACC_AFTER_THEME)))
+    stop(hidden, " is visible in theme(s) ", paste(setdiff(shown, FP_ACC_AFTER_THEME), collapse = ", "),
+         " of the written project", call. = FALSE)
+}
+# ...and the rest of the written project's promises, read back rather than assumed (#111 review):
+q  <- xml2::read_xml(qgs)
+ml <- xml2::xml_find_first(q, sprintf("//maplayer[layername='%s']", LYR_POINTS))
+for (hidden in c("Change patches", "Wetland"))
+  if (tree_checked(hidden)) stop(hidden, " is checked in the layer tree: it draws on first open", call. = FALSE)
+if (!identical(xml2::xml_attr(ml, "labelsEnabled"), "1"))
+  stop(LYR_POINTS, " has labelsEnabled != 1: the review_id labels will not draw", call. = FALSE)
+ro <- xml2::xml_attr(xml2::xml_find_all(ml, ".//editable/field[@name='review_id' or @name='cell' or @name='dated_imagery']"),
+                     "editable")
+if (length(ro) != 3 || any(ro != "0")) stop("review_id / cell / dated_imagery are not read-only in the form", call. = FALSE)
+message("themes, in drop-down order:\n  ", paste(sort(unique(th$theme)), collapse = "\n  "))
 
 message("project: ", qgs)

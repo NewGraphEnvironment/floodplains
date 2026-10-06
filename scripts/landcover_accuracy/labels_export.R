@@ -17,6 +17,10 @@
 # usage: Rscript scripts/landcover_accuracy/labels_export.R [area] [labels.gpkg]
 #   labels.gpkg defaults to the local review project; pass the Mergin working copy's path to export
 #   from there (rtj#367).
+#   WHICH record is written follows from the working copy itself: a copy holding every keyed point is
+#   labeller A's (labels.csv), one holding exactly the second-labeller subset is B's (labels_b.csv),
+#   anything else is refused -- so B's labels can never become the record by a forgotten flag.
+#   REVIEWER=b only picks B's default path (<area>_lulc_review_b) when no path is given.
 
 suppressMessages({library(sf)})
 source(here::here("scripts", "landcover_accuracy", "fp_accuracy.R"))
@@ -26,16 +30,22 @@ area  <- if (!is.na(args[1])) args[1] else "necr"
 force <- identical(Sys.getenv("FORCE"), "1")
 cfg   <- fp_acc_area(area)
 
-lab_gpkg <- if (!is.na(args[2])) args[2] else file.path(fp_acc_review_dir(cfg), "labels.gpkg")
+reviewer <- Sys.getenv("REVIEWER", "a")
+if (!reviewer %in% c("a", "b")) stop("REVIEWER must be a or b, got ", reviewer, call. = FALSE)
+lab_gpkg <- if (!is.na(args[2])) args[2] else
+  file.path(paste0(fp_acc_review_dir(cfg), if (reviewer == "b") "_b" else ""), "labels.gpkg")
 if (!file.exists(lab_gpkg)) stop("no working copy at ", lab_gpkg, " -- run review_build-qgis.R", call. = FALSE)
 wc  <- sf::st_drop_geometry(sf::st_read(lab_gpkg, layer = "labels", quiet = TRUE))
+key <- fp_acc_review_key_read(file.path(cfg$dir_ref, "review_key.csv"))
+role <- fp_acc_working_copy_role(wc$review_id, key)
+message(lab_gpkg, ": labeller ", role, "'s working copy")
 smp <- sf::st_drop_geometry(sf::st_read(file.path(cfg$dir_ref, "sample.gpkg"), layer = "sample", quiet = TRUE))
 
 wc <- wc[!is.na(wc$label_status) & nzchar(trimws(wc$label_status)), ]
-wc <- fp_acc_unblind(wc, fp_acc_review_key_read(file.path(cfg$dir_ref, "review_key.csv")))
+wc <- fp_acc_unblind(wc, key)
 out <- fp_acc_labels_frame(wc, smp)
 
-f <- file.path(cfg$dir_ref, "labels.csv")
+f <- file.path(cfg$dir_ref, if (role == "b") "labels_b.csv" else "labels.csv")
 if (file.exists(f) && !force) {
   old <- utils::read.csv(f, colClasses = "character", na.strings = "")
   new <- utils::read.csv(text = paste(utils::capture.output(

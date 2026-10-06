@@ -18,7 +18,7 @@ The #93 reference sample (480 NECR points, 30 in each of 16 strata, 0 labelled) 
 
 **Decisions at the gate (user, 2026-10-06):**
 - **Blinding:** an opaque `review_id` plus a committed key, not hidden fields.
-- **Hay and pasture:** labelled **Crops**.
+- **Hay and pasture:** ~~both Crops~~ corrected 2026-10-06 against IO's fetched legend: hay = **Crops**, grazed pasture = **Rangeland** (IO names pastures under Rangeland; re-asked, user chose to follow IO exactly).
 - **Regenerating stands:** **Trees only at canopy**.
 - **Local build:** keep it and update it until rtj#367 retires it.
 
@@ -68,7 +68,7 @@ Already decided in the issues:
 - [x] `dated_imagery` text per point from `reference/<area>/imagery.csv`, e.g. `orthophoto 2021; airphoto 2012`.
 - [x] `labels_form.qml`:
   - Drop the design-field configs; add `review_id`, `cell` and `dated_imagery` as read-only.
-  - Keep every label field a drop-down, with `note` the only free text.
+  - Keep every label field a drop-down; `note` and `reviewer` are free text.
   - Add a renderer that shows progress by `label_status` (blank, labelled, cannot label).
   - Label each point with its `review_id`.
 - [x] Themes:
@@ -78,9 +78,9 @@ Already decided in the issues:
   - An arm checks that patches appear in no labelling theme (parsed from the `.qgs`).
 
 ## Phase 4: Second labeller
-- [ ] Subset: 3 points per stratum (48), drawn with a seed derived from the design seed and recorded as a `second` column in `review_key.csv`. Pre-registered.
-- [ ] `labels_b.gpkg` holds the same schema for the subset only. `REVIEWER=b review_build-qgis.R` builds a separate local project, so labeller B never sees A's labels. On Mergin this becomes rtj#367's second project.
-- [ ] `labels_export.R` writes `labels_b.csv` from `labels_b.gpkg`. `accuracy_estimate.R` reports percent agreement and Cohen's kappa per endpoint over the overlap, as information only and never in the estimates. An arm covers it.
+- [x] Subset: 3 points per stratum (48), drawn with a seed derived from the design seed and recorded as a `second` column in `review_key.csv`. Pre-registered.
+- [x] `labels_b.gpkg` holds the same schema for the subset only. `REVIEWER=b review_build-qgis.R` builds a separate local project, so labeller B never sees A's labels. On Mergin this becomes rtj#367's second project.
+- [x] `labels_export.R` writes `labels_b.csv` from `labels_b.gpkg`. `accuracy_estimate.R` reports percent agreement and Cohen's kappa per endpoint over the overlap, as information only and never in the estimates. An arm covers it.
 
 ## Phase 5: Rebuild NECR, verify, hand off
 - [ ] Rebuild the NECR project.
