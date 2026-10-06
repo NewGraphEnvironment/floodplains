@@ -38,3 +38,7 @@
   known limit in research and raised to the user.
 - Docs: research Review setup (blind review, growth limit, second labeller + agreement rules, theme
   names); CLAUDE.md #93 bullet (review_key.csv, labels_b.csv, the blind rule).
+- /code-check round 2 (review-round2.md): the round-1 pre-growth rule (ids 1..n) also accepted a copy
+  that lost its last rows -> key gains `batch`; a copy is A's only if it holds whole batches 1..j;
+  prefix must-fail arm restored. Loop ended by enumeration (findings.md). Reviewer agents this issue:
+  plan review + 2 code-check rounds.

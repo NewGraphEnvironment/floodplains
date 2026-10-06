@@ -83,13 +83,13 @@ Already decided in the issues:
 - [x] `labels_export.R` writes `labels_b.csv` from `labels_b.gpkg`. `accuracy_estimate.R` reports percent agreement and Cohen's kappa per endpoint over the overlap, as information only and never in the estimates. An arm covers it.
 
 ## Phase 5: Rebuild NECR, verify, hand off
-- [ ] Rebuild the NECR project.
-- [ ] Open it in QGIS:
+- [x] Rebuild the NECR project.
+- [ ] Open it in QGIS (XML of the written .qgs verified by the build's own assertions; the visual check is the user's, on m4):
   - the form shows only label fields, review ID and imagery;
   - themes and outlines are right;
   - the key file is present.
-- [ ] Run a synthetic-label export round trip in a temp copy.
-- [ ] Run `accuracy-check.R`, and show each new must-fail arm going red in a copy.
+- [x] Run a synthetic-label export round trip in a temp copy.
+- [x] Run `accuracy-check.R`, and show each new must-fail arm going red in a copy.
 - [x] Update the docs: CLAUDE.md's #93 bullet (review ID, the key file, the blind schema), and the Review setup section in `research/landcover_accuracy.md`.
 - [ ] Comment on rtj#367 with the exact input list:
   - `labels.gpkg`, `labels_b.gpkg`, `cells.gpkg`;

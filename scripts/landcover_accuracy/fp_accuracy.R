@@ -596,7 +596,12 @@ fp_acc_review_key <- function(smp, design_seed, rng_kind, have = NULL) {
     perm <- fp_acc_with_seed(fp_acc_seed(design_seed, "review_order", n0), rng_kind, sample.int(nrow(new)))
     new$review_id <- n0 + perm
   } else new$review_id <- integer(0)
-  cols <- c("review_id", "point_id", "cell", "stratum", "map_class")
+  # `batch` records WHEN a point was keyed: 1 for the first draw, +1 for each growth. It is what lets a
+  # working copy made before a growth be told apart from one that lost its last rows (both hold a run of
+  # low ids; only the first holds exactly whole batches).
+  if (n0 && !"batch" %in% names(have)) have$batch <- 1L
+  new$batch <- rep(if (n0) max(have$batch) + 1L else 1L, nrow(new))
+  cols <- c("review_id", "point_id", "cell", "stratum", "map_class", "batch")
   if (n0 && "second" %in% names(have)) {
     cols <- c(cols, "second"); new$second <- rep(FALSE, nrow(new))
   }
@@ -609,6 +614,7 @@ fp_acc_review_key_read <- function(path) {
   k <- utils::read.csv(path, colClasses = c(review_id = "integer", point_id = "character", cell = "numeric",
                                             stratum = "integer", map_class = "integer"))
   if ("second" %in% names(k)) k$second <- as.logical(k$second)
+  if ("batch" %in% names(k)) k$batch <- as.integer(k$batch)
   k
 }
 
@@ -713,10 +719,15 @@ fp_acc_blind_points <- function(pts, key, cover) {
 # else is refused, so B's 48 labels can never be exported as the record of 480.
 fp_acc_working_copy_role <- function(ids, key) {
   if (setequal(ids, key$review_id)) return("a")
-  # A copy made before the sample grew holds ids 1..n of the key (growth only appends ids), and its
-  # labels are valid -- the Mergin working copy is exactly this, since it is never overwritten.
-  u <- sort(unique(as.integer(ids)))
-  if (length(u) && identical(u, seq_len(length(u))) && length(u) < nrow(key)) return("a")
+  # A copy made before the sample grew holds exactly the points of batches 1..j (growth appends whole
+  # batches) and its labels are valid -- the Mergin working copy is this, since it is never overwritten.
+  # A run of low ids that is NOT whole batches is a copy that lost rows, and is refused: exporting it
+  # would silently drop labels that were never exported.
+  if ("batch" %in% names(key)) {
+    for (j in sort(unique(key$batch))) {
+      if (j < max(key$batch) && setequal(ids, key$review_id[key$batch <= j])) return("a")
+    }
+  }
   if ("second" %in% names(key) && any(key$second %in% TRUE) && setequal(ids, key$review_id[key$second %in% TRUE]))
     return("b")
   stop("the working copy holds ", length(unique(ids)), " point(s): neither the whole keyed sample (",

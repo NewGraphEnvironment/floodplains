@@ -68,3 +68,20 @@ Relates: #93, #94, #103
 - `imagery.csv` lists every epoch back to 1971; `dated_imagery` now lists only epochs with a theme in the
   project (NECR: airphoto 2012, orthophoto 2021).
 - XML comments cannot contain `--`; the form qml failed to parse until the comment was reworded.
+
+## Code-check enumeration (ended the review loop)
+
+Rounds 1 and 2 each found a defect inside the previous fix (agreement rules claimed but unwritten; the
+pre-growth export rule also accepting a truncated copy). Mechanism: a working copy's legitimacy inferred
+from a property other states share. Every state a working copy can be in, against what decides it:
+
+| state | outcome | decided by |
+|---|---|---|
+| A, full | labels.csv | role: all key ids |
+| A, made before growth | labels.csv | role: exactly batches 1..j (`batch` column) |
+| A or B, rows lost | refused | role: not whole batches / not the subset (arms) |
+| B, full subset | labels_b.csv | role: exactly `second` |
+| unknown / extra id | refused | fp_acc_unblind (arm) |
+| duplicate id | refused | fp_acc_unblind |
+| another draw / key / area | refused | cell vs key (arm); key vs sample (arm) |
+| drops or relabels exported points | refused | export drop/relabel guard |

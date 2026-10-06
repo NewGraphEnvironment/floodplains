@@ -278,10 +278,12 @@ ok("agreement per endpoint: first 3/3, last 2/3", isTRUE(all.equal(ag$agree, c(1
 ok("kappa is 1 on perfect agreement", isTRUE(all.equal(ag$kappa[1], 1)))
 ok("cannot_label disagreements are counted apart (A labelled, B could not: 1)",
    identical(attr(ag, "cannot_label")[["b_only_cannot"]], 1L))
-ok("a copy made before the sample grew (ids 1..n of the key) is labeller A's",
-   identical(fp_acc_working_copy_role(seq_len(100), ks0), "a"))
-ok("must-fail arm: a copy of ids 1..n with a gap is refused",
-   refused(fp_acc_working_copy_role(c(1:50, 52:101), ks0)))
+ok("the first draw is batch 1, a growth batch 2", all(kp$batch == 1L) &&
+     identical(sort(unique(kg$batch)), 1:2) && all(kg$batch[!kg$point_id %in% kp$point_id] == 2L))
+ok("a copy made before the sample grew (exactly batch 1) is labeller A's",
+   identical(fp_acc_working_copy_role(kg$review_id[kg$batch == 1L], kg), "a"))
+ok("must-fail arm: a copy that lost its last rows (ids 1..n, not whole batches) is refused",
+   refused(fp_acc_working_copy_role(1:10, ks0)) && refused(fp_acc_working_copy_role(seq_len(nrow(kp) - 1L), kg)))
 td <- tempfile("linktree"); dir.create(file.path(td, "a", "sub"), recursive = TRUE)
 writeLines("x", file.path(td, "a", "sub", "f.txt"))
 n1 <- fp_acc_link_tree(file.path(td, "a"), file.path(td, "b"))
