@@ -109,15 +109,17 @@ pts$scenario <- cfg$primary_scenario
 
 # Labels were made on the existing design: a redraw that keeps an id but moves its point would leave
 # them describing other cells. Growing the sample (same seed, larger N) passes; anything else is refused.
-lab_csv <- file.path(cfg$dir_ref, "labels.csv")
-if (file.exists(lab_csv) && !identical(Sys.getenv("FORCE"), "1")) {
-  labs <- utils::read.csv(lab_csv, stringsAsFactors = FALSE)
+# The same holds for the second labeller's labels and for the review key (#111), which maps the blind
+# review_ids to these points: a redraw under it would send both labellers' work to other cells.
+for (lab_csv in file.path(cfg$dir_ref, c("labels.csv", "labels_b.csv", "review_key.csv"))) {
+  if (!file.exists(lab_csv) || identical(Sys.getenv("FORCE"), "1")) next
+  labs <- utils::read.csv(lab_csv, stringsAsFactors = FALSE, colClasses = c(point_id = "character"))
   gone <- setdiff(labs$point_id, pts$point_id)   # a smaller n, or a stratum that no longer exists
-  if (length(gone)) stop(length(gone), " labelled point(s) in ", lab_csv, " are not in the new draw (",
+  if (length(gone)) stop(length(gone), " point(s) in ", lab_csv, " are not in the new draw (",
                          paste(utils::head(gone, 3), collapse = ", "), "); FORCE=1 redraws anyway",
                          call. = FALSE)
   fp_acc_design_check(labs, sf::st_drop_geometry(pts),
-                      paste(lab_csv, "(FORCE=1 redraws anyway and orphans those labels)"))
+                      paste(lab_csv, "(FORCE=1 redraws anyway and orphans it)"))
 }
 
 strata_tbl <- merge(s$strata, st$table[, c("stratum", "kind")], by = "stratum", sort = TRUE)

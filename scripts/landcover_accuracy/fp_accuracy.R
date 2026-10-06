@@ -652,9 +652,15 @@ fp_acc_second_subset <- function(key, design_seed, rng_kind, n_per = 3L) {
   key
 }
 
-# Agreement between the two labellers on the points both labelled, per endpoint: share agreeing and
-# Cohen's kappa. INFORMATION about the reference, never an input to the estimates.
+# Agreement between the two labellers, by the rules pre-registered in research/landcover_accuracy.md
+# ("Second labeller"): class agreement and Cohen's kappa per endpoint over the points BOTH labelled, and
+# the cannot_label disagreements counted apart (one labeller could read the cell, the other could not).
+# INFORMATION about the reference, never an input to the estimates.
 fp_acc_agreement <- function(a, b) {
+  both <- merge(a[, c("point_id", "label_status")], b[, c("point_id", "label_status")], by = "point_id")
+  cant <- c(both_cannot = sum(both$label_status.x == "cannot_label" & both$label_status.y == "cannot_label"),
+            a_only_cannot = sum(both$label_status.x == "cannot_label" & both$label_status.y == "labelled"),
+            b_only_cannot = sum(both$label_status.x == "labelled" & both$label_status.y == "cannot_label"))
   m <- merge(a[a$label_status == "labelled", c("point_id", "ref_from", "ref_to")],
              b[b$label_status == "labelled", c("point_id", "ref_from", "ref_to")], by = "point_id")
   kappa <- function(x, y) {
@@ -662,9 +668,11 @@ fp_acc_agreement <- function(a, b) {
     po <- sum(diag(t)); pe <- sum(rowSums(t) * colSums(t))
     if (isTRUE(all.equal(pe, 1))) NA_real_ else (po - pe) / (1 - pe)
   }
-  data.frame(endpoint = c("first year (ref_from)", "last year (ref_to)"), n = nrow(m),
-             agree = c(mean(m$ref_from.x == m$ref_from.y), mean(m$ref_to.x == m$ref_to.y)),
-             kappa = c(kappa(m$ref_from.x, m$ref_from.y), kappa(m$ref_to.x, m$ref_to.y)))
+  out <- data.frame(endpoint = c("first year (ref_from)", "last year (ref_to)"), n = nrow(m),
+                    agree = c(mean(m$ref_from.x == m$ref_from.y), mean(m$ref_to.x == m$ref_to.y)),
+                    kappa = c(kappa(m$ref_from.x, m$ref_from.y), kappa(m$ref_to.x, m$ref_to.y)))
+  attr(out, "cannot_label") <- cant
+  out
 }
 
 # Hard-link every file under `from` into `to` (same filesystem: no extra disk, and the links are real
@@ -705,6 +713,10 @@ fp_acc_blind_points <- function(pts, key, cover) {
 # else is refused, so B's 48 labels can never be exported as the record of 480.
 fp_acc_working_copy_role <- function(ids, key) {
   if (setequal(ids, key$review_id)) return("a")
+  # A copy made before the sample grew holds ids 1..n of the key (growth only appends ids), and its
+  # labels are valid -- the Mergin working copy is exactly this, since it is never overwritten.
+  u <- sort(unique(as.integer(ids)))
+  if (length(u) && identical(u, seq_len(length(u))) && length(u) < nrow(key)) return("a")
   if ("second" %in% names(key) && any(key$second %in% TRUE) && setequal(ids, key$review_id[key$second %in% TRUE]))
     return("b")
   stop("the working copy holds ", length(unique(ids)), " point(s): neither the whole keyed sample (",

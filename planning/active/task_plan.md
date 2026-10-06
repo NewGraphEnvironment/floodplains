@@ -90,7 +90,7 @@ Already decided in the issues:
   - the key file is present.
 - [ ] Run a synthetic-label export round trip in a temp copy.
 - [ ] Run `accuracy-check.R`, and show each new must-fail arm going red in a copy.
-- [ ] Update the docs: CLAUDE.md's #93 bullet (review ID, the key file, the blind schema), and the Review setup section in `research/landcover_accuracy.md`.
+- [x] Update the docs: CLAUDE.md's #93 bullet (review ID, the key file, the blind schema), and the Review setup section in `research/landcover_accuracy.md`.
 - [ ] Comment on rtj#367 with the exact input list:
   - `labels.gpkg`, `labels_b.gpkg`, `cells.gpkg`;
   - `labels_form.qml`, `labelling_key.md`;

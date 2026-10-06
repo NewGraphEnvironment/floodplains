@@ -31,3 +31,10 @@
   ("0 Start", imagery by year with FIRST/LAST YEAR tags and composite months, "9 After labelling");
   legend names "Points to label", "Cell being labelled (10 m)". Key regenerated (seed derivation
   changed; 0 labels). NECR A + B rebuilt; synthetic export round trip in a temp repo copy passes.
+- /code-check round 1 (review-round1.md): agreement rules were claimed pre-registered (review-111 G7)
+  but never written -> written now, before any label, and cannot_label disagreement counted apart;
+  labels_b.csv design-checked in the estimate; the redraw guard covers labels_b.csv and review_key.csv;
+  a pre-growth A copy (ids 1..n) exports. The growth-batch leak is a design question -> documented as a
+  known limit in research and raised to the user.
+- Docs: research Review setup (blind review, growth limit, second labeller + agreement rules, theme
+  names); CLAUDE.md #93 bullet (review_key.csv, labels_b.csv, the blind rule).

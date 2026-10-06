@@ -255,7 +255,8 @@ ks0 <- fp_acc_second_subset(k1, 930093, rk)
 ok("a copy holding every keyed point is labeller A's", identical(fp_acc_working_copy_role(ks0$review_id, ks0), "a"))
 ok("a copy holding exactly the subset is labeller B's",
    identical(fp_acc_working_copy_role(ks0$review_id[ks0$second], ks0), "b"))
-ok("must-fail arm: a partial copy is neither, and refused", refused(fp_acc_working_copy_role(ks0$review_id[1:10], ks0)))
+ok("must-fail arm: a scattered partial copy is neither, and refused",
+   refused(fp_acc_working_copy_role(ks0$review_id[ks0$review_id %% 2 == 0][1:10], ks0)))
 
 message("Second labeller (#111):")
 ks <- fp_acc_second_subset(k1, 930093, rk)
@@ -275,6 +276,12 @@ ag <- fp_acc_agreement(la, lb)
 ok("agreement uses only points both labelled (3 of 4)", identical(ag$n, c(3L, 3L)))
 ok("agreement per endpoint: first 3/3, last 2/3", isTRUE(all.equal(ag$agree, c(1, 2 / 3))))
 ok("kappa is 1 on perfect agreement", isTRUE(all.equal(ag$kappa[1], 1)))
+ok("cannot_label disagreements are counted apart (A labelled, B could not: 1)",
+   identical(attr(ag, "cannot_label")[["b_only_cannot"]], 1L))
+ok("a copy made before the sample grew (ids 1..n of the key) is labeller A's",
+   identical(fp_acc_working_copy_role(seq_len(100), ks0), "a"))
+ok("must-fail arm: a copy of ids 1..n with a gap is refused",
+   refused(fp_acc_working_copy_role(c(1:50, 52:101), ks0)))
 td <- tempfile("linktree"); dir.create(file.path(td, "a", "sub"), recursive = TRUE)
 writeLines("x", file.path(td, "a", "sub", "f.txt"))
 n1 <- fp_acc_link_tree(file.path(td, "a"), file.path(td, "b"))
