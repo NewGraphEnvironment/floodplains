@@ -36,10 +36,10 @@ source across two codes.
 - [x] Record both in `findings.md`; they decide Phases 2 and 3.
 
 ## Phase 2: Index: `scripts/landcover_accuracy/wayback_index-capture.R <area>`
-- [ ] Read the release list from `waybackconfig.json`. For each release, read the capture polygons over the sample points (Phase 1 method) and join them to the points.
-- [ ] Put the selection rule in `fp_accuracy.R` as a pure function (`fp_acc_wayback_pick`), so the check can test it. For each point and endpoint (`change_interval`) it takes the release whose capture date is nearest the endpoint. Ties go to the finer `SRC_RES`, then to the later release. An endpoint with no capture gets a row with an empty source.
-- [ ] Write `reference/<area>/wayback.csv`: `point_id`, `stratum`, `cell`, `map_class`, `endpoint`, `release_id`, `release_date`, `capture_date`, `src_res`, `source`, `years_from_endpoint`. It lists every point at both endpoints, is regenerated and never hand-edited, and copies the design columns.
-- [ ] Print the distribution of capture distance from each endpoint (same year, ±1, ±2, further).
+- [x] Read the release list from `waybackconfig.json`. For each release, read the capture polygons over the sample points (Phase 1 method) and join them to the points.
+- [x] Put the selection rule in `fp_accuracy.R` as a pure function (`fp_acc_wayback_pick`), so the check can test it. For each point and endpoint (`change_interval`) it takes the release whose capture date is nearest the endpoint. Ties go to the finer `SRC_RES`, then to the later release. An endpoint with no capture gets a row with an empty source.
+- [x] Write `reference/<area>/wayback.csv`: `point_id`, `stratum`, `cell`, `map_class`, `endpoint`, `release_id`, `release_date`, `capture_date`, `src_res`, `source`, `years_from_endpoint`. It lists every point at both endpoints, is regenerated and never hand-edited, and copies the design columns.
+- [x] Print the distribution of capture distance from each endpoint (same year, ±1, ±2, further).
 
 ## Phase 3: Build: `scripts/landcover_accuracy/wayback_build-chips.R <area>`
 - [ ] Refuse unless `wayback.csv` lists exactly `sample.gpkg`'s points and passes `fp_acc_design_check`, the same guard as `imagery_build-dated.R`.

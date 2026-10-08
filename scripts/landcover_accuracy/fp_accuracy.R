@@ -192,8 +192,11 @@ FP_ACC_IO_CODES   <- c(1L, 2L, 4L, 5L, 7L, 8L, 9L, 11L)
 FP_ACC_STATUS     <- c("labelled", "cannot_label")
 FP_ACC_CONFIDENCE <- c("high", "medium", "low")
 # `orthophoto` and `airphoto` are the DATED high-resolution sources (#103); which epoch covers a point
-# is in reference/<area>/imagery.csv. labels_form.qml's value map must list exactly these.
-FP_ACC_IMAGERY    <- c("s2_composite", "orthophoto", "airphoto", "esri", "google", "bing", "several")
+# is in reference/<area>/imagery.csv. `esri_dated` is the per-point Wayback capture nearest an endpoint
+# (#115; reference/<area>/wayback.csv), kept apart from `esri`, the UNDATED basemap that labelling-key
+# rule 5 caps at low confidence. labels_form.qml's value map must list exactly these.
+FP_ACC_IMAGERY    <- c("s2_composite", "orthophoto", "airphoto", "esri_dated", "esri", "google", "bing",
+                       "several")
 
 # Which dated imagery epochs earn a review theme (#103), from reference/<area>/imagery.csv: a source-year
 # covering >= 25% of the sample's points, and for air photos digital frames only -- fly_georef skips a
@@ -211,6 +214,98 @@ fp_acc_imagery_themes <- function(imagery, n_points) {
   out$share <- out$points / n_points
   out$theme <- out$share >= FP_ACC_THEME_MIN_SHARE & (out$source == "orthophoto" | out$digital)
   out[order(out$source, out$year), c("source", "year", "points", "share", "digital", "theme")]
+}
+
+# --- Esri Wayback captures (#115) ---------------------------------------------------------------
+# A Wayback release mosaics captures of many years, so the release date says nothing about when a
+# point was imaged (rtj research/esri_wayback.md). wayback_index-capture.R reads each release's capture
+# polygons and hands every (point, release) capture here; this picks, per point and endpoint, the
+# capture nearest the endpoint. Ranked by whole years from the endpoint first, because the
+# pre-registered labelling key sets confidence by +/-1 year; then by days from 1 July of the endpoint
+# year (mid growing season); then finer resolution; then the later release, then the larger release id
+# (a release serving the same capture as an earlier one redirects to its tiles, so either fetches it).
+# Every point gets a row at every endpoint; one with no capture has an empty release.
+FP_ACC_WAYBACK_COLS <- c("point_id", "endpoint", "release_id", "release_date", "capture_date", "src_res",
+                         "source", "zoom", "years_from_endpoint")
+fp_acc_wayback_pick <- function(cand, point_ids, endpoints) {
+  cand <- cand[!is.na(cand$capture_date) & nzchar(cand$capture_date), ]   # empty is "no capture", as NA is
+  cap  <- as.Date(cand$capture_date)
+  out <- lapply(as.integer(endpoints), function(e) {
+    yrs  <- as.integer(format(cap, "%Y")) - e
+    days <- abs(as.numeric(cap - as.Date(sprintf("%d-07-01", e))))
+    o <- order(cand$point_id, abs(yrs), days, cand$src_res, -as.numeric(as.Date(cand$release_date)),
+               -as.numeric(cand$release_id), method = "radix")
+    best <- cand[o, ][!duplicated(cand$point_id[o]), ]
+    m <- match(point_ids, best$point_id)
+    data.frame(point_id = point_ids, endpoint = e,
+               release_id = best$release_id[m], release_date = as.character(best$release_date[m]),
+               capture_date = format(as.Date(best$capture_date[m]), "%Y-%m-%d"),
+               src_res = best$src_res[m], source = best$source[m], zoom = best$zoom[m],
+               years_from_endpoint = as.integer(format(as.Date(best$capture_date[m]), "%Y")) - e,
+               stringsAsFactors = FALSE)
+  })
+  out <- do.call(rbind, out)
+  out[order(out$point_id, out$endpoint, method = "radix"), FP_ACC_WAYBACK_COLS]
+}
+
+# What the reviewer reads beside a cell: "2017-06-11, 0.31 m", or "none" for no capture.
+fp_acc_capture_label <- function(capture_date, src_res)
+  ifelse(is.na(capture_date) | !nzchar(capture_date), "none", sprintf("%s, %s m", capture_date, src_res))
+
+# A review-project file name for a point. Named by review_id ONLY: point_id encodes the stratum (#111),
+# so a chip named by it would tell the reviewer the map's answer from the layer list.
+fp_acc_point_id_like <- function(x) grepl("[0-9]+_[0-9]{5}", x)
+fp_acc_chip_name <- function(review_id) {
+  nm <- sprintf("%04d.tif", as.integer(review_id))
+  if (anyNA(review_id) || any(fp_acc_point_id_like(nm))) stop("a chip name would carry a point_id", call. = FALSE)
+  nm
+}
+
+# The cells.gpkg display columns for a set of keyed points: per review_id, capture_<endpoint> =
+# "2017-06-11, 0.31 m" (or "none"). From the BUILT chips (manifest rows: review_id, endpoint,
+# capture_date, src_res), so the label describes the image on screen, not an index the build has not
+# caught up with. Read-only context for the reviewer; nothing of the design.
+fp_acc_capture_columns <- function(built, review_ids, endpoints) {
+  out <- data.frame(review_id = as.integer(review_ids))
+  for (e in as.integer(endpoints)) {
+    b <- built[built$endpoint == e, ]
+    m <- match(out$review_id, b$review_id)
+    out[[paste0("capture_", e)]] <- fp_acc_capture_label(b$capture_date[m], b$src_res[m])
+  }
+  out
+}
+
+# A GDAL WMS (TMS) description of one Wayback release at one zoom. GDAL follows the 301 a deduplicated
+# tile answers with (QGIS does not: qgis/QGIS#54161), a 404 tile reads as zeros rather than aborting,
+# and tiles land in `cache` so a re-run fetches nothing it already has. Written OUTSIDE the review
+# project: rtj's compose refuses any non-image file under dated/.
+fp_acc_wayback_wms_xml <- function(release_id, zoom, cache) {
+  sprintf(paste0(
+    '<GDAL_WMS>\n',
+    '  <Service name="TMS"><ServerUrl>https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/',
+    'WMTS/1.0.0/default028mm/MapServer/tile/%s/${z}/${y}/${x}</ServerUrl></Service>\n',
+    '  <DataWindow><UpperLeftX>-20037508.34</UpperLeftX><UpperLeftY>20037508.34</UpperLeftY>',
+    '<LowerRightX>20037508.34</LowerRightX><LowerRightY>-20037508.34</LowerRightY>',
+    '<TileLevel>%d</TileLevel><TileCountX>1</TileCountX><TileCountY>1</TileCountY><YOrigin>top</YOrigin></DataWindow>\n',
+    '  <Projection>EPSG:3857</Projection><BlockSizeX>256</BlockSizeX><BlockSizeY>256</BlockSizeY><BandsCount>3</BandsCount>\n',
+    '  <ZeroBlockHttpCodes>204,404</ZeroBlockHttpCodes>\n',
+    '  <Cache><Path>%s</Path></Cache>\n',
+    '</GDAL_WMS>\n'), release_id, as.integer(zoom), cache)
+}
+
+# reference/<area>/wayback.csv, checked: exactly one row per sample point per endpoint, and the design
+# columns agree with the sample (a redraw reuses point ids). Read by the build and by review_build-qgis.R.
+fp_acc_wayback_read <- function(path, smp, endpoints) {
+  if (!file.exists(path)) stop("no ", path, " -- run wayback_index-capture.R first", call. = FALSE)
+  w <- utils::read.csv(path, stringsAsFactors = FALSE, na.strings = "",
+                       colClasses = c(release_id = "character", capture_date = "character"))
+  want <- expand.grid(point_id = smp$point_id, endpoint = as.integer(endpoints), stringsAsFactors = FALSE)
+  if (nrow(w) != nrow(want) || anyDuplicated(paste(w$point_id, w$endpoint)) ||
+      !setequal(paste(w$point_id, w$endpoint), paste(want$point_id, want$endpoint)))
+    stop(path, " does not hold exactly one row per sample point per endpoint (", paste(endpoints, collapse = ", "),
+         ") -- re-run wayback_index-capture.R", call. = FALSE)
+  fp_acc_design_check(w, smp, paste(path, "(re-run wayback_index-capture.R after a redraw)"))
+  w
 }
 
 # --- the private orthophoto catalogue (#103) ----------------------------------------------------
@@ -684,9 +779,16 @@ fp_acc_agreement <- function(a, b) {
 # Hard-link every file under `from` into `to` (same filesystem: no extra disk, and the links are real
 # files INSIDE `to`, which rfp requires of a project's rasters -- a symlink resolves outside it). A file
 # already linked is left alone; a rewritten source (new inode) is relinked.
-fp_acc_link_tree <- function(from, to) {
+# `prune`: a regex on the relative path; a file in `to` matching it that `from` no longer holds is
+# removed, so a layer a builder retired in A does not live on in B (only what the regex names: B's own
+# files are never touched).
+fp_acc_link_tree <- function(from, to, prune = NULL) {
   if (!dir.exists(from)) return(invisible(0L))
   f <- list.files(from, recursive = TRUE, all.files = FALSE)
+  if (!is.null(prune) && dir.exists(to)) {
+    gone <- setdiff(grep(prune, list.files(to, recursive = TRUE), value = TRUE), f)
+    if (length(gone)) { unlink(file.path(to, gone)); message("pruned from ", to, ": ", length(gone), " file(s)") }
+  }
   n <- 0L
   for (x in f) {
     src <- file.path(from, x); dst <- file.path(to, x)

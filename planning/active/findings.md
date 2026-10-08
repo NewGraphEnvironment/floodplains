@@ -109,7 +109,24 @@ Relates: #93, #111, NewGraphEnvironment/rtj#367, NewGraphEnvironment/rtj#377, Ne
 - A capture with a null date (Earthstar base layers) is not a capture and is dropped.
 - The build uses gdalwarp straight to EPSG:3005 at 0.5 m, with nearest-zoom tiles from the GDAL cache. An all-zero chip counts as a failure.
 
+## Build design: measured (2026-10-08)
+
+- **Chips overlap.** 176 of the 480 NECR points have a neighbour within 300 m, and 110 within 150 m (median nearest neighbour 501 m, min 10 m). Each chip is clipped to its point's Voronoi cell over the whole sample, so every pixel shows its nearest point's capture.
+- **A VRT ignores source MASK bands when it composites, but honours source NODATA.** Two chips 120 m apart from different releases, in both list orders:
+  - JPEG + mask band (`-mask 4`): the source listed last overwrote its neighbour **at the neighbour's own point** (81,96,73 read where the own chip was 89,106,72). The mask was also written as a `.msk` sidecar, which rtj's compose refuses.
+  - DEFLATE with nodata 0 outside the cell (real 0 nudged to 1): both orders read each point's own chip exactly.
+  - So the chips are lossless DEFLATE+PREDICTOR=2 with nodata. That is ~240 KB for a half-cell at 0.70 m, and ~480 KB for a full +/-150 m square.
+- **Resolution.** Chips are written at the tiles' own ground resolution (156543.03/2^z x cos(lat), rounded to 0.05 m): 0.70 m at zoom 17 and 54 N. Resampling to 0.5 m would only inflate the files.
+
+## Decision: `esri_dated` form value (user, 2026-10-08)
+
+The plan review found that recording a dated Wayback chip as `esri` conflicts with labelling-key rule 5 ("the undated basemaps (Esri, Google, Bing) support low at most"). The user chose a new value, `esri_dated`. It changes `FP_ACC_IMAGERY` and the `labels_form.qml` value map only; the `labels.gpkg` schema is unchanged, and the form is restyled on every run. Labels already made as `esri` keep meaning the undated basemap.
+
 ## Errors Encountered
 
 | Error | Resolution |
 |-------|------------|
+| `vapply(..., NA)` in the metadata attribute reader: "values must be type 'logical'" | `unlist(lapply(... %||% NA))`, so the column takes its values' type |
+| 2017_r12 metadata layer 6: HTTP 500 "Error performing query operation" on every geometry request (outSR 3857 or 4326) | `geometryPrecision=1` (0.1 m in 3857) answers. Applied to every query |
+| JPEG + mask chips composited wrongly in a VRT, and wrote `.msk` sidecars | Lossless chips with nodata 0 outside each Voronoi cell (see Build design) |
+| `fp_acc_wayback_pick` took an empty-string capture date as a capture (caught by its own check arm) | Filter `nzchar()` as well as `is.na()` |

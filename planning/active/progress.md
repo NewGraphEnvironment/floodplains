@@ -6,3 +6,8 @@
 - Created branch `115-wayback-chips-sharp-imagery-at-the-captu` off main
 - Scaffolded PWF baseline from issue #115 with approved phases
 - Next: start Phase 1 (probes)
+- Phase 1 committed (probes). Plan review (Plan agent) returned 4 blockers + gaps; dispositions in `review-plan.md`. B2 (`esri` vs new form value) went to the user, who chose `esri_dated`.
+- Phase 2: `fp_acc_wayback_pick` + helpers in `fp_accuracy.R`; `wayback_index-capture.R` run on NECR: 197 releases x layers 4-6, 32.2 min cold, 1.3 min from cache, `wayback.csv` byte-identical across the two runs. 90,538 (point, release) captures, 52 distinct capture dates.
+  - 2017: 6 same year, 237 +/-1, 106 +/-2, 131 further. 2023: 148 / 115 / 102 / 115. No point is without a capture.
+  - Point 1 (`17_00009`): 2017 -> capture 2017-06-11, 0.31 m (release 16245, the latest release serving it; 15045 serves the same capture).
+- `/code-check` round 1 over the working tree: 1 bug (metadata cache keyed without the bbox -> fixed, existing cache re-keyed) + 5 fragile (fixed in the build script and `cells_outline.qml`).
