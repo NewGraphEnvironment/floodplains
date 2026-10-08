@@ -163,5 +163,10 @@ message(sprintf("\n%d rows -> %s (%.1f min)\ncapture distance from each endpoint
 print(table(endpoint = out$endpoint, band))
 message("\nsigned years from endpoint:")
 print(table(endpoint = out$endpoint, years = d, useNA = "ifany"))
+# The nearest capture to both endpoints can be the SAME image (one capture is all a point has near
+# either): the chip then dates one endpoint well and the other poorly, and its label says so.
+o1 <- out[out$endpoint == min(out$endpoint), ]; o2 <- out[out$endpoint == max(out$endpoint), ]
+same <- o1$capture_date == o2$capture_date[match(o1$point_id, o2$point_id)] & !is.na(o1$capture_date)
+message(sprintf("\nsame capture at both endpoints: %d of %d points", sum(same), nrow(o1)))
 message("\nzoom and resolution of the picked captures:")
 print(table(zoom = out$zoom, src_res = out$src_res, useNA = "ifany"))

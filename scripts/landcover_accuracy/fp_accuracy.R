@@ -793,7 +793,9 @@ fp_acc_link_tree <- function(from, to, prune = NULL) {
   for (x in f) {
     src <- file.path(from, x); dst <- file.path(to, x)
     dir.create(dirname(dst), recursive = TRUE, showWarnings = FALSE)
-    if (file.exists(dst) && identical(file.info(dst)$ino, file.info(src)$ino)) next
+    # base file.info() has no inode column (file.info(x)$ino is NULL, so identical() was always TRUE and
+    # a rewritten source was never relinked -- #115 round 3): read it from fs
+    if (file.exists(dst) && identical(fs::file_info(dst)$inode, fs::file_info(src)$inode)) next
     if (file.exists(dst)) unlink(dst)
     if (!file.link(src, dst)) stop("could not hard-link ", src, " -> ", dst, call. = FALSE)
     n <- n + 1L

@@ -288,7 +288,8 @@ td <- tempfile("linktree"); dir.create(file.path(td, "a", "sub"), recursive = TR
 writeLines("x", file.path(td, "a", "sub", "f.txt"))
 n1 <- fp_acc_link_tree(file.path(td, "a"), file.path(td, "b"))
 ok("hard links share the inode (no copy)",
-   identical(file.info(file.path(td, "b", "sub", "f.txt"))$ino, file.info(file.path(td, "a", "sub", "f.txt"))$ino))
+   # fs, not base file.info(): base has no inode column, and NULL == NULL made this arm unable to fail
+   identical(fs::file_info(file.path(td, "b", "sub", "f.txt"))$inode, fs::file_info(file.path(td, "a", "sub", "f.txt"))$inode))
 ok("linking again is a no-op", identical(n1, 1L) && identical(fp_acc_link_tree(file.path(td, "a"), file.path(td, "b")), 0L))
 unlink(td, recursive = TRUE)
 
@@ -447,6 +448,14 @@ suppressMessages(fp_acc_link_tree(file.path(lt, "a"), file.path(lt, "b"), prune 
 ok("prune removes what A no longer holds under the pattern, and nothing else",
    !file.exists(file.path(lt, "b", "wayback_2017", "0002.tif")) && file.exists(file.path(lt, "b", "own.txt")) &&
      file.exists(file.path(lt, "b", "wayback_2017", "0001.tif")) && file.exists(file.path(lt, "b", "airphoto_2012.vrt")))
+# A builder that rewrites a chip under the same name gives A a new inode; B must follow it
+writeLines("new", file.path(lt, "a", "wayback_2017", "0001.tif.tmp"))
+file.rename(file.path(lt, "a", "wayback_2017", "0001.tif.tmp"), file.path(lt, "a", "wayback_2017", "0001.tif"))
+ok("must-fail arm: base file.info() has no inode, so an inode test on it can never see the rewrite",
+   is.null(file.info(file.path(lt, "a", "wayback_2017", "0001.tif"))$ino))
+suppressMessages(fp_acc_link_tree(file.path(lt, "a"), file.path(lt, "b"), prune = "^wayback_"))
+ok("a source rewritten in A (new inode) is relinked in B",
+   identical(readLines(file.path(lt, "b", "wayback_2017", "0001.tif")), "new"))
 unlink(lt, recursive = TRUE)
 ok("`esri_dated` is a form value apart from the undated `esri` (labelling key rule 5)",
    all(c("esri_dated", "esri") %in% FP_ACC_IMAGERY))

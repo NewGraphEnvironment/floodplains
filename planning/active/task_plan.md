@@ -42,12 +42,12 @@ source across two codes.
 - [x] Print the distribution of capture distance from each endpoint (same year, ±1, ±2, further).
 
 ## Phase 3: Build: `scripts/landcover_accuracy/wayback_build-chips.R <area>`
-- [ ] Refuse unless `wayback.csv` lists exactly `sample.gpkg`'s points and passes `fp_acc_design_check`, the same guard as `imagery_build-dated.R`.
-- [ ] Fetch one chip per point per endpoint from its chosen release, about ±150 m at the deepest available zoom, into `<project>/dated/wayback_<year>/<review_id>.tif`.
+- [x] Refuse unless `wayback.csv` lists exactly `sample.gpkg`'s points and passes `fp_acc_design_check`, the same guard as `imagery_build-dated.R`.
+- [x] Fetch one chip per point per endpoint from its chosen release, about ±150 m at the deepest available zoom, into `<project>/dated/wayback_<year>/<review_id>.tif`.
   - Files are named by `review_id` (from `review_key.csv`), **never** `point_id`.
   - Tiles go in a GDAL cache outside the project, so a re-run fetches nothing new and an existing chip is kept.
-- [ ] Write `<project>/dated/wayback_<year>.vrt` over that year's chips, warped to EPSG:3005. Count what the VRT holds, report failures and points left with no chip, and sweep stale `wayback_*` files.
-- [ ] `REVIEWER=b` needs nothing new: `review_build-qgis.R` already hard-links the whole `dated/` tree with `fp_acc_link_tree`. Confirm the B project carries the chips.
+- [x] Write `<project>/dated/wayback_<year>.vrt` over that year's chips, warped to EPSG:3005. Count what the VRT holds, report failures and points left with no chip, and sweep stale `wayback_*` files.
+- [x] `REVIEWER=b` needs nothing new: `review_build-qgis.R` already hard-links the whole `dated/` tree with `fp_acc_link_tree`. Confirm the B project carries the chips. (It did NOT relink a rewritten chip: `file.info()$ino` is NULL in base R; fixed to `fs::file_info()$inode`, and B now prunes retired wayback files.)
 
 ## Phase 4: Review inputs and checks
 - [ ] `review_build-qgis.R` and `cells.gpkg`:
