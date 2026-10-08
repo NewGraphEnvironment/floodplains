@@ -50,15 +50,15 @@ source across two codes.
 - [x] `REVIEWER=b` needs nothing new: `review_build-qgis.R` already hard-links the whole `dated/` tree with `fp_acc_link_tree`. Confirm the B project carries the chips. (It did NOT relink a rewritten chip: `file.info()$ino` is NULL in base R; fixed to `fs::file_info()$inode`, and B now prunes retired wayback files.)
 
 ## Phase 4: Review inputs and checks
-- [ ] `review_build-qgis.R` and `cells.gpkg`:
+- [x] `review_build-qgis.R` and `cells.gpkg`:
   - add read-only display columns `capture_<first>` / `capture_<last>` (e.g. "2017-06-11, 0.31 m") from `wayback.csv`, joined via the review key and checked against the design first;
   - rewrite `cells.gpkg` when those columns differ as well as when the id set does;
   - leave `labels.gpkg` alone.
-- [ ] `review_build-qgis.R` layers:
+- [x] `review_build-qgis.R` layers:
   - extend `dated_name()`, the dated glob and the orphan regex to `wayback`;
   - name the layer and theme `<year> Esri capture (nearest per point)<endpoint tag>`, so it sorts beside that year's Sentinel-2 theme;
   - skip the layer if `wayback.csv` is stale, as is done for `imagery.csv`.
-- [ ] `accuracy-check.R` arms, each with a must-fail:
+- [x] `accuracy-check.R` arms, each with a must-fail:
   - the selection rule on toy metadata (nearest, both tie-breaks, an endpoint with no capture);
   - chip names carry no `point_id`;
   - `wayback.csv` passes the design and point-set check;

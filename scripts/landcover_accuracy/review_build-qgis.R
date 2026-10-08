@@ -84,6 +84,12 @@ s2_name <- function(v) {                       # chips/<window>_<year>.vrt
   sprintf("%d Sentinel-2%s%s", y, if (length(m)) paste0(", ", months_lab(m[1]), " composite") else "",
           endpoint_tag(y))
 }
+# dated/wayback_<year>.vrt (#115): per point, the Esri capture nearest that year, which varies by point
+wb_name <- function(v) {
+  y <- as.integer(sub("^wayback_([0-9]{4})[.]vrt$", "\\1", v))
+  sprintf("%d Esri capture (nearest per point)%s", y, endpoint_tag(y))
+}
+WB_LAYER_RE <- "^[0-9]{4} Esri capture [(]nearest per point[)]"
 dated_name <- function(v) {                    # dated/<source>_<year>.vrt
   p <- strsplit(sub("[.]vrt$", "", v), "_", fixed = TRUE)[[1]]
   sprintf("%s %s (dated)%s", p[2], c(orthophoto = "orthophoto", airphoto = "air photo")[[p[1]]],
@@ -106,7 +112,10 @@ if (!file.exists(qgs)) {
 }
 if (reviewer == "b") {
   # B sees the same imagery as A. Built by chip_build-composite.R / imagery_build-dated.R into A's project.
-  for (d in c("chips", "dated")) fp_acc_link_tree(file.path(dir_proj_a, d), file.path(dir_proj, d))
+  # Wayback chips (#115) are pruned too: wayback_build-chips.R removes a chip A no longer wants, and a
+  # copy left in B would still sit under B's VRT directory.
+  for (d in c("chips", "dated")) fp_acc_link_tree(file.path(dir_proj_a, d), file.path(dir_proj, d),
+                                                  prune = if (d == "dated") "^wayback_" else NULL)
 }
 tree_names <- function() {
   q <- xml2::read_xml(qgs)
@@ -227,13 +236,61 @@ fp_acc_cell_squares <- function(key, grid) {
     c(xy[i, 1] - h[1], xy[i, 2] - h[2])))))
   sf::st_sf(review_id = key$review_id, geometry = sf::st_sfc(sq, crs = terra::crs(grid)))
 }
-if (!file.exists(cells_gpkg) ||
-    !setequal(sf::st_read(cells_gpkg, layer = "cells", quiet = TRUE)$review_id, key_here$review_id)) {
-  unlink(paste0(cells_gpkg, c("", "-wal", "-shm", "-journal")))
-  sf::st_write(sf::st_transform(fp_acc_cell_squares(key_here, grid), REVIEW_EPSG), cells_gpkg,
-               layer = "cells", quiet = TRUE)
-  message("cells.gpkg: ", nrow(key_here), " sample cells")
+# The Esri capture under each cell in each "<year> Esri capture" theme (#115), as read-only text the
+# cells layer labels: capture_<year> = "2017-06-11, 0.31 m". Taken from what wayback_build-chips.R BUILT
+# (its manifest, outside the project), so it describes the image on screen. The manifest is keyed by
+# review_id and carries point_id; both are checked against the key before a column is written.
+wb_ok <- function() {
+  man <- file.path(cfg$dir_acc, "wayback", "built.csv")
+  if (!file.exists(man) || !length(list.files(file.path(dir_proj, "dated"), pattern = "^wayback_[0-9]{4}[.]vrt$")))
+    return(NULL)
+  w <- tryCatch(fp_acc_wayback_read(file.path(cfg$dir_ref, "wayback.csv"), smp_design, cfg$change_interval),
+                error = function(cnd) { message("Esri capture layers skipped: ", conditionMessage(cnd)); NULL })
+  if (is.null(w)) return(NULL)
+  b <- utils::read.csv(man, stringsAsFactors = FALSE, colClasses = c(release_id = "character", capture_date = "character"))
+  # The manifest lists every point the build ran for. Voronoi clips depend on the whole point set, so a
+  # build for an earlier sample has chips that cover the new points with a neighbour's capture.
+  if (!"status" %in% names(b) || nrow(b) != nrow(w) ||
+      !setequal(paste(b$point_id, b$endpoint), paste(w$point_id, w$endpoint))) {
+    message("Esri capture layers skipped: ", man, " was not built for this sample -- re-run wayback_build-chips.R")
+    return(NULL)
+  }
+  # ...and for this sample's CELLS: a redraw keeps the ids and moves the points (the manifest lives
+  # outside the project, so it may carry the design columns)
+  bad_design <- inherits(tryCatch(fp_acc_design_check(b, smp_design, man), error = identity), "error")
+  k <- key$point_id[match(b$review_id, key$review_id)]
+  if (bad_design || anyNA(k) || any(k != b$point_id)) {
+    message("Esri capture layers skipped: ", man, " disagrees with the review key -- re-run wayback_build-chips.R")
+    return(NULL)
+  }
+  wm <- w[match(paste(b$point_id, b$endpoint), paste(w$point_id, w$endpoint)), ]
+  if (!identical(ifelse(is.na(wm$release_id), "", wm$release_id), ifelse(is.na(b$release_id), "", b$release_id))) {
+    message("Esri capture layers skipped: the built chips are not wayback.csv's choice -- re-run wayback_build-chips.R")
+    return(NULL)
+  }
+  b[b$status == "built", ]
 }
+wb_built <- wb_ok()
+# `cell` rides along (labels.gpkg already carries it, so it is not a leak): the squares are built from it,
+# and without it a redraw that kept every review_id would leave the old squares in place
+cells_want <- fp_acc_cell_squares(key_here, grid)
+cells_want$cell <- as.numeric(key_here$cell)
+if (!is.null(wb_built))
+  cells_want <- cbind(cells_want, fp_acc_capture_columns(wb_built, key_here$review_id, cfg$change_interval)[, -1, drop = FALSE])
+cells_attr <- function(x) { x <- sf::st_drop_geometry(x); x <- x[order(x$review_id), sort(names(x)), drop = FALSE]
+                            rownames(x) <- NULL; lapply(x, as.character) }
+# cells.gpkg is read-only display: rewritten whenever its keyed set OR its capture columns differ
+if (!file.exists(cells_gpkg) ||
+    !identical(cells_attr(sf::st_read(cells_gpkg, layer = "cells", quiet = TRUE)), cells_attr(cells_want))) {
+  unlink(paste0(cells_gpkg, c("", "-wal", "-shm", "-journal")))
+  sf::st_write(sf::st_transform(cells_want, REVIEW_EPSG), cells_gpkg, layer = "cells", quiet = TRUE)
+  message("cells.gpkg: ", nrow(key_here), " sample cells", if (!is.null(wb_built)) ", with Esri capture dates" else "")
+}
+cells_back <- sf::st_read(cells_gpkg, layer = "cells", quiet = TRUE)
+leak <- fp_acc_blind_leaks(names(cells_back))
+if (length(leak)) stop("cells.gpkg carries design column(s) ", paste(leak, collapse = ", "), call. = FALSE)
+if (!identical(cells_attr(cells_back), cells_attr(cells_want)))
+  stop("cells.gpkg does not read back as written", call. = FALSE)
 
 # --- change patches ---------------------------------------------------------------------------
 pat_gpkg <- file.path(dir_proj, "patches.gpkg")
@@ -317,9 +374,14 @@ if (length(dated) && (!file.exists(img_csv) ||
           "imagery_index-dated.R and imagery_build-dated.R")
   dated <- character(0)
 }
+# Esri capture mosaics (#115), guarded on their own: a stale imagery.csv must not take them down, nor a
+# stale wayback.csv the orthophotos (wb_built is NULL when wayback.csv or the build disagrees).
+wb_vrts <- if (is.null(wb_built)) character(0) else
+  sort(list.files(file.path(dir_proj, "dated"), pattern = "^wayback_[0-9]{4}[.]vrt$"))
 # a dated layer whose VRT imagery_build-dated.R removed (its epoch no longer earns a theme) goes too
-orphan <- setdiff(grep("^[0-9]{4} (orthophoto|air photo) [(]dated[)]", tree_names(), value = TRUE),
-                vapply(dated, dated_name, ""))
+orphan <- c(setdiff(grep("^[0-9]{4} (orthophoto|air photo) [(]dated[)]", tree_names(), value = TRUE),
+                    vapply(dated, dated_name, "")),
+            setdiff(grep(WB_LAYER_RE, tree_names(), value = TRUE), vapply(wb_vrts, wb_name, "")))
 # the layer AND its theme: rfp_qgs_theme_set replaces the themes it is given and leaves the rest
 for (nm in orphan) {
   rfp::rfp_qgs_layer_rm(qgs, nm)
@@ -336,6 +398,13 @@ for (v in dated) {
                             stretch = "none", group = "Reference imagery - dated", visible = FALSE),
     paste("adding", nm))
 }
+# RGB with nodata 0 outside each point's Voronoi cell, so dated_rgb.qml draws the gaps transparent
+for (v in wb_vrts) {
+  nm <- wb_name(v)
+  if (nm %in% tree_names()) next
+  rfp::rfp_qgs_raster_add(qgs, raster = file.path("dated", v), name = nm, qml = qml_dated, stretch = "none",
+                          group = "Reference imagery - dated", visible = FALSE)
+}
 
 # --- map themes -------------------------------------------------------------------------------
 have  <- tree_names()
@@ -344,7 +413,7 @@ have  <- tree_names()
 # FWA Wetland is a stratifier (stable wetland, wetland change): drawn under a point it hints at the
 # stratum and anchors a Flooded Vegetation call, so it too waits for the after-labelling theme.
 base  <- intersect(c(LYR_POINTS, LYR_CELLS, "Watershed group boundary", "Lake"), have)
-imgs  <- c(vapply(sort(vrts), s2_name, ""), vapply(dated, dated_name, ""))
+imgs  <- c(vapply(sort(vrts), s2_name, ""), vapply(dated, dated_name, ""), vapply(wb_vrts, wb_name, ""))
 imgs  <- intersect(imgs, have)
 imgs  <- imgs[order(substr(imgs, 1, 4), imgs)]   # oldest year first, as the drop-down will show them
 th <- rbind(data.frame(theme = THEME_START, layer = c(base, intersect("Esri Satellite", have))),
