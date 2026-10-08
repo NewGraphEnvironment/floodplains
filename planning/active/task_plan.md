@@ -65,16 +65,16 @@ source across two codes.
   - the `cells.gpkg` capture columns match `wayback.csv`.
 
 ## Phase 5: Run NECR, document, hand off
-- [ ] Run the index, the build, and `review_build-qgis.R` on NECR, A and then B. Render a handful of chips to PNG and look at them. Record the capture-distance distribution and the run time in `scripts/landcover_accuracy/logs/<date>_wayback_necr.md`.
-- [ ] Docs:
+- [x] Run the index, the build, and `review_build-qgis.R` on NECR, A and then B. Render a handful of chips to PNG and look at them. Record the capture-distance distribution and the run time in `scripts/landcover_accuracy/logs/<date>_wayback_necr.md`.
+- [x] Docs:
   - `research/landcover_accuracy.md`, "Dated reference imagery": Wayback release vs capture, the QGIS bug, and the `esri` form value;
   - CLAUDE.md #93 bullet: `wayback.csv`.
-- [ ] Hand-off comment on rtj#377: the file pattern `dated/wayback_<year>.vrt`, the `cells.gpkg` columns, and that the release services and themes go. Note on rfp#398 that this is the drawable route. File the drift issue to promote to `dft_wayback_*`. All of these are our own repos.
+- [x] Hand-off on rtj#377 (body edited: it named `chips_wayback/`), rfp#398 comment, drift#101 filed. Original: Hand-off comment on rtj#377: the file pattern `dated/wayback_<year>.vrt`, the `cells.gpkg` columns, and that the release services and themes go. Note on rfp#398 that this is the drawable route. File the drift issue to promote to `dft_wayback_*`. All of these are our own repos.
 
 ## Validation
-- [ ] `accuracy-check.R` green, every new must-fail shown red against the restored defect
-- [ ] Live: on NECR point 1, the 2017 chip shows the 2017-06-11 capture (release 15045), cross-checked against the per-point `identify`
-- [ ] Blind: grep the review project's file names for `[0-9]+_[0-9]{5}`; expect none
-- [ ] `/code-check` clean per commit
-- [ ] PWF checkboxes match landed work; `/planning-archive` on completion
+- [x] `accuracy-check.R` green, every new must-fail shown red against the restored defect
+- [x] Live: on NECR point 1, the 2017 chip shows the 2017-06-11 capture (release 15045), cross-checked against the per-point `identify` -- capture 2017-06-11, 0.31 m confirmed; the release is 16245, the later of two releases serving that same capture (tie rule)
+- [x] Blind: grep the review project's file names for `[0-9]+_[0-9]{5}`; expect none
+- [x] `/code-check` clean per commit -- run over the working tree / branch in 3 rounds; ended by round 3's enumeration of every reused artifact, all non-holding entries fixed
+- [x] PWF checkboxes match landed work; `/planning-archive` on completion
 
