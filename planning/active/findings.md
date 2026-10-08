@@ -84,6 +84,31 @@ Relates: #93, #111, NewGraphEnvironment/rtj#367, NewGraphEnvironment/rtj#377, Ne
 
 
 
+## Phase 1 probes (2026-10-08, measured)
+
+### Metadata: one envelope `query` per release and layer, then a local join
+- `waybackconfig.json` holds 197 releases. Each has a `metadataLayerUrl`
+  (`World_Imagery_Metadata_<yyyy>_r<nn>/MapServer`) with 14 layers, one per scale band:
+  - layer 0 is 1.9 cm (scale 106-0) and layer 13 is 150 m;
+  - layer `L` describes tile zoom `23 - L`: layer 6 (1.2 m, scale 6800-3400) is zoom 17, layer 5 is zoom 18, layer 4 is zoom 19.
+- Fields: `SRC_DATE` (int yyyymmdd), `SRC_DATE2` (epoch ms), `SRC_RES`, `SRC_DESC` (sensor), `NICE_DESC`, `MinMapLevel`, `MaxMapLevel`, `DrawOrder`. maxRecordCount is 1000, and the services are in EPSG:3857.
+- Release 15045 over the NECR sample bbox (-124.80,53.66,-123.46,54.21):
+  - layers 3-5 return **0** polygons and layer 6 returns **40**, all with MaxMapLevel 17;
+  - a point `query` on layer 6 at point 1 gives SRC_DATE 20170611, 0.31 m, WV03, which agrees with `identify` (layers 6-11 report the same capture).
+- So it is one envelope query per release per layer, with `returnGeometry`, followed by an `st_join` to the points. That is 197 releases x 3 layers (4-6) of small queries, not 480 x 197 identifies.
+
+### Fetch: GDAL WMS (TMS) follows the relative redirect
+- Tile depth at point 1, for both 15045 and 25521: zoom 16-17 return 200, and zoom **18-20 return 404**. Zoom 17 is the deepest level here, ~0.70 m on the ground at 54 N (1.194 m x cos 54).
+- Release 25521 301-redirects every tile at z16/z17 to release 4073, with a relative-style `Location`. A GDAL WMS XML (TMS, `${z}/${y}/${x}`, TileLevel 17, `<Cache>`) fed to `gdalwarp -t_srs EPSG:3005 -te <+/-150 m> -tr 0.5` produces a correct 600x600 RGB chip for both releases, in 2.5 s cold and 0.9 s with a warm cache.
+- Rendered side by side, 25521 (2013 capture) and 15045 (2017-06-11 capture) are visibly different captures: different houses and clearing. Both are sharp.
+- A 404 tile (TileLevel 18) does **not** abort. `ZeroBlockHttpCodes` 404 makes the block zeros, and gdal emits warnings. So a chip that is all zero means "no data at this zoom", and the build must test for it.
+
+### Decisions these settle
+- The index queries layers 4-6 per release. Per point and release, the deepest layer whose polygon covers the point gives the capture **and** the fetch zoom (`23 - layer`). Where several polygons in one layer cover a point, the highest `DrawOrder` wins.
+- Selection is by year distance first, then days from 1 July of the endpoint year, then finer `SRC_RES`, then the later release. Year distance comes first because the pre-registered labelling key sets confidence by +/-1 year from the endpoint.
+- A capture with a null date (Earthstar base layers) is not a capture and is dropped.
+- The build uses gdalwarp straight to EPSG:3005 at 0.5 m, with nearest-zoom tiles from the GDAL cache. An all-zero chip counts as a failure.
+
 ## Errors Encountered
 
 | Error | Resolution |

@@ -31,9 +31,9 @@ The alternative is a new `esri_wayback` value, which changes the form mid-labell
 source across two codes.
 
 ## Phase 1: Probe the two unknowns
-- [ ] **Metadata.** Find the per-release metadata MapServer layer that resolves capture polygons at full zoom. Confirm that one `query` per release over the sample bbox returns `SRC_DATE2`, `SRC_RES`, `NICE_DESC` polygons that can be joined to points locally, instead of one `identify` per point.
-- [ ] **Fetch.** Write a GDAL WMS (TMS) XML for one release with a `<Cache>` path, then `gdal_translate -projwin` a ±150 m chip around point 1. Confirm GDAL follows the relative redirect, find the deepest zoom that returns data, and confirm a 404 tile becomes nodata rather than an abort. Render the chip for 2017 and 2023 and look at it.
-- [ ] Record both in `findings.md`; they decide Phases 2 and 3.
+- [x] **Metadata.** Find the per-release metadata MapServer layer that resolves capture polygons at full zoom. Confirm that one `query` per release over the sample bbox returns `SRC_DATE2`, `SRC_RES`, `NICE_DESC` polygons that can be joined to points locally, instead of one `identify` per point.
+- [x] **Fetch.** Write a GDAL WMS (TMS) XML for one release with a `<Cache>` path, then `gdal_translate -projwin` a ±150 m chip around point 1. Confirm GDAL follows the relative redirect, find the deepest zoom that returns data, and confirm a 404 tile becomes nodata rather than an abort. Render the chip for 2017 and 2023 and look at it.
+- [x] Record both in `findings.md`; they decide Phases 2 and 3.
 
 ## Phase 2: Index: `scripts/landcover_accuracy/wayback_index-capture.R <area>`
 - [ ] Read the release list from `waybackconfig.json`. For each release, read the capture polygons over the sample points (Phase 1 method) and join them to the points.
