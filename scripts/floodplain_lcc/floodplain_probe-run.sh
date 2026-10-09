@@ -12,7 +12,7 @@
 #
 # Usage:
 #   scripts/floodplain_lcc/floodplain_probe-run.sh <area> [mode ...]
-#   default modes: anchor dem 5 3 4 2 1 seg report
+#   default modes: anchor dem 5 3 4 2 1 reach seg report
 #
 # Logs: data/<area>/probe_whole_fwa/logs/<mode>.log (gitignored; `report` reads RSS from them).
 
@@ -21,7 +21,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)" || exit 1
 AREA="${1:?usage: floodplain_probe-run.sh <area> [mode ...]}"
 shift
-if [ "$#" -eq 0 ]; then set -- anchor dem 5 3 4 2 1 seg report; fi
+if [ "$#" -eq 0 ]; then set -- anchor dem 5 3 4 2 1 reach seg report; fi
 
 OUT="$REPO_ROOT/data/$AREA/probe_whole_fwa"
 LOGS="$OUT/logs"
@@ -37,6 +37,7 @@ for mode in "$@"; do
   case "$mode" in
     anchor) out="$OUT/anchor.json" ;;
     dem)    out="$OUT/dem.json" ;;
+    reach)  out="$OUT/reach.json" ;;
     seg)    out="$OUT/seg_timing.json" ;;
     report) out="$OUT/report.csv" ;;
     *)      out="$OUT/arm${mode}_timing.json" ;;

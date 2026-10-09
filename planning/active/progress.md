@@ -27,3 +27,6 @@
   waterbody split, coho-reachable floodplain per arm, version stamps, habitat `IN (1,2)`,
   pre-registered rule (committed in `research/whole_fwa_floodplain.md` before any arm ran).
 - 05:07 UTC: run `dem 5 3 4 2 1 seg` launched. dem OK (3.3 GiB peak).
+- Arm 5 (05:08–05:38): delineation 79 s, 356.5 km² on the common grid, blk attribution 863 s for 340
+  groups, 7.1 GiB peak. Its coho-reach pass ran with `complete = TRUE` by omission (bug); run
+  stopped during arm 3, reach moved to its own guarded mode, relaunched `3 4 2 1 reach seg`.

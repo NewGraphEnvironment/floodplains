@@ -21,9 +21,11 @@
 #            FLT8S, refusing unless the file digests equal to the object. Also asserts, on the live
 #            read, that the arms nest (1 >= 2 >= 3 >= 5, 4 >= 3).
 #   <k>      arm k on dem_common.tif, so all five compare cell for cell. Attributed by
-#            blue_line_key, and once more from the COHO network alone as a single group with
-#            complete = FALSE: the coho-reachable floodplain, which separates the boundary move
-#            (#40: the flood surface is fitted from every seed) from area added by new seeds.
+#            blue_line_key with complete = TRUE, as step 2 does.
+#   reach    for every arm's floodplain, the cells reachable from the COHO network alone (one group,
+#            complete = FALSE): the coho-reachable floodplain, which separates the boundary move (#40:
+#            the flood surface is fitted from every seed) from area added by new seeds. Its own mode
+#            so the arms' timings stay delineation + attribution.
 #   seg      arm 3's floodplain attributed by (blue_line_key, downstream_route_measure), timed.
 #   report   tables, review layers and panels from the outputs above (needs the database for the
 #            habitat-below-floor numbers). Writes the committed logs.
@@ -49,8 +51,8 @@ fp_gpkg_pin_date()                                                        # #45
 args <- commandArgs(trailingOnly = TRUE)
 area <- args[1]; mode <- args[2]
 if (is.na(area) || !grepl("^[a-z0-9_]+$", area) || is.na(mode) ||
-    !(mode %in% c("anchor", "dem", "seg", "report") || mode %in% as.character(FP_WF_ARMS$arm)))
-  stop("usage: floodplain_probe-whole-fwa.R <area> <anchor|dem|1..5|seg|report> [scenario_id]", call. = FALSE)
+    !(mode %in% c("anchor", "dem", "reach", "seg", "report") || mode %in% as.character(FP_WF_ARMS$arm)))
+  stop("usage: floodplain_probe-whole-fwa.R <area> <anchor|dem|1..5|reach|seg|report> [scenario_id]", call. = FALSE)
 
 # --- config: read directly, not through run_area.R (which runs the pipeline when sourced) ---------
 cfg_dir <- here::here("config", area)
@@ -109,11 +111,12 @@ delineate <- function(dem, streams, waterbodies) {
 
 # Attribution with its warnings counted rather than printed: a group with no valley cells is
 # expected on a whole network (a first-order line in a confined valley), and the count is a result.
-attribute <- function(valleys, streams, dem, group) {
+attribute <- function(valleys, streams, dem, group, complete = TRUE) {
   n_warn <- 0L; first <- NULL
   out <- withCallingHandlers(
     flooded::fl_valley_attribute(valleys, streams, group = group, dem = dem,
-                                 max_width = sc$max_width, cost_threshold = sc$cost_threshold),
+                                 max_width = sc$max_width, cost_threshold = sc$cost_threshold,
+                                 complete = complete),
     warning = function(w) {
       n_warn <<- n_warn + 1L
       if (is.null(first)) first <<- substr(conditionMessage(w), 1, 300)
@@ -259,7 +262,6 @@ if (mode %in% as.character(FP_WF_ARMS$arm)) {
   conn <- DBI::dbConnect(RPostgres::Postgres())
   all <- fp_wf_read_network(conn, read_schema, wsg, species)
   s  <- read_arm(conn, arm, all)
-  s5 <- all[fp_wf_keep(all, 5L, min_order), ]
   wb <- fp_wf_read_waterbodies(conn, s)
   DBI::dbDisconnect(conn)
 
@@ -296,17 +298,6 @@ if (mode %in% as.character(FP_WF_ARMS$arm)) {
   sf::st_write(a$x, p_out("arm", arm, "_by_blk.gpkg"), layer = "by_blk", delete_dsn = TRUE, quiet = TRUE)
   message("  attribution by blue_line_key: ", t_attr, " s, ", nrow(a$x), " rows, ", a$n_warn, " warnings")
 
-  # The coho-reachable floodplain under THIS arm's delineation: the coho network as ONE group,
-  # complete = FALSE so cells reached only by the fallback stay out.
-  s5$coho_net <- 1L
-  t0 <- Sys.time()
-  cr <- attribute(v, s5, dem, "coho_net")
-  t_coho <- secs(t0)
-  cr_x <- cr$x
-  if (!is.null(cr_x) && nrow(cr_x)) cr_x$arm <- arm
-  sf::st_write(cr_x, p_out("arm", arm, "_coho_reach.gpkg"), layer = "coho_reach", delete_dsn = TRUE, quiet = TRUE)
-  message("  coho-reachable floodplain: ", round(sum(as.numeric(sf::st_area(cr_x))) / 1e4, 1), " ha, ", t_coho, " s")
-
   write_json(c(list(
     mode = "arm", arm = arm, label = FP_WF_ARMS$label[arm], scenario = scen_id,
     n_segments = nrow(s), km = round(sum(s$length_metre) / 1000, 3),
@@ -314,13 +305,51 @@ if (mode %in% as.character(FP_WF_ARMS$arm)) {
     dem_ncol = terra::ncol(dem), dem_nrow = terra::nrow(dem), dem_content_sha256 = dem_sha,
     valley_cells = n_valley, valley_cells_waterbody = n_valley_wb, cell_m2 = prod(terra::res(v)),
     floodplain_content_sha256 = fp_raster_content_sha256(fp_out),
-    t_delin_s = t_delin, t_attr_blk_s = t_attr, t_coho_reach_s = t_coho,
+    t_delin_s = t_delin, t_attr_blk_s = t_attr,
     attr_rows = nrow(a$x), attr_warnings = a$n_warn, attr_first_warning = a$first_warning,
     fallback_cells = attr(a$x, "fl_fallback_cells") %||% NA,
-    coho_reach_ha = sum(as.numeric(sf::st_area(cr_x))) / 1e4,
     threads = terra::terraOptions(print = FALSE)$threads %||% NA), vers()),
     p_out("arm", arm, "_timing.json"))
   message("PROBE_DONE ", arm)
+}
+
+# =================================================================================================
+if (mode == "reach") {
+  dem_path <- p_out("dem_common.tif")
+  fps <- p_out("arm", FP_WF_ARMS$arm, "_floodplain.tif")
+  if (!file.exists(dem_path) || any(!file.exists(fps))) stop("run the `dem` mode and every arm first", call. = FALSE)
+  conn <- DBI::dbConnect(RPostgres::Postgres())
+  all <- fp_wf_read_network(conn, read_schema, wsg, species)
+  DBI::dbDisconnect(conn)
+  s5 <- all[fp_wf_keep(all, 5L, min_order), ]
+  s5$coho_net <- 1L
+  dem <- terra::rast(dem_path)
+  res <- list()
+  for (k in FP_WF_ARMS$arm) {
+    v <- terra::rast(fps[k])
+    n_valley <- sum(terra::values(v, mat = FALSE) == 1, na.rm = TRUE)
+    t0 <- Sys.time()
+    cr <- attribute(v, s5, dem, "coho_net", complete = FALSE)
+    t_k <- secs(t0)
+    x <- cr$x
+    fb <- attr(x, "fl_fallback_cells") %||% NA_integer_
+    # Polygons are cell-exact, so a centre rasterization recovers the cells. With complete = FALSE the
+    # reached cells and the fallback cells partition the valley; with complete = TRUE (flooded's
+    # default, which the first run of this mode inherited by omission) the fallback is folded back in
+    # and this identity fails. That is the guard.
+    n_reach <- if (nrow(x)) sum(terra::values(terra::rasterize(terra::vect(x), v, field = 1, background = 0,
+                                                              touches = FALSE), mat = FALSE) == 1) else 0
+    if (is.na(fb) || n_reach + fb != n_valley)
+      stop("arm ", k, ": reached ", n_reach, " + fallback ", fb, " != valley ", n_valley,
+           " -- the coho-reach attribution is not partitioning the valley (complete = FALSE?)", call. = FALSE)
+    if (nrow(x)) x$arm <- k
+    sf::st_write(x, p_out("arm", k, "_coho_reach.gpkg"), layer = "coho_reach", delete_dsn = TRUE, quiet = TRUE)
+    message("  arm ", k, ": coho-reachable ", round(n_reach * prod(terra::res(v)) / 1e4, 1), " ha of ",
+            round(n_valley * prod(terra::res(v)) / 1e4, 1), " (", t_k, " s)")
+    res[[k]] <- list(arm = k, reach_cells = n_reach, fallback_cells = fb, valley_cells = n_valley, t_s = t_k)
+  }
+  write_json(c(list(mode = "reach", arms = res), vers()), p_out("reach.json"))
+  message("PROBE_DONE reach")
 }
 
 # =================================================================================================

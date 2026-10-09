@@ -20,7 +20,7 @@ fp_wf_report <- function(area, dir_area, dir_out, scen_id, species, min_order, w
   need <- c(p_out("anchor.json"), p_out("dem.json"), p_out("dem_common.tif"),
             p_out("arm", 1:5, "_timing.json"), p_out("arm", 1:5, "_floodplain.tif"),
             p_out("arm", 1:5, "_waterbody.tif"), p_out("arm", 1:5, "_by_blk.gpkg"),
-            p_out("arm", 1:5, "_coho_reach.gpkg"))
+            p_out("arm", 1:5, "_coho_reach.gpkg"), p_out("reach.json"))
   if (any(!file.exists(need))) stop("missing probe outputs:\n  ", paste(need[!file.exists(need)], collapse = "\n  "),
                                     call. = FALSE)
   rss <- function(mode) {
@@ -42,7 +42,8 @@ fp_wf_report <- function(area, dir_area, dir_out, scen_id, species, min_order, w
     stop("arms were delineated on different DEMs", call. = FALSE)
   vkeys <- c("flooded", "terra", "sf", "terra_gdal", "sf_gdal")
   vsig <- function(x) paste(vapply(vkeys, function(k) as.character(x[[k]]), ""), collapse = "/")
-  sigs <- unique(c(vsig(dmj), vapply(tm, vsig, ""), if (!is.null(seg)) vsig(seg)))
+  rch <- rd(p_out("reach.json"))
+  sigs <- unique(c(vsig(dmj), vapply(tm, vsig, ""), vsig(rch), if (!is.null(seg)) vsig(seg)))
   if (length(sigs) != 1L) stop("arms ran on different toolchains: ", paste(sigs, collapse = " | "), call. = FALSE)
 
   # --- 1. cost and size per arm -------------------------------------------------------------------

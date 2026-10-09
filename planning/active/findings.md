@@ -96,3 +96,4 @@ Relates: #104, #40, #54
 | Error | Resolution |
 |-------|------------|
 | Anchor stopped: DEM digest differs from the 2026-09-03 record | Toolchain, not data (see above). Anchor now replays `fp_floodplain()` the same day; published comparison reported, not enforced |
+| Coho-reach attribution inherited `complete = TRUE` (my helper had no `complete` arg), so arm 5's "reachable" area equalled its whole floodplain (35,654 ha) | Run stopped at arm 3; `reach` is its own mode with `complete = FALSE` and a partition guard (reached + fallback = valley cells). Arm 5's floodplain and blk attribution unaffected and kept |
