@@ -21,24 +21,24 @@ What does it cost to delineate a watershed group's **whole** FWA floodplain, and
       refused.
 
 ## Phase 2: Probe runner with anchors
-- [ ] `scripts/floodplain_lcc/floodplain_probe-whole-fwa.R <area> <arm>`: reads the scenario row
+- [x] `scripts/floodplain_lcc/floodplain_probe-whole-fwa.R <area> <arm>`: reads the scenario row
       from `config/<area>/flood_scenarios.csv` (`co_ff04`), builds the arm network, delineates
       with `fl_valley_confine()` using the row's parameters, times delineation and
       `fl_valley_attribute(group = "blue_line_key")` separately (`Sys.time()`), writes
       `data/<area>/probe_whole_fwa/arm<k>_{floodplain.tif,by_blk.gpkg,timing.json}`.
-- [ ] Mode `anchor` (arm 5 on its own DEM): stop unless network digest == provenance
+- [x] Mode `anchor` (arm 5 on its own DEM): stop unless network digest == provenance
       `streams_content_sha256`, DEM digest == `dem_content_sha256`, and floodplain digest ==
       `floodplain_content_sha256`. Each failure names which link moved (network / DEM / VCA).
-- [ ] Common grid: arm 1's DEM is written once to `probe_whole_fwa/dem_common.tif`; arms 2–5 are
+- [x] Common grid: arm 1's DEM is written once to `probe_whole_fwa/dem_common.tif`; arms 2–5 are
       delineated on it, so all five compare cell-for-cell. Arm 5-on-common vs the on-disk baseline
       is reported as the extent effect.
-- [ ] Segment grain: arm 3 additionally attributed by a composite `(blue_line_key,
+- [x] Segment grain: arm 3 additionally attributed by a composite `(blue_line_key,
       downstream_route_measure)` key (not `id_segment`), timed; per-group slope reported so other
       floors are extrapolated from a measured rate, labelled as extrapolation.
-- [ ] `floodplain_probe-run.sh <area>`: runs anchor then arms 1–5 sequentially, each in its own
+- [x] `floodplain_probe-run.sh <area>`: runs anchor then arms 1–5 sequentially, each in its own
       process under `caffeinate -s /usr/bin/time -l` (peak RSS), one log per arm; gates on the
       in-band error count and output mtimes, not exit codes.
-- [ ] `.gitignore` covers `data/` already — confirm `probe_whole_fwa/` is not shipped (publish
+- [x] `.gitignore` covers `data/` already — confirm `probe_whole_fwa/` is not shipped (publish
       layer copies by explicit name).
 
 ## Phase 3: Run on MORR and measure
