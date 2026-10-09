@@ -15,3 +15,15 @@
   `floodplain_probe-run.sh` (per-mode process under `caffeinate -s /usr/bin/time -l`, gated on
   `PROBE_DONE <mode>` + an output newer than the mode's start stamp). `data/*` is gitignored
   (`.gitignore:3`), so `probe_whole_fwa/` never reaches git or the publish layer.
+- First live run (04:57 UTC): anchor stopped at the DEM. Network digest MATCH; DEM digest DIFFERS from
+  the 2026-09-03 record. Diagnosed: MRDEM source unchanged (Last-Modified 2026-06-24); terra
+  1.9.34 → 1.9.50 now links GDAL 3.13.0 (sf still 3.8.5), and the warp's grid origin moved ~1.1 m E /
+  0.6 m N. Anchor reworked to replay `fp_floodplain()` into `probe_whole_fwa/step2_replay/` on the
+  same day's DEM; it passes (network MATCH, DEM MATCH vs replay, floodplain MATCH vs replay). Published
+  `co_ff04` vs today: 35,769.1 → 35,618.0 ha (−0.42%).
+- Filed flooded#67 (fl_dem_aoi lets GDAL choose the grid) and #117 (published floodplains not
+  reproducible; fp_toolchain records sf's GDAL, not terra's).
+- Plan review returned; dispositions in `review-plan.md`. Adopted: dem mode, cheap→expensive arm order,
+  waterbody split, coho-reachable floodplain per arm, version stamps, habitat `IN (1,2)`,
+  pre-registered rule (committed in `research/whole_fwa_floodplain.md` before any arm ran).
+- 05:07 UTC: run `dem 5 3 4 2 1 seg` launched. dem OK (3.3 GiB peak).

@@ -80,7 +80,19 @@ Relates: #104, #40, #54
 - `fl_valley_attribute()` groups on ONE column (character allowed, sorted) and scans `keys == g`
   per group — O(groups × segments), relevant to the segment grain.
 
+## Toolchain move (measured 2026-10-09)
+
+| | 2026-09-03 record | 2026-10-09 m1 |
+|---|---|---|
+| terra / GDAL linked | 1.9.34 / (not recorded; sf's 3.8.5 recorded) | 1.9.50 / 3.13.0 |
+| DEM xmin, ymin | 847158.2375, 957244.2097 | 847157.0998, 957244.8216 |
+| DEM res | 30.430634377 | 30.430634931 |
+| MORR co_ff04 | 35,769.1 ha | 35,618.0 ha (−0.42%) |
+
+`terra::compareGeom()` calls the grids equal; the digest header (`%.9f`) does not. flooded#67, #117.
+
 ## Errors Encountered
 
 | Error | Resolution |
 |-------|------------|
+| Anchor stopped: DEM digest differs from the 2026-09-03 record | Toolchain, not data (see above). Anchor now replays `fp_floodplain()` the same day; published comparison reported, not enforced |
