@@ -1,6 +1,6 @@
 # Whole-FWA floodplain probe: MORR, `co_ff04` (#110)
 
-Report 2026-10-09 09:29 UTC. flooded 0.6.0, terra 1.9.50 (GDAL 3.13.0), sf 1.1.2 (GDAL 3.8.5). Produced by `scripts/floodplain_lcc/floodplain_probe-run.sh morr`; rule in `research/whole_fwa_floodplain.md`.
+Report 2026-10-09 09:40 UTC. flooded 0.6.0, terra 1.9.50 (GDAL 3.13.0), sf 1.1.2 (GDAL 3.8.5). Produced by `scripts/floodplain_lcc/floodplain_probe-run.sh morr`; rule in `research/whole_fwa_floodplain.md`.
 
 ## Anchor
 

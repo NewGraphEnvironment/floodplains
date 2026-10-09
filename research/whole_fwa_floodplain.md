@@ -3,7 +3,8 @@
 **Verified:** 2026-10-09 · **Issues:** #110 (this probe); gates #104; filed #117, flooded#67; relates #40, #54, #65 ·
 **Produced by:** `scripts/floodplain_lcc/floodplain_probe-run.sh` (logs
 `scripts/floodplain_lcc/logs/*_floodplain_probe-whole-fwa_*`) · **Status:** MORR measured
-2026-10-09. Recommendation below; the visual criterion awaits the user's read.
+2026-10-09. The recommendation is conditional on the user's read of criterion 3 (see "The rule,
+applied").
 
 #104 proposes delineating each watershed group's floodplain once, from the whole stream network,
 keyed by `blue_line_key`, with habitat joined afterwards instead of cut into the geometry. Today
@@ -87,9 +88,13 @@ flooded 0.6.0, terra 1.9.50 (GDAL 3.13.0), one machine (m1), 12 terra threads. C
 - **Attribution fits 790 s + 0.66 s per blue line** across the five arms. The slope is confounded
   with valley extent, because bigger arms also have bigger valleys.
 - **The intercept is flooded's fallback.** It assigns every valley cell no group reached
-  (`complete = TRUE`) by one full-grid `terra::distance`. Measured on arm 5's coho network as a
-  single group: 825 s with the fallback, about 5 s without it. So roughly 13 min per scenario is
-  avoidable if #104 accepts unassigned cells, or computes the fallback some cheaper way.
+  (`complete = TRUE`) by one full-grid `terra::distance`. On arm 5's coho network:
+  - With the fallback, as 340 blue-line groups, attribution took 829.9 s (`arm5_timing.json`).
+  - Without it, as one group with `complete = FALSE`, it took 5.0 s (`reach.json`).
+  - A superseded run that attributed the same network as one group *with* the fallback took
+    825 s. That figure is recorded in the planning log only; its log file was overwritten.
+  - So roughly 13 min per scenario is avoidable if #104 accepts unassigned cells, or computes the
+    fallback some cheaper way.
 - **Segment grain on arm 3:** 7,606 segments took 31.5 min, i.e. 0.248 s per segment.
 - **Memory is not a constraint.** Peak RSS was at most 9.3 GiB in every stage.
 
@@ -111,7 +116,8 @@ Pairs below are floodplain areas in ha on the common grid:
   - A whole-network floodplain is therefore **not a superset** of today's species cut. Querying
     it for coho returns a different answer, not a larger one.
 - **Waterbodies are 42–58% of every arm's floodplain.** MORR is lake country. They are a minority
-  of each floor's *added* area (12–27%), so the added area is mostly not lakes.
+  of each floor's *added* area (12–20% across the three floors), so the added area is mostly not
+  lakes.
 - **Extent and regridding:** arm 5 on the common grid is +0.10% against its own grid.
 
 ### The coho network's floodplain under each delineation (supersession)
@@ -138,11 +144,19 @@ The 25.2% reproduces #104's "20–29%" figure, which is the consistency anchor.
 
 ### The rule, applied
 
-| floor | 1 affordable (≤ 60 min, ≤ 32 GiB) | 2 adds floodplain (≥ 5%, ≥ 50% outside waterbodies) | 3 visual | supersedes (> 2%) |
-|---|---|---|---|---|
-| order ≥ 2 | **yes** (35.8 min, 7.9 GiB) | **yes** (29.1%, 80%) | pending | yes (16.6%) |
-| order ≥ 1 | **no** (90.7 min) | yes (48.4% of arm 3, 86%) | pending; preliminary no | yes (30.8%) |
-| bypass | **yes** (31.5 min, 9.1 GiB) | **yes** (22.1%, 88%) | pending | yes (9.9%) |
+**Criterion 3 is ambiguous as registered, and the ambiguity decides the outcome.** Round 3 of the
+code check found it, and the drafting was mine.
+- Criteria 1 and 2 are each "measured against the next floor up".
+- Criterion 3 names the review of **order-1 additions** only.
+- That supports two readings, and they give opposite answers on supersession, so neither is
+  chosen here.
+
+| floor | 1 affordable (≤ 60 min, ≤ 32 GiB) | 2 adds floodplain (≥ 5%, ≥ 50% outside waterbodies) | coho floodplain moved |
+|---|---|---|---|
+| order ≥ 2 | **yes** (35.8 min, 7.9 GiB) | **yes** (29.1%, 80%) | 16.6% |
+| order ≥ 1 | **no** (90.7 min) | yes (48.4% of arm 3, 86%) | 30.8% |
+| bypass | **yes** (31.5 min, 9.1 GiB) | **yes** (22.1%, 88%) | 9.9% |
+| order ≥ 3 (no access filter) | yes (19.9 min) | the baseline floor | 1.6% |
 
 Segment grain at 0.248 s per segment, scaled to each floor:
 
@@ -152,9 +166,9 @@ Segment grain at 0.248 s per segment, scaled to each floor:
 | bypass | 61 min | fails |
 | order ≥ 3 | 31 min | passes |
 
-**Preliminary visual read.** This is mine; the user's verdict is pending. Panels and layers are in
-`data/morr/probe_whole_fwa/` (`panel_*.png`, `review.gpkg`).
-- **Order-1 additions (the registered criterion).**
+**Preliminary visual read.** This is mine; the user's verdict decides criterion 3. Panels and layers
+are in `data/morr/probe_whole_fwa/` (`panel_*.png`, `review.gpkg`).
+- **Order-1 additions (`panel_1`–`panel_6`, the registered criterion).**
   - The two largest (~230 ha) are broad, low-relief flats flanking the Morice mainstem, seeded by
     first-order lines that cross them. A hillshade cannot separate valley floor from terrace there;
     that needs height above channel.
@@ -162,34 +176,41 @@ Segment grain at 0.248 s per segment, scaled to each floor:
   - 4,301 of the 6,621 order-1 patches are under 1 ha. They hold 8% of the added area; 73% sits in
     patches of 5 ha or more.
   - Preliminary: the majority of panels do **not** read as valley floor.
-- **Order-2 and bypass additions.** These were drawn as evidence outside the registered criterion,
-  which names order 1 only.
+- **Order-2 and bypass additions (`panel_order2_*`, `panel_bypass_*`).** These were drawn after the
+  rule as evidence, outside the registered criterion.
   - The order-2 samples read as valley-floor corridors and low-relief valley bottoms.
   - The largest bypass addition is the same broad-flat class as order 1's largest.
 
-## Recommendation for #104
+## Recommendation for #104, conditional on criterion 3
 
-- **Floor: order ≥ 2.** It is the only below-3 floor that passes criteria 1 and 2 by itself.
-  - It adds 29% floodplain over order ≥ 3, 80% of it outside waterbodies.
-  - It costs about 36 min per scenario on MORR, against about 20 for order ≥ 3.
-  - Criterion 3 is the user's read of `panel_order2_*` and `review.gpkg`.
-- **Not order 1.** It fails on cost alone (91 min per scenario, nearly all attribution) and probably
-  on the visual read too.
-- **The bypass also passes 1 and 2.** Order ≥ 2 plus the bypass was not measured as one arm; the
-  bypass adds first-order area on top of order ≥ 2.
-- **Grain: blue line.** Segment grain fails the cost bound at order ≥ 2 (86 min estimated).
-  #104's range join (`blue_line_key` + measure overlap) supplies the within-blk resolution
-  instead.
-- **Existing items are superseded, not extended.** The coho network's floodplain moves 16.6% under
-  an order-≥-2 delineation. Even order ≥ 3 without the access filter moves it 1.6%. And because
-  floodplains are not monotone in seeds, today's cut is not contained in the new one. #104 must
-  plan a republish.
-- **Cost lever.** About 13 min of each scenario's attribution is the `complete = TRUE` fallback.
-  Dropping it, or computing it once per group, would cut order ≥ 2's attribution by about 40% (33 → ~20 min). That is a
-  flooded question to raise in #104, not to settle here.
-- **One group.** MORR is a headwater group with large lakes. Waterbody share and the order-1 flats
-  may not transfer. A second group (BULK or NECR) at order ≥ 2 alone would test the cost model at
-  one arm's price.
+- **Reading A: criterion 3 is per floor (each floor's own additions), and the user reads the order-2
+  panels as valley floor.**
+  - Floor **order ≥ 2.** It adds 29% over order ≥ 3, 80% of it outside waterbodies, at ~36 min
+    against ~20 min per scenario.
+  - The bypass also passes on its own. Order ≥ 2 plus the bypass was not measured as one arm.
+  - The coho network's floodplain moves 16.6%, so **existing items are superseded and #104 plans a
+    republish.**
+- **Reading B: criterion 3 is literal (the order-1 review gates every floor below 3), and the user
+  agrees the majority of order-1 panels are not valley floor.**
+  - No floor below 3 is recommended. The floor stays **order ≥ 3**, with the access filter dropped.
+  - The coho network's floodplain moves 1.6%, under the 2% threshold, so **existing items are
+    extended, not superseded.** The new item adds the inaccessible order ≥ 3 streams' floodplain
+    to today's.
+- **Under either reading:**
+  - **Not order ≥ 1.** It fails criterion 1 on cost alone (91 min per scenario, nearly all
+    attribution).
+  - **Grain: blue line.** Segment grain passes the bound only at order ≥ 3 (31 min). At order ≥ 2
+    it fails (86 min), and under reading B segment grain stays an open choice. #104's range join
+    (`blue_line_key` + measure overlap) supplies the within-blk resolution either way.
+  - **Floodplains are not monotone in their seeds.** The all-streams floodplain loses 452 ha
+    (1.3%) of today's coho floodplain. A query of a whole-network item is a different answer from
+    today's item, not a larger one, and the 2% threshold already counts those losses.
+  - **Cost lever.** About 13 min of each scenario's attribution is the `complete = TRUE` fallback.
+    Dropping it, or computing it once per group, would cut order ≥ 2's attribution by about 40%
+    (33 → ~20 min). That is a flooded question for #104, not settled here.
+  - **One group.** MORR is a headwater group with large lakes, so the waterbody share and the
+    order-1 flats may not transfer. A second group (BULK or NECR) at order ≥ 2 alone would test the
+    cost model at one arm's price.
 
 ## Anchor (measured 2026-10-09)
 

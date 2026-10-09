@@ -83,20 +83,48 @@ fp_wf_report <- function(area, dir_area, dir_out, scen_id, species, min_order, w
   if (!identical(fp_raster_content_sha256(p_out("anchor_floodplain.tif")), anc$floodplain))
     stop("anchor_floodplain.tif no longer matches anchor.json: re-run the anchor", call. = FALSE)
 
-  # The network every mode re-read: link writes a new fresh.log row on every rebuild, so the newest
-  # MORR row still being the one step 1's record names means no mode -- `reach` included, which
-  # records no segment count -- read a rebuilt network. Ties broken on run_id so the pick is not an
-  # arbitrary row.
+  # --- the probe window: nothing it depended on may have moved inside it -------------------------
+  # Round 3 of the code check named the mechanism behind the earlier ties: a check that reads "now"
+  # from a store that can move -- the newest fresh.log row, provenance.json, config/ -- passes when
+  # both sides moved together. So these checks are over the WINDOW the probe ran in, against stores
+  # that only append. t0 is the earliest start stamp the driver wrote for a mode whose output this
+  # report reads (each mode reads the network after its stamp).
+  modes_read <- c("anchor", "dem", as.character(1:5), "reach", if (!is.null(seg)) "seg")
+  stamps <- file.path(dir_out, "logs", paste0(".", modes_read, ".start"))
+  if (any(!file.exists(stamps))) stop("missing driver start stamps (run every mode through floodplain_probe-run.sh): ",
+                                      paste(basename(stamps[!file.exists(stamps)]), collapse = ", "), call. = FALSE)
+  t0 <- min(file.mtime(stamps))
+  # The network: link appends a row to <schema>.log for every pipeline run (date_end NULL while it
+  # runs and if it dies) and to <schema>.log_recompute for every access recompute, which UPDATEs
+  # streams_access without a log row. Any such row for this group inside the window, or any run
+  # still open, means some mode may have read a different network. Fails closed: an open row from
+  # long ago also refuses, and a missing table errors.
   if (!grepl("^[a-z_][a-z0-9_]*$", read_schema)) stop("bad schema name: ", read_schema, call. = FALSE)
   conn0 <- DBI::dbConnect(RPostgres::Postgres())
-  uid_now <- DBI::dbGetQuery(conn0, sprintf(
-    "SELECT run_uid FROM %s.log WHERE watershed_group_code = '%s' ORDER BY date_end DESC NULLS LAST, run_id DESC LIMIT 1",
-    read_schema, wsg))$run_uid
+  ev <- vapply(c("log", "log_recompute"), function(tb) DBI::dbGetQuery(conn0, sprintf(
+    "SELECT count(*) AS n FROM %s.%s WHERE watershed_group_code = '%s'
+       AND (date_start >= $1 OR date_end >= $1 OR date_end IS NULL)", read_schema, tb, wsg),
+    params = list(t0))$n, numeric(1))
   DBI::dbDisconnect(conn0)
-  uid_rec <- jsonlite::read_json(file.path(dir_area, "provenance.json"))$network[[paste0(species, min_order)]]$link_log$run_uid
-  if (length(uid_now) != 1L || is.null(uid_rec) || !identical(as.character(uid_now), as.character(uid_rec)))
-    stop("the newest ", read_schema, ".log row for ", wsg, " (", format(uid_now), ") is not the run step 1 recorded (",
-         format(uid_rec), "): the network may have been rebuilt during the probe", call. = FALSE)
+  if (any(ev > 0)) stop(read_schema, " ", paste(names(ev)[ev > 0], collapse = "/"), " has ", sum(ev),
+                        " row(s) for ", wsg, " started, ended or still open since the probe began (",
+                        format(t0, tz = "UTC", usetz = TRUE), "): the network may have changed under it", call. = FALSE)
+  # The scenario: every mode reads its VCA parameters from flood_scenarios.csv at its own start, and
+  # dem, reach and seg record none. The file must predate the window, and every mode that does record
+  # its scenario must name this one.
+  scen_csv <- here::here("config", area, "flood_scenarios.csv")
+  if (file.mtime(scen_csv) >= t0) stop(basename(scen_csv), " was modified after the probe began", call. = FALSE)
+  scen_seen <- c(anc$scenario, vapply(tm, `[[`, "", "scenario"))
+  if (any(scen_seen != scen_id)) stop("modes ran different scenarios: ", paste(unique(scen_seen), collapse = ", "),
+                                      " (report is for ", scen_id, ")", call. = FALSE)
+  # The anchor is a gate, not a caption: a run whose anchor failed must not produce a rule table.
+  if (!isTRUE(anc$network_match) || !isTRUE(anc$dem_match_replay) || !isTRUE(anc$floodplain_match_replay))
+    stop("the anchor did not pass (network ", anc$network_match, ", DEM vs replay ", anc$dem_match_replay,
+         ", floodplain vs replay ", anc$floodplain_match_replay, "): the probe is not shown to reproduce step 2",
+         call. = FALSE)
+  akeys <- c("flooded", "terra", "terra_gdal", "sf_gdal")
+  if (!identical(vapply(akeys, function(k) as.character(anc[[k]]), ""), vapply(akeys, function(k) as.character(dmj[[k]]), "")))
+    stop("the anchor ran on a different toolchain from the arms", call. = FALSE)
 
   # --- 1. cost and size per arm -------------------------------------------------------------------
   ha_cell <- tm[[1]]$cell_m2 / 1e4
