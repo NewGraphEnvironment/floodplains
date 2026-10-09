@@ -10,12 +10,12 @@ What does it cost to delineate a watershed group's **whole** FWA floodplain, and
 - #40 measured attribution at 0.39 s per extra watercourse on MORR (16.5M cells). Extrapolated, that is about 40 min per scenario for MORR's whole network by blk. **That number has not been measured.**
 
 ## Phase 1: Probe helpers + offline check
-- [ ] `scripts/floodplain_lcc/fp_whole_fwa.R`: arm definitions (one `WHERE` per arm: `order>=1`,
+- [x] `scripts/floodplain_lcc/fp_whole_fwa.R`: arm definitions (one `WHERE` per arm: `order>=1`,
       `>=2`, `>=3`, `>=3 OR (order=1 AND stream_order_parent>=5)`, coho `access_co IN (1,2) AND
       order>=3`); the network SQL builder (01's SELECT verbatim, comment naming it as a deliberate
       copy guarded by anchor 1); waterbody read by the same `waterbody_key` rule as 01; pure
       overlap metrics on two aligned 0/1 rasters (intersect, lost, gained, ha).
-- [ ] `scripts/floodplain_lcc/floodplain_probe-check.R`: offline asserts with must-fail arms —
+- [x] `scripts/floodplain_lcc/floodplain_probe-check.R`: offline asserts with must-fail arms —
       arm predicates nest (1 ⊇ 2 ⊇ 3 ⊇ 5, 4 ⊇ 3), species/arm codes refused outside the
       whitelist (SQL-interpolated), overlap metrics on hand-built rasters incl. misaligned grids
       refused.

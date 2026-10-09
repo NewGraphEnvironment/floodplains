@@ -63,6 +63,23 @@ Relates: #104, #40, #54
 - Pattern to copy: `channel_probe-migration.R` + `fp_channel.R` + `channel_probe-check.R`
   (helpers sourced, anchors that stop the run, gitignored `data/<area>/…`, committed logs).
 
+## Phase 1 measurements (2026-10-09)
+
+- MORR `fresh.streams` by order (segments / channel_width NA / upstream_area_ha NA / parent NA):
+  1: 37,801 / 36,656 / 0 / 652 · 2: 13,206 / 1 / 3 / 494 · 3: 4,223 / 0 / 2 / 153 · 4–8: 3,383 total.
+  Every segment has a `streams_access` row. flooded's channel buffer skips NA widths
+  (`has_width <- !is.na(...)`), so order-1 segments only seed the flood surface.
+- `fresh.streams_vw_bcfp`: `rearing_*` is integer -1/0/1, `spawning_ch` 0–3, `access_*` 0/1/2.
+  Treat habitat as `> 0`.
+- flooded installed 0.6.0, MORR baseline recorded 0.5.0. 0.6.0 NEWS: "no result changes" (rename of
+  `field` → `area_field`); step 2 still passes `field =` and gets a deprecation warning — not this
+  issue's to fix. Probe passes `area_field`.
+- `fl_stream_rasterize()` uses `fun = "max"`, so row order cannot move the rasters; `fl_dem_aoi()`
+  crops the buffered AOI with `snap = "out"` and reprojects 3979 → 3005, so each arm's own DEM is a
+  different grid.
+- `fl_valley_attribute()` groups on ONE column (character allowed, sorted) and scans `keys == g`
+  per group — O(groups × segments), relevant to the segment grain.
+
 ## Errors Encountered
 
 | Error | Resolution |

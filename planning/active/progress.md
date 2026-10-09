@@ -8,3 +8,6 @@
 - Created branch `110-probe-cost-and-difference-of-a-whole-fwa` off main
 - Scaffolded PWF baseline from issue #110 with approved phases
 - Next: start Phase 1
+- Phase 1: `fp_whole_fwa.R` + `floodplain_probe-check.R` (25 asserts). Arms are R predicates over ONE
+  whole-group read rather than five SQL WHEREs, so nesting is checkable offline. Six planted defects
+  (NA guard, arm-4 parent NA, grid check, species guard, seg-key format, arm check) each turn it red.
