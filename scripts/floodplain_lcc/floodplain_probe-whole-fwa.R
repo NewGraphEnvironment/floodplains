@@ -17,8 +17,13 @@
 #            measured 2026-10-09, terra 1.9.50 (GDAL 3.13) reprojects MRDEM onto a grid ~1 m off the
 #            one 1.9.34 (GDAL 3.8.5) produced, so the published floodplain is not reproducible on
 #            this toolchain and a stop there would test the toolchain, not the probe.
-#   <k>      arm k on the COMMON DEM (arm 1 fetches it and writes dem_common.tif; 2-5 refuse to run
-#            without it), so all five compare cell for cell. Attributed by blue_line_key.
+#   dem      fetches MRDEM-30 over arm 1 (the widest network) once and writes dem_common.tif at
+#            FLT8S, refusing unless the file digests equal to the object. Also asserts, on the live
+#            read, that the arms nest (1 >= 2 >= 3 >= 5, 4 >= 3).
+#   <k>      arm k on dem_common.tif, so all five compare cell for cell. Attributed by
+#            blue_line_key, and once more from the COHO network alone as a single group with
+#            complete = FALSE: the coho-reachable floodplain, which separates the boundary move
+#            (#40: the flood surface is fitted from every seed) from area added by new seeds.
 #   seg      arm 3's floodplain attributed by (blue_line_key, downstream_route_measure), timed.
 #   report   tables, review layers and panels from the outputs above (needs the database for the
 #            habitat-below-floor numbers). Writes the committed logs.
@@ -44,8 +49,8 @@ fp_gpkg_pin_date()                                                        # #45
 args <- commandArgs(trailingOnly = TRUE)
 area <- args[1]; mode <- args[2]
 if (is.na(area) || !grepl("^[a-z0-9_]+$", area) || is.na(mode) ||
-    !(mode %in% c("anchor", "seg", "report") || mode %in% as.character(FP_WF_ARMS$arm)))
-  stop("usage: floodplain_probe-whole-fwa.R <area> <anchor|1..5|seg|report> [scenario_id]", call. = FALSE)
+    !(mode %in% c("anchor", "dem", "seg", "report") || mode %in% as.character(FP_WF_ARMS$arm)))
+  stop("usage: floodplain_probe-whole-fwa.R <area> <anchor|dem|1..5|seg|report> [scenario_id]", call. = FALSE)
 
 # --- config: read directly, not through run_area.R (which runs the pipeline when sourced) ---------
 cfg_dir <- here::here("config", area)
@@ -76,8 +81,15 @@ NETWORK_DIGEST_VAL <- c("length_metre", "stream_order", "upstream_area_ha", "map
 secs <- function(t0) round(as.numeric(difftime(Sys.time(), t0, units = "secs")), 1)
 write_json <- function(x, path) jsonlite::write_json(x, path, auto_unbox = TRUE, pretty = TRUE, digits = NA)
 
-read_arm <- function(conn, arm) {
-  all <- fp_wf_read_network(conn, read_schema, wsg, species)
+# Versions recorded in every json, so `report` can refuse arms run across an upgrade. terra's GDAL is
+# named separately from sf's: they differ on this machine (3.13.0 vs 3.8.5), and terra's is the one
+# that reprojects the DEM.
+vers <- function() list(flooded = as.character(packageVersion("flooded")),
+                        terra = as.character(packageVersion("terra")), sf = as.character(packageVersion("sf")),
+                        terra_gdal = terra::gdal(), sf_gdal = unname(sf::sf_extSoftVersion()[["GDAL"]]))
+
+read_arm <- function(conn, arm, all = NULL) {
+  if (is.null(all)) all <- fp_wf_read_network(conn, read_schema, wsg, species)
   s <- all[fp_wf_keep(all, arm, min_order), ]
   message("  arm ", arm, " (", FP_WF_ARMS$label[arm], "): ", nrow(s), " of ", nrow(all), " segments, ",
           round(sum(s$length_metre) / 1000, 1), " km, ", length(unique(s$blue_line_key)), " blue lines")
@@ -206,42 +218,76 @@ if (mode == "anchor") {
 }
 
 # =================================================================================================
+if (mode == "dem") {
+  conn <- DBI::dbConnect(RPostgres::Postgres())
+  all <- fp_wf_read_network(conn, read_schema, wsg, species)
+  DBI::dbDisconnect(conn)
+  # Nesting on the LIVE read. The offline check proves the predicates nest; this proves the data
+  # did not find a case the fixture missed.
+  k <- lapply(FP_WF_ARMS$arm, function(a) fp_wf_keep(all, a, min_order))
+  inside <- function(sup, sub) all(!k[[sub]] | k[[sup]])
+  if (!(inside(1, 2) && inside(2, 3) && inside(3, 5) && inside(4, 3)))
+    stop("arms do not nest on the live read", call. = FALSE)
+  s1 <- all[k[[1]], ]
+  t0 <- Sys.time()
+  d <- flooded::fl_dem_aoi(s1, buffer = buf, target_crs = sf::st_crs(s1))
+  t_dem <- secs(t0)
+  sha_mem <- fp_raster_content_sha256(d)
+  dem_path <- p_out("dem_common.tif")
+  # FLT8S: the reprojected DEM is double in memory; a float write would round it and the arms would
+  # then not be delineated on the DEM the digest describes.
+  fp_rast_write(d, dem_path, overwrite = TRUE, datatype = "FLT8S")
+  sha_file <- fp_raster_content_sha256(dem_path)
+  if (!identical(sha_mem, sha_file)) stop("dem_common.tif does not round-trip the fetched DEM", call. = FALSE)
+  r <- terra::rast(dem_path)
+  if (sf::st_crs(terra::crs(r)) != sf::st_crs(s1)) stop("dem_common.tif CRS differs from the network's", call. = FALSE)
+  n_na <- terra::global(is.na(r), "sum")[[1]]
+  message("  DEM: ", terra::ncol(r), " x ", terra::nrow(r), ", ", n_na, " NA cells, ", t_dem, " s")
+  write_json(c(list(mode = "dem", dem_content_sha256 = sha_file, ncol = terra::ncol(r), nrow = terra::nrow(r),
+                    na_cells = n_na, res = sprintf("%.9f", terra::res(r)[1]),
+                    ext = sprintf("%.9f", as.vector(terra::ext(r))), t_dem_s = t_dem,
+                    arm_segments = vapply(k, sum, 0)), vers()), p_out("dem.json"))
+  message("PROBE_DONE dem")
+}
+
+# =================================================================================================
 if (mode %in% as.character(FP_WF_ARMS$arm)) {
   arm <- fp_wf_check_arm(mode)
+  dem_path <- p_out("dem_common.tif")
+  if (!file.exists(dem_path) || !file.exists(p_out("dem.json")))
+    stop("dem_common.tif is absent: run the `dem` mode first, it defines the common grid", call. = FALSE)
   conn <- DBI::dbConnect(RPostgres::Postgres())
-  s <- read_arm(conn, arm)
+  all <- fp_wf_read_network(conn, read_schema, wsg, species)
+  s  <- read_arm(conn, arm, all)
+  s5 <- all[fp_wf_keep(all, 5L, min_order), ]
   wb <- fp_wf_read_waterbodies(conn, s)
   DBI::dbDisconnect(conn)
 
-  dem_path <- p_out("dem_common.tif")
-  t0 <- Sys.time()
-  if (arm == 1L) {
-    # FLT8S: the reprojected DEM is double in memory; a float write would round it and the arms
-    # would then not be delineated on the DEM the digest describes.
-    d <- flooded::fl_dem_aoi(s, buffer = buf, target_crs = sf::st_crs(s))
-    fp_rast_write(d, dem_path, overwrite = TRUE, datatype = "FLT8S")
-    rm(d)
-  } else if (!file.exists(dem_path)) {
-    stop("dem_common.tif is absent: run arm 1 first, it defines the common grid", call. = FALSE)
-  }
   dem <- terra::rast(dem_path)
-  t_dem <- secs(t0)
   dem_sha <- fp_raster_content_sha256(dem)
-  # Every arm lies inside arm 1, so its streams must lie inside the common DEM. Refuse rather than
-  # let the VCA silently drop seeds off the edge.
+  if (!identical(dem_sha, jsonlite::read_json(p_out("dem.json"))$dem_content_sha256))
+    stop("dem_common.tif has changed since the `dem` mode wrote it", call. = FALSE)
   bb <- sf::st_bbox(s); de <- as.vector(terra::ext(dem))
   if (bb[["xmin"]] < de[["xmin"]] || bb[["xmax"]] > de[["xmax"]] || bb[["ymin"]] < de[["ymin"]] || bb[["ymax"]] > de[["ymax"]])
     stop("arm ", arm, "'s streams extend beyond dem_common.tif", call. = FALSE)
-  message("  DEM: ", terra::ncol(dem), " x ", terra::nrow(dem), " (", t_dem, " s)")
 
   t0 <- Sys.time()
   v <- delineate(dem, s, wb)
   t_delin <- secs(t0)
-  n_valley <- sum(terra::values(v, mat = FALSE) == 1, na.rm = TRUE)
+  vv <- terra::values(v, mat = FALSE)
+  n_valley <- sum(vv == 1, na.rm = TRUE)
   fp_out <- p_out("arm", arm, "_floodplain.tif")
   fp_rast_write(v, fp_out, overwrite = TRUE, datatype = "FLT4S")
   message("  delineation: ", t_delin, " s, ", n_valley, " valley cells (",
           round(n_valley * prod(terra::res(v)) / 1e6, 1), " km2)")
+
+  # Waterbody cells: flooded ORs every waterbody into the valley with no slope or distance filter,
+  # so a floor that brings headwater lakes and wetlands adds area that says nothing about whether a
+  # first-order valley is floodplain. Rasterized the way flooded burns them (field = 1, no touches).
+  wb_r <- if (is.null(wb) || !nrow(wb)) terra::init(terra::rast(dem), 0) else
+    terra::rasterize(terra::vect(sf::st_transform(wb, terra::crs(dem))), dem, field = 1, background = 0)
+  fp_rast_write(wb_r, p_out("arm", arm, "_waterbody.tif"), overwrite = TRUE, datatype = "INT1U")
+  n_valley_wb <- sum(vv == 1 & terra::values(wb_r, mat = FALSE) == 1, na.rm = TRUE)
 
   t0 <- Sys.time()
   a <- attribute(v, s, dem, "blue_line_key")
@@ -250,17 +296,29 @@ if (mode %in% as.character(FP_WF_ARMS$arm)) {
   sf::st_write(a$x, p_out("arm", arm, "_by_blk.gpkg"), layer = "by_blk", delete_dsn = TRUE, quiet = TRUE)
   message("  attribution by blue_line_key: ", t_attr, " s, ", nrow(a$x), " rows, ", a$n_warn, " warnings")
 
-  write_json(list(
+  # The coho-reachable floodplain under THIS arm's delineation: the coho network as ONE group,
+  # complete = FALSE so cells reached only by the fallback stay out.
+  s5$coho_net <- 1L
+  t0 <- Sys.time()
+  cr <- attribute(v, s5, dem, "coho_net")
+  t_coho <- secs(t0)
+  cr_x <- cr$x
+  if (!is.null(cr_x) && nrow(cr_x)) cr_x$arm <- arm
+  sf::st_write(cr_x, p_out("arm", arm, "_coho_reach.gpkg"), layer = "coho_reach", delete_dsn = TRUE, quiet = TRUE)
+  message("  coho-reachable floodplain: ", round(sum(as.numeric(sf::st_area(cr_x))) / 1e4, 1), " ha, ", t_coho, " s")
+
+  write_json(c(list(
     mode = "arm", arm = arm, label = FP_WF_ARMS$label[arm], scenario = scen_id,
     n_segments = nrow(s), km = round(sum(s$length_metre) / 1000, 3),
     n_blk = length(unique(s$blue_line_key)), n_waterbodies = if (is.null(wb)) 0L else nrow(wb),
     dem_ncol = terra::ncol(dem), dem_nrow = terra::nrow(dem), dem_content_sha256 = dem_sha,
-    valley_cells = n_valley, cell_m2 = prod(terra::res(v)),
+    valley_cells = n_valley, valley_cells_waterbody = n_valley_wb, cell_m2 = prod(terra::res(v)),
     floodplain_content_sha256 = fp_raster_content_sha256(fp_out),
-    t_dem_s = t_dem, t_delin_s = t_delin, t_attr_blk_s = t_attr,
+    t_delin_s = t_delin, t_attr_blk_s = t_attr, t_coho_reach_s = t_coho,
     attr_rows = nrow(a$x), attr_warnings = a$n_warn, attr_first_warning = a$first_warning,
     fallback_cells = attr(a$x, "fl_fallback_cells") %||% NA,
-    flooded = as.character(packageVersion("flooded")), terra = as.character(packageVersion("terra"))),
+    coho_reach_ha = sum(as.numeric(sf::st_area(cr_x))) / 1e4,
+    threads = terra::terraOptions(print = FALSE)$threads %||% NA), vers()),
     p_out("arm", arm, "_timing.json"))
   message("PROBE_DONE ", arm)
 }
@@ -269,7 +327,7 @@ if (mode %in% as.character(FP_WF_ARMS$arm)) {
 if (mode == "seg") {
   arm <- 3L
   f3 <- p_out("arm3_floodplain.tif"); dem_path <- p_out("dem_common.tif")
-  if (!file.exists(f3) || !file.exists(dem_path)) stop("run arms 1 and 3 first", call. = FALSE)
+  if (!file.exists(f3) || !file.exists(dem_path)) stop("run the `dem` mode and arm 3 first", call. = FALSE)
   conn <- DBI::dbConnect(RPostgres::Postgres())
   s <- read_arm(conn, arm)
   DBI::dbDisconnect(conn)
@@ -283,9 +341,9 @@ if (mode == "seg") {
   sf::st_write(a$x, p_out("arm3_by_seg.gpkg"), layer = "by_seg", delete_dsn = TRUE, quiet = TRUE)
   message("  attribution by segment: ", t_attr, " s, ", nrow(a$x), " rows of ", nrow(s), " segments, ",
           a$n_warn, " warnings")
-  write_json(list(mode = "seg", arm = arm, n_groups = nrow(s), t_attr_seg_s = t_attr, attr_rows = nrow(a$x),
-                  attr_warnings = a$n_warn, attr_first_warning = a$first_warning,
-                  fallback_cells = attr(a$x, "fl_fallback_cells") %||% NA), p_out("seg_timing.json"))
+  write_json(c(list(mode = "seg", arm = arm, n_groups = nrow(s), t_attr_seg_s = t_attr, attr_rows = nrow(a$x),
+                    attr_warnings = a$n_warn, attr_first_warning = a$first_warning,
+                    fallback_cells = attr(a$x, "fl_fallback_cells") %||% NA), vers()), p_out("seg_timing.json"))
   message("PROBE_DONE seg")
 }
 

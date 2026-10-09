@@ -6,12 +6,13 @@
 # peak RSS, and under `caffeinate -s` so idle sleep cannot kill a long arm. The run stops at the
 # first mode that fails, judged by the probe's own `PROBE_DONE <mode>` line and an output newer than
 # the mode's start -- never by the wrapper's exit code, which `time` and `caffeinate` both stand in
-# front of. The anchor runs first: if it fails, arm 5 is not the baseline and nothing after it
-# compares against anything.
+# front of. The anchor runs first: if it fails, the probe does not reproduce step 2 and nothing after
+# it means anything. Then the common DEM, then the arms cheapest first, so a blow-up in arm 1 or the
+# segment run leaves the cheap arms' results on disk.
 #
 # Usage:
 #   scripts/floodplain_lcc/floodplain_probe-run.sh <area> [mode ...]
-#   default modes: anchor 1 2 3 4 5 seg report
+#   default modes: anchor dem 5 3 4 2 1 seg report
 #
 # Logs: data/<area>/probe_whole_fwa/logs/<mode>.log (gitignored; `report` reads RSS from them).
 
@@ -20,7 +21,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)" || exit 1
 AREA="${1:?usage: floodplain_probe-run.sh <area> [mode ...]}"
 shift
-if [ "$#" -eq 0 ]; then set -- anchor 1 2 3 4 5 seg report; fi
+if [ "$#" -eq 0 ]; then set -- anchor dem 5 3 4 2 1 seg report; fi
 
 OUT="$REPO_ROOT/data/$AREA/probe_whole_fwa"
 LOGS="$OUT/logs"
@@ -35,6 +36,7 @@ for mode in "$@"; do
     "$AREA" "$mode" > "$log" 2>&1 || true
   case "$mode" in
     anchor) out="$OUT/anchor.json" ;;
+    dem)    out="$OUT/dem.json" ;;
     seg)    out="$OUT/seg_timing.json" ;;
     report) out="$OUT/report.csv" ;;
     *)      out="$OUT/arm${mode}_timing.json" ;;
