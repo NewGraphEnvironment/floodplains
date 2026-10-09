@@ -10,13 +10,15 @@
 # no database, rather than of five SQL strings happening to agree.
 
 # --- the arms ------------------------------------------------------------------------------------
-# k = 1..5 as numbered in #110. Floors are fixed by the issue, not tuned: 1, 2, 3, the bcfishpass
+# k = 1..5 as numbered in #110. Arm 1 is every segment of `fresh.streams`, which is not quite all FWA:
+# on MORR it holds 9,033 of fwa_stream_networks_sp's 9,385 km (mostly edge types 1100, 1350, 1400,
+# 1450 absent). Floors are fixed by the issue, not tuned: 1, 2, 3, the bcfishpass
 # bypass predicate (first-order channels whose parent is >= 5th order), and today's network. Arm 4
 # is bcfishpass's hard-coded predicate, NOT link's: link applies fresh::frs_order_child, which also
 # caps on the blue line's own maximum order, and takes 3,998 MORR segments where this takes 7,035.
 FP_WF_ARMS <- data.frame(
   arm   = 1:5,
-  label = c("all FWA (order >= 1)", "order >= 2", "order >= 3",
+  label = c("all fresh.streams (order >= 1)", "order >= 2", "order >= 3",
             "order >= 3 + first-order with parent >= 5 (bcfp bypass)", "species network (baseline)"),
   stringsAsFactors = FALSE)
 FP_WF_PARENT_MIN <- 5L
