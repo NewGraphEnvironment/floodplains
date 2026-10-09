@@ -187,7 +187,12 @@ are in `data/morr/probe_whole_fwa/` (`panel_*.png`, `review.gpkg`).
   panels as valley floor.**
   - Floor **order ≥ 2.** It adds 29% over order ≥ 3, 80% of it outside waterbodies, at ~36 min
     against ~20 min per scenario.
-  - The bypass also passes on its own. Order ≥ 2 plus the bypass was not measured as one arm.
+  - **Grain: blue line.** Segment grain is estimated at 86 min at order ≥ 2, over the 60 min bound,
+    so the rule's "otherwise the blue line" applies. #104's range join supplies the within-blk
+    resolution.
+  - The bypass passes criteria 1 and 2 on its own. Its criterion 3 needs its own read: the
+    preliminary read puts its largest addition in the same broad-flat class as order 1's, so it
+    leans no. Order ≥ 2 plus the bypass was not measured as one arm.
   - The coho network's floodplain moves 16.6%, so **existing items are superseded and #104 plans a
     republish.**
 - **Reading B: criterion 3 is literal (the order-1 review gates every floor below 3), and the user
@@ -196,12 +201,12 @@ are in `data/morr/probe_whole_fwa/` (`panel_*.png`, `review.gpkg`).
   - The coho network's floodplain moves 1.6%, under the 2% threshold, so **existing items are
     extended, not superseded.** The new item adds the inaccessible order ≥ 3 streams' floodplain
     to today's.
+  - **Grain: segment, by the rule.** At order ≥ 3, segment attribution measured 31.5 min, within
+    the 60 min bound, so the registered rule recommends segment grain here. Key it on
+    `(blue_line_key, downstream_route_measure)`, never `id_segment`.
 - **Under either reading:**
   - **Not order ≥ 1.** It fails criterion 1 on cost alone (91 min per scenario, nearly all
     attribution).
-  - **Grain: blue line.** Segment grain passes the bound only at order ≥ 3 (31 min). At order ≥ 2
-    it fails (86 min), and under reading B segment grain stays an open choice. #104's range join
-    (`blue_line_key` + measure overlap) supplies the within-blk resolution either way.
   - **Floodplains are not monotone in their seeds.** The all-streams floodplain loses 452 ha
     (1.3%) of today's coho floodplain. A query of a whole-network item is a different answer from
     today's item, not a larger one, and the 2% threshold already counts those losses.
@@ -211,6 +216,19 @@ are in `data/morr/probe_whole_fwa/` (`panel_*.png`, `review.gpkg`).
   - **One group.** MORR is a headwater group with large lakes, so the waterbody share and the
     order-1 flats may not transfer. A second group (BULK or NECR) at order ≥ 2 alone would test the
     cost model at one arm's price.
+
+## Known limits of this run
+
+- **How the arms' networks are tied.** The probe re-reads the network in every mode.
+  - **Arm 5, the coho seeds, is tied by content.** Its digest equals step 1's record at the anchor
+    and equals it again at report time.
+  - **The window check.** No link log or recompute row for MORR falls inside the probe window.
+  - **Arms 1–4's other segments are tied only by count** (`dem.json` against each arm). link's
+    exported `lnk_access()` and `lnk_pipeline_persist()` write no log row, so a change to a
+    non-coho segment that kept the count would not be seen. A content tie needs a full-group digest
+    recorded in every mode, which this run did not record.
+- **The code version is stated, not gated.** The anchor ran on the commit where `delineate()` and
+  the SQL last changed. Round 3 of the code check diffed both and found them unchanged since.
 
 ## Anchor (measured 2026-10-09)
 

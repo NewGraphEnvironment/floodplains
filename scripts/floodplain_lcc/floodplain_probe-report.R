@@ -27,7 +27,8 @@ fp_wf_report <- function(area, dir_area, dir_out, scen_id, species, min_order, w
   # numbers come from. /usr/bin/time prints RSS for a run that died, so a failed driver attempt
   # followed by a direct Rscript re-run would otherwise lend the failed attempt's small figure to the
   # successful run -- and pass the memory gate unmeasured.
-  mode_json <- function(mode) switch(as.character(mode), dem = p_out("dem.json"), reach = p_out("reach.json"),
+  mode_json <- function(mode) switch(as.character(mode), anchor = p_out("anchor.json"), dem = p_out("dem.json"),
+                                     reach = p_out("reach.json"),
                                      seg = p_out("seg_timing.json"), p_out("arm", mode, "_timing.json"))
   rss <- function(mode) {
     f <- file.path(dir_out, "logs", paste0(mode, ".log")); j <- mode_json(mode)
@@ -93,6 +94,18 @@ fp_wf_report <- function(area, dir_area, dir_out, scen_id, species, min_order, w
   stamps <- file.path(dir_out, "logs", paste0(".", modes_read, ".start"))
   if (any(!file.exists(stamps))) stop("missing driver start stamps (run every mode through floodplain_probe-run.sh): ",
                                       paste(basename(stamps[!file.exists(stamps)]), collapse = ", "), call. = FALSE)
+  # Every mode's json must be newer than its own start stamp, and its log must record it finishing --
+  # the driver's own completion criterion. A mode that was re-run and failed re-touches its stamp but
+  # (for the anchor's network and DEM failures, which stop before writing) leaves the previous json:
+  # without this, the gates below would read a stale verdict and t0 would move past a real read.
+  for (m in modes_read) {
+    j <- mode_json(if (m == "anchor") "anchor" else m)
+    lg <- file.path(dir_out, "logs", paste0(m, ".log"))
+    if (!file.exists(j) || file.mtime(j) <= file.mtime(file.path(dir_out, "logs", paste0(".", m, ".start"))) ||
+        !file.exists(lg) || sum(readLines(lg, warn = FALSE) == paste("PROBE_DONE", m)) != 1L)
+      stop("mode `", m, "`: its output is not newer than its last start, or its log does not record it ",
+           "finishing -- the last run of that mode failed; re-run it", call. = FALSE)
+  }
   t0 <- min(file.mtime(stamps))
   # The network: link appends a row to <schema>.log for every pipeline run (date_end NULL while it
   # runs and if it dies) and to <schema>.log_recompute for every access recompute, which UPDATEs
@@ -102,10 +115,24 @@ fp_wf_report <- function(area, dir_area, dir_out, scen_id, species, min_order, w
   if (!grepl("^[a-z_][a-z0-9_]*$", read_schema)) stop("bad schema name: ", read_schema, call. = FALSE)
   conn0 <- DBI::dbConnect(RPostgres::Postgres())
   ev <- vapply(c("log", "log_recompute"), function(tb) DBI::dbGetQuery(conn0, sprintf(
-    "SELECT count(*) AS n FROM %s.%s WHERE watershed_group_code = '%s'
+    "SELECT count(*)::int AS n FROM %s.%s WHERE watershed_group_code = '%s'
        AND (date_start >= $1 OR date_end >= $1 OR date_end IS NULL)", read_schema, tb, wsg),
-    params = list(t0))$n, numeric(1))
+    params = list(t0))$n, integer(1))
+  # The window sees only writers that log, and link's exported lnk_access() / lnk_pipeline_persist()
+  # write no log row. So re-derive arm 5 NOW and require it to equal the anchor's digest: the network
+  # the coho seeds came from has not moved since the anchor, by content. Arms 1-4's non-coho segments
+  # are tied across modes by count only (dem.json vs each arm); a content tie for them needs a
+  # per-mode full-group digest, which this run did not record -- stated in the research file.
+  all_now <- fp_wf_read_network(conn0, read_schema, wsg, species)
+  s5_now <- all_now[fp_wf_keep(all_now, 5L, min_order), ]
+  # The runner's own digest columns (this file is sourced in its environment), so the comparison
+  # with the anchor cannot drift from the list the anchor used.
+  dig_now <- fp_table_content_sha256(s5_now, NETWORK_DIGEST_KEY, NETWORK_DIGEST_VAL)
   DBI::dbDisconnect(conn0)
+  if (!identical(dig_now, anc$network)) stop("arm 5's network digests differently now than at the anchor", call. = FALSE)
+  if (!identical(as.numeric(nrow(all_now)), as.numeric(dmj$arm_segments[1])))
+    stop("the whole-group read has ", nrow(all_now), " segments now, ", dmj$arm_segments[1], " at the `dem` mode",
+         call. = FALSE)
   if (any(ev > 0)) stop(read_schema, " ", paste(names(ev)[ev > 0], collapse = "/"), " has ", sum(ev),
                         " row(s) for ", wsg, " started, ended or still open since the probe began (",
                         format(t0, tz = "UTC", usetz = TRUE), "): the network may have changed under it", call. = FALSE)
@@ -113,7 +140,9 @@ fp_wf_report <- function(area, dir_area, dir_out, scen_id, species, min_order, w
   # dem, reach and seg record none. The file must predate the window, and every mode that does record
   # its scenario must name this one.
   scen_csv <- here::here("config", area, "flood_scenarios.csv")
-  if (file.mtime(scen_csv) >= t0) stop(basename(scen_csv), " was modified after the probe began", call. = FALSE)
+  for (f in c(scen_csv, here::here("config", area, "area.yml")))   # area.yml names the schema read
+    if (file.mtime(f) >= t0) stop(basename(f), " was modified after the probe began", call. = FALSE)
+  if (length(anc$scenario) != 1L) stop("anchor.json records no scenario", call. = FALSE)
   scen_seen <- c(anc$scenario, vapply(tm, `[[`, "", "scenario"))
   if (any(scen_seen != scen_id)) stop("modes ran different scenarios: ", paste(unique(scen_seen), collapse = ", "),
                                       " (report is for ", scen_id, ")", call. = FALSE)
