@@ -17,7 +17,7 @@
   (`.gitignore:3`), so `probe_whole_fwa/` never reaches git or the publish layer.
 - First live run (04:57 UTC): anchor stopped at the DEM. Network digest MATCH; DEM digest DIFFERS from
   the 2026-09-03 record. Diagnosed: MRDEM source unchanged (Last-Modified 2026-06-24); terra
-  1.9.34 → 1.9.50 now links GDAL 3.13.0 (sf still 3.8.5), and the warp's grid origin moved ~1.1 m E /
+  1.9.34 → 1.9.50 now links GDAL 3.13.0 (sf still 3.8.5), and the warp's grid origin moved ~1.1 m W /
   0.6 m N. Anchor reworked to replay `fp_floodplain()` into `probe_whole_fwa/step2_replay/` on the
   same day's DEM; it passes (network MATCH, DEM MATCH vs replay, floodplain MATCH vs replay). Published
   `co_ff04` vs today: 35,769.1 → 35,618.0 ha (−0.42%).

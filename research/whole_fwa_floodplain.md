@@ -18,7 +18,7 @@ One scenario (`co_ff04`), one group (MORR), five networks, all filters of one re
 
 | arm | network |
 |---|---|
-| 1 | all FWA (order ≥ 1) |
+| 1 | all of `fresh.streams` (order ≥ 1) — not quite all FWA: on MORR it holds 9,033 of `fwa_stream_networks_sp`'s 9,385 km; the 3.7% it omits is mostly edge types 1100, 1350, 1400 and 1450 |
 | 2 | order ≥ 2 |
 | 3 | order ≥ 3 |
 | 4 | order ≥ 3 + first-order with `stream_order_parent >= 5` (bcfishpass's bypass predicate, not link's `frs_order_child` rule) |
@@ -28,8 +28,16 @@ All five are delineated on one DEM (arm 1's bbox), so they compare cell for cell
 attributed by `blue_line_key`, and arm 3 also by segment `(blue_line_key,
 downstream_route_measure)`. Delineation, attribution and the DEM fetch are timed separately; each
 stage runs in its own process for a peak RSS. Per arm, a single-group `complete = FALSE`
-attribution from the **coho network only** gives the coho-reachable floodplain, which isolates the
-boundary move (the flood surface is fitted from every seed, #40) from the area added by new seeds.
+attribution from the **coho network only** gives the coho network's floodplain under that arm's
+delineation: what a #104 consumer would get by querying the whole floodplain for coho, set against
+today's item. That is the supersession question.
+
+*Corrected 2026-10-09, after the rule was registered and before any result was read:* this text first
+claimed the measure isolates the boundary move (#40: the flood surface is fitted from every seed)
+from area added by new seeds. It does not. flooded's `fl_group_cells()` keeps the valley cells inside
+a zone set by the coho seeds and the DEM alone, so the zone is the same for every arm. The measure
+therefore also carries tributary-mouth valleys and waterbodies that new seeds bring into that zone,
+and the report splits the waterbody part out. The rule's thresholds are unchanged.
 
 Before any arm, an anchor proves the probe's copies of step 1 and step 2: its arm 5 network must
 digest equal to step 1's record, and its floodplain must digest equal to `fp_floodplain()` itself,
@@ -64,12 +72,12 @@ Pending the MORR run.
 
 ### Anchor (measured 2026-10-09)
 
-- Network: arm 5 digests equal to step 1's recorded `streams_content_sha256`, so `fresh` has not
-  been rebuilt since 2026-09-01 and the probe's SQL copy is exact.
+- Network: arm 5 digests equal to step 1's recorded `streams_content_sha256`, so `fresh` is
+  unchanged since step 1 ran on 2026-09-03, and the probe's SQL copy is exact.
 - Floodplain: the probe's arm 5 digests equal to `fp_floodplain()` replayed on the same DEM.
 - **Published baseline is not reproducible on today's toolchain.** MRDEM-30's source is unchanged
   (S3 `Last-Modified` 2026-06-24), but terra 1.9.50, linking GDAL 3.13.0, reprojects it onto a grid
-  whose origin sits ~1.1 m east and ~0.6 m north of the one terra 1.9.34 produced on 2026-09-03,
+  whose origin sits ~1.1 m west and ~0.6 m north of the one terra 1.9.34 produced on 2026-09-03,
   with resolution differing in the 7th decimal (30.430634931 vs 30.430634377 m). MORR `co_ff04`
   comes out 35,618.0 ha against the published 35,769.1 ha (−0.42%). `fp_toolchain()` records sf's
   GDAL (3.8.5), not terra's, so the record could not show the change.

@@ -45,11 +45,23 @@ fp_wf_report <- function(area, dir_area, dir_out, scen_id, species, min_order, w
   rch <- rd(p_out("reach.json"))
   sigs <- unique(c(vsig(dmj), vapply(tm, vsig, ""), vsig(rch), if (!is.null(seg)) vsig(seg)))
   if (length(sigs) != 1L) stop("arms ran on different toolchains: ", paste(sigs, collapse = " | "), call. = FALSE)
+  # Each output tied to the floodplain it came from, by CONTENT: every mode re-reads the network and
+  # any arm can be re-run alone, so file presence says nothing about which run produced what.
+  for (k in 1:5) {
+    if (!identical(fp_raster_content_sha256(p_out("arm", k, "_floodplain.tif")), tm[[k]]$floodplain_content_sha256))
+      stop("arm", k, "_floodplain.tif no longer matches arm", k, "_timing.json: re-run that arm", call. = FALSE)
+    if (!identical(as.numeric(dmj$arm_segments[k]), as.numeric(tm[[k]]$n_segments)))
+      stop("arm ", k, " read ", tm[[k]]$n_segments, " segments but the `dem` mode counted ", dmj$arm_segments[k],
+           ": the network changed between modes", call. = FALSE)
+    rk <- rch$arms[rch$arms$arm == k, , drop = FALSE]
+    if (nrow(rk) != 1L || rk$valley_cells != tm[[k]]$valley_cells)
+      stop("reach.json does not describe arm ", k, "'s current floodplain: re-run `reach`", call. = FALSE)
+  }
 
   # --- 1. cost and size per arm -------------------------------------------------------------------
   ha_cell <- tm[[1]]$cell_m2 / 1e4
   arm_tab <- do.call(rbind, lapply(tm, function(t) data.frame(
-    arm = t$arm, label = t$label, segments = t$n_segments, km = t$km, blue_lines = t$n_blk,
+    arm = t$arm, label = FP_WF_ARMS$label[t$arm], segments = t$n_segments, km = t$km, blue_lines = t$n_blk,
     waterbodies = t$n_waterbodies, floodplain_km2 = t$valley_cells * ha_cell / 100,
     waterbody_share = t$valley_cells_waterbody / t$valley_cells,
     t_delin_min = t$t_delin_s / 60, t_attr_blk_min = t$t_attr_blk_s / 60,
@@ -106,11 +118,19 @@ fp_wf_report <- function(area, dir_area, dir_out, scen_id, species, min_order, w
     x <- sf::st_read(p_out("arm", k, "_coho_reach.gpkg"), quiet = TRUE)
     terra::rasterize(terra::vect(x), dem, field = 1, background = 0, touches = FALSE)
   })
+  # NOT a pure boundary move. flooded's fl_group_cells() keeps valley cells inside a zone set by the
+  # coho seeds and the DEM alone, so this is arm k's valley within the SAME zone for every arm: it
+  # carries the boundary move AND tributary-mouth valleys and waterbodies that new seeds bring inside
+  # the zone. That is the supersession question as #104 would meet it -- what a consumer gets by
+  # querying the whole floodplain for the coho network, against today's item -- and the waterbody
+  # split below says how much of the gain is lakes and wetlands.
   reach_tab <- do.call(rbind, lapply(1:4, function(k) {
     o <- fp_wf_overlap(reach_r[[k]], reach_r[[5]])
     g <- o$ha[o$metric == "a_only"]; l <- o$ha[o$metric == "b_only"]; b <- o$ha[o$metric == "b"]
-    data.frame(arm = k, reach_ha = o$ha[o$metric == "a"], arm5_reach_ha = b, gained_ha = g, lost_ha = l,
-               moved_share = (g + l) / b)
+    ra <- terra::values(reach_r[[k]], mat = FALSE) == 1; rb <- terra::values(reach_r[[5]], mat = FALSE) == 1
+    g_wb <- sum(ra & !rb & terra::values(wb[[k]], mat = FALSE) == 1, na.rm = TRUE) * ha_cell
+    data.frame(arm = k, reach_ha = o$ha[o$metric == "a"], arm5_reach_ha = b, gained_ha = g,
+               gained_in_waterbody_ha = g_wb, lost_ha = l, moved_share = (g + l) / b)
   }))
   for (i in seq_len(nrow(reach_tab))) for (m in names(reach_tab)[-1]) put("coho_reach", reach_tab$arm[i], m, reach_tab[[m]][i])
 
@@ -157,11 +177,17 @@ fp_wf_report <- function(area, dir_area, dir_out, scen_id, species, min_order, w
   cand <- data.frame(floor = c("order >= 2 (arm 2 vs 3)", "order >= 1 (arm 1 vs 2)", "bypass (arm 4 vs 3)"),
                      arm = c(2, 1, 4), pair = c("2_vs_3", "1_vs_2", "4_vs_3"), stringsAsFactors = FALSE)
   cand$cost_min <- vapply(cand$arm, function(k) (dmj$t_dem_s + tm[[k]]$t_delin_s + tm[[k]]$t_attr_blk_s) / 60, 0)
-  cand$peak_rss_gb <- vapply(cand$arm, function(k) max(rss(k), rss("dem"), na.rm = TRUE), 0)
+  # NA, never a fallback: an arm whose log carries no RSS line was not measured, and neither the DEM
+  # stage's figure nor max(na.rm = TRUE)'s -Inf may stand in for it (both would pass the gate).
+  cand$peak_rss_gb <- vapply(cand$arm, function(k) {
+    a <- rss(k); d <- rss("dem")
+    if (is.na(a) || is.na(d)) NA_real_ else max(a, d)
+  }, 0)
   cand$added_share_of_arm3 <- ov_tab$gained_ha[match(cand$pair, ov_tab$pair)] / arm3_ha
   cand$outside_wb_share <- ov_tab$gained_outside_wb_share[match(cand$pair, ov_tab$pair)]
-  cand$affordable <- cand$cost_min <= FP_WF_RULE$max_min & cand$peak_rss_gb <= FP_WF_RULE$max_rss_gb
-  cand$adds_floodplain <- cand$added_share_of_arm3 >= FP_WF_RULE$min_added_share &
+  cand$affordable <- !is.na(cand$cost_min) & !is.na(cand$peak_rss_gb) &
+    cand$cost_min <= FP_WF_RULE$max_min & cand$peak_rss_gb <= FP_WF_RULE$max_rss_gb
+  cand$adds_floodplain <- !is.na(cand$outside_wb_share) & cand$added_share_of_arm3 >= FP_WF_RULE$min_added_share &
     cand$outside_wb_share >= FP_WF_RULE$min_outside_wb
   cand$visual <- "pending"
   cand$supersedes <- reach_tab$moved_share[match(cand$arm, reach_tab$arm)] > FP_WF_RULE$supersede_share
@@ -278,7 +304,9 @@ fp_wf_report <- function(area, dir_area, dir_out, scen_id, species, min_order, w
     "## Area on the common grid (ha; a = first arm, b = second)", "", md_tab(ov_tab), "",
     sprintf("Extent and regridding effect: arm 5 on the common grid %.1f ha vs on its own grid %.1f ha (%+.3f%%).",
             a5_ha, anc_ha, 100 * (a5_ha - anc_ha) / anc_ha), "",
-    "## Boundary move: floodplain reachable from the coho network, arm k vs arm 5 (ha)", "", md_tab(reach_tab), "",
+    "## The coho network's floodplain under each delineation, arm k vs arm 5 (ha)", "",
+    "Valley cells inside the zone the coho seeds reach (distance and cost from coho seeds only), so it carries the boundary move plus tributary-mouth valleys and waterbodies new seeds bring into that zone.", "",
+    md_tab(reach_tab), "",
     "Per-blk attributed area for the coho network's blue lines (includes added seeds, so not the supersession measure):", "",
     md_tab(blk_tab), "",
     "## Habitat by order band (`fresh.streams_vw_bcfp`, modelled = codes 1, 2; km)", "", md_tab(hab), "",
