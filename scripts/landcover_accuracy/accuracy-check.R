@@ -288,7 +288,8 @@ td <- tempfile("linktree"); dir.create(file.path(td, "a", "sub"), recursive = TR
 writeLines("x", file.path(td, "a", "sub", "f.txt"))
 n1 <- fp_acc_link_tree(file.path(td, "a"), file.path(td, "b"))
 ok("hard links share the inode (no copy)",
-   identical(file.info(file.path(td, "b", "sub", "f.txt"))$ino, file.info(file.path(td, "a", "sub", "f.txt"))$ino))
+   # fs, not base file.info(): base has no inode column, and NULL == NULL made this arm unable to fail
+   identical(fs::file_info(file.path(td, "b", "sub", "f.txt"))$inode, fs::file_info(file.path(td, "a", "sub", "f.txt"))$inode))
 ok("linking again is a no-op", identical(n1, 1L) && identical(fp_acc_link_tree(file.path(td, "a"), file.path(td, "b")), 0L))
 unlink(td, recursive = TRUE)
 
@@ -359,6 +360,105 @@ ok("widening adds the adjacent month with the higher share, one at a time; a tie
 ok("widening prefers the higher-share neighbour",
    identical(fp_acc_window_widen(fp_acc_window_pass(setw(w17, 2017, 5, 0.30), yrs, mos), 2017, 6:8)[[1]], 6:9))
 ok("months string", identical(fp_acc_months_str(7L), "7") && identical(fp_acc_months_str(6:8), "6-8"))
+
+# --- Esri Wayback captures (#115) ----------------------------------------------------------------
+message("\nWayback capture selection and chips (#115)")
+cand <- read.csv(text = "
+point_id,release_id,release_date,capture_date,src_res,source,zoom
+a,1,2016-08-01,2016-06-01,0.5,Maxar WV02,17
+a,2,2017-11-16,2017-10-01,0.5,Maxar WV02,17
+a,3,2018-01-10,2017-06-01,0.31,Maxar WV03,17
+b,10,2018-01-10,2017-06-11,0.5,Maxar WV02,17
+b,11,2019-01-10,2017-06-11,0.31,Maxar WV03,17
+b,20,2022-12-01,2022-07-01,0.5,Maxar WV02,17
+b,21,2023-05-01,2022-07-01,0.5,Maxar WV02,17
+e,25521,2017-11-16,2013-05-06,0.5,Maxar WV02,17
+e,15045,2020-04-29,2017-06-11,0.31,Maxar WV03,17
+n,30,2020-01-01,,15,Earthstar,11
+", colClasses = c(release_id = "character", capture_date = "character"))
+pk <- fp_acc_wayback_pick(cand, c("a", "b", "c", "e", "n"), c(2017L, 2023L))
+g <- function(p, e, k) pk[[k]][pk$point_id == p & pk$endpoint == e]
+ok("one row per point per endpoint, sorted", nrow(pk) == 10 && identical(pk$point_id, rep(c("a", "b", "c", "e", "n"), each = 2)))
+ok("the capture nearest the endpoint wins (same year, nearest 1 July)", identical(g("a", 2017, "capture_date"), "2017-06-01"))
+ok("an endpoint with only older captures takes the nearest, years_from_endpoint signed",
+   identical(g("a", 2023, "capture_date"), "2017-10-01") && identical(g("a", 2023, "years_from_endpoint"), -6L))
+ok("the same capture in two releases: the finer resolution wins", identical(g("b", 2017, "release_id"), "11"))
+ok("same capture, same resolution: the later release wins", identical(g("b", 2023, "release_id"), "21"))
+ok("a point with no capture keeps a row with an empty release",
+   is.na(g("c", 2017, "release_id")) && is.na(g("c", 2023, "capture_date")))
+ok("a null capture date (a base layer) is not a capture", is.na(g("n", 2017, "release_id")))
+ok("NECR point 1 shape: the 2017 capture is in the 2020 release, not the 2017 one",
+   identical(g("e", 2017, "release_id"), "15045") && identical(g("e", 2017, "capture_date"), "2017-06-11"))
+by_release <- cand[cand$point_id == "e", ]
+by_release <- by_release[which.min(abs(as.numeric(as.Date(by_release$release_date) - as.Date("2017-07-01")))), ]
+ok("must-fail arm: picking the release NEAREST the endpoint serves the 2013 capture",
+   identical(by_release$capture_date, "2013-05-06"))
+
+ok("chips are named by review_id", identical(fp_acc_chip_name(c(1, 27, 480)), c("0001.tif", "0027.tif", "0480.tif")))
+ok("must-fail arm: a chip named by point_id is caught", fp_acc_point_id_like("17_00009.tif") &&
+     !any(fp_acc_point_id_like(fp_acc_chip_name(1:480))))
+ok("a missing review_id is refused, never named NA", inherits(tryCatch(fp_acc_chip_name(c(1, NA)), error = identity), "error"))
+
+wsmp <- data.frame(point_id = c("1_00001", "2_00001"), stratum = c(1L, 2L), cell = c(10, 20), map_class = c(2011L, 2002L))
+wcsv <- tempfile(fileext = ".csv")
+wgood <- merge(wsmp, fp_acc_wayback_pick(cand[0, ], wsmp$point_id, c(2017L, 2023L)), by = "point_id")
+write.csv(wgood, wcsv, row.names = FALSE, na = "")
+ok("wayback.csv: one row per point per endpoint, design agreeing, passes",
+   !inherits(tryCatch(fp_acc_wayback_read(wcsv, wsmp, c(2017L, 2023L)), error = identity), "error"))
+write.csv(wgood[-1, ], wcsv, row.names = FALSE, na = "")
+ok("must-fail arm: a wayback.csv missing a (point, endpoint) row is refused",
+   inherits(tryCatch(fp_acc_wayback_read(wcsv, wsmp, c(2017L, 2023L)), error = identity), "error"))
+wbad <- wgood; wbad$cell[1] <- 99
+write.csv(wbad, wcsv, row.names = FALSE, na = "")
+ok("must-fail arm: a wayback.csv whose cell disagrees with the sample (a redraw) is refused",
+   inherits(tryCatch(fp_acc_wayback_read(wcsv, wsmp, c(2017L, 2023L)), error = identity), "error"))
+for (wc in Sys.glob(here::here("reference", "*", "wayback.csv"))) {
+  a <- basename(dirname(wc))
+  s <- sf::st_drop_geometry(sf::st_read(here::here("reference", a, "sample.gpkg"), layer = "sample", quiet = TRUE))
+  ok(sprintf("%s wayback.csv agrees with sample.gpkg", a),
+     !inherits(tryCatch(fp_acc_wayback_read(wc, s, fp_acc_area(a)$change_interval), error = identity), "error"))
+}
+
+built <- data.frame(review_id = c(2L, 1L, 1L), endpoint = c(2017L, 2017L, 2023L),
+                    capture_date = c("2016-06-30", "2017-06-11", "2021-06-22"), src_res = c(0.5, 0.31, 0.5))
+cc <- fp_acc_capture_columns(built, 1:3, c(2017L, 2023L))
+ok("capture columns are joined by review_id, one per endpoint, 'none' where nothing was built",
+   identical(names(cc), c("review_id", "capture_2017", "capture_2023")) &&
+     identical(cc$capture_2017, c("2017-06-11, 0.31 m", "2016-06-30, 0.5 m", "none")) &&
+     identical(cc$capture_2023, c("2021-06-22, 0.5 m", "none", "none")))
+ok("must-fail arm: taking the built rows in file order labels review_id 1 with review_id 2's capture",
+   !identical(fp_acc_capture_label(built$capture_date[built$endpoint == 2017], built$src_res[built$endpoint == 2017])[1],
+              cc$capture_2017[1]))
+ok("no design column in the capture columns", !length(fp_acc_blind_leaks(names(cc))))
+
+xm <- xml2::read_xml(fp_acc_wayback_wms_xml("15045", 17, "/tmp/wbcache"))
+ok("the WMS description names the release, the zoom and the cache",
+   grepl("/tile/15045/", xml2::xml_text(xml2::xml_find_first(xm, "//ServerUrl"))) &&
+     xml2::xml_text(xml2::xml_find_first(xm, "//TileLevel")) == "17" &&
+     xml2::xml_text(xml2::xml_find_first(xm, "//Cache/Path")) == "/tmp/wbcache")
+
+lt <- tempfile(); dir.create(file.path(lt, "a", "wayback_2017"), recursive = TRUE)
+dir.create(file.path(lt, "b"))
+invisible(file.create(file.path(lt, "a", "wayback_2017", "0001.tif"), file.path(lt, "a", "airphoto_2012.vrt")))
+fp_acc_link_tree(file.path(lt, "a"), file.path(lt, "b"))
+invisible(file.create(file.path(lt, "b", "wayback_2017", "0002.tif"), file.path(lt, "b", "own.txt")))
+fp_acc_link_tree(file.path(lt, "a"), file.path(lt, "b"))
+ok("must-fail arm: without prune, a chip A removed stays in B", file.exists(file.path(lt, "b", "wayback_2017", "0002.tif")))
+suppressMessages(fp_acc_link_tree(file.path(lt, "a"), file.path(lt, "b"), prune = "^wayback_"))
+ok("prune removes what A no longer holds under the pattern, and nothing else",
+   !file.exists(file.path(lt, "b", "wayback_2017", "0002.tif")) && file.exists(file.path(lt, "b", "own.txt")) &&
+     file.exists(file.path(lt, "b", "wayback_2017", "0001.tif")) && file.exists(file.path(lt, "b", "airphoto_2012.vrt")))
+# A builder that rewrites a chip under the same name gives A a new inode; B must follow it
+writeLines("new", file.path(lt, "a", "wayback_2017", "0001.tif.tmp"))
+file.rename(file.path(lt, "a", "wayback_2017", "0001.tif.tmp"), file.path(lt, "a", "wayback_2017", "0001.tif"))
+ok("must-fail arm: base file.info() has no inode, so an inode test on it can never see the rewrite",
+   is.null(file.info(file.path(lt, "a", "wayback_2017", "0001.tif"))$ino))
+suppressMessages(fp_acc_link_tree(file.path(lt, "a"), file.path(lt, "b"), prune = "^wayback_"))
+ok("a source rewritten in A (new inode) is relinked in B",
+   identical(readLines(file.path(lt, "b", "wayback_2017", "0001.tif")), "new"))
+unlink(lt, recursive = TRUE)
+ok("`esri_dated` is a form value apart from the undated `esri` (labelling key rule 5)",
+   all(c("esri_dated", "esri") %in% FP_ACC_IMAGERY))
 
 message(if (fails) sprintf("\n%d FAIL", fails) else "\nALL PASS")
 quit(status = if (fails) 1L else 0L)

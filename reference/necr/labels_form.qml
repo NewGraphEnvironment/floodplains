@@ -190,7 +190,10 @@
             <Option value="airphoto" name="Air photo (dated)" type="QString"/>
           </Option>
           <Option type="Map">
-            <Option value="esri" name="Esri basemap" type="QString"/>
+            <Option value="esri_dated" name="Esri capture (dated, per point)" type="QString"/>
+          </Option>
+          <Option type="Map">
+            <Option value="esri" name="Esri basemap (undated)" type="QString"/>
           </Option>
           <Option type="Map">
             <Option value="google" name="Google basemap" type="QString"/>

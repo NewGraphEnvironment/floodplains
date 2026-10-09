@@ -387,8 +387,9 @@ sample point is listed, so a stale index can be detected and not just a disagree
   - Passing the year's full frame set georeferences 250 of 250 frames.
 - **`windows.csv` does not change.**
   - The windows come from a pre-registered rule over clear-day counts (Composite windows).
-  - No dated epoch falls on an endpoint: the orthophoto is 2021, and the latest themed air photo is
-    2012.
+  - No orthophoto or air photo epoch falls on an endpoint: the orthophoto is 2021, and the latest
+    themed air photo is 2012. The Esri Wayback captures (next section) are what reaches the
+    endpoints, per point.
   - Re-choosing windows to suit an ortho year would mean editing a pre-registered definition after
     seeing data. Dated imagery is instead extra evidence the reviewer records through the label's
     `imagery` field (`orthophoto`, `airphoto`), with the epoch per point in `imagery.csv`.
@@ -402,6 +403,65 @@ sample point is listed, so a stale index can be detected and not just a disagree
   A theme hides layers by absence, so switching theme flips epochs. The template's own themes are
   removed. The themes are rewritten on every build, and a layer whose index or VRT went stale is removed
   together with its theme.
+
+## Esri Wayback captures nearest each endpoint (#115)
+
+**Verified:** 2026-10-08 · **Produced by:** `scripts/landcover_accuracy/wayback_index-capture.R`
+(writes `reference/necr/wayback.csv`), `wayback_build-chips.R`, `review_build-qgis.R` · **Issues:**
+#115, rtj#377 (the Mergin project), rfp#398, qgis/QGIS#54161. Run record:
+`planning/archive/*-issue-115-*/`.
+
+Esri's World Imagery is sub-metre over most of NECR, and its archive, Wayback, publishes the mosaic
+as it stood on each of 197 release dates (2014-02-20 to 2026-09-24).
+
+- **A release date is not a capture date** (rtj `research/esri_wayback.md`). A release mosaics
+  captures of many years, so no single release is "the 2017 layer". At NECR point 1 (`17_00009`),
+  the 2017-11-16 release serves a 2013-05-06 capture, and the 2017-06-11 capture first appears in the
+  2020-04-29 release.
+- **So the capture is chosen per point, from metadata.**
+  - Each release's metadata MapServer has one layer per scale band; layer `L` describes tile zoom
+    `23 - L`. Layers 4-6 (zoom 19-17) are queried once per release over the sample's bbox and joined
+    to the points.
+  - Per point and release, the deepest layer covering the point gives the capture and the zoom.
+  - Per point and endpoint, the capture nearest the endpoint wins (`fp_acc_wayback_pick`): whole
+    years first, as rule 5 of the labelling key does, then days from 1 July, then finer resolution,
+    then the later release.
+- **NECR, 480 points** (90,538 point-release captures, 52 distinct capture dates; no point without
+  one):
+
+  | endpoint | same year | +/-1 year | +/-2 years | further |
+  |---|---:|---:|---:|---:|
+  | 2017 | 6 | 237 | 106 | 131 |
+  | 2023 | 148 | 115 | 102 | 115 |
+
+  So 243 points (51%) have a capture within +/-1 year of 2017, where before there was no sharp
+  imagery nearer than the 2012 air photo thumbnails. 2023 has 263 (55%).
+  - Captures are 0.31-0.5 m (639 of the 960 picks at 0.5 m). 211 picks are served at zoom 17 (tiles
+    ~0.70 m on the ground at 54 N) and 749 at zoom 18 (~0.35 m).
+- **QGIS cannot draw Wayback** (qgis/QGIS#54161, open since 2023-08, not fixed in 4.2.3 or the 3.44
+  LTR). A tile unchanged in a release 301-redirects to the release holding it, with a relative
+  `Location`, which QGIS requests as a bare path. GDAL follows it, so the chips are fetched with GDAL
+  into local rasters, and labelling needs no network.
+- **Each pixel belongs to its nearest point.** 176 of the 480 points have a neighbour within 300 m,
+  so the +/-150 m chips overlap, and neighbours are usually different captures. Each chip is clipped
+  to its point's Voronoi cell.
+  - A VRT ignores a source's **mask** band when it composites but honours its **nodata** (measured:
+    with JPEG + mask chips, the chip listed last overwrote its neighbour at the neighbour's own
+    point).
+  - So the chips are lossless with nodata 0 outside the cell. The build reads the pixel under every
+    point back from the mosaic and refuses unless it is that point's own chip.
+- **Built for NECR: 960 chips (480 points x 2 endpoints), 711 MB** in `dated/wayback_*`. A cold build
+  takes 21 min and a re-run seconds: tiles are cached, and a chip is kept while its release, zoom and
+  clip are unchanged. Log: `scripts/landcover_accuracy/logs/20261008_wayback_necr.md`.
+  - **A flat cell is not a failure.** The first build refused three cells as possible placeholder
+    tiles. All three were open lake, so the check was removed.
+  - **115 of 480 points have the same capture at both endpoints**, because one capture is all they have
+    near either. The chip then dates one endpoint well and the other poorly, and the label says which.
+- **A label decided on a chip records `esri_dated`, never `esri`.** Rule 5 caps the undated
+  basemaps at `low`; a dated capture within +/-1 year supports `high` or `medium` like any dated
+  imagery. The rule itself is unchanged: it already says imagery date sets the ceiling.
+- **The reviewer sees the capture.** `cells.gpkg` carries `capture_<year>` ("2017-06-11, 0.31 m"),
+  which the cell layer labels outside the cell as "Esri 2017: …", taken from the chips actually built.
 
 ## Accuracy labels and training labels never mix
 
