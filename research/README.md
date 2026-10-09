@@ -21,5 +21,6 @@ Three homes, each one job: **PWF = the story, `scripts/<module>/logs/` = the mea
 | file | covers |
 |---|---|
 | [`channel_migration.md`](channel_migration.md) | Whether channel migration (erosion/deposition strips on opposite banks) separates from flicker and misregistration among IO's Water-involving change patches: pre-registered rule, NECR and BULK probe (#106) |
+| [`whole_fwa_floodplain.md`](whole_fwa_floodplain.md) | What a whole-network floodplain costs and how it differs from the species cut: five order floors on MORR, blue-line vs segment attribution grain, pre-registered floor/grain rule (#110, gates #104) |
 | [`landcover_accuracy.md`](landcover_accuracy.md) | How right IO LULC is inside our floodplains: pre-registered criteria for classifying ourselves, measured composite windows and drought years, free reference from fire/harvest/FWA wetlands, and the stratified reference sample (#93) |
 | [`20260711_lulc_tile-fetch-benchmark.md`](20260711_lulc_tile-fetch-benchmark.md) | Tiled STAC fetch (`tile_size`) benchmarked and rejected: slower at every tile size on every AOI (#8) |

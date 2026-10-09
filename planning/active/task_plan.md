@@ -56,7 +56,7 @@ What does it cost to delineate a watershed group's **whole** FWA floodplain, and
 ## Phase 4: Verdict, docs, hand-off
 - [ ] `research/whole_fwa_floodplain.md` (provenance line, question, method, results per arm,
       recommendation on floor and grain, open items) + row in `research/README.md`.
-- [ ] CLAUDE.md: one short bullet in Layout pointing at the probe and research file.
+- [x] CLAUDE.md: one short bullet in Layout pointing at the probe and research file.
 - [ ] Revise #104's body against the numbers (edit, not comment); update #110 body if scope moved.
 
 ## Validation
