@@ -23,9 +23,18 @@ fp_wf_report <- function(area, dir_area, dir_out, scen_id, species, min_order, w
             p_out("arm", 1:5, "_coho_reach.gpkg"), p_out("reach.json"))
   if (any(!file.exists(need))) stop("missing probe outputs:\n  ", paste(need[!file.exists(need)], collapse = "\n  "),
                                     call. = FALSE)
+  # A log's RSS counts only if THAT log recorded the mode finishing and is no older than the json the
+  # numbers come from. /usr/bin/time prints RSS for a run that died, so a failed driver attempt
+  # followed by a direct Rscript re-run would otherwise lend the failed attempt's small figure to the
+  # successful run -- and pass the memory gate unmeasured.
+  mode_json <- function(mode) switch(as.character(mode), dem = p_out("dem.json"), reach = p_out("reach.json"),
+                                     seg = p_out("seg_timing.json"), p_out("arm", mode, "_timing.json"))
   rss <- function(mode) {
-    f <- file.path(dir_out, "logs", paste0(mode, ".log"))
-    if (file.exists(f)) fp_wf_peak_rss_gb(readLines(f, warn = FALSE)) else NA_real_
+    f <- file.path(dir_out, "logs", paste0(mode, ".log")); j <- mode_json(mode)
+    if (!file.exists(f) || !file.exists(j)) return(NA_real_)
+    lines <- readLines(f, warn = FALSE)
+    if (!any(lines == paste("PROBE_DONE", mode)) || file.mtime(f) < file.mtime(j)) return(NA_real_)
+    fp_wf_peak_rss_gb(lines)
   }
   rows <- list()
   put <- function(section, arm, metric, value) {
@@ -53,10 +62,41 @@ fp_wf_report <- function(area, dir_area, dir_out, scen_id, species, min_order, w
     if (!identical(as.numeric(dmj$arm_segments[k]), as.numeric(tm[[k]]$n_segments)))
       stop("arm ", k, " read ", tm[[k]]$n_segments, " segments but the `dem` mode counted ", dmj$arm_segments[k],
            ": the network changed between modes", call. = FALSE)
+    if (k == 3L && !is.null(seg) && !identical(as.numeric(seg$n_groups), as.numeric(dmj$arm_segments[3])))
+      stop("`seg` read ", seg$n_groups, " arm-3 segments but the `dem` mode counted ", dmj$arm_segments[3],
+           ": the network changed between modes", call. = FALSE)
     rk <- rch$arms[rch$arms$arm == k, , drop = FALSE]
     if (nrow(rk) != 1L || rk$valley_cells != tm[[k]]$valley_cells)
       stop("reach.json does not describe arm ", k, "'s current floodplain: re-run `reach`", call. = FALSE)
+    # The arm mode writes floodplain.tif, then waterbody.tif, then by_blk.gpkg, then timing.json, in
+    # one process. A sibling outside that window is left over from another run. The by_blk row count
+    # is the content half of the same tie.
+    mt <- file.mtime(p_out("arm", k, c("_floodplain.tif", "_waterbody.tif", "_by_blk.gpkg", "_timing.json")))
+    if (is.unsorted(mt)) stop("arm ", k, "'s outputs are not from one run (mtimes out of order): re-run that arm",
+                              call. = FALSE)
+    nb <- nrow(sf::st_read(p_out("arm", k, "_by_blk.gpkg"), quiet = TRUE))
+    if (nb != tm[[k]]$attr_rows) stop("arm", k, "_by_blk.gpkg has ", nb, " rows, its timing json ", tm[[k]]$attr_rows,
+                                      call. = FALSE)
   }
+  if (!identical(fp_raster_content_sha256(p_out("dem_common.tif")), dmj$dem_content_sha256))
+    stop("dem_common.tif no longer matches dem.json", call. = FALSE)
+  if (!identical(fp_raster_content_sha256(p_out("anchor_floodplain.tif")), anc$floodplain))
+    stop("anchor_floodplain.tif no longer matches anchor.json: re-run the anchor", call. = FALSE)
+
+  # The network every mode re-read: link writes a new fresh.log row on every rebuild, so the newest
+  # MORR row still being the one step 1's record names means no mode -- `reach` included, which
+  # records no segment count -- read a rebuilt network. Ties broken on run_id so the pick is not an
+  # arbitrary row.
+  if (!grepl("^[a-z_][a-z0-9_]*$", read_schema)) stop("bad schema name: ", read_schema, call. = FALSE)
+  conn0 <- DBI::dbConnect(RPostgres::Postgres())
+  uid_now <- DBI::dbGetQuery(conn0, sprintf(
+    "SELECT run_uid FROM %s.log WHERE watershed_group_code = '%s' ORDER BY date_end DESC NULLS LAST, run_id DESC LIMIT 1",
+    read_schema, wsg))$run_uid
+  DBI::dbDisconnect(conn0)
+  uid_rec <- jsonlite::read_json(file.path(dir_area, "provenance.json"))$network[[paste0(species, min_order)]]$link_log$run_uid
+  if (length(uid_now) != 1L || is.null(uid_rec) || !identical(as.character(uid_now), as.character(uid_rec)))
+    stop("the newest ", read_schema, ".log row for ", wsg, " (", format(uid_now), ") is not the run step 1 recorded (",
+         format(uid_rec), "): the network may have been rebuilt during the probe", call. = FALSE)
 
   # --- 1. cost and size per arm -------------------------------------------------------------------
   ha_cell <- tm[[1]]$cell_m2 / 1e4
@@ -116,7 +156,13 @@ fp_wf_report <- function(area, dir_area, dir_out, scen_id, species, min_order, w
   dem <- terra::rast(p_out("dem_common.tif"))
   reach_r <- lapply(1:5, function(k) {
     x <- sf::st_read(p_out("arm", k, "_coho_reach.gpkg"), quiet = TRUE)
-    terra::rasterize(terra::vect(x), dem, field = 1, background = 0, touches = FALSE)
+    r <- terra::rasterize(terra::vect(x), dem, field = 1, background = 0, touches = FALSE)
+    # Content tie to reach.json: the gpkg must hold exactly the cells the `reach` mode counted.
+    n <- sum(terra::values(r, mat = FALSE) == 1)
+    if (n != rch$arms$reach_cells[rch$arms$arm == k])
+      stop("arm", k, "_coho_reach.gpkg holds ", n, " cells, reach.json ", rch$arms$reach_cells[rch$arms$arm == k],
+           ": re-run `reach`", call. = FALSE)
+    r
   })
   # NOT a pure boundary move. flooded's fl_group_cells() keeps valley cells inside a zone set by the
   # coho seeds and the DEM alone, so this is arm k's valley within the SAME zone for every arm: it
