@@ -225,6 +225,17 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
     `reference/<area>/windows.csv`, which `chip_build-composite.R` reads. Failed gdalcubes chunk
     reads are invisible to R (drift#87), so every mode runs with `> log 2>&1` and every log that
     filled the count cache is grepped for `repoprted` before `windows.csv` is trusted.
+- **Whole-FWA floodplain probe (#110, gates #104).** `floodplain_probe-run.sh <area>` delineates one
+  scenario from five networks (order ≥ 1, ≥ 2, ≥ 3, bcfp's bypass predicate, the species network) on
+  ONE common DEM and times the DEM fetch, the VCA and each attribution separately. Each mode runs in
+  its own process for a peak RSS. Helpers are in `fp_whole_fwa.R`, asserted offline by
+  `floodplain_probe-check.R`. The arms are R filters over one read, so their nesting is a property
+  of the code. The probe writes only gitignored `data/<area>/probe_whole_fwa/` plus committed logs.
+  Its anchor replays `fp_floodplain()` into `probe_whole_fwa/step2_replay/` rather than trusting the
+  published record, because **the published record does not reproduce on today's toolchain**:
+  terra 1.9.50 links GDAL 3.13.0, its warp moves the DEM grid ~1 m, and MORR `co_ff04` comes out
+  −0.42% (#117, flooded#67). `fp_toolchain()` records sf's GDAL, not terra's. Verdict and rule:
+  `research/whole_fwa_floodplain.md`.
 - **Channel migration (#106): rule v2 negative on two groups, not yet validated.**
   `scripts/floodplain_lcc/channel_probe-migration.R <area>` applies a pre-registered rule
   (`research/channel_migration.md`) to IO's Water-involving change. The rule asks whether long,
