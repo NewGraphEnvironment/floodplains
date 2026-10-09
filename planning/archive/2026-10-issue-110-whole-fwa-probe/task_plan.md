@@ -57,12 +57,12 @@ What does it cost to delineate a watershed group's **whole** FWA floodplain, and
 - [x] `research/whole_fwa_floodplain.md` (provenance line, question, method, results per arm,
       recommendation on floor and grain, open items) + row in `research/README.md`.
 - [x] CLAUDE.md: one short bullet in Layout pointing at the probe and research file.
-- [ ] Revise #104's body against the numbers (edit, not comment); update #110 body if scope moved.
+- [x] Revise #104's body against the numbers (edit, not comment); update #110 body if scope moved.
 
 ## Validation
 
 - [x] `floodplain_probe-check.R` passes; each must-fail arm shown to fire with the guard removed
 - [x] Anchor passes on MORR (or its failure recorded and the fallback baseline stated)
-- [ ] `/code-check branch` clean
-- [ ] PWF checkboxes match landed work
-- [ ] `/planning-archive` on completion, archive README carries Measurement + Evidence
+- [x] `/code-check branch` clean
+- [x] PWF checkboxes match landed work
+- [x] `/planning-archive` on completion, archive README carries Measurement + Evidence

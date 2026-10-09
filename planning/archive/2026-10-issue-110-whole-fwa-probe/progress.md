@@ -37,3 +37,8 @@
 - Findings: delineation < 3 min at every floor, attribution 87–96% of cost; fallback (`complete = TRUE`)
   ≈ 13 min/scenario; floodplains not monotone in seeds (arm 1 loses 452 ha of arm 5's); order ≥ 2
   passes criteria 1–2, order ≥ 1 fails cost (90.7 min); supersession yes (16.6% at order ≥ 2).
+- Code check: 4 rounds (plus the plan review = 5 reviewer agents). Rounds 2–4 each found a defect inside
+  the previous round's fix, one mechanism throughout (ties that trust a name, presence, or two mutable
+  stores agreeing now). Closed by enumeration of every report input (review-round4.md).
+- Round 3 found the recommendation did not follow from the registered rule (criterion 3 names order-1
+  panels); research and #104 now state both readings. #104 body + title revised; #110 outcome added.
