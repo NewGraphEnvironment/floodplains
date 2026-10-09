@@ -273,49 +273,65 @@ fp_wf_report <- function(area, dir_area, dir_out, scen_id, species, min_order, w
   sf::st_write(base_poly, rv, layer = "arm3_floodplain", append = TRUE, quiet = TRUE)
 
   panels <- character(0)
-  o1 <- patches$order1_added
-  if (!is.null(o1) && nrow(o1)) {
-    # Panels sample order-1 additions that are NOT waterbodies: a lake is floodplain by flooded's
-    # construction, so it cannot inform whether a first-order valley is.
-    o1 <- o1[!is.na(o1$waterbody_share) & o1$waterbody_share < 0.5, ]
-    o1 <- o1[order(-o1$area_ha), ]
-    set.seed(110)
-    mid <- o1[o1$area_ha >= stats::quantile(o1$area_ha, 0.4) & o1$area_ha <= stats::quantile(o1$area_ha, 0.6), ]
-    small <- o1[o1$area_ha <= stats::quantile(o1$area_ha, 0.2), ]
-    pick <- rbind(o1[seq_len(min(2, nrow(o1))), ], mid[sample(nrow(mid), min(2, nrow(mid))), ],
-                  small[sample(nrow(small), min(2, nrow(small))), ])
-    kind <- rep(c("largest", "median-size", "small"), times = c(min(2, nrow(o1)), min(2, nrow(mid)), min(2, nrow(small))))
-    net <- fp_wf_read_network(conn, read_schema, wsg, species)
-    bbx <- function(e, crs) sf::st_bbox(c(xmin = e[1], ymin = e[3], xmax = e[2], ymax = e[4]), crs = crs)
+  net <- fp_wf_read_network(conn, read_schema, wsg, species)
+  # [[ ]] on as.vector(): e[1] keeps its own name, so c(xmin = e[1]) is named `xmin.xmin` and
+  # st_bbox() finds no xmin -- an all-NA bbox (the `c(name = x)` trap).
+  bbx <- function(e, crs) { v <- as.vector(e); sf::st_bbox(c(xmin = v[["xmin"]], ymin = v[["ymin"]],
+                                                              xmax = v[["xmax"]], ymax = v[["ymax"]]), crs = crs) }
+  # Panels sample additions that are NOT mostly waterbody: a lake is floodplain by flooded's
+  # construction, so it cannot inform whether a valley is. Order 1 is what the pre-registered visual
+  # criterion names (panel_1..6, seed 110); order 2 and the bypass are drawn after it, as evidence for
+  # the floors that pass the other two criteria, outside the registered criterion.
+  draw <- function(f, title, pick_i) {
+    cen <- sf::st_coordinates(sf::st_centroid(sf::st_geometry(pick_i)))
+    half <- max(1500, sqrt(pick_i$area_ha * 1e4) * 1.5)
+    e <- terra::ext(cen[1] - half, cen[1] + half, cen[2] - half, cen[2] + half)
+    dm <- terra::crop(dem, e)
+    hs <- terra::shade(terra::terrain(dm, "slope", unit = "radians"), terra::terrain(dm, "aspect", unit = "radians"))
+    grDevices::png(f, width = 1400, height = 1400, res = 160)
+    terra::plot(hs, col = grDevices::grey.colors(50, 0.3, 0.95), legend = FALSE, axes = FALSE, mar = c(1, 1, 2, 1),
+                main = title)
+    a3 <- terra::crop(fp[[3]], e)
+    terra::plot(terra::ifel(a3 == 1, 1, NA), col = grDevices::adjustcolor("steelblue", 0.45), add = TRUE, legend = FALSE)
+    cols <- c(order2_added = "gold", order1_added = "darkorange", bypass_added = "orchid")
+    for (nm in names(cols)) {
+      pg <- patches[[nm]]
+      if (is.null(pg)) next
+      pg <- suppressWarnings(sf::st_crop(pg, bbx(e, sf::st_crs(pg))))
+      if (nrow(pg)) plot(sf::st_geometry(pg), add = TRUE, border = if (nm == "bypass_added") "orchid4" else NA,
+                         col = if (nm == "bypass_added") NA else grDevices::adjustcolor(cols[[nm]], 0.6))
+    }
+    ln <- suppressWarnings(sf::st_crop(net, bbx(e, sf::st_crs(net))))
+    if (nrow(ln)) plot(sf::st_geometry(ln), add = TRUE, col = "navy", lwd = 0.4 + 0.35 * pmin(ln$stream_order, 6))
+    # Legend at explicit map coordinates: a keyword position draws nothing after terra::plot().
+    ev <- as.vector(e)
+    graphics::legend(ev[["xmin"]] + half * 0.04, ev[["ymax"]] - half * 0.04, bty = "o", bg = "white", cex = 0.8,
+                     legend = c("order >= 3 floodplain (arm 3)", "added by order 2", "added by order 1",
+                                "added by bypass (outline)", "FWA stream"),
+                     fill = c(grDevices::adjustcolor("steelblue", 0.45), grDevices::adjustcolor("gold", 0.6),
+                              grDevices::adjustcolor("darkorange", 0.6), NA, NA),
+                     border = c("grey40", "grey40", "grey40", "orchid4", NA), lty = c(NA, NA, NA, NA, 1),
+                     col = c(NA, NA, NA, NA, "navy"))
+    grDevices::dev.off()
+    f
+  }
+  set.seed(110)
+  for (nm in c("order1_added", "order2_added", "bypass_added")) {
+    o <- patches[[nm]]
+    if (is.null(o) || !nrow(o)) next
+    o <- o[!is.na(o$waterbody_share) & o$waterbody_share < 0.5, ]
+    o <- o[order(-o$area_ha), ]
+    mid <- o[o$area_ha >= stats::quantile(o$area_ha, 0.4) & o$area_ha <= stats::quantile(o$area_ha, 0.6), ]
+    small <- o[o$area_ha <= stats::quantile(o$area_ha, 0.2), ]
+    n_small <- if (nm == "order1_added") min(2, nrow(small)) else 0L
+    pick <- rbind(o[seq_len(min(2, nrow(o))), ], mid[sample(nrow(mid), min(2, nrow(mid))), ],
+                  small[sample(nrow(small), n_small), ])
+    kind <- rep(c("largest", "median-size", "small"), times = c(min(2, nrow(o)), min(2, nrow(mid)), n_small))
+    what <- c(order1_added = "order-1", order2_added = "order-2", bypass_added = "bypass")[[nm]]
     for (i in seq_len(nrow(pick))) {
-      cen <- sf::st_coordinates(sf::st_centroid(sf::st_geometry(pick[i, ])))
-      half <- max(1500, sqrt(pick$area_ha[i] * 1e4) * 1.5)
-      e <- terra::ext(cen[1] - half, cen[1] + half, cen[2] - half, cen[2] + half)
-      dm <- terra::crop(dem, e)
-      hs <- terra::shade(terra::terrain(dm, "slope", unit = "radians"), terra::terrain(dm, "aspect", unit = "radians"))
-      f <- p_out("panel_", i, ".png")
-      grDevices::png(f, width = 1400, height = 1400, res = 160)
-      terra::plot(hs, col = grDevices::grey.colors(50, 0.3, 0.95), legend = FALSE, axes = FALSE, mar = c(1, 1, 2, 1),
-                  main = sprintf("Panel %d (%s): order-1 addition %.1f ha", i, kind[i], pick$area_ha[i]))
-      a3 <- terra::crop(fp[[3]], e)
-      terra::plot(terra::ifel(a3 == 1, 1, NA), col = grDevices::adjustcolor("steelblue", 0.45), add = TRUE, legend = FALSE)
-      for (nm in c("order2_added", "order1_added")) {
-        pg <- patches[[nm]]
-        if (is.null(pg)) next
-        pg <- suppressWarnings(sf::st_crop(pg, bbx(e, sf::st_crs(pg))))
-        if (nrow(pg)) plot(sf::st_geometry(pg), add = TRUE, border = NA,
-                           col = grDevices::adjustcolor(if (nm == "order1_added") "darkorange" else "gold", 0.6))
-      }
-      ln <- suppressWarnings(sf::st_crop(net, bbx(e, sf::st_crs(net))))
-      if (nrow(ln)) plot(sf::st_geometry(ln), add = TRUE, col = "navy", lwd = 0.4 + 0.35 * pmin(ln$stream_order, 6))
-      # Legend at explicit map coordinates: a keyword position draws nothing after terra::plot().
-      graphics::legend(e[1] + half * 0.04, e[4] - half * 0.04, bty = "o", bg = "white", cex = 0.8,
-                       legend = c("order >= 3 floodplain (arm 3)", "added by order 2", "added by order 1", "FWA stream"),
-                       fill = c(grDevices::adjustcolor("steelblue", 0.45), grDevices::adjustcolor("gold", 0.6),
-                                grDevices::adjustcolor("darkorange", 0.6), NA),
-                       border = c("grey40", "grey40", "grey40", NA), lty = c(NA, NA, NA, 1), col = c(NA, NA, NA, "navy"))
-      grDevices::dev.off()
-      panels <- c(panels, f)
+      f <- if (nm == "order1_added") p_out("panel_", i, ".png") else p_out("panel_", sub("_added$", "", nm), "_", i, ".png")
+      panels <- c(panels, draw(f, sprintf("Panel %s (%s): %s addition %.1f ha", sub("^panel_|\\.png$", "", basename(f)),
+                                          kind[i], what, pick$area_ha[i]), pick[i, ]))
     }
   }
 

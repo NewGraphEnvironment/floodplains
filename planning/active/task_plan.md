@@ -42,27 +42,27 @@ What does it cost to delineate a watershed group's **whole** FWA floodplain, and
       layer copies by explicit name).
 
 ## Phase 3: Run on MORR and measure
-- [ ] Run the anchor, then all arms (commit before the run; no edits to the script while it runs).
-- [ ] Summary script mode `report`: per arm km, segments, blks, delineation s, attribution s,
+- [x] Run the anchor, then all arms (commit before the run; no edits to the script while it runs).
+- [x] Summary script mode `report`: per arm km, segments, blks, delineation s, attribution s,
       peak RSS, floodplain km²; area vs baseline (intersect / lost / gained), and per-blk
       attributed area for the 340 coho blks vs the baseline's `co_ff04_by_blue_line_key`; arm 4's
       added area beyond arm 3; rearing (co, ch) and spawning km below each floor from
       `fresh.streams_vw_bcfp`.
-- [ ] Write `scripts/floodplain_lcc/logs/<yyyymmdd>_floodplain_probe-whole-fwa_morr.{csv,md}`.
-- [ ] Quality: a review gpkg (`probe_whole_fwa/review.gpkg`: order-1 and order-2 added valleys,
+- [x] Write `scripts/floodplain_lcc/logs/<yyyymmdd>_floodplain_probe-whole-fwa_morr.{csv,md}`.
+- [x] Quality: a review gpkg (`probe_whole_fwa/review.gpkg`: order-1 and order-2 added valleys,
       arm-4 additions) plus a handful of hillshade panels to `probe_whole_fwa/` for your visual
       read; my own read recorded as preliminary, your verdict pending.
 
 ## Phase 4: Verdict, docs, hand-off
-- [ ] `research/whole_fwa_floodplain.md` (provenance line, question, method, results per arm,
+- [x] `research/whole_fwa_floodplain.md` (provenance line, question, method, results per arm,
       recommendation on floor and grain, open items) + row in `research/README.md`.
 - [x] CLAUDE.md: one short bullet in Layout pointing at the probe and research file.
 - [ ] Revise #104's body against the numbers (edit, not comment); update #110 body if scope moved.
 
 ## Validation
 
-- [ ] `floodplain_probe-check.R` passes; each must-fail arm shown to fire with the guard removed
-- [ ] Anchor passes on MORR (or its failure recorded and the fallback baseline stated)
+- [x] `floodplain_probe-check.R` passes; each must-fail arm shown to fire with the guard removed
+- [x] Anchor passes on MORR (or its failure recorded and the fallback baseline stated)
 - [ ] `/code-check branch` clean
 - [ ] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion, archive README carries Measurement + Evidence

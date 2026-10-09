@@ -30,3 +30,10 @@
 - Arm 5 (05:08–05:38): delineation 79 s, 356.5 km² on the common grid, blk attribution 863 s for 340
   groups, 7.1 GiB peak. Its coho-reach pass ran with `complete = TRUE` by omission (bug); run
   stopped during arm 3, reach moved to its own guarded mode, relaunched `3 4 2 1 reach seg`.
+- Run `3 4 2 1 reach seg` 05:39–08:53 UTC, all PROBE_DONE. Arm 5 re-run 09:07 for a clean RSS.
+  Report first failed in the panels (`c(xmin = e[1])` → `xmin.xmin`, the `c(name = x)` trap); fixed,
+  reran OK. Order-2 and bypass panels added. Results, rule table, recommendation written into
+  `research/whole_fwa_floodplain.md`; log `scripts/floodplain_lcc/logs/20261009_floodplain_probe-whole-fwa_morr.{md,csv}`.
+- Findings: delineation < 3 min at every floor, attribution 87–96% of cost; fallback (`complete = TRUE`)
+  ≈ 13 min/scenario; floodplains not monotone in seeds (arm 1 loses 452 ha of arm 5's); order ≥ 2
+  passes criteria 1–2, order ≥ 1 fails cost (90.7 min); supersession yes (16.6% at order ≥ 2).
