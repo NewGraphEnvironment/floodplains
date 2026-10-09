@@ -1,3 +1,20 @@
+# floodplains 0.1.7 (2026-10-09)
+
+* Esri Wayback imagery at the **capture** nearest each endpoint, per NECR accuracy review point (#115).
+  * **Capture, not release.** `wayback_index-capture.R` reads all 197 releases' capture metadata
+    and writes `reference/<area>/wayback.csv`. 243 of 480 NECR points gain sharp imagery within
+    ±1 year of 2017, where the nearest before was the 2012 air photo.
+  * **Local chips QGIS can draw.** `wayback_build-chips.R` fetches them with GDAL (QGIS cannot
+    follow Wayback's relative redirects, qgis/QGIS#54161) into `dated/wayback_<year>/<review_id>.tif`.
+    Each chip is clipped to its point's Voronoi cell with nodata: a VRT ignores source masks when it
+    composites. The build checks the pixel under every point is that point's own chip.
+  * **In the review project**, `<year> Esri capture (nearest per point)` themes, and each cell is
+    labelled with its capture date. `labels.gpkg` is untouched.
+  * **New label value `esri_dated`**, apart from the undated `esri` basemap that labelling-key rule
+    5 caps at low.
+  * **Fix:** `fp_acc_link_tree` never relinked a rewritten file for reviewer B. Base `file.info()`
+    has no inode column, so the test was `identical(NULL, NULL)`.
+
 # floodplains 0.1.6 (2026-10-06)
 
 * Blind, randomised, cell-level NECR accuracy review (#111), ready for rtj#367 to put on Mergin.
