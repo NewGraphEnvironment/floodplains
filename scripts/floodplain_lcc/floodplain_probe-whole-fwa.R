@@ -9,9 +9,14 @@
 #
 # One mode per invocation, so floodplain_probe-run.sh can wrap each in /usr/bin/time -l and read a
 # peak RSS per stage:
-#   anchor   arm 5 on its OWN DEM. Stops unless the network, the DEM and the floodplain all digest
-#            equal to what step 1 and step 2 recorded in provenance.json. This is what makes the
-#            probe's copy of 01's SQL and 02's VCA call trustworthy without editing either.
+#   anchor   arm 5 on its OWN DEM, checked two ways. (1) Its network must digest equal to what step 1
+#            recorded in provenance.json -- the SQL copy's guard. (2) Its floodplain must digest equal
+#            to step 2 ITSELF: fp_floodplain() is replayed on the same day's DEM into
+#            probe_whole_fwa/step2_replay/ (attribution off) and the two rasters compared. The DEM and
+#            floodplain are also compared with the PUBLISHED record and reported, not enforced:
+#            measured 2026-10-09, terra 1.9.50 (GDAL 3.13) reprojects MRDEM onto a grid ~1 m off the
+#            one 1.9.34 (GDAL 3.8.5) produced, so the published floodplain is not reproducible on
+#            this toolchain and a stop there would test the toolchain, not the probe.
 #   <k>      arm k on the COMMON DEM (arm 1 fetches it and writes dem_common.tif; 2-5 refuse to run
 #            without it), so all five compare cell for cell. Attributed by blue_line_key.
 #   seg      arm 3's floodplain attributed by (blue_line_key, downstream_route_measure), timed.
@@ -119,7 +124,7 @@ if (mode == "anchor") {
   conn <- DBI::dbConnect(RPostgres::Postgres())
   s5 <- read_arm(conn, 5)
   got_net <- fp_table_content_sha256(s5, NETWORK_DIGEST_KEY, NETWORK_DIGEST_VAL)
-  message("  anchor 1 (network): ", if (identical(got_net, rec_net)) "MATCH" else "DIFFERS")
+  message("  anchor 1 (network vs step 1's record): ", if (identical(got_net, rec_net)) "MATCH" else "DIFFERS")
   if (!identical(got_net, rec_net))
     stop("ANCHOR FAIL (network): arm 5 does not reproduce step 1's ", net_key, " network. Either '",
          read_schema, "' has been rebuilt since step 1 ran, or this script's copy of 01's SQL or ",
@@ -127,14 +132,42 @@ if (mode == "anchor") {
   wb5 <- fp_wf_read_waterbodies(conn, s5)
   DBI::dbDisconnect(conn)
 
+  # --- step 2 replayed: the real fp_floodplain() on today's DEM, into a scratch directory ---
+  # It reads aquatic_network.gpkg from its own dir_out, so the published one is COPIED in (a byte copy
+  # of a file nothing is writing; refuse if a SQLite sidecar says otherwise). Attribution is off: it
+  # is not what the anchor tests and costs ~14 min on MORR.
+  src_net <- file.path(dir_area, "aquatic_network.gpkg")
+  if (any(file.exists(paste0(src_net, c("-journal", "-wal", "-shm")))))
+    stop("aquatic_network.gpkg has a SQLite sidecar; something is writing it", call. = FALSE)
+  replay_dir <- p_out("step2_replay")
+  unlink(replay_dir, recursive = TRUE)
+  fs::dir_create(replay_dir)
+  file.copy(src_net, file.path(replay_dir, "aquatic_network.gpkg"))
+  source(file.path(lcc, "fp_region.R"))              # fp_wsg_subbasin
+  source(file.path(lcc, "02_floodplain_model.R"))    # fp_floodplain
+  cfg2 <- list(name = cfg$name, watershed_group = wsg, species = species, min_order = min_order,
+               dir_out = replay_dir, break_points = NULL, attribute_by = NULL,
+               primary_scenario = scen_id,
+               scenarios = readr::read_csv(file.path(cfg_dir, "flood_scenarios.csv"), show_col_types = FALSE))
+  t0 <- Sys.time()
+  fp_floodplain(cfg2, scenarios = scen_id)
+  t_replay <- secs(t0)
+  rp <- jsonlite::read_json(file.path(replay_dir, "provenance.json"))$floodplain[[scen_id]]
+  replay_tif <- file.path(replay_dir, paste0("floodplain_", scen_id, ".tif"))
+  replay_fp  <- fp_raster_content_sha256(replay_tif)
+  if (!identical(replay_fp, rp$outputs$floodplain_content_sha256))
+    stop("step 2 replay: its raster does not digest equal to its own provenance record", call. = FALSE)
+
+  # --- the probe's own arm 5, on its own DEM ---
   t0 <- Sys.time()
   dem5 <- flooded::fl_dem_aoi(s5, buffer = buf, target_crs = sf::st_crs(s5))
   t_dem <- secs(t0)
   got_dem <- fp_raster_content_sha256(dem5)
-  message("  anchor 2 (DEM): ", if (identical(got_dem, rec_dem)) "MATCH" else "DIFFERS", " (", t_dem, " s)")
-  if (!identical(got_dem, rec_dem))
-    stop("ANCHOR FAIL (DEM): MRDEM-30 over arm 5 does not digest equal to step 2's DEM. NRCan may have ",
-         "re-derived it, or the reprojection moved. recorded ", rec_dem, ", got ", got_dem, call. = FALSE)
+  message("  DEM vs step 2 replay: ", if (identical(got_dem, rp$inputs$dem_content_sha256)) "MATCH" else "DIFFERS",
+          "; vs published record: ", if (identical(got_dem, rec_dem)) "MATCH" else "DIFFERS", " (", t_dem, " s)")
+  if (!identical(got_dem, rp$inputs$dem_content_sha256))
+    stop("ANCHOR FAIL (DEM): the probe and step 2, run minutes apart on one machine, fetched different ",
+         "DEMs for the same network", call. = FALSE)
 
   t0 <- Sys.time()
   v5 <- delineate(dem5, s5, wb5)
@@ -142,19 +175,33 @@ if (mode == "anchor") {
   f5 <- p_out("anchor_floodplain.tif")
   fp_rast_write(v5, f5, overwrite = TRUE, datatype = "FLT4S")   # 02's pinned type
   got_fp <- fp_raster_content_sha256(f5)
-  ondisk <- fp_raster_content_sha256(file.path(dir_area, paste0("floodplain_", scen_id, ".tif")))
-  message("  anchor 3 (floodplain): ", if (identical(got_fp, rec_fp)) "MATCH" else "DIFFERS",
-          " (", t_delin, " s); on-disk raster ", if (identical(ondisk, rec_fp)) "matches" else "DIFFERS FROM",
-          " its own record")
+  pub_tif <- file.path(dir_area, paste0("floodplain_", scen_id, ".tif"))
+  ondisk  <- fp_raster_content_sha256(pub_tif)
+  cells <- function(f) { r <- terra::rast(f); sum(terra::values(r, mat = FALSE) == 1, na.rm = TRUE) * prod(terra::res(r)) / 1e4 }
+  ha_pub <- cells(pub_tif); ha_rep <- cells(replay_tif)
+  r_pub <- terra::rast(pub_tif); r_new <- terra::rast(f5)
+  message("  anchor 2 (floodplain vs step 2 replay): ", if (identical(got_fp, replay_fp)) "MATCH" else "DIFFERS",
+          " (", t_delin, " s)")
+  message("  published record: floodplain ", if (identical(got_fp, rec_fp)) "MATCH" else "DIFFERS",
+          sprintf("; %.1f ha published vs %.1f ha today (%+.3f%%)", ha_pub, ha_rep, 100 * (ha_rep - ha_pub) / ha_pub))
   write_json(list(mode = "anchor", scenario = scen_id, network = got_net, dem = got_dem, floodplain = got_fp,
-                  network_match = identical(got_net, rec_net), dem_match = identical(got_dem, rec_dem),
-                  floodplain_match = identical(got_fp, rec_fp), ondisk_match = identical(ondisk, rec_fp),
-                  t_dem_s = t_dem, t_delin_s = t_delin, flooded = as.character(packageVersion("flooded")),
-                  terra = as.character(packageVersion("terra"))), p_out("anchor.json"))
-  if (!identical(got_fp, rec_fp))
-    stop("ANCHOR FAIL (floodplain): same network and same DEM, different floodplain. The VCA call or ",
-         "flooded (", as.character(packageVersion("flooded")), " here) has changed what step 2 does. ",
-         "recorded ", rec_fp, ", got ", got_fp, call. = FALSE)
+                  network_match = identical(got_net, rec_net),
+                  dem_match_replay = identical(got_dem, rp$inputs$dem_content_sha256),
+                  floodplain_match_replay = identical(got_fp, replay_fp),
+                  dem_match_published = identical(got_dem, rec_dem),
+                  floodplain_match_published = identical(got_fp, rec_fp),
+                  ondisk_matches_its_record = identical(ondisk, rec_fp),
+                  published_ha = ha_pub, today_ha = ha_rep,
+                  published_ext = sprintf("%.9f", as.vector(terra::ext(r_pub))),
+                  today_ext = sprintf("%.9f", as.vector(terra::ext(r_new))),
+                  published_res = sprintf("%.9f", terra::res(r_pub)[1]), today_res = sprintf("%.9f", terra::res(r_new)[1]),
+                  t_replay_s = t_replay, t_dem_s = t_dem, t_delin_s = t_delin,
+                  flooded = as.character(packageVersion("flooded")), terra = as.character(packageVersion("terra")),
+                  terra_gdal = terra::gdal(), sf_gdal = unname(sf::sf_extSoftVersion()[["GDAL"]])),
+             p_out("anchor.json"))
+  if (!identical(got_fp, replay_fp))
+    stop("ANCHOR FAIL (floodplain): same network, same DEM, and the probe's VCA call does not reproduce ",
+         "step 2's. replay ", replay_fp, ", probe ", got_fp, call. = FALSE)
   message("PROBE_DONE anchor")
 }
 
