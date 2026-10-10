@@ -1,10 +1,11 @@
 # Whole-FWA floodplain: cost, floor and grain
 
-**Verified:** 2026-10-09 · **Issues:** #110 (this probe); gates #104; filed #117, flooded#67; relates #40, #54, #65 ·
-**Produced by:** `scripts/floodplain_lcc/floodplain_probe-run.sh` (logs
-`scripts/floodplain_lcc/logs/*_floodplain_probe-whole-fwa_*`) · **Status:** MORR measured
-2026-10-09. The recommendation is conditional on the user's read of criterion 3 (see "The rule,
-applied").
+**Verified:** 2026-10-10 · **Issues:** #110 (this probe); gates #104; filed #117, flooded#67; relates #40, #54, #65,
+flooded#68 · **Produced by:** `scripts/floodplain_lcc/floodplain_probe-run.sh` (logs
+`scripts/floodplain_lcc/logs/*_floodplain_probe-whole-fwa_*`); habitat by order
+`scripts/floodplain_lcc/logs/20261010_habitat_by-order_province.md` · **Status:** MORR measured
+2026-10-09. **Recommendation revised 2026-10-10: floor order ≥ 2** (see "Recommendation for
+#104"), pending the second-group run.
 
 #104 proposes delineating each watershed group's floodplain once, from the whole stream network,
 keyed by `blue_line_key`, with habitat joined afterwards instead of cut into the geometry. Today
@@ -142,6 +143,57 @@ Of the gains, 3–11% are waterbody cells.
 
 The 25.2% reproduces #104's "20–29%" figure, which is the consistency anchor.
 
+### Habitat by stream order, province, both models (2026-10-10)
+
+The MORR figures above are one group, and one model. Measured across every group in the local
+fwapg, for both habitat models, as the share of modelled habitat length by FWA stream order
+(`scripts/floodplain_lcc/logs/20261010_habitat_by-order_province.md`):
+
+| model (table) | groups | order 1 | order 2 | order ≥ 3 |
+|---|---|---|---|---|
+| bcfishpass (`fresh.streams_vw_bcfp`, codes 1, 2) | 188 | 0.6–3.4% | 5.2–21.1% | 76.7–94.2% |
+| link (`fresh.streams` + `fresh.streams_habitat_<sp>`) | 98 | 0.7–3.2% | 5.3–21.3% | 77.9–93.9% |
+
+Ranges are across species (bt, ch, cm, co, pk, sk, st, wct) and uses (spawning, rearing), with one
+exception that is out of scope: sockeye rearing sits 46–50% on order 1, and all 7,250 km of it in
+bcfishpass is on waterbodies (lake flow lines). Lakes enter the floodplain as waterbodies, not as
+stream floodplain.
+
+- **Order 1 holds about 1% of modelled habitat in both models.** Partly by construction:
+  bcfishpass gives order-1 streams no channel width, so its habitat models barely classify them.
+- **Order 2 holds 5–21%,** most for bull trout rearing (21%), coho rearing (18–20%) and pink and
+  chum spawning (15–19%).
+- **So a floor at order ≥ 2 covers 96.6–99.4% (bcfishpass) and 96.8–99.3% (link) of modelled
+  spawning and rearing; order ≥ 3 covers 76.7–94.2% (bcfishpass) and 77.9–93.9% (link).**
+- The two models agree to within about four points in every cell (largest gap: chum spawning on
+  order 2, 18.8% vs 14.7%), though they segment the network differently and link's is still being
+  tuned. The floor does not depend on which model is used.
+
+### Literature: what the VCA is for on small streams (2026-10-10)
+
+Searched in the `vca_refs` and `habitat_modelling` ragnar stores; quotes are from the source text.
+
+- **The VCA was built with a stream-size floor.** Nagel et al. (2014), the VCA manual: a
+  *"Minimum drainage area—This parameter deletes valley bottom polygons that are smaller than the
+  user-defined minimum drainage area"*; and *"Unchanneled valleys are not considered."*
+- **It cannot resolve small valleys at 30 m.** Nagel et al. (2014): *"the VCA has difficulty
+  resolving unconfined valleys that are narrower than about two to three times the DEM cell size
+  (60-90 m in width for a 30 m DEM)"*. On MRDEM-30, ground the VCA keeps beside a first-order line
+  is low-relief terrain near a stream, not that stream's floodplain; the order-1 review panels
+  read the same way.
+- **bcfishpass keeps lateral habitat only where it touches modelled habitat.** A BC
+  lateral-habitat assessment built on bcfishpass's VCA (`BC_report_formatted_final.pdf` in
+  `habitat_modelling`, authors not yet identified): *"The floodplain raster was refined to exclude
+  regions with no connectivity to stream segments modelled as spawning or rearing habitat"*. Here
+  that rule becomes a query on the joined habitat, not a cut in the geometry (#104 point 3).
+- **Small streams are a riparian question more than a floodplain one.** Fogel et al. (2022):
+  *"floodplain reconnection is likely to be more effective at reducing temperatures in large
+  rivers, whereas riparian restoration is likely more effective… in small streams"*, and *"many
+  small streams have no floodplain reconnection potential at all"*.
+- Not yet in the stores: BC's Riparian Management Area Guidebook (Zotero item, no PDF), V-BET
+  (Gilbert et al. 2016; no PDF), and the wood-recruitment source-distance papers (McDade et al.
+  1990; Murphy and Koski 1989). They bear on riparian buffers, which are outside this note.
+
 ### The rule, applied
 
 **Criterion 3 is ambiguous as registered, and the ambiguity decides the outcome.** Round 3 of the
@@ -181,41 +233,47 @@ are in `data/morr/probe_whole_fwa/` (`panel_*.png`, `review.gpkg`).
   - The order-2 samples read as valley-floor corridors and low-relief valley bottoms.
   - The largest bypass addition is the same broad-flat class as order 1's largest.
 
-## Recommendation for #104, conditional on criterion 3
+## Recommendation for #104 (revised 2026-10-10): floor order ≥ 2
 
-- **Reading A: criterion 3 is per floor (each floor's own additions), and the user reads the order-2
-  panels as valley floor.**
-  - Floor **order ≥ 2.** It adds 29% over order ≥ 3, 80% of it outside waterbodies, at ~36 min
-    against ~20 min per scenario.
-  - **Grain: blue line.** Segment grain is estimated at 86 min at order ≥ 2, over the 60 min bound,
-    so the rule's "otherwise the blue line" applies. #104's range join supplies the within-blk
-    resolution.
-  - The bypass passes criteria 1 and 2 on its own. Its criterion 3 needs its own read: the
-    preliminary read puts its largest addition in the same broad-flat class as order 1's, so it
-    leans no. Order ≥ 2 plus the bypass was not measured as one arm.
-  - The coho network's floodplain moves 16.6%, so **existing items are superseded and #104 plans a
-    republish.**
-- **Reading B: criterion 3 is literal (the order-1 review gates every floor below 3), and the user
-  agrees the majority of order-1 panels are not valley floor.**
-  - No floor below 3 is recommended. The floor stays **order ≥ 3**, with the access filter dropped.
-  - The coho network's floodplain moves 1.6%, under the 2% threshold, so **existing items are
-    extended, not superseded.** The new item adds the inaccessible order ≥ 3 streams' floodplain
-    to today's.
-  - **Grain: segment, by the rule.** At order ≥ 3, segment attribution measured 31.5 min, within
-    the 60 min bound, so the registered rule recommends segment grain here. Key it on
-    `(blue_line_key, downstream_route_measure)`, never `id_segment`.
-- **Under either reading:**
-  - **Not order ≥ 1.** It fails criterion 1 on cost alone (91 min per scenario, nearly all
-    attribution).
-  - **Floodplains are not monotone in their seeds.** The all-streams floodplain loses 452 ha
-    (1.3%) of today's coho floodplain. A query of a whole-network item is a different answer from
-    today's item, not a larger one, and the 2% threshold already counts those losses.
-  - **Cost lever.** About 13 min of each scenario's attribution is the `complete = TRUE` fallback.
-    Dropping it, or computing it once per group, would cut order ≥ 2's attribution by about 40%
-    (33 → ~20 min). That is a flooded question for #104, not settled here.
-  - **One group.** MORR is a headwater group with large lakes, so the waterbody share and the
-    order-1 flats may not transfer. A second group (BULK or NECR) at order ≥ 2 alone would test the
-    cost model at one arm's price.
+**Floor order ≥ 2, order 1 out, grain `blue_line_key`.**
+
+- **Order 1 out.** It fails criterion 1 on cost (91 min per scenario). Its review panels read as
+  not valley floor (the preliminary read, and the user's on 2026-10-10: "it is a lot of floodplain. like seems
+  weird that first order streams have a bunch of floodplain above them?"). The literature says the
+  VCA cannot resolve those valleys at 30 m. And it holds about 1% of modelled habitat.
+- **Order 2 in.** It passes criteria 1 and 2 (35.8 min, 7.9 GiB; +29% floodplain, 80% outside
+  waterbodies). Its panels read as valley-floor corridors. And it holds 5–21% of modelled
+  spawning and rearing in both models, province-wide. A floor at order ≥ 3 would leave that
+  habitat with no floodplain polygon to join to.
+- **This resolves criterion 3 as Reading A** (per floor): the order-1 review rules out order 1;
+  it does not gate order 2.
+- **Grain: blue line.** Segment grain is estimated at 86 min at order ≥ 2, over the 60 min bound.
+  #104's range join on `(blue_line_key, measure range)` supplies within-blk resolution.
+- **Habitat is joined, never cut.** Either model joins on FWA position. bcfishpass is keyed
+  `segmented_stream_id`, link `id_segment`, which link rebuilds every run, so the durable key is
+  `blue_line_key` + route measure, which both carry. A model or species change needs no re-run.
+- **Supersession.** The coho network's floodplain moves 16.6% under order ≥ 2, past the 2%
+  threshold, so existing items are superseded and #104 plans a republish. Time it with the grid
+  pin (flooded#67), so the republish carries one change.
+- **The bcfp bypass** (first-order with parent ≥ 5) is not added. Its largest additions are the same
+  broad-flat class as order 1's, and order ≥ 2 already holds the habitat.
+
+**Still open before committing a region:**
+- run order ≥ 2 alone on a second group (BULK or NECR) to test the cost model and the waterbody
+  share outside a lake-heavy headwater group;
+- the `complete = TRUE` attribution fallback costs ~13 min per scenario (a flooded change).
+
+**Considered and not taken: order ≥ 3 (Reading B).** It is cheaper (19.9 min), keeps segment
+grain, and only extends today's items (1.6% move). But it leaves 5–21% of modelled habitat with
+no floodplain.
+
+**The flood-surface artefact (flooded#68) is parked, not fixed.**
+- The all-streams floodplain still loses about 1.3% of the coho floodplain on MORR (452 ha),
+  because of the pooled flood surface.
+- Two candidate fixes were measured: one over-floods by +67% to +143%, drainage ownership
+  under-floods by about a quarter.
+- Without an independent reference, neither can be shown to be closer to the truth.
+- Read the supersession figures with that 1.3% in mind.
 
 ## Known limits of this run
 
