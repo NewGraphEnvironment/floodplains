@@ -1,3 +1,20 @@
+# floodplains 0.1.8 (2026-10-10)
+
+* Whole-FWA floodplain probe on MORR (#110), which gates #104.
+  * **What it measures.** `floodplain_probe-run.sh <area>` delineates one scenario from five
+    networks (all of `fresh.streams`, order ≥ 2, order ≥ 3, bcfp's bypass predicate, the species
+    network) on one common DEM. It times the DEM fetch, the VCA and each attribution, each in its
+    own process for a peak RSS. An anchor proves the probe reproduces step 1's network and a
+    same-day `fp_floodplain()` replay. Steps 1–3 and every published output are untouched.
+  * **What it found on MORR `co_ff04`.** The VCA takes under 3 min at every floor; attribution
+    is the cost (87 min for all streams, 33 at order ≥ 2), and about 13 min of each scenario is
+    flooded's `complete = TRUE` fallback. Order ≥ 1 is ruled out on cost. A whole-network
+    floodplain is not a superset of the species cut (flooded#68). The verdict between order ≥ 2
+    and order ≥ 3 waits on a visual read: `research/whole_fwa_floodplain.md`.
+  * **The published floodplains do not reproduce on today's toolchain** (#117, flooded#67). GDAL
+    3.13 picks a reprojected DEM grid ~1 m off the one GDAL 3.8.5 picked, isolated on one
+    machine, and MORR `co_ff04` comes out 0.42% smaller.
+
 # floodplains 0.1.7 (2026-10-09)
 
 * Esri Wayback imagery at the **capture** nearest each endpoint, per NECR accuracy review point (#115).
