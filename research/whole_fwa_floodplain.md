@@ -241,3 +241,8 @@ are in `data/morr/probe_whole_fwa/` (`panel_*.png`, `review.gpkg`).
   with resolution differing in the 7th decimal (30.430634931 vs 30.430634377 m). MORR `co_ff04`
   comes out 35,618.0 ha against the published 35,769.1 ha (−0.42%). `fp_toolchain()` records sf's
   GDAL (3.8.5), not terra's, so the record could not show the change.
+- **Isolated: the GDAL version, not terra** (measured 2026-10-09, same machine). The same MRDEM
+  crop warped to EPSG:3005 through sf's GDAL 3.8.5 lands exactly on the published grid (xmin
+  847158.237521, res 30.430634377); through terra's GDAL 3.13.0 it lands at 847157.099813 /
+  30.430634931. Given only a CRS, GDAL picks the output grid itself, and the pick changed between
+  the two releases. Pinning the grid is flooded#67.

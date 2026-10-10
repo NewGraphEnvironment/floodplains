@@ -234,7 +234,9 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   Its anchor replays `fp_floodplain()` into `probe_whole_fwa/step2_replay/` rather than trusting the
   published record, because **the published record does not reproduce on today's toolchain**:
   terra 1.9.50 links GDAL 3.13.0, its warp moves the DEM grid ~1 m, and MORR `co_ff04` comes out
-  −0.42% (#117, flooded#67). `fp_toolchain()` records sf's GDAL, not terra's. Verdict and rule:
+  −0.42% (#117, flooded#67). **The cause is the GDAL version, isolated:** the same crop warped
+  through sf's GDAL 3.8.5 reproduces the published grid to six decimals. `fp_toolchain()` records
+  sf's GDAL, not terra's. Verdict and rule:
   `research/whole_fwa_floodplain.md`.
 - **Channel migration (#106): rule v2 negative on two groups, not yet validated.**
   `scripts/floodplain_lcc/channel_probe-migration.R <area>` applies a pre-registered rule
