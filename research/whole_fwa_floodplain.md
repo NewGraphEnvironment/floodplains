@@ -1,10 +1,11 @@
 # Whole-FWA floodplain: cost, floor and grain
 
-**Verified:** 2026-10-10 · **Issues:** #110 (this probe); gates #104; filed #117, flooded#67; relates #40, #54, #65,
+**Verified:** 2026-10-11 · **Issues:** #110 (this probe); gates #104; filed #117, flooded#67; relates #40, #54, #65,
 flooded#68 · **Produced by:** `scripts/floodplain_lcc/floodplain_probe-run.sh` (logs
 `scripts/floodplain_lcc/logs/*_floodplain_probe-whole-fwa_*`); habitat by order
 `scripts/floodplain_lcc/logs/20261010_habitat_by-order_province.md`; second group
-`scripts/floodplain_lcc/floodplain_probe-subset.R` (logs `*_floodplain_probe-subset_{morr,bulk}.md`) ·
+`scripts/floodplain_lcc/floodplain_probe-subset.R` (logs `*_floodplain_probe-subset_{morr,bulk}.md`); habitat join
+`scripts/floodplain_lcc/habitat_join-demo.R` (log and figures `20261011_habitat_join-demo_morr*`) ·
 **Status:** MORR measured 2026-10-09, BULK (arms 5, 3, 2) 2026-10-11. **Recommendation revised
 2026-10-10: floor order ≥ 2** (see "Recommendation for #104"); BULK confirms the floor and fails the
 cost bound, on attribution.
@@ -290,8 +291,33 @@ floodplain match the step 2 replay).
 
 **Still open before committing a region:**
 - attribution cost in flooded (`fl_valley_attribute()`), measured on BULK at 170 min per scenario
-  for order ≥ 2;
+  for order ≥ 2: the `complete = TRUE` fallback (flooded#71) and the per-group cost (flooded#72);
 - the flood-surface artefact (below).
+
+**The habitat join works on the blue-line floodplain (demonstrated 2026-10-11, MORR, chinook).**
+Evidence: `scripts/floodplain_lcc/logs/20261011_habitat_join-demo_morr.md` and its two figures,
+from `habitat_join-demo.R`. link's chinook spawning and rearing, from two builds (`fresh`, `morr`),
+were joined to arm 2's floodplain as attributed by `blue_line_key`, with no re-delineation (90 s).
+- **Integrity.** All 517,087 floodplain cells are attributed, with none missing and none outside
+  it. 99% of spawning km sits on a blue line with a floodplain polygon in both builds, and 98.9%
+  (`fresh`) and 93.2% (`morr`) of rearing km. The rest (80 km of habitat in `morr`) is all on
+  order-1 blue lines, which the floor leaves out. Segment keys match 100% (`fresh`) and 99.99% (`morr`).
+- **Join by position, not by blue line.** Joined by blue line, a polygon takes any habitat on its
+  blue line, and 39,507 ha (82% of the floodplain) reads as chinook spawning floodplain. Joined by
+  position (each cell takes the nearest segment, by straight-line distance, on its own blue line):
+  spawning 16,626 ha, rearing 23,255 ha, rearing only 6,932 ha (`morr` build). This stands in for
+  the range join on route measure above; the two can differ across a meander neck. It is cheap.
+- **Against segment-grain attribution** (arm 3, which has both): 85–90% of cells agree.
+  Segment grain maps more spawning floodplain (19,333 vs 14,472 ha), because it counts a cell for
+  every segment within the VCA thresholds, not only the nearest.
+- **A new habitat build is a new join.** `morr` adds 2,920 ha of rearing floodplain over `fresh`
+  and removes none; spawning differs by 305 ha. The geometry did not change.
+- **Open choices** (the user's):
+  - **Shared ground.** 78.6% of arm 2's floodplain cells are claimed by two or more blue lines (mean
+    3.28). The demo counts a cell as habitat if any of them says so, so a change on one blue line
+    reaches into its neighbours' valleys: the rearing added by `morr` sits a median 91 m and at most
+    1,012 m from the segments that changed. The alternative is the nearest segment overall.
+  - **Flood level.** ff04, the level the arms were run at, against chinook's headline ff06.
 
 **Considered and not taken: order ≥ 3 (Reading B).** It is cheaper (19.9 min), keeps segment
 grain, and only extends today's items (1.6% move). But it leaves 5–21% of modelled habitat with
