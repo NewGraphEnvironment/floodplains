@@ -295,29 +295,45 @@ floodplain match the step 2 replay).
 - the flood-surface artefact (below).
 
 **The habitat join works on the blue-line floodplain (demonstrated 2026-10-11, MORR, chinook).**
-Evidence: `scripts/floodplain_lcc/logs/20261011_habitat_join-demo_morr.md` and its two figures,
+Evidence: `scripts/floodplain_lcc/logs/20261011_habitat_join-demo_morr.md` and its three figures,
 from `habitat_join-demo.R`. link's chinook spawning and rearing, from two builds (`fresh`, `morr`),
-were joined to arm 2's floodplain as attributed by `blue_line_key`, with no re-delineation (90 s).
+were joined to arm 2's floodplain as attributed by `blue_line_key`, with no re-delineation (146 s
+for both rules, both builds and the arm 3 comparison).
 - **Integrity.** All 517,087 floodplain cells are attributed, with none missing and none outside
   it. 99% of spawning km sits on a blue line with a floodplain polygon in both builds, and 98.9%
   (`fresh`) and 93.2% (`morr`) of rearing km. The rest (80 km of habitat in `morr`) is all on
   order-1 blue lines, which the floor leaves out. Segment keys match 100% (`fresh`) and 99.99% (`morr`).
 - **Join by position, not by blue line.** Joined by blue line, a polygon takes any habitat on its
   blue line, and 39,507 ha (82% of the floodplain) reads as chinook spawning floodplain. Joined by
-  position (each cell takes the nearest segment, by straight-line distance, on its own blue line):
-  spawning 16,626 ha, rearing 23,255 ha, rearing only 6,932 ha (`morr` build). This stands in for
-  the range join on route measure above; the two can differ across a meander neck. It is cheap.
-- **Against segment-grain attribution** (arm 3, which has both): 85–90% of cells agree.
-  Segment grain maps more spawning floodplain (19,333 vs 14,472 ha), because it counts a cell for
-  every segment within the VCA thresholds, not only the nearest.
-- **A new habitat build is a new join.** `morr` adds 2,920 ha of rearing floodplain over `fresh`
-  and removes none; spawning differs by 305 ha. The geometry did not change.
-- **Open choices** (the user's):
-  - **Shared ground.** 78.6% of arm 2's floodplain cells are claimed by two or more blue lines (mean
-    3.28). The demo counts a cell as habitat if any of them says so, so a change on one blue line
-    reaches into its neighbours' valleys: the rearing added by `morr` sits a median 91 m and at most
-    1,012 m from the segments that changed. The alternative is the nearest segment overall.
-  - **Flood level.** ff04, the level the arms were run at, against chinook's headline ff06.
+  position, each cell takes the nearest segment (straight-line distance) on its own blue line.
+  This stands in for the range join on route measure above; the two can differ across a meander
+  neck. It is cheap.
+- **Shared ground: decided 2026-10-11 (user).** 78.6% of arm 2's floodplain cells are claimed by
+  two or more blue lines (mean 3.28), so the position join needs a rule for them:
+  - **nearest** (the default for areas): the cell takes the nearest of its claiming blue lines'
+    nearest segments, so each cell has one owner and per-reach areas add up to the floodplain.
+    1,878 cells (0.4%) tie and go to the lowest `blue_line_key`. Only the claiming blue lines compete.
+    The nearest segment anywhere is on a non-claiming blue line for 26.3% of cells (25.5% on a blue
+    line with no floodplain at all), and 99.9% of those nearer segments are order 1, which the floor
+    leaves out.
+  - **any** (the "connected to habitat" view): the cell is habitat if any claiming blue line's
+    nearest segment says so.
+
+  | `morr` build, arm 2, ha | spawning | rearing | rearing only |
+  |---|---|---|---|
+  | by blue line | 39,507 | 43,434 | 3,927 |
+  | by position, nearest | 11,474 | 19,525 | 8,099 |
+  | by position, any | 16,626 | 23,255 | 6,932 |
+- **Against segment-grain attribution** (arm 3, which has both): 78–86% of cells agree under
+  nearest, 85–90% under any. Segment grain maps the most spawning floodplain (19,333 ha, `morr`),
+  because it counts a cell for every segment within the VCA thresholds.
+- **A new habitat build is a new join.** `morr` adds rearing floodplain over `fresh` and removes
+  none: 4,759 ha under nearest, 2,920 ha under any (fewer, because under any many of those cells
+  were already rearing through a neighbouring blue line). Under any, the added rearing reaches a
+  median 91 m and at most 1,012 m from the segments that changed (nearest: 64 m, 967 m). The
+  geometry did not change.
+- **Flood level.** The demo uses ff04, the level the arms were run at; chinook's headline is ff06.
+  Accepted for the demonstration (user, 2026-10-11).
 
 **Considered and not taken: order ≥ 3 (Reading B).** It is cheaper (19.9 min), keeps segment
 grain, and only extends today's items (1.6% move). But it leaves 5–21% of modelled habitat with
