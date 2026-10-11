@@ -3,9 +3,11 @@
 **Verified:** 2026-10-10 · **Issues:** #110 (this probe); gates #104; filed #117, flooded#67; relates #40, #54, #65,
 flooded#68 · **Produced by:** `scripts/floodplain_lcc/floodplain_probe-run.sh` (logs
 `scripts/floodplain_lcc/logs/*_floodplain_probe-whole-fwa_*`); habitat by order
-`scripts/floodplain_lcc/logs/20261010_habitat_by-order_province.md` · **Status:** MORR measured
-2026-10-09. **Recommendation revised 2026-10-10: floor order ≥ 2** (see "Recommendation for
-#104"), pending the second-group run.
+`scripts/floodplain_lcc/logs/20261010_habitat_by-order_province.md`; second group
+`scripts/floodplain_lcc/floodplain_probe-subset.R` (logs `*_floodplain_probe-subset_{morr,bulk}.md`) ·
+**Status:** MORR measured 2026-10-09, BULK (arms 5, 3, 2) 2026-10-11. **Recommendation revised
+2026-10-10: floor order ≥ 2** (see "Recommendation for #104"); BULK confirms the floor and fails the
+cost bound, on attribution.
 
 #104 proposes delineating each watershed group's floodplain once, from the whole stream network,
 keyed by `blue_line_key`, with habitat joined afterwards instead of cut into the geometry. Today
@@ -252,16 +254,44 @@ are in `data/morr/probe_whole_fwa/` (`panel_*.png`, `review.gpkg`).
 - **Habitat is joined, never cut.** Either model joins on FWA position. bcfishpass is keyed
   `segmented_stream_id`, link `id_segment`, which link rebuilds every run, so the durable key is
   `blue_line_key` + route measure, which both carry. A model or species change needs no re-run.
-- **Supersession.** The coho network's floodplain moves 16.6% under order ≥ 2, past the 2%
+- **Supersession.** The coho network's floodplain moves 16.6% under order ≥ 2 (BULK 25.7%), past the 2%
   threshold, so existing items are superseded and #104 plans a republish. Time it with the grid
   pin (flooded#67), so the republish carries one change.
 - **The bcfp bypass** (first-order with parent ≥ 5) is not added. Its largest additions are the same
   broad-flat class as order 1's, and order ≥ 2 already holds the habitat.
 
+**Second group: BULK, arms 5, 3 and 2 (measured 2026-10-11).** Evidence:
+`scripts/floodplain_lcc/logs/20261010_floodplain_probe-subset_bulk.md`, produced by
+`floodplain_probe-subset.R`, which applies the report's section 2 and 3 formulas without arm 1 and
+reproduces the MORR report exactly (`…_subset_morr.md`). The anchor passed (network, DEM and
+floodplain match the step 2 replay).
+
+| `co_ff04` | MORR | BULK |
+|---|---|---|
+| DEM grid (cells) | 18.1 M | 38.3 M |
+| arm 2: DEM / delineation / blk attribution / total, min (the rule's cost) | 0.9 / 1.9 / 33.0 / 35.8 | 37.2 / 5.9 / 170.0 / 213.1 |
+| arm 2 peak RSS | 7.9 GiB | 17.3 GiB |
+| order ≥ 2 vs ≥ 3: added floodplain | +29.1% | +54.4% (23,841 ha) |
+| share of the addition outside waterbodies | 80.3% | 87.8% |
+| coho floodplain moved, order ≥ 2 (gained + lost) | 16.6% | 25.7% (+8,683 / −1,128 ha) |
+| coho floodplain moved, order ≥ 3 | 1.6% | 2.1% |
+
+- **Area: the floor holds, more strongly.** Order 2 adds more valley on BULK, and more of it is
+  off-lake, so MORR's result was not an artefact of lake country.
+- **Supersession: further past the 2% threshold.** The 1,128 ha lost is 3.0% of arm 5's coho
+  floodplain (MORR 1.3%): the pooled flood surface (flooded#68).
+- **Cost: fails criterion 1's bound, and the cause is attribution.** 170 of arm 2's 213 min is
+  `fl_valley_attribute()` by blue line; the DEM fetch is 37 min, nearly all network wait (51 s of CPU; MORR's fetch
+  took 0.9 min), and delineation 6 min. Attribution grows faster than both the grid and the group count:
+  BULK's grid is 2.1x MORR's, its arm 2 blue lines 1.5x, its attribution 5.1x (arm 5, today's network: 3.4x).
+  Criterion 1 was registered for MORR, but this run's job was to test
+  the cost model, and the model does not hold. Attribution speed, not the floor, is what gates a
+  region; the `complete = TRUE` fallback (~13 min per scenario on MORR) is part of it.
+
 **Still open before committing a region:**
-- run order ≥ 2 alone on a second group (BULK or NECR) to test the cost model and the waterbody
-  share outside a lake-heavy headwater group;
-- the `complete = TRUE` attribution fallback costs ~13 min per scenario (a flooded change).
+- attribution cost in flooded (`fl_valley_attribute()`), measured on BULK at 170 min per scenario
+  for order ≥ 2;
+- the flood-surface artefact (below).
 
 **Considered and not taken: order ≥ 3 (Reading B).** It is cheaper (19.9 min), keeps segment
 grain, and only extends today's items (1.6% move). But it leaves 5–21% of modelled habitat with
