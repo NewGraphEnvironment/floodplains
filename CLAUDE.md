@@ -962,6 +962,9 @@ A lint warning of `no visible binding` for a constant added on this branch is us
 ### Tests that silently do not run
 `expect_snapshot()` **skips on CRAN**, and `testthat` treats a non-interactive run as CRAN by default.
 
+### testthat counts an uncaught error under `error`, not `failed`
+Count `r$failed > 0 | r$error` over `r <- as.data.frame(testthat::test_file(f))`, never `failed` alone: a restored defect that raises instead of failing an expectation scores zero failures, so a guard that fired reads as one that never did.
+
 ### A `skip_if_not()` skips only its own `test_that()` block
 Before blaming a failure, or its absence, on a skip, find the `test_that()` block the skip sits in.
 
@@ -1143,13 +1146,13 @@ testthat 3e writes `tests/testthat/_problems/*.R` and `tests/testthat/testthat-p
 `DISTINCT ON (k) … ORDER BY k, a, b` is deterministic only if `(a, b)` is unique within each `k`.
 
 ### `sprintf("%g", x)` writes `Inf` and `NA` into SQL as bare words, which Postgres reads as column names
-A numeric formatter such as `sprintf("%.10g", x)` has no SQL form for non-finite values, so an open-ended range (`c(min, Inf)`, typically a blank `max` filled with `Inf` by a params loader) produces `x <= Inf`, and Postgres fails with `column "inf" does not exist`.
+A numeric formatter such as `sprintf("%.10g", x)` has no SQL form for non-finite values.
 
 ### An `information_schema` lookup by the literal table name misses what Postgres resolves
-`WHERE table_schema = 's' AND table_name = 'T'` compares the text you passed, but Postgres folds unquoted identifiers to lower case, puts temp tables in `pg_temp_N`, and resolves unqualified names through `search_path`.
+`WHERE table_schema = 's' AND table_name = 'T'` compares the text you passed.
 
 ### Rscript reads a script as it runs, so never edit a script while a run of it is in flight
-Copy the script and run the copy (`cp scripts/x.R "$TMPDIR/x_frozen.R" && Rscript "$TMPDIR/x_frozen.R"`) for anything long-running, or leave the file alone until the run exits.
+Copy the script and run the copy (`cp scripts/x.R "${TMPDIR:-/tmp}/x_frozen.R" && Rscript "${TMPDIR:-/tmp}/x_frozen.R"`) for anything long-running, or leave the file alone until the run exits.
 
 ### A range total taken as the difference of two large running totals loses the small ranges
 Sum a range directly (segment tree, per-range `sum()`, or grouped sums) rather than as `cumsum[hi] - cumsum[lo]` when ranges are small relative to the running total.
@@ -1158,7 +1161,7 @@ Sum a range directly (segment tree, per-range `sum()`, or grouped sums) rather t
 `R CMD check` warns "'::' or ':::' import not declared from" for any package a test reaches with `::` that `DESCRIPTION` does not list, and under `error-on: "warning"` that reddens every runner.
 
 ### Inside a dplyr verb, a column named like a local variable wins
-Inject a local value into a data-masked verb with `!!x` or `.env$x`, never a bare `x`: `transmute(d, aoi_id = id)` inside `for (id in ids)` reads the frame's own `id` column whenever one exists, with no warning, and the result is well-typed and plausible.
+Inject a local value into a data-masked verb with `!!x` or `.env$x`, never a bare `x`.
 
 ### `earthdatalogin`'s search and download calls overwrite the netrc when they find no Earthdata entry
 Call NASA's CMR search with `curl` and download with `curl` given the netrc directly (`netrc = 1, netrc_file = <path>, cookiefile = ""` follows the URS redirect), or check `earthdatalogin:::has_edl_netrc()` yourself first.
@@ -1173,7 +1176,7 @@ Assign inside the call, `expect_message(h <- f(x), "msg")`, never `h <- expect_m
 Put a Date first when `c()` combines an optional piece with Dates: `c(NULL, <Date>)` takes the default method and returns a bare day count.
 
 ### `bind_rows()` of all-`NULL` is a 0 x 0 tibble, and a typed template must take its types from the rows' source
-Bind per-group results under a zero-row template so an all-dropped result keeps its columns, and build that template's key columns from the same object the rows are built from (`combos$variable[0]`, not `character()`).
+Bind per-group results under a zero-row template so an all-dropped result keeps its columns.
 
 ### `sample.int(prob =)` without replacement is not a probability-proportional draw, so weighting its result again double-counts
 Draw a subsample to be design-weighted **uniformly** (`sample.int(n, k)`), or keep every unit.
@@ -1182,7 +1185,7 @@ Draw a subsample to be design-weighted **uniformly** (`sample.int(n, k)`), or ke
 Read the exit status off the result: `st <- attr(out, "status")`, which is `NULL` on success.
 
 ### Forked `parallel::mclapply()` workers segfault in `glm.fit` under macOS Accelerate BLAS
-Fit models in parallel on socket workers (`parallel::makeCluster()` with `parLapply()`), not forks: with R linked to Accelerate's vecLib, `mclapply` children segfault inside `glm.fit` (`address 0x110, cause 'invalid permissions'`), and `mclapply` returns try-errors with a warning rather than stopping.
+Fit models in parallel on socket workers (`parallel::makeCluster()` with `parLapply()`), not forks.
 
 ### `c(name = x)` keeps `x`'s own name, so a value from a named vector becomes `name.X`
 Strip the name before you label it: `c(axis = unname(v[1]))` or `c(axis = v[[1]])`.
@@ -1224,16 +1227,19 @@ Record the condition in the handler (`hit <<- TRUE`) and raise after `tryCatch()
 Move a directory into place with `base::file.rename()` and check its return value, which is FALSE where the target is a non-empty directory, a symlink or a file.
 
 ### Base `file.info()` has no inode column, so `file.info(x)$ino` is NULL and any comparison of it passes
-Read an inode with `fs::file_info(x)$inode`: base `file.info()` returns size, mode, times and owners only, so `identical(file.info(a)$ino, file.info(b)$ino)` is `identical(NULL, NULL)`, TRUE for any two files.
+Read an inode with `fs::file_info(x)$inode`.
 
 ### `cffr::cff_create()` writes a CRAN DOI for any package that shares a name with a CRAN package
 Drop the generated DOI (`x$doi <- NULL`) unless it is your own, and supply your own through `keys = list(doi = ...)`, because cffr assigns `10.32614/CRAN.package.<name>` whenever CRAN carries a package of that name, whatever your package is.
 
 ### A `{python}` chunk needs reticulate even with `eval = FALSE`
-Set `python.reticulate = FALSE` on a Python chunk that only displays code, or declare reticulate: knitr hands every non-R chunk to its engine whatever `eval` says, and the `python` engine loads reticulate, so a render fails on a machine without it.
+Set `python.reticulate = FALSE` on a Python chunk that only displays code, or declare reticulate.
 
 ### `readBin(size = 4)` returns NA for exactly 2^31, so it cannot read an unsigned 32-bit field
-Sum the bytes as doubles (`sum(as.numeric(raw[i + 1:4]) * 256^(0:3))`) to read a u32 or u64 from a binary header: R has no unsigned or 64-bit integer, and a signed read goes negative above 2^31 and returns `NA_integer_` at 2^31 itself, R's NA bit pattern.
+Sum the bytes as doubles (`sum(as.numeric(raw[i + 1:4]) * 256^(0:3))`) to read a u32 or u64 from a binary header.
+
+### ajv honours keywords beside a `$ref`; Python's jsonschema ignores them
+Keep every `$ref` alone in a draft-07 schema tested with jsonvalidate and read by pystac.
 
 # Code Check — Shell
 Tool-level traps in bash, sed, git and `gh`, and in the host toolchain those commands depend on.
@@ -1323,6 +1329,9 @@ An assertion around something that might hang can only pass or hang, never fail 
 
 ### `aws s3 cp` cannot tell a missing key from a missing bucket
 `aws s3 cp` gives one exit 1 and 404 text for a missing key and a missing bucket, so probe `s3api head-bucket` then `head-object`: only a 404 from a reachable bucket means absent; a 403 is permissions.
+
+### An S3 multipart ETag depends on the uploader's part size, so try every size that gives its part count
+Verify an upload by comparing each object's ETag with its file, and for a multipart ETag (`<md5 of the part md5s>-N`) try every part size whose `ceiling(size / part) == N`: the size is the uploading machine's `multipart_chunksize`, which differs between machines.
 
 ### A verification command can be shadowed by a shell function or alias
 - The shell is initialized from the user's profile, so `diff`, `grep`, `ls`, `cat` and friends may resolve to a wrapper rather than the binary you assume.
@@ -1423,6 +1432,9 @@ Take the reason from the `!` row's third tab field, falling back to the last lin
 ### In a Perl replacement, `$1` followed by a digit is a different group
 Write `${1}` whenever the text after a backreference starts with a digit: Perl reads `$1281399` as group 1281399, which does not exist, so the replacement is empty and the run exits 0.
 
+### `for x in $(cmd | grep … || true)` hides a failing `cmd`
+Assign the command on its own line under `set -e` (`out=$(cmd)`), then filter `out` with `|| true`.
+
 # Code Check — Spatial
 terra, sf, bcdata, GDAL/OGR CLIs.
 
@@ -1514,6 +1526,9 @@ Two contracts inside `terra::app()` that read as the opposite of what they are, 
 
 ### terra `metags()`: the empty case is `NULL`, and the sidecar is half the artefact
 Three measured facts about raster **container** metadata, all of which fail quietly (floodplains#83, 2026-09-05, terra 1.9.34 / GDAL 3.8.5).
+
+### terra `metags<-` merges into the tags a raster already has, and its setters work only from 1.8-54
+To replace a raster's dataset tags, clear them first (`metags(x) <- NULL`, only when there are any) and then set, and require `terra (>= 1.8-54)`: `metags<-` merges, so a stale tag read from a published file survives a write that sets new ones.
 
 ### `ggmap`: a fixed `zoom` silently crops points off the basemap, and `calc_zoom()` does not fix it
 `ggmap::get_map()` fetches ONE fixed-size image at whatever `zoom` it is given.
@@ -1661,6 +1676,12 @@ Do not use the `DOWNSTREAM_ROUTE_MEASURE = 0` point of a tributary's main stem a
 
 ### `terra::project()` given only a CRS lets GDAL choose the grid, and GDAL versions choose differently
 Pass `terra::project()` a template grid, not just a CRS, when the result must reproduce on another machine: GDAL picks the grid itself, and its pick changed between GDAL 3.8.5 and 3.13.0.
+
+### pystac `Collection.add_item()` rewrites the item's self href and fetches the root over the network
+Re-set the item's self href after `add_item()`, and call `collection.set_root(collection)` once its self href is set: the default layout rewrites the href to `<collection dir>/<id>/<id>.json`, and a root link naming a published URL is resolved by downloading it.
+
+### `pdist::pdist()` loses centimetres at projected coordinates
+Subtract a local origin before `pdist::pdist()`: at BC Albers magnitudes it returns 0 for points up to 7 cm apart.
 
 # Code Check Conventions
 Structured checklist for reviewing diffs before commit.
@@ -1838,6 +1859,12 @@ On a collision, do not resolve conflicts file by file. The merge conflict hides 
 useful question, which is *which body of work survives*. Ask, then re-land the delta on
 top of what shipped; two independent attempts at one problem are usually complementary
 rather than redundant, and a mechanical resolution keeps whichever half git preferred.
+
+## Re-read the issue body before the baseline
+
+Re-fetch it and diff against the copy you planned from. An edit made during plan mode
+is invisible to a plan built on the first read: in stac_airphoto_bc#47 the body gained
+two requirements that way, caught only by the plan review after three phases had landed.
 
 ## An issue number you did not file yet is somebody else's
 
@@ -2860,7 +2887,7 @@ It is not the secret-read clamp (`newgraph.md`, "Reading a secret clamps the res
 session"), which names *earlier conversation content* and needs a restart. This refusal
 names a **category** of action, such as "Production Deploy".
 
-*4 lines of evidence for this rule are in `conventions/karpathy.md`, which `/code-check` reads in full.*
+*9 lines of evidence for this rule are in `conventions/karpathy.md`, which `/code-check` reads in full.*
 
 ### Hand the user bare commands
 
