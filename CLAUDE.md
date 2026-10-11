@@ -238,6 +238,13 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   through sf's GDAL 3.8.5 reproduces the published grid to six decimals. `fp_toolchain()` records
   sf's GDAL, not terra's. Verdict and rule:
   `research/whole_fwa_floodplain.md`.
+- **Habitat join on the blue-line floodplain (#104; `habitat_join-demo.R`).** Join habitat by
+  position, never by blue line: by blue line, a polygon takes any habitat anywhere on its blue line
+  (MORR: 82% of the floodplain reads as chinook spawning). Each cell takes the nearest segment on a
+  blue line that claims it. Shared cells (78.6% on MORR) follow the user's 2026-10-11 decision:
+  **areas use the nearest segment among the claiming blue lines** (one owner per cell);
+  **"connected to habitat" uses any claimer**. Do not widen "nearest" to every segment: for a
+  quarter of cells the nearest one anywhere is an order-1 line the floor left out.
 - **Channel migration (#106): rule v2 negative on two groups, not yet validated.**
   `scripts/floodplain_lcc/channel_probe-migration.R <area>` applies a pre-registered rule
   (`research/channel_migration.md`) to IO's Water-involving change. The rule asks whether long,
