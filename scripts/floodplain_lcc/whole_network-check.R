@@ -31,6 +31,18 @@ for (sp in list("co", "bt", "al", "ALL", "all ", c("all", "co"), NULL, NA_charac
         sprintf("species [%s] is NOT the whole network", fmt(sp)))
 }
 
+cat("\nwhat a whole-network area must also set\n")
+wcfg <- list(name = "t", species = "all", attribute_by = "blue_line_key", network_source = "fresh")
+check(!errs(fp_whole_network_validate(wcfg)), "attribute_by blue_line_key + network_source passes")
+check(errs(fp_whole_network_validate(modifyList(wcfg, list(attribute_by = NULL)))),
+      "must-fail: no attribute_by is refused (no keyed layer to join to)")
+check(errs(fp_whole_network_validate(modifyList(wcfg, list(attribute_by = "gnis_name")))),
+      "must-fail: attribute_by other than blue_line_key is refused")
+check(errs(fp_whole_network_validate(modifyList(wcfg, list(network_source = NULL)))),
+      "must-fail: a BUILD (no network_source) is refused")
+check(!errs(fp_whole_network_validate(list(name = "t", species = "co"))),
+      "a species area is not held to the whole-network rules")
+
 cat("\nthe species read is unchanged by the lift\n")
 # sha256 of the streams_sql step 1 built at commit 3e0b943 (before the lift) for these arguments,
 # measured by evaluating that commit's sprintf block verbatim. A pinned literal, not a re-derivation:

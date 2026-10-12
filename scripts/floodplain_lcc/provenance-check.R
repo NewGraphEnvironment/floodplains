@@ -80,7 +80,7 @@ KEYS_COMPOSITION_OUTPUTS <- c("layer", "rows", "footprint_cells", "table_content
 # The habitat table's record (#104): a SIBLING inside network[<all><order>], written by step 1 in
 # whole-network mode only. Checked by viol_habitat below, and reconciled against the gpkg in 7c.
 KEYS_HABITAT_INPUTS  <- c("model", "read_schema", "watershed_group", "species", "fwapg_sha",
-                          "fwapg_sha_source")
+                          "fwapg_sha_source", "fwa_content_sha256")
 KEYS_HABITAT_OUTPUTS <- c("layer", "rows", "table_content_sha256")
 
 # The closed vocabulary fp_pkg_stamp() may report (#65). It used to interpolate the checkout PATH
@@ -277,10 +277,15 @@ viol_composition <- function(prov) {
 viol_habitat <- function(prov) {
   unlist(lapply(prov_sections(prov), function(e) {
     hb <- e$body[["habitat"]]
-    if (is.null(hb)) return(NULL)
+    whole_key <- grepl(paste0("^", FP_SPECIES_WHOLE, "[0-9]+$"), e$key)
+    if (is.null(hb)) {
+      if (identical(e$section, "network") && whole_key)
+        return(sprintf("network[%s] is a whole-network entry with no habitat record (re-run step 1)", e$key))
+      return(NULL)
+    }
     if (!"habitat" %in% FP_PROV_SIBLINGS[[e$section]])
       return(sprintf("%s[%s] carries a `habitat` block; only network may", e$section, e$key))
-    if (!grepl(paste0("^", FP_SPECIES_WHOLE, "[0-9]+$"), e$key))
+    if (!whole_key)
       return(sprintf("%s[%s] carries a `habitat` block but is not a whole-network entry (%s<order>)",
                      e$section, e$key, FP_SPECIES_WHOLE))
     hi <- names(hb[["inputs"]] %||% list()); ho <- names(hb[["outputs"]] %||% list())
@@ -856,6 +861,9 @@ cat("\n3d. Habitat sibling — declared, network-only, whole-network entries onl
   nh <- g; nh$network$all2$habitat$outputs_hash <- NULL
   check(any(grepl("outputs_hash", viol_habitat(nh))),
         "must-fail: a habitat block with no outputs_hash IS reported")
+  nb <- g; nb$network$all2$habitat <- NULL
+  check(any(grepl("no habitat record", viol_habitat(nb))),
+        "must-fail: a whole-network entry with NO habitat record IS reported")
 }
 
 # --- 3b. The config that produced the network -----------------------------------------------------

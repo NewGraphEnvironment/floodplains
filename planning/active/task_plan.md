@@ -60,19 +60,25 @@ Measured state of the database (2026-10-11):
       - joined on `(id_segment, watershed_group_code)`.
       - All orders are kept, because habitat on order-1 lines is what the integrity check counts as
         outside the floodplain. Keyed by FWA position, never `id_segment`.
-- [x] **FWA version beside the key:** `fwapg_sha` from the link log row when present, else NA with a
-      note in the record. DUNC has no log row.
-- [x] Provenance: network `outputs` gains `habitat_table`, `habitat_content_sha256` (digest over
-      `(blue_line_key, downstream_route_measure, species)`) and `habitat_rows`. Extend
-      `provenance-check.R`'s declared key set, its 7c reconcile (re-derive from the gpkg table) and
-      its fixtures, keeping the must-fail arms. Species-mode areas keep the old key set.
+- [x] **FWA version beside the key:** `fwapg_sha` from the link log row when present, else NA
+      (`fwapg_sha_source: unresolved`); plus `fwa_content_sha256`, a digest over the group's
+      `fwa_stream_networks_sp` (blk, drm, length_metre) a consumer can recompute (review 1 #8).
+- [x] Provenance: a `habitat` SIBLING inside `network[all<order>]` (`fp_prov_set_sibling`, the #108
+      pattern), not new `outputs` keys: inputs model/read_schema/watershed_group/species/fwapg_sha/
+      fwapg_sha_source/fwa_content_sha256, outputs layer/rows/table_content_sha256
+      (`fp_habitat_content_sha256`: one table digest per species, flags as 0/1). `provenance-check.R`:
+      `KEYS_HABITAT_*`, `viol_habitat` (network-only, whole entries only, a whole entry WITHOUT one
+      fails), 3d fixtures with must-fail arms, a producer-scan of 01's sibling call, 7c reconcile
+      against the gpkg table. Species-mode areas are unaffected.
+- [x] Review 1 fixes: habitat read before any write; `I()` on species; whole mode requires
+      `attribute_by: blue_line_key` and `network_source` (`fp_whole_network_validate`, 01 + 02).
 
 ## Phase 3: DUNC steps 1–2
-- [ ] Create `config/dunc/area.yml`:
-      `species: all, min_order: 2, schema: dunc, network_source: fresh, network_guard: warn,
+- [x] Create `config/dunc/area.yml`:
+      `species: all, min_order: 2, schema: dunc, network_source: fresh` (guard left strict: 0.0% dev),
       attribute_by: blue_line_key, primary_scenario: all_ff04`, with a header comment on #104/#120.
       No `lulc_annual`, since it is a one-way door.
-- [ ] Create `config/dunc/flood_scenarios.csv`: rows `all_ff02/04/06` (`run = TRUE`) modelled on
+- [x] Create `config/dunc/flood_scenarios.csv`: rows `all_ff02/04/06` (`run = TRUE`) modelled on
       KOTL's parameters, `min_order = 2`.
 - [ ] `caffeinate -s Rscript scripts/run_area.R dunc 1,2 > log 2>&1`, gated on the in-band error
       count and output mtimes.
@@ -82,15 +88,17 @@ Measured state of the database (2026-10-11):
 ## Phase 4: DUNC step 3
 - [ ] `run_area.R dunc 3`: LULC, transition, disturbance tags, composition and the
       `patch_watercourse_all_ff04_*` bridge on the whole floodplain.
-- [ ] Verify classified coverage ≈ floodplain area, then run `bridge-check.R dunc`,
+- [ ] Verify classified coverage ≈ floodplain area, then run `bridge-check.R dunc all_ff04`,
       `composition-check.R dunc` and `provenance-check.R dunc`, and record the results in the log.
 
 ## Phase 5: The habitat join on DUNC
-- [ ] Extract the demo's join functions (`grid_cells`, `join_range`, nearest/any) into
+- [x] Extract the demo's join functions (`grid_cells`, `join_range`, nearest/any) into
       `fp_habitat_join.R`, sourced by both scripts. Re-run `habitat_join-demo.R` and confirm its MORR
       log numbers are unchanged.
-- [ ] Add `habitat_join-query.R <area> <species>`. It reads only the published artefacts (the
-      `_by_blue_line_key` layer, the floodplain tif and `habitat_link`) and reports:
+- [ ] Add `habitat_join-query.R <area> <species>`. It reads the published artefacts (the
+      `_by_blue_line_key` layer, the floodplain tif and `habitat_link` for the flags) plus segment
+      geometry from the model's own `<schema>.streams` (all orders, as the demo), matched to
+      `habitat_link` on (blk, drm) with the match rate reported (review 1 #1). It reports:
       - integrity: every floodplain cell attributed, none outside;
       - the share of habitat km on blue lines with floodplain;
       - spawning and rearing floodplain ha under nearest and any, for **bt** on DUNC (plus wct if
@@ -111,6 +119,7 @@ Measured state of the database (2026-10-11):
 ## Validation
 - [ ] Offline checks pass: `whole_network-check.R`, `region_config-check.R`, `provenance-check.R`
       (offline sections), `floodplain_probe-check.R`
+- [ ] Live: `provenance-check.R bulk` and `neexdzii` still pass (species mode untouched)
 - [ ] `/code-check branch` (three-round floor)
 - [ ] PWF checkboxes match landed work
 - [ ] `/planning-archive`, then `/gh-pr-push`

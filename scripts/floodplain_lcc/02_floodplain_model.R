@@ -42,6 +42,7 @@ fp_floodplain <- function(cfg, scenarios = "run") {
   # complete = TRUE fallback ran a full-grid distance (flooded#71), and blue-line attribution at
   # order >= 2 measured 170 min per scenario on BULK. A cost floor, refused up front rather than
   # discovered hours into a run.
+  fp_whole_network_validate(cfg)
   if (fp_whole_network(cfg) && utils::packageVersion("flooded") < "0.6.4") {
     stop("whole-network area '", cfg$name, "' needs flooded >= 0.6.4 (flooded#71); installed ",
          as.character(utils::packageVersion("flooded")), call. = FALSE)

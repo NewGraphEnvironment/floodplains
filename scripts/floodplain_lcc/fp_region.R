@@ -35,6 +35,23 @@ fp_wsg_subbasin <- function(conn, wsg, name_basin = NULL) {
 FP_SPECIES_WHOLE <- "all"
 fp_whole_network <- function(cfg) identical(cfg$species, FP_SPECIES_WHOLE)
 
+# What a whole-network area must also set. Without `attribute_by: blue_line_key` step 2 writes no keyed
+# layer, which is the #104 deliverable (habitat joins to it). Without `network_source` step 1 would
+# BUILD: drop the area schema and run link's access pipeline, which whole mode does not use and which
+# has never been run in this mode. Called by 01 and 02, so either step refuses before it writes.
+fp_whole_network_validate <- function(cfg) {
+  if (!fp_whole_network(cfg)) return(invisible(cfg))
+  if (!identical(cfg$attribute_by, "blue_line_key")) {
+    stop("whole-network area '", cfg$name, "' needs attribute_by: blue_line_key (#104), got: ",
+         if (is.null(cfg$attribute_by)) "NULL" else format(cfg$attribute_by), call. = FALSE)
+  }
+  if (is.null(cfg$network_source) || !nzchar(cfg$network_source)) {
+    stop("whole-network area '", cfg$name, "' needs network_source (a schema holding the group's ",
+         "streams and habitat tables, e.g. fresh); a BUILD is not supported in whole mode", call. = FALSE)
+  }
+  invisible(cfg)
+}
+
 # A region resolves ONE species per group from the access columns (run_region.R's pre-pass), and it
 # owns `species` and `min_order` (FP_REGION_OWNED). Neither fits the whole network yet: the pre-pass
 # would query access_all, and reconciling a whole-network area against a species region would turn it

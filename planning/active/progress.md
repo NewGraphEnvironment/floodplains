@@ -14,3 +14,10 @@
   sibling on network[all<order>]; provenance-check 3d (offline, must-fail arms), producer-scan, 7c reconcile
 - Probe: whole SQL on DUNC = 13,023 segments / 3,493 km; bcfp reference 3,493 km (0.0% dev)
 - Offline: whole_network-check, region_config-check, floodplain_probe-check, provenance-check all PASS
+- Plan review 1 returned (planning/active/review-1.md, 23 findings, dispositions there); fixes landed
+- DUNC step 1 (pre-fix code): 6.8 s, 0.47 GB peak RSS, 13,023 segments, 211 waterbodies, habitat_link 53,654 rows
+  (bt, wct); link_log null + note (no DUNC row in fresh.log), link_config_name_source unresolved
+- Step 2 launched 01:20 UTC; DEM fetch < 4 min this time
+- Phase 5: join functions extracted to fp_habitat_join.R; demo copy re-run into scratch reproduces the
+  committed MORR log exactly (only timestamp and run time differ; fig2 PNG bytes differ, not replaced)
+- Next: after step 2, re-run step 1 (review fixes change the habitat record), then step 3

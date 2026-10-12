@@ -141,6 +141,7 @@ fp_network <- function(cfg) {
   fp_network_check_species(species)
   # `species: all` is the whole network (#104): no access column is read, here or in the guard.
   whole <- fp_whole_network(cfg)
+  fp_whole_network_validate(cfg)
 
   # Network source: BUILD (default) re-runs the link pipeline into cfg$schema; GRAB reads
   # the accessible network from an already-built schema (cfg$network_source, e.g.
@@ -212,6 +213,9 @@ fp_network <- function(cfg) {
   }
   streams_sql <- fp_network_sql(read_schema, aoi_wsg, species, min_order)
   streams <- sf::st_read(conn, query = streams_sql, quiet = TRUE) |> sf::st_zm(drop = TRUE)
+  # The habitat table is READ here, before anything is written, so a group with no habitat refuses
+  # without leaving a network and a network record behind; it is written after the record (#104).
+  hab <- if (whole) fp_habitat_read(conn, cfg, read_schema, aoi_wsg) else NULL
 
   # --- The network content digest (#65) ---
   # THE INPUT digest, taken HERE: on the full-WSG read, BEFORE the optional reach subset. Same
@@ -482,7 +486,7 @@ fp_network <- function(cfg) {
   # The whole group is written, every order and never subset: order-1 habitat is what a join's
   # integrity check counts as having no floodplain to join to, and a reach subset is a property of
   # the floodplain, not of the model.
-  if (whole) fp_habitat_write(conn, cfg, read_schema, aoi_wsg, out_gpkg, link_log)
+  if (whole) fp_habitat_write(conn, cfg, hab, read_schema, aoi_wsg, out_gpkg, link_log)
 
   invisible(out_gpkg)
 }
@@ -515,7 +519,7 @@ fp_habitat_sql <- function(read_schema, aoi_wsg, sp) {
 
 FP_HABITAT_LAYER <- "habitat_link"
 
-fp_habitat_write <- function(conn, cfg, read_schema, aoi_wsg, out_gpkg, link_log) {
+fp_habitat_read <- function(conn, cfg, read_schema, aoi_wsg) {
   tabs <- DBI::dbGetQuery(conn, fp_habitat_tables_sql(read_schema))$table_name
   sps  <- sub("^streams_habitat_", "", tabs)
   parts <- lapply(sps, function(sp) DBI::dbGetQuery(conn, fp_habitat_sql(read_schema, aoi_wsg, sp)))
@@ -530,16 +534,33 @@ fp_habitat_write <- function(conn, cfg, read_schema, aoi_wsg, out_gpkg, link_log
               "length_metre")) hab[[k]] <- as.numeric(hab[[k]])
   hab$wsg   <- aoi_wsg
   hab$model <- paste0("link:", read_schema)
-  hab <- hab[order(hab$species, hab$blue_line_key, hab$downstream_route_measure), ]
+  hab <- hab[order(hab$species, hab$blue_line_key, hab$downstream_route_measure, method = "radix"), ]
   rownames(hab) <- NULL
+  hab
+}
+
+# The FWA the keys belong to, as content: one digest over the group's FWA stream segments on the same
+# (blue_line_key, downstream_route_measure) key, with length_metre. link's log row carries fwapg_sha,
+# but a group link never logged (DUNC) has none, and no FWA version table exists in the database. A
+# consumer can recompute this against their own FWA to check their keys mean the same lines (#104).
+fp_fwa_sql <- function(aoi_wsg) {
+  if (!grepl("^[A-Z]{4}$", aoi_wsg)) stop("bad watershed group code: ", aoi_wsg, call. = FALSE)
+  sprintf("SELECT blue_line_key, downstream_route_measure, length_metre
+             FROM whse_basemapping.fwa_stream_networks_sp WHERE watershed_group_code = '%s'", aoi_wsg)
+}
+
+fp_habitat_write <- function(conn, cfg, hab, read_schema, aoi_wsg, out_gpkg, link_log) {
+  fwa <- DBI::dbGetQuery(conn, fp_fwa_sql(aoi_wsg))
+  for (k in names(fwa)) fwa[[k]] <- as.numeric(fwa[[k]])
   sf::st_write(hab, out_gpkg, layer = FP_HABITAT_LAYER,
                append = file.exists(out_gpkg), delete_layer = TRUE, quiet = TRUE)
   by_sp <- table(hab$species)
   message("  ", FP_HABITAT_LAYER, ": ", nrow(hab), " rows (",
           paste(names(by_sp), as.integer(by_sp), sep = " ", collapse = ", "), ")")
 
-  # The FWA version the keys belong to (#104: "publish the FWA version beside the key"). The one
-  # source is link's log row; a group without one records NA and says why, never a guess.
+  # The FWA version the keys belong to (#104: "publish the FWA version beside the key"): fwapg_sha
+  # from link's log row when the group has one, NA with its source "unresolved" when it does not,
+  # never a guess; and fwa_content_sha256 always, which needs no log row.
   fwapg_sha <- if (!is.null(link_log)) link_log[["fwapg_sha"]] else NULL
   if (is.null(fwapg_sha) || length(fwapg_sha) != 1L) fwapg_sha <- NA_character_
   fp_prov_set_sibling(cfg, "network", paste0(cfg$species, cfg$min_order), "habitat", list(
@@ -547,8 +568,11 @@ fp_habitat_write <- function(conn, cfg, read_schema, aoi_wsg, out_gpkg, link_log
       model       = "link",
       read_schema = read_schema,
       watershed_group = aoi_wsg,
-      species     = sort(unique(hab$species), method = "radix"),
+      # I(): one species must still publish as an array, never unboxed to a scalar.
+      species     = I(sort(unique(hab$species), method = "radix")),
       fwapg_sha   = as.character(fwapg_sha),
+      fwa_content_sha256 = fp_table_content_sha256(fwa, c("blue_line_key", "downstream_route_measure"),
+                                                   "length_metre"),
       fwapg_sha_source = if (is.na(fwapg_sha)) "unresolved" else "link_log"),
     outputs = list(
       layer = FP_HABITAT_LAYER,
