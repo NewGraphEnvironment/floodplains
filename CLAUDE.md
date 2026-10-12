@@ -251,7 +251,7 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   carries it: `streams_all2`, `all_ff04`, `all_ff04_by_blue_line_key`, `network[all2]`, item key
   species `all`. That holds in this repo only: `stac_floodplains_bc`'s provenance reader refuses a
   scenario key not matching `^[a-z]{2}_ff[0-9]{2}$`, so `all_ff04` cannot publish until it changes
-  (#123). Ask `fp_whole_network(cfg)`, never compare the string. 01's read is
+  (stac_floodplains_bc#75). Ask `fp_whole_network(cfg)`, never compare the string. 01's read is
   `fp_network_sql()`; its species branch is pinned **byte-identical** to the pre-lift SQL by
   `whole_network-check.R`. The whole branch drops the `streams_access` join, which is not merely a
   filter: groups link never ran its access model on (DUNC) are absent from that table.
@@ -274,6 +274,14 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   - `habitat_join-query.R <area> [species]` is the consumer side. It joins `habitat_link` flags by
     position to the published blue-line layer, taking segment lines from the model's schema, every
     order.
+  - **A published floodplain item carries no link output (decided 2026-10-12, #123).** Segments and
+    habitat flags differ by link config (`default`, `default_tuned`, `bcfishpass`) and by build, so
+    freezing one into an item would tie it to one model. The item's join key is `blue_line_key` plus
+    the FWA version; `habitat_link` stays a local snapshot of the build the pilot joined against.
+    Publishing segments and flags is link's export (link#308), and the consumer join is to move to
+    cutting segment lines from FWA blue lines by route measure. GeoParquet is written with GDAL's
+    Parquet driver: `geoarrow` + `arrow::write_parquet()` writes no `geo` key (no CRS), and sf's
+    GDAL 3.8.5 has no Parquet driver and is the one that reproduces the DEM grid (#117).
 - **Channel migration (#106): rule v2 negative on two groups, not yet validated.**
   `scripts/floodplain_lcc/channel_probe-migration.R <area>` applies a pre-registered rule
   (`research/channel_migration.md`) to IO's Water-involving change. The rule asks whether long,
