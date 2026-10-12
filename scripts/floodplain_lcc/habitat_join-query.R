@@ -21,6 +21,7 @@
 t0 <- Sys.time()
 suppressMessages({library(sf); library(terra); library(DBI); library(RPostgres)})
 sf::sf_use_s2(FALSE)
+`%||%` <- function(a, b) if (is.null(a)) b else a   # base R ships %||% only >= 4.4.0
 terra::terraOptions(threads = 4, memfrac = 0.3, progress = 0)
 lcc <- here::here("scripts", "floodplain_lcc")
 source(file.path(lcc, "fp_region.R"))        # fp_whole_network
