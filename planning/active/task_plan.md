@@ -110,10 +110,10 @@ Measured state of the database (2026-10-11):
       and revise the header line.
 - [x] `CLAUDE.md`: a Layout bullet on whole-network mode (`species: all`, habitat table, region
       refusal) and DUNC under Areas.
-- [ ] #104 body: add the DUNC pilot results. Spin off a follow-up issue for GeoParquet/Parquet
-      publish formats and region support for `species: all`.
-- [ ] #120 body: DUNC lands under the #104 model and the bt item is not built.
-- [ ] Note the stac_floodplains_bc implication (item species `all`) in the PR body only. The
+- [x] #104 body: add the DUNC pilot results. Follow-up filed as #123 (publish
+      formats, join geometry, region support for `species: all`); #53 gained the DUNC measurement.
+- [x] #120 body: DUNC lands under the #104 model and the bt item is not built.
+- [x] Note the stac_floodplains_bc implication (item species `all`) in the PR body only. The
       coupling stays one-way.
 
 ## Validation

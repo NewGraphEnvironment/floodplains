@@ -35,3 +35,4 @@
   dunc FAILS change-vs-patch bound (+4.67% vs <1%): 205.4 ha (1.1%) of floodplain lies outside the group
   polygon and 41.2 ha raw change sits there (#53); guard not loosened, recorded as a finding
 - Phase 6: DUNC log, research section, CLAUDE.md (Layout bullet, area line, dunc entry)
+- Issues: #104 body (pilot section, two questions settled), #120 body (lands under #104), #53 (DUNC cross-boundary), filed #123
