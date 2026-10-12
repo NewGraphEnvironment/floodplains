@@ -2198,6 +2198,9 @@ To tell a throttle from any other bcdata failure, record the status off the requ
 ### sf and terra can link different GDALs, so a probe through one says nothing about the other
 Check `sf::sf_extSoftVersion()[["GDAL"]]` and `terra::gdal()` before concluding that "GDAL" cannot read something: one R session can hold two GDALs, and a driver or codec missing from one may be present in the other.
 
+### `arrow::write_parquet()` of a geoarrow table is not GeoParquet
+Write GeoParquet with GDAL's Parquet driver (`ogr2ogr -f Parquet`), and check the file's schema metadata carries a `geo` key: `geoarrow` (0.4.4) with `arrow::write_parquet()` writes geoarrow-native columns and no `geo` key, so GDAL reads the file with no CRS.
+
 ### `atan2(0, 0)` is 0, so two points at one place have a bearing of due north
 Treat a zero-length step as having no heading: test the step length before taking its azimuth, and return `NA` rather than a bearing when it is 0, because `atan2(0, 0)` returns 0 with no warning, and that reads as north.
 
