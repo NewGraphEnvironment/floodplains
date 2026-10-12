@@ -644,8 +644,11 @@ Coexistence is data-layer only (steps 01/02/03).
   or the attribution figure builder **stops**.
 - `dunc` — Duncan Lake group (Lardeau River; #120), the **first whole-network area** (#104):
   `species: all`, order ≥ 2, `network_source: fresh`, `attribute_by: blue_line_key`, not in any
-  region. DUNC is in `fresh.streams` and link's habitat tables but in neither `fresh.streams_access`
-  nor `fresh.log`, so its network record carries a null `link_log` and `fwapg_sha`. Run 2026-10-12:
+  region yet: the whole Columbia region is to go whole-network beside its bt items (#125). DUNC is
+  in `fresh.streams` and link's habitat tables but in neither `fresh.streams_access` nor `fresh.log`,
+  so its network record carries a null `link_log` and `fwapg_sha`. It is also absent from
+  `fresh_default`, which holds KOTL/LARL/SLOC, so one region cannot read all four until link#328.
+  Run 2026-10-12:
   `all_ff04` **185.0 km²**, 1,942 blue lines with floodplain, step 2 in 8.9 min. 1,282 change
   patches and 119.5 ha of gross tree loss. `composition-check.R dunc` fails its 1% change-vs-patch
   bound at +4.7%: 1.1% of the floodplain lies past the group polygon (#53).
