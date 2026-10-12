@@ -28,6 +28,7 @@ sf::sf_use_s2(FALSE)
 terra::terraOptions(threads = 4, memfrac = 0.3, progress = 0)
 lcc <- here::here("scripts", "floodplain_lcc")
 source(file.path(lcc, "fp_whole_fwa.R"))   # fp_wf_seg_key
+source(file.path(lcc, "fp_habitat_join.R")) # the position join, shared with habitat_join-query.R
 
 wsg <- "MORR"; species <- "ch"; builds <- c("fresh", "morr")
 dir_in  <- here::here("data", "morr", "probe_whole_fwa")
@@ -70,18 +71,7 @@ dbDisconnect(con)
 
 # --- floodplain cells per group, and the integrity check: every floodplain cell attributed, ------
 # --- nothing outside it ---------------------------------------------------------------------------
-grid_cells <- function(tif, gpkg, key) {
-  r <- rast(p(tif)); v <- st_read(p(gpkg), quiet = TRUE)
-  # The range join puts the raster's cell centres beside the habitat lines, so all three share a CRS.
-  if (st_crs(v) != st_crs(hab[[1]]) || st_crs(terra::crs(r)) != st_crs(hab[[1]]))
-    stop(tif, ", ", gpkg, " and the habitat are not all in one CRS", call. = FALSE)
-  cb <- terra::cells(r, vect(v))
-  out <- data.frame(key = v[[key]][cb[, "ID"]], cell = cb[, "cell"])
-  fpc <- which(values(r, mat = FALSE) == 1L)
-  chk <- c(floodplain_cells = length(fpc), attributed_cells = length(unique(out$cell)),
-           missing = length(setdiff(fpc, out$cell)), extra = length(setdiff(out$cell, fpc)))
-  list(r = r, cells = out, check = chk)
-}
+grid_cells <- function(tif, gpkg, key) fp_hj_grid_cells(rast(p(tif)), st_read(p(gpkg), quiet = TRUE), key, st_crs(hab[[1]]))
 a2 <- grid_cells("arm2_floodplain.tif", "arm2_by_blk.gpkg", "blue_line_key")
 a3 <- grid_cells("arm3_floodplain.tif", "arm3_by_blk.gpkg", "blue_line_key")
 s3 <- grid_cells("arm3_floodplain.tif", "arm3_by_seg.gpkg", "seg_key")
@@ -93,52 +83,13 @@ if (any(ck[, c("missing", "extra")] != 0)) {
 cell_ha <- prod(res(a2$r)) / 1e4
 
 # --- the joins: per-claim flags, then OR over the groups that claim a cell ----------------------
-or_by_cell <- function(cell, sp, re) {
-  s <- tapply(sp, cell, any); r <- tapply(re, cell, any)
-  data.frame(cell = as.numeric(names(s)), spawning = as.logical(s), rearing = as.logical(r[names(s)]))
-}
-join_blk <- function(cells, h) {
-  f <- aggregate(cbind(spawning, rearing) ~ blue_line_key, data = st_drop_geometry(h), FUN = any)
-  m <- match(cells$key, f$blue_line_key)
-  or_by_cell(cells$cell, !is.na(m) & f$spawning[m], !is.na(m) & f$rearing[m])
-}
-join_range <- function(cells, h, r) {
-  out <- list(); no_seg <- 0; hk <- split(seq_len(nrow(h)), sprintf("%.0f", h$blue_line_key))
-  for (b in unique(cells$key)) {
-    cc <- cells$cell[cells$key == b]; idx <- hk[[sprintf("%.0f", b)]]
-    if (is.null(idx)) {   # the blue line has no segment in this build: no habitat, and no distance
-      no_seg <- no_seg + 1  # to compete with, so it never owns a cell under `nearest`
-      out[[length(out) + 1]] <- data.frame(cell = cc, blk = b, dist = Inf, spawning = FALSE, rearing = FALSE); next
-    }
-    pts <- st_as_sf(as.data.frame(xyFromCell(r, cc)), coords = c("x", "y"), crs = st_crs(h))
-    nn <- idx[st_nearest_feature(pts, h[idx, ])]
-    out[[length(out) + 1]] <- data.frame(cell = cc, blk = b,
-      dist = as.numeric(st_distance(pts, h[nn, ], by_element = TRUE)),
-      spawning = h$spawning[nn], rearing = h$rearing[nn])
-  }
-  o <- do.call(rbind, out)
-  any_ <- or_by_cell(o$cell, o$spawning, o$rearing)
-  o <- o[order(o$cell, o$dist, o$blk), ]
-  first <- !duplicated(o$cell)
-  ties <- sum(!first & is.finite(o$dist) & o$dist == c(NA, o$dist[-nrow(o)]) & o$cell == c(NA, o$cell[-nrow(o)]) &
-                c(FALSE, first[-length(first)]), na.rm = TRUE)
-  near <- data.frame(cell = o$cell[first], spawning = o$spawning[first], rearing = o$rearing[first])
-  attr(near, "ties") <- ties
-  attr(any_, "blk_without_segments") <- attr(near, "blk_without_segments") <- no_seg
-  list(nearest = near, any = any_)
-}
+or_by_cell <- fp_hj_or_by_cell; join_blk <- fp_hj_join_blk; join_range <- fp_hj_join_range
 join_seg <- function(cells, h) {
   m <- match(cells$key, fp_wf_seg_key(h$blue_line_key, h$drm))
   f <- or_by_cell(cells$cell, !is.na(m) & h$spawning[m], !is.na(m) & h$rearing[m])
   attr(f, "key_match") <- mean(!is.na(m[!duplicated(cells$key)])); f
 }
-summ <- function(f, label, build) {
-  data.frame(join = label, build = build,
-             spawning_ha = sum(f$spawning) * cell_ha, rearing_ha = sum(f$rearing) * cell_ha,
-             both_ha = sum(f$spawning & f$rearing) * cell_ha,
-             spawn_only_ha = sum(f$spawning & !f$rearing) * cell_ha,
-             rear_only_ha = sum(!f$spawning & f$rearing) * cell_ha)
-}
+summ <- function(f, label, build) fp_hj_summ(f, label, build, cell_ha)
 
 res2 <- list(); res3 <- list(); keep <- list(); km <- list()
 for (b in builds) {

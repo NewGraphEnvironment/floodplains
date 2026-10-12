@@ -8,7 +8,9 @@ flooded#68 · **Produced by:** `scripts/floodplain_lcc/floodplain_probe-run.sh` 
 `scripts/floodplain_lcc/habitat_join-demo.R` (log and figures `20261011_habitat_join-demo_morr*`) ·
 **Status:** MORR measured 2026-10-09, BULK (arms 5, 3, 2) 2026-10-11. **Recommendation revised
 2026-10-10: floor order ≥ 2** (see "Recommendation for #104"); BULK confirms the floor and fails the
-cost bound, on attribution.
+cost bound, on attribution. **In the pipeline 2026-10-12** (`species: all`), piloted on DUNC, where
+attribution costs ~3 min on flooded 0.6.5 (see "Pipeline pilot: DUNC"; log
+`scripts/floodplain_lcc/logs/20261012_whole_network_dunc.md`).
 
 #104 proposes delineating each watershed group's floodplain once, from the whole stream network,
 keyed by `blue_line_key`, with habitat joined afterwards instead of cut into the geometry. Today
@@ -334,6 +336,25 @@ for both rules, both builds and the arm 3 comparison).
   geometry did not change.
 - **Flood level.** The demo uses ff04, the level the arms were run at; chinook's headline is ff06.
   Accepted for the demonstration (user, 2026-10-11).
+
+**Pipeline pilot: DUNC (measured 2026-10-12).** Whole-network mode is in steps 1–3 as `species: all`
+(order ≥ 2, no access join, attributed by `blue_line_key`, habitat in a `habitat_link` table). It
+ran end to end on DUNC, a new group (#120) with no published item to supersede. Evidence:
+`scripts/floodplain_lcc/logs/20261012_whole_network_dunc.md` and `…_habitat_join-query_dunc.md`.
+- **Cost: the bound now holds, on flooded 0.6.5.** Step 2 took 8.9 min for three scenarios plus
+  blue-line attribution of `all_ff04` (2,236 blue lines, 18.0 M cells, 13.3 GB peak). Attribution
+  took ~3.3 min. MORR's order ≥ 2 attribution on a grid the same size took 33 min on flooded 0.6.0,
+  and BULK's 170 min. flooded#71 removed the full-grid fallback, and flooded#72 found the per-group
+  cost was that fallback.
+- **Area:** `all_ff04` 185.0 km² (`ff02` 178.8, `ff06` 187.0); 1,942 blue lines carry floodplain.
+- **The join holds on a second group and a second species.** Every cell is attributed, and
+  `habitat_link` matches all of the schema's segments. 99.8% of bull trout and westslope cutthroat
+  spawning km sits on a blue line with floodplain. By blue line, 91% of the floodplain reads as bull
+  trout spawning floodplain; by position (nearest), 28% (MORR chinook: 82% against 24%).
+- **Step 3 runs unchanged on the whole floodplain:** 1,282 change patches, 119.5 ha of gross tree
+  loss (32.6% harvest). Its composition check exposed one thing a species network had kept small:
+  1.1% of the floodplain lies outside the group polygon (#53), so the cell-level change exceeds the
+  clipped patches by 4.7%, past a tolerance measured at 0.3–0.4% on species areas.
 
 **Considered and not taken: order ≥ 3 (Reading B).** It is cheaper (19.9 min), keeps segment
 grain, and only extends today's items (1.6% move). But it leaves 5–21% of modelled habitat with

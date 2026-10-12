@@ -1,0 +1,25 @@
+# DUNC — Duncan Lake watershed group (Lardeau River, Duncan River, Trout Lake; drains to KOTL).
+# The first WHOLE-NETWORK area (#104), and the pilot for it (#120 asked for DUNC; it lands under
+# #104's model, so there is no bull trout item).
+#
+# `species: all` is not a fish: it is the whole stream network at order >= min_order with no access
+# filter, one floodplain per group, attributed by blue_line_key. Habitat is joined afterwards from the
+# habitat_link table step 1 writes beside the network (link's per-segment model, keyed by FWA
+# position), so a species question is a query, not a re-run. min_order 2 is the floor #110 settled
+# (research/whole_fwa_floodplain.md).
+#
+# network_source: fresh. DUNC is in fresh.streams and link's habitat tables but NOT in
+# fresh.streams_access, fresh_default.streams or fresh.log (measured 2026-10-11). The whole network
+# needs no access join, and the freshness guard compares order >= 2 km with no access predicate:
+# 3,493 km against bcfp's 3,493 km. So the guard stays strict.
+#
+# Not in config/regions/columbia.yml: region runs resolve a species per group and refuse `all`.
+name: dunc
+watershed_group: DUNC
+species: all
+min_order: 2
+schema: dunc
+primary_scenario: all_ff04
+subset: null
+network_source: fresh
+attribute_by: blue_line_key
