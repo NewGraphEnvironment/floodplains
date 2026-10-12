@@ -29,6 +29,7 @@ suppressWarnings(suppressMessages({
 local({
   d <- dirname(sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE)[1]))
   source(file.path(d, "fp_provenance.R"))
+  source(file.path(d, "fp_region.R"))     # FP_SPECIES_WHOLE, the whole-network token (#104)
   # fp_rast_strip_tags / fp_rast_stray_tags (#83). Rooted on this script's own path for the same
   # worktree reason as fp_root below, not on here::here().
   source(file.path(d, "..", "fp_raster.R"))
@@ -75,6 +76,12 @@ KEYS_COMPOSITION_INPUTS  <- c("change_interval", "floodplain_layer", "floodplain
                               "classified_content_sha256",
                               "transition_content_sha256", "membership", "population", "overlays")
 KEYS_COMPOSITION_OUTPUTS <- c("layer", "rows", "footprint_cells", "table_content_sha256")
+
+# The habitat table's record (#104): a SIBLING inside network[<all><order>], written by step 1 in
+# whole-network mode only. Checked by viol_habitat below, and reconciled against the gpkg in 7c.
+KEYS_HABITAT_INPUTS  <- c("model", "read_schema", "watershed_group", "species", "fwapg_sha",
+                          "fwapg_sha_source")
+KEYS_HABITAT_OUTPUTS <- c("layer", "rows", "table_content_sha256")
 
 # The closed vocabulary fp_pkg_stamp() may report (#65). It used to interpolate the checkout PATH
 # and the checkout VERSION into this string, inside hashed `inputs` -- measured live in
@@ -259,6 +266,45 @@ viol_composition <- function(prov) {
       # then moves the floodplain record, and the shares no longer describe the masked rasters.
       if (!is.null(fp_rec) && !identical(cp[["inputs"]][["floodplain_outputs_hash"]], fp_rec))
         sprintf("%s[%s].composition is STALE: its floodplain is not the one the floodplain section records",
+                e$section, e$key))
+  }))
+}
+
+# The habitat sibling (#104). Network-only, and only on a whole-network entry (`all<order>`): a species
+# entry carrying one would publish a habitat table its floodplain was not delineated to be joined
+# with. Declared keys in both halves, hashes and a run block present, and -- the arm with an external
+# reference -- its schema and group are the ones its own network entry read.
+viol_habitat <- function(prov) {
+  unlist(lapply(prov_sections(prov), function(e) {
+    hb <- e$body[["habitat"]]
+    if (is.null(hb)) return(NULL)
+    if (!"habitat" %in% FP_PROV_SIBLINGS[[e$section]])
+      return(sprintf("%s[%s] carries a `habitat` block; only network may", e$section, e$key))
+    if (!grepl(paste0("^", FP_SPECIES_WHOLE, "[0-9]+$"), e$key))
+      return(sprintf("%s[%s] carries a `habitat` block but is not a whole-network entry (%s<order>)",
+                     e$section, e$key, FP_SPECIES_WHOLE))
+    hi <- names(hb[["inputs"]] %||% list()); ho <- names(hb[["outputs"]] %||% list())
+    c(if (length(setdiff(KEYS_HABITAT_INPUTS, hi)))
+        sprintf("%s[%s].habitat.inputs missing: %s", e$section, e$key,
+                paste(setdiff(KEYS_HABITAT_INPUTS, hi), collapse = ", ")),
+      if (length(setdiff(hi, KEYS_HABITAT_INPUTS)))
+        sprintf("%s[%s].habitat.inputs has UNDECLARED key(s): %s", e$section, e$key,
+                paste(setdiff(hi, KEYS_HABITAT_INPUTS), collapse = ", ")),
+      if (length(setdiff(KEYS_HABITAT_OUTPUTS, ho)) || length(setdiff(ho, KEYS_HABITAT_OUTPUTS)))
+        sprintf("%s[%s].habitat.outputs key set is not {%s}", e$section, e$key,
+                paste(KEYS_HABITAT_OUTPUTS, collapse = ", ")),
+      if (is.null(hb[["inputs_hash"]]) || is.null(hb[["outputs_hash"]]))
+        sprintf("%s[%s].habitat is missing inputs_hash/outputs_hash", e$section, e$key),
+      if (is.null(hb[["run"]][["datetime_utc"]]))
+        sprintf("%s[%s].habitat.run has no datetime_utc", e$section, e$key),
+      if (length(intersect(hi, RUN_FIELDS)))
+        sprintf("%s[%s].habitat.inputs carries run-event field(s)", e$section, e$key),
+      if (!isTRUE(as.character(hb[["inputs"]][["fwapg_sha_source"]]) %in% c("link_log", "unresolved")))
+        sprintf("%s[%s].habitat.inputs.fwapg_sha_source is not one of {link_log, unresolved}",
+                e$section, e$key),
+      if (!identical(hb[["inputs"]][["read_schema"]], e$body[["inputs"]][["read_schema"]]) ||
+          !identical(hb[["inputs"]][["watershed_group"]], e$body[["inputs"]][["watershed_group"]]))
+        sprintf("%s[%s].habitat was read from another schema or group than its network",
                 e$section, e$key))
   }))
 }
@@ -770,6 +816,46 @@ cat("\n3c. Composition sibling — declared, landcover-only, and never stale\n")
   ob <- g; ob$landcover$co_ff04$surprise_sibling <- list()
   check(any(grepl("UNDECLARED body", viol_body(ob))),
         "must-fail: an undeclared SIBLING is still reported by the body whitelist")
+}
+
+# --- 3d. The habitat sibling (#104) ---------------------------------------------------------------
+cat("\n3d. Habitat sibling — declared, network-only, whole-network entries only\n")
+{
+  g <- good_prov()
+  g$network$all2 <- g$network$co3
+  g$network$all2$inputs$species <- FP_SPECIES_WHOLE
+  hb <- list(
+    inputs = utils::modifyList(
+      stats::setNames(as.list(rep(NA, length(KEYS_HABITAT_INPUTS))), KEYS_HABITAT_INPUTS),
+      list(read_schema = g$network$all2$inputs$read_schema,
+           watershed_group = g$network$all2$inputs$watershed_group,
+           fwapg_sha_source = "unresolved")),
+    inputs_hash = "sha256:hh",
+    outputs = stats::setNames(as.list(rep(NA, length(KEYS_HABITAT_OUTPUTS))), KEYS_HABITAT_OUTPUTS),
+    outputs_hash = "sha256:hh2",
+    run = list(datetime_utc = "2026-10-11T00:00:00Z"))
+  g$network$all2$habitat <- hb
+  check(length(c(viol_habitat(g), viol_body(g), viol_keys(g), viol_split(g))) == 0,
+        "a whole-network entry with a well-formed habitat sibling passes every property")
+  check(length(viol_habitat(good_prov())) == 0, "an entry with NO habitat passes (species mode)")
+  sp <- g; sp$network$co3$habitat <- hb
+  check(any(grepl("not a whole-network entry", viol_habitat(sp))),
+        "must-fail: a habitat block on a species entry IS reported")
+  wh <- g; wh$floodplain$co_ff04$habitat <- hb
+  check(any(grepl("only network may", viol_habitat(wh))),
+        "must-fail: a habitat block outside network IS reported")
+  ud <- g; ud$network$all2$habitat$inputs$surprise <- 1
+  check(any(grepl("UNDECLARED", viol_habitat(ud))),
+        "must-fail: an undeclared habitat input IS reported")
+  ms <- g; ms$network$all2$habitat$inputs$read_schema <- "elsewhere"
+  check(any(grepl("another schema or group", viol_habitat(ms))),
+        "must-fail: a habitat table read from another schema than its network IS reported")
+  fs <- g; fs$network$all2$habitat$inputs$fwapg_sha_source <- "unresolved (no log row)"
+  check(any(grepl("fwapg_sha_source", viol_habitat(fs))),
+        "must-fail: a free-text fwapg_sha_source IS reported")
+  nh <- g; nh$network$all2$habitat$outputs_hash <- NULL
+  check(any(grepl("outputs_hash", viol_habitat(nh))),
+        "must-fail: a habitat block with no outputs_hash IS reported")
 }
 
 # --- 3b. The config that produced the network -----------------------------------------------------
@@ -1512,6 +1598,24 @@ prov_sections_writing_toolchain <- function(section_files) {
   drift1("landcover outputs",
          prov_keys(step("03_lulc_classify.R"), "landcover", part = "outputs"),
          KEYS_LANDCOVER_OUTPUTS)
+  # The habitat sibling (#104): the producer writes exactly the declared keys, read off 01's
+  # fp_prov_set_sibling call the same way drift1 reads the fp_prov_set calls.
+  f01 <- file.path(fp_root, "scripts", "floodplain_lcc", "01_network_extract.R")
+  sib <- unlist(lapply(parse(f01), find_calls, fname = "fp_prov_set_sibling"), recursive = FALSE)
+  sib <- Filter(function(cl) identical(cl[[5]], "habitat"), sib)
+  check(length(sib) == 1L, "premise: 01 has exactly one habitat fp_prov_set_sibling call")
+  if (length(sib) == 1L) {
+    nm <- function(part) {
+      l <- find_calls(sib[[1]][[6]][[part]], "list")
+      sort(unique(unlist(lapply(l, function(x) { n <- names(as.list(x)); n[nzchar(n)] }))))
+    }
+    for (part in c("inputs", "outputs")) {
+      want <- if (part == "inputs") KEYS_HABITAT_INPUTS else KEYS_HABITAT_OUTPUTS
+      d <- c(setdiff(want, nm(part)), setdiff(nm(part), want))
+      check(length(d) == 0, sprintf("habitat %s: producer writes exactly the %d declared key(s)%s",
+            part, length(want), if (length(d)) paste0(" -- differs: ", paste(d, collapse = ", ")) else ""))
+    }
+  }
 
   # The `run` half. Until now this scanner read only `inputs`, which meant the toolchain block --
   # the one field #64 adds and the only one with no declared-key protection -- could be deleted from
@@ -1600,7 +1704,7 @@ if (length(args) >= 1 && nzchar(args[1])) {
     if (n == 0) bad("provenance.json has ZERO sections — nothing was checked") else
       ok(sprintf("%d section(s) to check", n))
     for (f in list(viol_split, viol_keys, viol_body, viol_sha_source, viol_config_name,
-                   viol_schema_version, viol_coverage, viol_composition)) {
+                   viol_schema_version, viol_coverage, viol_composition, viol_habitat)) {
       v <- f(prov); if (length(v)) for (m in v) bad(m)
     }
     v <- viol_creds(txt); if (!is.null(v)) bad(v)
@@ -1724,6 +1828,22 @@ if (length(args) >= 1 && nzchar(args[1])) {
                sprintf("network[%s] whole-WSG area: pre- and post-subset digests agree", e$key))
           else
             ok(sprintf("network[%s] inputs.network_content_sha256 not reconcilable (pre-subset, never written)", e$key))
+          # The habitat table (#104), BOTH directions: a whole-network entry without one publishes a
+          # floodplain with nothing to join to, and a recorded one must describe the table on disk.
+          hb <- e$body[["habitat"]]
+          if (grepl(paste0("^", FP_SPECIES_WHOLE, "[0-9]+$"), e$key)) {
+            if (is.null(hb)) {
+              bad(sprintf("network[%s] is a whole-network entry with no habitat record (re-run step 1)", e$key))
+            } else if (!file.exists(g) || !as.character(hb[["outputs"]][["layer"]]) %in% sf::st_layers(g)$name) {
+              bad(sprintf("network[%s].habitat names layer '%s', which is not in %s", e$key,
+                          as.character(hb[["outputs"]][["layer"]]), basename(g)))
+            } else {
+              ht <- sf::st_read(g, layer = as.character(hb[["outputs"]][["layer"]]), quiet = TRUE)
+              eq(as.integer(hb[["outputs"]][["rows"]]), nrow(ht), sprintf("network[%s] habitat rows", e$key))
+              eq(as.character(hb[["outputs"]][["table_content_sha256"]]), fp_habitat_content_sha256(ht),
+                 sprintf("network[%s] habitat table_content_sha256", e$key))
+            }
+          }
         }
         if (identical(e$section, "floodplain")) {
           f <- file.path(dd, as.character(o[["floodplain_raster"]]))

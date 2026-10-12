@@ -229,7 +229,11 @@ fp_prov_set <- function(cfg, section, key, value) {
 # and re-deriving them from a JSON round trip of that run would be a second derivation of a fact
 # already recorded. The sibling gets its own pair. Declared per section so provenance-check.R can
 # whitelist it rather than meet it as an undeclared body key.
-FP_PROV_SIBLINGS <- list(landcover = "composition")
+#
+# `habitat` (#104) is the whole-network area's habitat table, written by step 1 in whole mode beside the
+# network it is keyed to. Its own record because it is a different read (link's habitat tables, not
+# streams) and only whole-network areas carry it.
+FP_PROV_SIBLINGS <- list(network = "habitat", landcover = "composition")
 
 fp_prov_set_sibling <- function(cfg, section, key, sibling, value) {
   stopifnot(section %in% names(FP_PROV_SIBLINGS), sibling %in% FP_PROV_SIBLINGS[[section]],
@@ -488,6 +492,27 @@ fp_table_content_sha256 <- function(df, key_cols, value_cols) {
   # different column set can never collide with this one.
   hdr <- paste0("n=", nrow(df), "|cols=", paste(cols, collapse = ","))
   paste0("sha256:", digest::digest(paste0(hdr, "\n", paste(line, collapse = "\n")),
+                                   algo = "sha256", serialize = FALSE))
+}
+
+# --- Habitat table content digest (#104) ---------------------------------------------------------
+# One fp_table_content_sha256() per species, keyed by FWA position, combined in species order.
+# Per species because the digest is numeric-only by contract and `species` is text: rendering the
+# code as a number would be a second encoding of it. The flags are logical in the table and digested
+# as 0/1; NA stays NA.
+FP_HABITAT_KEY <- c("blue_line_key", "downstream_route_measure")
+FP_HABITAT_VAL <- c("upstream_route_measure", "stream_order", "length_metre", "accessible",
+                    "spawning", "rearing", "lake_rearing", "wetland_rearing")
+fp_habitat_content_sha256 <- function(df) {
+  if (!"species" %in% names(df)) stop("fp_habitat_content_sha256: no `species` column", call. = FALSE)
+  df <- as.data.frame(df)
+  for (k in FP_HABITAT_VAL) if (is.logical(df[[k]])) df[[k]] <- as.numeric(df[[k]])
+  sps <- sort(unique(as.character(df$species)), method = "radix")
+  parts <- vapply(sps, function(sp) {
+    paste0(sp, "=", fp_table_content_sha256(df[df$species == sp, , drop = FALSE],
+                                            FP_HABITAT_KEY, FP_HABITAT_VAL))
+  }, character(1), USE.NAMES = FALSE)
+  paste0("sha256:", digest::digest(paste0("n=", nrow(df), "\n", paste(parts, collapse = "\n")),
                                    algo = "sha256", serialize = FALSE))
 }
 

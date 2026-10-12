@@ -26,32 +26,32 @@ Measured state of the database (2026-10-11):
 - **Installed flooded is 0.6.0.** v0.6.5 is tagged.
 
 ## Phase 0: Toolchain
-- [ ] Install flooded v0.6.5 (`pak::pak("NewGraphEnvironment/flooded@v0.6.5")`) and confirm
+- [x] Install flooded v0.6.5 (`pak::pak("NewGraphEnvironment/flooded@v0.6.5")`) and confirm
       `packageVersion("flooded") == "0.6.5"`. This changes the machine and is covered by approving
       this plan.
-- [ ] In whole mode, 02 asserts flooded ≥ 0.6.4: without #71, attribution at order ≥ 2 costs hours.
+- [x] In whole mode, 02 asserts flooded ≥ 0.6.4: without #71, attribution at order ≥ 2 costs hours.
 
 ## Phase 1: Whole-network mode in step 1
-- [ ] One predicate, defined once: `fp_whole_network(cfg)` ⇔ `identical(cfg$species, "all")`
+- [x] One predicate, defined once: `fp_whole_network(cfg)` ⇔ `identical(cfg$species, "all")`
       (constant `FP_SPECIES_WHOLE <- "all"`). It lives in a file `run_area.R` already sources
       (`fp_region.R`) and is used by 01, 02 and the checks.
-- [ ] Lift 01's network SELECT into `fp_network_sql(read_schema, wsg, species, min_order)`.
+- [x] Lift 01's network SELECT into `fp_network_sql(read_schema, wsg, species, min_order)`.
       - **Species mode:** byte-identical to today (pinned by a golden string in the check).
       - **Whole mode:** no `streams_access` join, no `access_` predicate, `stream_order >= min_order`
         only.
       - Leave the probe's `fp_wf_network_sql()` copy alone: its anchor depends on it.
-- [ ] Freshness guard in whole mode compares order ≥ min_order km against `fresh.streams_vw_bcfp`
+- [x] Freshness guard in whole mode compares order ≥ min_order km against `fresh.streams_vw_bcfp`
       with **no** access predicate. Species mode is unchanged.
-- [ ] Region files refuse `species: all`, since the pre-pass would query `access_all`. Do this in
+- [x] Region files refuse `species: all`, since the pre-pass would query `access_all`. Do this in
       `fp_region_plan`/the pre-pass, with an arm in `region_config-check.R`.
-- [ ] Offline check `scripts/floodplain_lcc/whole_network-check.R`, with must-fail arms:
+- [x] Offline check `scripts/floodplain_lcc/whole_network-check.R`, with must-fail arms:
       - species SQL unchanged;
       - whole SQL has no `access_` and no `streams_access`;
       - a non-`all` species never takes the whole path;
       - the region refusal fires.
 
 ## Phase 2: Habitat table (step 1, whole mode)
-- [ ] Write a non-spatial `habitat_link` table into `aquatic_network.gpkg`, long form:
+- [x] Write a non-spatial `habitat_link` table into `aquatic_network.gpkg`, long form:
       - one row per (segment, species) for every `fresh.streams_habitat_<sp>` table with rows in
         the group;
       - columns `blue_line_key, downstream_route_measure, upstream_route_measure, stream_order,
@@ -60,9 +60,9 @@ Measured state of the database (2026-10-11):
       - joined on `(id_segment, watershed_group_code)`.
       - All orders are kept, because habitat on order-1 lines is what the integrity check counts as
         outside the floodplain. Keyed by FWA position, never `id_segment`.
-- [ ] **FWA version beside the key:** `fwapg_sha` from the link log row when present, else NA with a
+- [x] **FWA version beside the key:** `fwapg_sha` from the link log row when present, else NA with a
       note in the record. DUNC has no log row.
-- [ ] Provenance: network `outputs` gains `habitat_table`, `habitat_content_sha256` (digest over
+- [x] Provenance: network `outputs` gains `habitat_table`, `habitat_content_sha256` (digest over
       `(blue_line_key, downstream_route_measure, species)`) and `habitat_rows`. Extend
       `provenance-check.R`'s declared key set, its 7c reconcile (re-derive from the gpkg table) and
       its fixtures, keeping the must-fail arms. Species-mode areas keep the old key set.

@@ -8,6 +8,10 @@
 #   streams_<sp><order>      <species>-accessible streams, order >= cfg$min_order (input to 02)
 #   waterbodies_<sp><order>  lakes/wetlands on the accessible network
 #   (e.g. streams_co3 / waterbodies_co3 for coho order-3; multiple species coexist in one gpkg)
+#   habitat_link             whole mode only: link's per-segment habitat, keyed by FWA position
+#
+# `species: all` (#104) is the WHOLE network at order >= min_order with no access filter
+# (streams_all2 for order 2): one floodplain per group, habitat joined afterwards from habitat_link.
 #
 # `link` is watershed-group scoped, so we run cfg$watershed_group, persist into the
 # DEDICATED cfg$schema. When cfg$network_source is set (e.g. "fresh_default") the accessible
@@ -32,6 +36,87 @@
 # which is the NewGraph methodology decision documented below.
 LNK_BUILD_CONFIG <- "default"
 
+# --- The network read, as functions (#104) ------------------------------------------------------
+# Lifted out of fp_network() so whole_network-check.R can assert both modes with no database: the
+# species-mode SQL is pinned there BYTE-IDENTICAL to what this file ran before the lift, so the lift
+# cannot move any existing area's network.
+#
+# species mode  access_<species> IN (1,2): 1 = modelled accessible past natural barriers, 2 =
+#               observation-confirmed above a barrier; 0 = blocked (NULL = species not modelled here).
+# whole mode    species == FP_SPECIES_WHOLE ("all"): every segment at order >= min_order, NO join to
+#               streams_access. Not merely "no filter": the inner join itself restricts the read to the
+#               groups link ran its access model on, and DUNC (the #104 pilot) is in streams but not
+#               in streams_access.
+# Both join upstream_area_ha (VCA field) + map_upstream (precip) from fwapg -- link's streams table
+# doesn't carry them but `02`/flooded need them.
+#
+# species is interpolated into SQL as a column name, so it is restricted to a short lowercase code.
+fp_network_check_species <- function(species) {
+  if (!is.character(species) || length(species) != 1L || is.na(species) ||
+      !grepl("^[a-z]{2,4}$", species)) {
+    stop("cfg$species must be a short lowercase species code (e.g. 'co', 'ch'), got: ",
+         format(species), call. = FALSE)
+  }
+  invisible(species)
+}
+
+fp_network_sql <- function(read_schema, aoi_wsg, species, min_order) {
+  fp_network_check_species(species)
+  if (identical(species, FP_SPECIES_WHOLE)) {
+    return(sprintf("
+    SELECT s.id_segment, s.blue_line_key, s.downstream_route_measure,
+           s.stream_order, s.gnis_name, s.channel_width, s.gradient,
+           s.length_metre, s.waterbody_key, s.linear_feature_id,
+           ua.upstream_area_ha, p.map_upstream, s.geom
+    FROM %1$s.streams s
+    LEFT JOIN (
+      SELECT l.linear_feature_id, u.upstream_area_ha
+      FROM whse_basemapping.fwa_streams_watersheds_lut l
+      JOIN whse_basemapping.fwa_watersheds_upstream_area u
+        ON l.watershed_feature_id = u.watershed_feature_id
+    ) ua ON ua.linear_feature_id = s.linear_feature_id
+    LEFT JOIN whse_basemapping.fwa_stream_networks_mean_annual_precip p
+      ON p.wscode_ltree = s.wscode_ltree AND p.localcode_ltree = s.localcode_ltree
+    WHERE s.stream_order >= %2$s
+      AND s.watershed_group_code = '%3$s'",
+      read_schema, min_order, aoi_wsg))
+  }
+  sprintf("
+    SELECT s.id_segment, s.blue_line_key, s.downstream_route_measure,
+           s.stream_order, s.gnis_name, s.channel_width, s.gradient,
+           s.length_metre, s.waterbody_key, s.linear_feature_id,
+           ua.upstream_area_ha, p.map_upstream, s.geom
+    FROM %1$s.streams s
+    JOIN %1$s.streams_access a USING (id_segment, watershed_group_code)
+    LEFT JOIN (
+      SELECT l.linear_feature_id, u.upstream_area_ha
+      FROM whse_basemapping.fwa_streams_watersheds_lut l
+      JOIN whse_basemapping.fwa_watersheds_upstream_area u
+        ON l.watershed_feature_id = u.watershed_feature_id
+    ) ua ON ua.linear_feature_id = s.linear_feature_id
+    LEFT JOIN whse_basemapping.fwa_stream_networks_mean_annual_precip p
+      ON p.wscode_ltree = s.wscode_ltree AND p.localcode_ltree = s.localcode_ltree
+    WHERE a.access_%3$s IN (1, 2) AND s.stream_order >= %2$s
+      AND s.watershed_group_code = '%4$s'",
+    read_schema, min_order, species, aoi_wsg)
+}
+
+# The freshness guard's reference km. Same predicate as the read, minus the network join: whole mode
+# compares every segment at order >= min_order, species mode the accessible ones.
+fp_bcfp_km_sql <- function(species, min_order, aoi_wsg) {
+  fp_network_check_species(species)
+  if (identical(species, FP_SPECIES_WHOLE)) {
+    return(sprintf(
+      "SELECT sum(length_metre)/1000.0 FROM fresh.streams_vw_bcfp
+       WHERE stream_order >= %1$d AND watershed_group_code = '%2$s'",
+      as.integer(min_order), aoi_wsg))
+  }
+  sprintf(
+      "SELECT sum(length_metre)/1000.0 FROM fresh.streams_vw_bcfp
+       WHERE access_%1$s IN (1,2) AND stream_order >= %2$d AND watershed_group_code = '%3$s'",
+      species, min_order, aoi_wsg)
+}
+
 fp_network <- function(cfg) {
   library(link)
   library(sf)
@@ -53,10 +138,9 @@ fp_network <- function(cfg) {
   # species drives which accessibility column is read (access_co, access_ch, ...).
   # Guard it: it is interpolated into SQL as a column name, so restrict to a short
   # lowercase code (co, ch, sk, st, wct, ...).
-  if (!is.character(species) || !grepl("^[a-z]{2,4}$", species)) {
-    stop("cfg$species must be a short lowercase species code (e.g. 'co', 'ch'), got: ",
-         species, call. = FALSE)
-  }
+  fp_network_check_species(species)
+  # `species: all` is the whole network (#104): no access column is read, here or in the guard.
+  whole <- fp_whole_network(cfg)
 
   # Network source: BUILD (default) re-runs the link pipeline into cfg$schema; GRAB reads
   # the accessible network from an already-built schema (cfg$network_source, e.g.
@@ -119,31 +203,14 @@ fp_network <- function(cfg) {
   message("Pipeline complete (schema ", schema, ").")
   }
 
-  # --- Read the species-accessible network ---
-  # access_<species> IN (1,2): 1 = modelled accessible past natural barriers,
-  # 2 = observation-confirmed above a barrier; 0 = blocked (NULL = species not
-  # modelled here). order >= min_order. Join upstream_area_ha (VCA field) +
-  # map_upstream (precip) from fwapg -- link's streams table doesn't carry them
-  # but `02`/flooded need them.
-  message("Reading ", species, "-accessible order >= ", min_order, " streams + attributes...")
-  streams_sql <- sprintf("
-    SELECT s.id_segment, s.blue_line_key, s.downstream_route_measure,
-           s.stream_order, s.gnis_name, s.channel_width, s.gradient,
-           s.length_metre, s.waterbody_key, s.linear_feature_id,
-           ua.upstream_area_ha, p.map_upstream, s.geom
-    FROM %1$s.streams s
-    JOIN %1$s.streams_access a USING (id_segment, watershed_group_code)
-    LEFT JOIN (
-      SELECT l.linear_feature_id, u.upstream_area_ha
-      FROM whse_basemapping.fwa_streams_watersheds_lut l
-      JOIN whse_basemapping.fwa_watersheds_upstream_area u
-        ON l.watershed_feature_id = u.watershed_feature_id
-    ) ua ON ua.linear_feature_id = s.linear_feature_id
-    LEFT JOIN whse_basemapping.fwa_stream_networks_mean_annual_precip p
-      ON p.wscode_ltree = s.wscode_ltree AND p.localcode_ltree = s.localcode_ltree
-    WHERE a.access_%3$s IN (1, 2) AND s.stream_order >= %2$s
-      AND s.watershed_group_code = '%4$s'",
-    read_schema, min_order, species, aoi_wsg)
+  # --- Read the network: species-accessible, or the whole network (#104) ---
+  # The predicates and joins are in fp_network_sql(), above.
+  if (whole) {
+    message("Reading the WHOLE network (no access filter, #104), order >= ", min_order, " + attributes...")
+  } else {
+    message("Reading ", species, "-accessible order >= ", min_order, " streams + attributes...")
+  }
+  streams_sql <- fp_network_sql(read_schema, aoi_wsg, species, min_order)
   streams <- sf::st_read(conn, query = streams_sql, quiet = TRUE) |> sf::st_zm(drop = TRUE)
 
   # --- The network content digest (#65) ---
@@ -191,10 +258,7 @@ fp_network <- function(cfg) {
   # any reach subset. (#14)
   if (grab) {
     grab_km <- sum(streams$length_metre, na.rm = TRUE) / 1000
-    bcfp_km <- DBI::dbGetQuery(conn, sprintf(
-      "SELECT sum(length_metre)/1000.0 FROM fresh.streams_vw_bcfp
-       WHERE access_%1$s IN (1,2) AND stream_order >= %2$d AND watershed_group_code = '%3$s'",
-      species, min_order, aoi_wsg))[1, 1]
+    bcfp_km <- DBI::dbGetQuery(conn, fp_bcfp_km_sql(species, min_order, aoi_wsg))[1, 1]
     tol <- if (is.null(cfg$network_source_tol)) 0.02 else cfg$network_source_tol
     if (is.na(bcfp_km) || bcfp_km == 0) {
       fresh_note <- sprintf("grabbed %.0f km; no bcfp reference (UNVERIFIED)", grab_km)
@@ -411,5 +475,85 @@ fp_network <- function(cfg) {
     # is rebuilt. Keeping them out of `inputs` is what lets the determinism check mean something.
     run = fp_prov_run(network_guard = guard, freshness = fresh_note)))
 
+  # --- The habitat table (#104, whole mode only) ---
+  # The whole-network floodplain carries no habitat: habitat is JOINED to it afterwards, by FWA
+  # position, from whichever model is wanted. This writes link's model, from the schema the network
+  # was read from, as one non-spatial table beside the network so the join needs no database.
+  # The whole group is written, every order and never subset: order-1 habitat is what a join's
+  # integrity check counts as having no floodplain to join to, and a reach subset is a property of
+  # the floodplain, not of the model.
+  if (whole) fp_habitat_write(conn, cfg, read_schema, aoi_wsg, out_gpkg, link_log)
+
   invisible(out_gpkg)
+}
+
+# Species tables link persists as <schema>.streams_habitat_<sp>. Discovered rather than listed, so a
+# species link adds is carried without an edit here; `streams_habitat_long_vw` does not match.
+fp_habitat_tables_sql <- function(read_schema) {
+  if (!grepl("^[a-z_][a-z0-9_]*$", read_schema)) stop("bad schema name: ", read_schema, call. = FALSE)
+  sprintf("SELECT table_name FROM information_schema.tables
+            WHERE table_schema = '%s' AND table_name ~ '^streams_habitat_[a-z]{2,4}$'
+            ORDER BY table_name", read_schema)
+}
+
+# Keyed on (id_segment, watershed_group_code): link numbers id_segment per watershed group, so a join
+# on id_segment alone matches every group's segment of that number (measured: 1.96 M rows for DUNC's
+# 26,827). The table carries FWA position, never id_segment, because link renumbers on a rebuild.
+fp_habitat_sql <- function(read_schema, aoi_wsg, sp) {
+  fp_network_check_species(sp)
+  if (!grepl("^[a-z_][a-z0-9_]*$", read_schema)) stop("bad schema name: ", read_schema, call. = FALSE)
+  if (!grepl("^[A-Z]{4}$", aoi_wsg)) stop("bad watershed group code: ", aoi_wsg, call. = FALSE)
+  sprintf("
+    SELECT s.blue_line_key, s.downstream_route_measure, s.upstream_route_measure,
+           s.stream_order, s.length_metre, '%3$s'::text AS species,
+           h.accessible, h.spawning, h.rearing, h.lake_rearing, h.wetland_rearing
+    FROM %1$s.streams s
+    JOIN %1$s.streams_habitat_%3$s h USING (id_segment, watershed_group_code)
+    WHERE s.watershed_group_code = '%2$s'",
+    read_schema, aoi_wsg, sp)
+}
+
+FP_HABITAT_LAYER <- "habitat_link"
+
+fp_habitat_write <- function(conn, cfg, read_schema, aoi_wsg, out_gpkg, link_log) {
+  tabs <- DBI::dbGetQuery(conn, fp_habitat_tables_sql(read_schema))$table_name
+  sps  <- sub("^streams_habitat_", "", tabs)
+  parts <- lapply(sps, function(sp) DBI::dbGetQuery(conn, fp_habitat_sql(read_schema, aoi_wsg, sp)))
+  hab <- do.call(rbind, parts[vapply(parts, nrow, integer(1)) > 0])
+  if (is.null(hab) || !nrow(hab)) {
+    stop("whole-network area '", cfg$name, "': no habitat rows for ", aoi_wsg, " in any ",
+         read_schema, ".streams_habitat_<sp> table (", length(tabs), " tables). The floodplain ",
+         "would publish with nothing to join to.", call. = FALSE)
+  }
+  # Driver values arrive as integer64 / pq types for some columns; the digest renders numerics only.
+  for (k in c("blue_line_key", "downstream_route_measure", "upstream_route_measure", "stream_order",
+              "length_metre")) hab[[k]] <- as.numeric(hab[[k]])
+  hab$wsg   <- aoi_wsg
+  hab$model <- paste0("link:", read_schema)
+  hab <- hab[order(hab$species, hab$blue_line_key, hab$downstream_route_measure), ]
+  rownames(hab) <- NULL
+  sf::st_write(hab, out_gpkg, layer = FP_HABITAT_LAYER,
+               append = file.exists(out_gpkg), delete_layer = TRUE, quiet = TRUE)
+  by_sp <- table(hab$species)
+  message("  ", FP_HABITAT_LAYER, ": ", nrow(hab), " rows (",
+          paste(names(by_sp), as.integer(by_sp), sep = " ", collapse = ", "), ")")
+
+  # The FWA version the keys belong to (#104: "publish the FWA version beside the key"). The one
+  # source is link's log row; a group without one records NA and says why, never a guess.
+  fwapg_sha <- if (!is.null(link_log)) link_log[["fwapg_sha"]] else NULL
+  if (is.null(fwapg_sha) || length(fwapg_sha) != 1L) fwapg_sha <- NA_character_
+  fp_prov_set_sibling(cfg, "network", paste0(cfg$species, cfg$min_order), "habitat", list(
+    inputs = list(
+      model       = "link",
+      read_schema = read_schema,
+      watershed_group = aoi_wsg,
+      species     = sort(unique(hab$species), method = "radix"),
+      fwapg_sha   = as.character(fwapg_sha),
+      fwapg_sha_source = if (is.na(fwapg_sha)) "unresolved" else "link_log"),
+    outputs = list(
+      layer = FP_HABITAT_LAYER,
+      rows  = nrow(hab),
+      table_content_sha256 = fp_habitat_content_sha256(hab)),
+    run = fp_prov_run()))
+  invisible(hab)
 }

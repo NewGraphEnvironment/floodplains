@@ -44,6 +44,8 @@ reg <- yaml::read_yaml(here::here("config", "regions", paste0(region, ".yml")))
 min_order <- reg$min_order %||% 3
 prefs     <- reg$species
 wsgs      <- reg$watershed_groups
+# Before the pre-pass, which would interpolate access_all into SQL (#104).
+fp_region_refuse_whole(prefs, paste0("config/regions/", region, ".yml"))
 message("Region: ", region, " | groups: ", length(wsgs), " | species preference: ",
         paste(prefs, collapse = ">"), " | min_order: ", min_order,
         if (dry) "  [DRY: plan only]" else "")

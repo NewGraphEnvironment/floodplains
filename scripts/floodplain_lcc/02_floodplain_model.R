@@ -38,6 +38,15 @@ fp_floodplain <- function(cfg, scenarios = "run") {
   sf_use_s2(FALSE)
   terra::terraOptions(threads = 12)
 
+  # Whole-network mode (#104) is affordable only from flooded 0.6.4: before it, fl_valley_attribute()'s
+  # complete = TRUE fallback ran a full-grid distance (flooded#71), and blue-line attribution at
+  # order >= 2 measured 170 min per scenario on BULK. A cost floor, refused up front rather than
+  # discovered hours into a run.
+  if (fp_whole_network(cfg) && utils::packageVersion("flooded") < "0.6.4") {
+    stop("whole-network area '", cfg$name, "' needs flooded >= 0.6.4 (flooded#71); installed ",
+         as.character(utils::packageVersion("flooded")), call. = FALSE)
+  }
+
   out_dir <- cfg$dir_out
   fs::dir_create(out_dir)
   buf <- 2000

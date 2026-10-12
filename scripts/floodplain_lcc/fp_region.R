@@ -21,6 +21,32 @@ fp_wsg_subbasin <- function(conn, wsg, name_basin = NULL) {
   g[, c("name_basin", "watershed_group_code")]
 }
 
+# --- Whole-network mode (#104) --------------------------------------------------------------------
+#
+# `species: all` in area.yml is not a fish. It is the reserved token for the whole stream network at
+# order >= min_order, with no access filter: one floodplain per group, attributed by blue_line_key,
+# habitat joined afterwards rather than cut into the geometry. It sits in the species slot so every
+# species-keyed name downstream carries it without a schema change (streams_all2, all_ff04,
+# network[all2], item key species = "all"; #23, #30).
+#
+# ONE predicate, defined here, because the token reaches SQL: in species mode 01 interpolates
+# `access_<species>` as a column name, and there is no `access_all`. Every caller that branches on
+# the mode asks this function rather than comparing the string itself.
+FP_SPECIES_WHOLE <- "all"
+fp_whole_network <- function(cfg) identical(cfg$species, FP_SPECIES_WHOLE)
+
+# A region resolves ONE species per group from the access columns (run_region.R's pre-pass), and it
+# owns `species` and `min_order` (FP_REGION_OWNED). Neither fits the whole network yet: the pre-pass
+# would query access_all, and reconciling a whole-network area against a species region would turn it
+# back into a species item. So both directions are refused until regions learn the mode.
+fp_region_refuse_whole <- function(species, where) {
+  if (FP_SPECIES_WHOLE %in% species) {
+    stop("species '", FP_SPECIES_WHOLE, "' (the whole network, #104) is not supported by region ",
+         "runs yet: ", where, ". Run the area directly with run_area.R.", call. = FALSE)
+  }
+  invisible(species)
+}
+
 # --- Region-owned area config (#44) ---------------------------------------------------------------
 #
 # run_region.R used to REGENERATE config/<wsg>/area.yml and flood_scenarios.csv wholesale on every
@@ -64,6 +90,10 @@ fp_region_plan <- function(cfg_dir, region_owned, base) {
 
   # --- area.yml: strip the region-owned set, then apply the region's current values ---
   existing <- if (file.exists(area_path)) yaml::read_yaml(area_path) else NULL
+  fp_region_refuse_whole(region_owned$species, "the region file lists it")
+  if (!is.null(existing)) {
+    fp_region_refuse_whole(existing$species, paste0(area_path, " is a whole-network area"))
+  }
   kept     <- if (is.null(existing)) list() else existing[setdiff(names(existing), FP_REGION_OWNED)]
   area     <- c(region_owned, kept)   # deterministic order: region keys first, then area-owned
 
