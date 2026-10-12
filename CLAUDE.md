@@ -249,7 +249,9 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   (`FP_SPECIES_WHOLE`, `fp_region.R`) for the whole stream network at order ≥ `min_order` (2, the
   #110 floor) with **no access join**. It sits in the species slot so every species-keyed name
   carries it: `streams_all2`, `all_ff04`, `all_ff04_by_blue_line_key`, `network[all2]`, item key
-  species `all`. Ask `fp_whole_network(cfg)`, never compare the string. 01's read is
+  species `all`. That holds in this repo only: `stac_floodplains_bc`'s provenance reader refuses a
+  scenario key not matching `^[a-z]{2}_ff[0-9]{2}$`, so `all_ff04` cannot publish until it changes
+  (#123). Ask `fp_whole_network(cfg)`, never compare the string. 01's read is
   `fp_network_sql()`; its species branch is pinned **byte-identical** to the pre-lift SQL by
   `whole_network-check.R`. The whole branch drops the `streams_access` join, which is not merely a
   filter: groups link never ran its access model on (DUNC) are absent from that table.

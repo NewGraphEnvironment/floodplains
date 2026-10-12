@@ -26,8 +26,10 @@ fp_wsg_subbasin <- function(conn, wsg, name_basin = NULL) {
 # `species: all` in area.yml is not a fish. It is the reserved token for the whole stream network at
 # order >= min_order, with no access filter: one floodplain per group, attributed by blue_line_key,
 # habitat joined afterwards rather than cut into the geometry. It sits in the species slot so every
-# species-keyed name downstream carries it without a schema change (streams_all2, all_ff04,
-# network[all2], item key species = "all"; #23, #30).
+# species-keyed name IN THIS REPO carries it without a schema change (streams_all2, all_ff04,
+# network[all2], item key species = "all"; #23, #30). Not the publish layer's: stac_floodplains_bc's
+# provenance reader refuses a scenario key that is not `^[a-z]{2}_ff[0-9]{2}$`, so `all_ff04` (like
+# an existing `wct_ff04`) cannot publish until that changes (#123).
 #
 # ONE predicate, defined here, because the token reaches SQL: in species mode 01 interpolates
 # `access_<species>` as a column name, and there is no `access_all`. Every caller that branches on
