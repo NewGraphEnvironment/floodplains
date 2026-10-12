@@ -38,3 +38,4 @@
 - Issues: #104 body (pilot section, two questions settled), #120 body (lands under #104), #53 (DUNC cross-boundary), filed #123
 - Code-check round 1: 1 fragile (`%||%` undefined in habitat_join-query.R for R < 4.4) -- fixed
 - Code-check round 2: 1 fragile (doc claim 'without a schema change' false for the publish layer's ^[a-z]{2}_ff[0-9]{2}$ key regex) -- fixed in fp_region.R, CLAUDE.md, #123
+- Code-check round 3: Clean; mechanism (an unchecked assumption about an environment the diff does not control) enumerated over 15 places, all hold

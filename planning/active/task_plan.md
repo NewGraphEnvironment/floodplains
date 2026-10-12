@@ -120,7 +120,7 @@ Measured state of the database (2026-10-11):
 - [x] Offline checks pass: `whole_network-check.R`, `region_config-check.R`, `provenance-check.R`
       (offline sections), `floodplain_probe-check.R`
 - [x] Live: `provenance-check.R bulk` and `neexdzii` still pass (species mode untouched)
-- [ ] `/code-check branch` (three-round floor)
-- [ ] PWF checkboxes match landed work
+- [x] `/code-check branch` (three-round floor): 3 rounds, 2 fragile findings fixed, round 3 Clean with a 15-item enumeration
+- [x] PWF checkboxes match landed work
 - [ ] `/planning-archive`, then `/gh-pr-push`
 
