@@ -1,3 +1,24 @@
+# floodplains 0.1.9 (2026-10-12)
+
+* Whole-network floodplains keyed by `blue_line_key`, piloted on DUNC (#104, #120).
+  * **`species: all`.** A reserved token for the whole stream network at order ≥ `min_order`
+    (2) with no access join. It sits in the species slot, so every species-keyed name carries it:
+    `streams_all2`, `all_ff04`, `all_ff04_by_blue_line_key`, `network[all2]`. Step 1's read is
+    now `fp_network_sql()`, whose species branch `whole_network-check.R` pins byte-identical to
+    the previous SQL, so existing areas do not move. A whole-network area must set
+    `attribute_by: blue_line_key` and a `network_source`; step 2 refuses flooded < 0.6.4, and
+    region runs refuse the token until they learn the mode (#123).
+  * **Habitat is a table, not a column on the floodplain.** Step 1 writes `habitat_link` into
+    `aquatic_network.gpkg`: link's per-segment flags per species, keyed by FWA position at every
+    order, with a `habitat` provenance sibling that records the FWA version beside it.
+    `habitat_join-query.R <area> [species]` joins it by position to the blue-line layer.
+  * **DUNC, the first whole-network area.** `all_ff04` is 185.0 km², and 1,942 of 2,236 blue
+    lines carry floodplain. Step 2 took 8.9 min, its blue-line attribution ~3.3 min on flooded
+    0.6.5. Bull trout spawning floodplain is 5,101 ha by position against 16,907 ha by blue line.
+    `composition-check.R dunc` fails its 1% bound at +4.67%: 1.1% of the floodplain lies past the
+    group polygon (#53). DUNC is not published: `stac_floodplains_bc` refuses an `all_ff04` key
+    (#123).
+
 # floodplains 0.1.8 (2026-10-10)
 
 * Whole-FWA floodplain probe on MORR (#110), which gates #104.
