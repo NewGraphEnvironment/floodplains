@@ -80,15 +80,15 @@ Measured state of the database (2026-10-11):
       No `lulc_annual`, since it is a one-way door.
 - [x] Create `config/dunc/flood_scenarios.csv`: rows `all_ff02/04/06` (`run = TRUE`) modelled on
       KOTL's parameters, `min_order = 2`.
-- [ ] `caffeinate -s Rscript scripts/run_area.R dunc 1,2 > log 2>&1`, gated on the in-band error
+- [x] `caffeinate -s Rscript scripts/run_area.R dunc 1,2 > log 2>&1`, gated on the in-band error
       count and output mtimes.
-- [ ] Record per-stage timings, peak RSS, the area per scenario, blue lines attributed and the
+- [x] Record per-stage timings, peak RSS, the area per scenario, blue lines attributed and the
       fallback cells in `scripts/floodplain_lcc/logs/<date>_whole_network_dunc.md`.
 
 ## Phase 4: DUNC step 3
-- [ ] `run_area.R dunc 3`: LULC, transition, disturbance tags, composition and the
+- [x] `run_area.R dunc 3`: LULC, transition, disturbance tags, composition and the
       `patch_watercourse_all_ff04_*` bridge on the whole floodplain.
-- [ ] Verify classified coverage ≈ floodplain area, then run `bridge-check.R dunc all_ff04`,
+- [x] Verify classified coverage ≈ floodplain area, then run `bridge-check.R dunc all_ff04`,
       `composition-check.R dunc` and `provenance-check.R dunc`, and record the results in the log.
 
 ## Phase 5: The habitat join on DUNC
@@ -106,9 +106,9 @@ Measured state of the database (2026-10-11):
 - [x] Log the results into the same DUNC log.
 
 ## Phase 6: Docs and issues
-- [ ] `research/whole_fwa_floodplain.md`: add a "Pipeline pilot: DUNC" section (cost, area, join)
+- [x] `research/whole_fwa_floodplain.md`: add a "Pipeline pilot: DUNC" section (cost, area, join)
       and revise the header line.
-- [ ] `CLAUDE.md`: a Layout bullet on whole-network mode (`species: all`, habitat table, region
+- [x] `CLAUDE.md`: a Layout bullet on whole-network mode (`species: all`, habitat table, region
       refusal) and DUNC under Areas.
 - [ ] #104 body: add the DUNC pilot results. Spin off a follow-up issue for GeoParquet/Parquet
       publish formats and region support for `species: all`.
@@ -117,9 +117,9 @@ Measured state of the database (2026-10-11):
       coupling stays one-way.
 
 ## Validation
-- [ ] Offline checks pass: `whole_network-check.R`, `region_config-check.R`, `provenance-check.R`
+- [x] Offline checks pass: `whole_network-check.R`, `region_config-check.R`, `provenance-check.R`
       (offline sections), `floodplain_probe-check.R`
-- [ ] Live: `provenance-check.R bulk` and `neexdzii` still pass (species mode untouched)
+- [x] Live: `provenance-check.R bulk` and `neexdzii` still pass (species mode untouched)
 - [ ] `/code-check branch` (three-round floor)
 - [ ] PWF checkboxes match landed work
 - [ ] `/planning-archive`, then `/gh-pr-push`

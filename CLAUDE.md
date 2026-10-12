@@ -245,6 +245,33 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   **areas use the nearest segment among the claiming blue lines** (one owner per cell);
   **"connected to habitat" uses any claimer**. Do not widen "nearest" to every segment: for a
   quarter of cells the nearest one anywhere is an order-1 line the floor left out.
+- **Whole-network mode (#104): `species: all`.** Not a fish: the reserved token
+  (`FP_SPECIES_WHOLE`, `fp_region.R`) for the whole stream network at order ≥ `min_order` (2, the
+  #110 floor) with **no access join**. It sits in the species slot so every species-keyed name
+  carries it: `streams_all2`, `all_ff04`, `all_ff04_by_blue_line_key`, `network[all2]`, item key
+  species `all`. Ask `fp_whole_network(cfg)`, never compare the string. 01's read is
+  `fp_network_sql()`; its species branch is pinned **byte-identical** to the pre-lift SQL by
+  `whole_network-check.R`. The whole branch drops the `streams_access` join, which is not merely a
+  filter: groups link never ran its access model on (DUNC) are absent from that table.
+  `fp_whole_network_validate()` requires `attribute_by: blue_line_key` (the keyed layer is the
+  deliverable) and a `network_source` (a BUILD would drop the schema and run link's access pipeline,
+  never exercised in this mode). Step 2 refuses flooded < 0.6.4 (flooded#71).
+  - **Habitat is a table, never a column on the floodplain.** Step 1 writes `habitat_link` into
+    `aquatic_network.gpkg`: link's per-segment flags for every `<schema>.streams_habitat_<sp>` with
+    rows in the group, long form, keyed `(blue_line_key, downstream_route_measure)` plus
+    `upstream_route_measure`, every order. It is read **before** any write, so a group with no
+    habitat refuses cleanly. Join it on `(id_segment, watershed_group_code)`, never `id_segment`
+    alone, which link numbers per group (1.96 M rows for DUNC's 26,827).
+  - **Provenance: a `habitat` sibling** inside `network[all<order>]`, the #108 pattern. It records
+    `fwapg_sha` from link's log row when there is one (DUNC has none), plus `fwa_content_sha256`
+    over the group's FWA segments, which a consumer can recompute. `provenance-check.R` refuses a
+    habitat block anywhere but a whole-network entry, **and a whole-network entry without one**.
+  - **Region runs refuse `all` in both directions** (`fp_region_refuse_whole`): the pre-pass would
+    query `access_all`, and reconciling would turn the area back into a species item. A
+    whole-network area runs standalone with `run_area.R` until regions learn the mode.
+  - `habitat_join-query.R <area> [species]` is the consumer side. It joins `habitat_link` flags by
+    position to the published blue-line layer, taking segment lines from the model's schema, every
+    order.
 - **Channel migration (#106): rule v2 negative on two groups, not yet validated.**
   `scripts/floodplain_lcc/channel_probe-migration.R <area>` applies a pre-registered rule
   (`research/channel_migration.md`) to IO's Water-involving change. The rule asks whether long,
@@ -564,7 +591,7 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   requirement. 64 GB sufficed for the largest area run on it.
 
 Adding an area = adding `config/<area>/`; no code change. `area.yml` carries `species` (drives
-`access_<species>` in 01 — `co`, `ch`, …), `watershed_group`, `min_order`, `schema`,
+`access_<species>` in 01 — `co`, `ch`, …, or `all` for the whole network, #104), `watershed_group`, `min_order`, `schema`,
 `primary_scenario`, and `subset` (blk+drm for a reach, or `null` for the whole WSG), plus the
 optional `tile_size`, `attribute_by` and `lulc_annual`.
 
@@ -613,12 +640,21 @@ Coexistence is data-layer only (steps 01/02/03).
   `outputs_hash` byte-identical to the 09-02 record — so every number above still stands. bulk is
   also `readme_functions.R`'s `FIG_AREA`, so its transition layer must keep `in_fire`/`in_harvest`
   or the attribution figure builder **stops**.
+- `dunc` — Duncan Lake group (Lardeau River; #120), the **first whole-network area** (#104):
+  `species: all`, order ≥ 2, `network_source: fresh`, `attribute_by: blue_line_key`, not in any
+  region. DUNC is in `fresh.streams` and link's habitat tables but in neither `fresh.streams_access`
+  nor `fresh.log`, so its network record carries a null `link_log` and `fwapg_sha`. Run 2026-10-12:
+  `all_ff04` **185.0 km²**, 1,942 blue lines with floodplain, step 2 in 8.9 min. 1,282 change
+  patches and 119.5 ha of gross tree loss. `composition-check.R dunc` fails its 1% change-vs-patch
+  bound at +4.7%: 1.1% of the floodplain lies past the group polygon (#53).
+  Log: `scripts/floodplain_lcc/logs/20261012_whole_network_dunc.md`.
 
 Whole-WSG areas use the **FWA group polygon** as the single sub-basin (`fp_wsg_subbasin`; no
 `break_points.csv` needed). The earlier single-outlet break point does NOT generalize — delineating
 upstream of the mainstem outlet over-shoots a tributary group 2–40× (only headwater groups like
 MORR/UFRA happened to work). Interior sub-basin delineation is deferred. Pick species by which
 `access_<species>` column the fwapg schema populates — the region pre-pass does this automatically.
+A whole-network area (`species: all`) needs no access column at all.
 
 **Fraser region** (`sern_fraser_2024`, chinook): LCHL, LSAL, WILL, TABR, UFRA, NECR, MORK, FRAN,
 BOWR, MCGR plus THOM, LNTH, UNTH (the Thompson groups, added 2026-09-03) — **13 groups**.

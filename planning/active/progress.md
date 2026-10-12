@@ -29,3 +29,9 @@
 - habitat_join-query.R dunc: integrity 203,285/203,285, key match 100% (bt, wct), bt spawning floodplain
   5,101 ha nearest / 5,908 any vs 16,907 by blue line; log 20261012_habitat_join-query_dunc.md
 - Step 3 launched 01:30 UTC
+- DUNC step 3: 580 s, 19.3 GB; 1,282 patches, bridge 188 blue lines (coverage 0.928), composition 18,485.7 ha,
+  tree loss 119.5 ha (harvest 32.6%, fire 0)
+- Checks: bridge-check dunc all_ff04 PASS; provenance-check dunc PASS (habitat reconciled); composition-check
+  dunc FAILS change-vs-patch bound (+4.67% vs <1%): 205.4 ha (1.1%) of floodplain lies outside the group
+  polygon and 41.2 ha raw change sits there (#53); guard not loosened, recorded as a finding
+- Phase 6: DUNC log, research section, CLAUDE.md (Layout bullet, area line, dunc entry)
