@@ -21,3 +21,11 @@
 - Phase 5: join functions extracted to fp_habitat_join.R; demo copy re-run into scratch reproduces the
   committed MORR log exactly (only timestamp and run time differ; fig2 PNG bytes differ, not replaced)
 - Next: after step 2, re-run step 1 (review fixes change the habitat record), then step 3
+- DUNC step 2: 534 s wall (DEM + 3 scenarios + blk attribution), 13.3 GB peak RSS; ff02/04/06 valley cells
+  196,456 / 203,285 / 205,508 at 30.17 m; all_ff04 attributed to 1,942 of 2,236 blue lines (294 reach no
+  valley cell), 1,159 fallback cells; 0 errors (warnings: flooded `field` deprecation x2, the 294 omitted groups)
+- Step 1 re-run (r2, review-fix code): habitat sibling carries species array, fwa_content_sha256, fwapg_sha null/unresolved
+- Live provenance-check neexdzii + bulk: PASS (214 ok each) -- species mode untouched
+- habitat_join-query.R dunc: integrity 203,285/203,285, key match 100% (bt, wct), bt spawning floodplain
+  5,101 ha nearest / 5,908 any vs 16,907 by blue line; log 20261012_habitat_join-query_dunc.md
+- Step 3 launched 01:30 UTC

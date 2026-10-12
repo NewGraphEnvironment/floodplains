@@ -95,7 +95,7 @@ Measured state of the database (2026-10-11):
 - [x] Extract the demo's join functions (`grid_cells`, `join_range`, nearest/any) into
       `fp_habitat_join.R`, sourced by both scripts. Re-run `habitat_join-demo.R` and confirm its MORR
       log numbers are unchanged.
-- [ ] Add `habitat_join-query.R <area> <species>`. It reads the published artefacts (the
+- [x] Add `habitat_join-query.R <area> <species>`. It reads the published artefacts (the
       `_by_blue_line_key` layer, the floodplain tif and `habitat_link` for the flags) plus segment
       geometry from the model's own `<schema>.streams` (all orders, as the demo), matched to
       `habitat_link` on (blk, drm) with the match rate reported (review 1 #1). It reports:
@@ -103,7 +103,7 @@ Measured state of the database (2026-10-11):
       - the share of habitat km on blue lines with floodplain;
       - spawning and rearing floodplain ha under nearest and any, for **bt** on DUNC (plus wct if
         it has rows).
-- [ ] Log the results into the same DUNC log.
+- [x] Log the results into the same DUNC log.
 
 ## Phase 6: Docs and issues
 - [ ] `research/whole_fwa_floodplain.md`: add a "Pipeline pilot: DUNC" section (cost, area, join)
