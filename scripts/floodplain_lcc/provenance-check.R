@@ -110,7 +110,7 @@ SECTIONS_WITH_RASTERS  <- c("floodplain", "landcover")
 # cutover, so the areas not yet re-run stay green.
 KEYS_FLOODPLAIN_SINCE_DEM_CACHE <- "dem_source"
 KEYS_DEM_CACHE         <- c("status", "key_sha256", "path", "last_modified", "etag")
-DEM_CACHE_SINCE        <- "2026-10-13T23:15:00Z"
+DEM_CACHE_SINCE        <- "2026-10-13T23:00:00Z"   # after the last pre-#122 step 2 (neexdzii, 22:19:48Z)
 TOOLCHAIN_FIXTURE      <- list(terra = "1.9.34", sf = "1.1.2", gdal = "3.8.5",
                                geos = "3.12.1", proj = "9.3.1")
 
