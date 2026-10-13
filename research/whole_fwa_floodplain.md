@@ -1,6 +1,6 @@
 # Whole-FWA floodplain: cost, floor and grain
 
-**Verified:** 2026-10-11 · **Issues:** #110 (this probe); gates #104; filed #117, flooded#67; relates #40, #54, #65,
+**Verified:** 2026-10-11 (toolchain cause corrected 2026-10-13) · **Issues:** #110 (this probe); gates #104; filed #117, flooded#67; relates #40, #54, #65,
 flooded#68 · **Produced by:** `scripts/floodplain_lcc/floodplain_probe-run.sh` (logs
 `scripts/floodplain_lcc/logs/*_floodplain_probe-whole-fwa_*`); habitat by order
 `scripts/floodplain_lcc/logs/20261010_habitat_by-order_province.md`; second group
@@ -391,9 +391,17 @@ no floodplain.
   whose origin sits ~1.1 m west and ~0.6 m north of the one terra 1.9.34 produced on 2026-09-03,
   with resolution differing in the 7th decimal (30.430634931 vs 30.430634377 m). MORR `co_ff04`
   comes out 35,618.0 ha against the published 35,769.1 ha (−0.42%). `fp_toolchain()` records sf's
-  GDAL (3.8.5), not terra's, so the record could not show the change.
-- **Isolated: the GDAL version, not terra** (measured 2026-10-09, same machine). The same MRDEM
-  crop warped to EPSG:3005 through sf's GDAL 3.8.5 lands exactly on the published grid (xmin
-  847158.237521, res 30.430634377); through terra's GDAL 3.13.0 it lands at 847157.099813 /
-  30.430634931. Given only a CRS, GDAL picks the output grid itself, and the pick changed between
-  the two releases. Pinning the grid is flooded#67.
+  GDAL (3.8.5), not terra's, so the record could not show the change. It records terra's GDAL
+  and PROJ too since #117.
+- **Isolated: PROJ's datum operation, not the GDAL version** (corrected 2026-10-13; first written
+  2026-10-09 as "the GDAL version"). The 2026-10-09 comparison warped the same MRDEM crop through
+  sf (GDAL 3.8.5 with PROJ 9.5.1), which lands exactly on the published grid (xmin 847158.237521,
+  res 30.430634377), and through terra (GDAL 3.13.0 with PROJ 9.8.1), which lands at 847157.099813 /
+  30.430634931. That changed GDAL and PROJ together, so it could not separate them. flooded#67 did:
+  PROJ 9.5.1 converts NAD83(CSRS) to NAD83 with no shift, PROJ 9.8.1 routes through WGS 84
+  (near MORR, 9.8.1's grid sits 1.14 m west and 0.61 m north of 9.5.1's: the move above), and GDAL's suggested grid follows the
+  transformed edges. flooded 0.7.0 pins the grid (30 m, aligned to multiples of 30) and the datum
+  step; with the pin, GDAL 3.8.5 reproduces GDAL 3.13.0 to 0.12 mm per cell.
+- **Every figure in this file is on the pre-0.7.0 grid.** The probe was not re-run after the pin.
+  Under the pin MORR `co_ff04` is 35,679.2 ha (flooded#67): +0.17% from the 9.8.1-grid replay above,
+  −0.25% from the published 35,769.1 ha.

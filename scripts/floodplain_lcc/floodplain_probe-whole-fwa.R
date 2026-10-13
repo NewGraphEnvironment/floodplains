@@ -14,9 +14,10 @@
 #            to step 2 ITSELF: fp_floodplain() is replayed on the same day's DEM into
 #            probe_whole_fwa/step2_replay/ (attribution off) and the two rasters compared. The DEM and
 #            floodplain are also compared with the PUBLISHED record and reported, not enforced:
-#            measured 2026-10-09, terra 1.9.50 (GDAL 3.13) reprojects MRDEM onto a grid ~1 m off the
-#            one 1.9.34 (GDAL 3.8.5) produced, so the published floodplain is not reproducible on
-#            this toolchain and a stop there would test the toolchain, not the probe.
+#            measured 2026-10-09, terra 1.9.50 reprojects MRDEM onto a grid ~1 m off the one 1.9.34
+#            produced (PROJ 9.8.1's datum operation, not the GDAL version -- #117; flooded 0.7.0 pins
+#            both), so a record from another flooded or PROJ is not reproducible here and a stop
+#            there would test the toolchain, not the probe.
 #   dem      fetches MRDEM-30 over arm 1 (the widest network) once and writes dem_common.tif at
 #            FLT8S, refusing unless the file digests equal to the object. Also asserts, on the live
 #            read, that the arms nest (1 >= 2 >= 3 >= 5, 4 >= 3).

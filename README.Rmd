@@ -293,11 +293,11 @@ cat(num_word(n_run),
 - **Every published layer carries the item key** — `wsg`, `species`, `scenario` — so many areas
   can merge into one GeoPackage and stay separable by attribute.
 - **Parity fixture.** `config/neexdzii/` must reproduce known-good numbers — coho-3 network
-  **673.5 km**, floodplain `co_ff04` **142.8 km²**, tree loss **770.0 ha** — before any change is
-  trusted. Re-baselined 2026-09-01 under `flooded` 0.5.0. The previous contract
-  (678.2 / 171.0 / 943.13) is **dead, not superseded**: it came from a bankfull regression fed
-  hectares where Hall et al. specify km² and mm where they specify cm/yr. Record these as a fresh
-  contract, never as a delta from the old.
+  **673.5 km**, floodplain `co_ff04` **142.0 km²**, tree loss **773.4 ha** — before any change is
+  trusted. Re-baselined 2026-10-13 under `flooded` 0.7.0, which fixes the DEM grid, so a re-run on
+  the same software reproduces it byte for byte. An earlier contract (678.2 / 171.0 / 943.13) is
+  **dead, not superseded**: it came from a bankfull regression fed hectares where Hall et al.
+  specify km² and mm where they specify cm/yr. Record each as a fresh contract, never as a delta.
 - **Rebuilds are byte-reproducible.** GDAL stamps every GeoPackage with the wall-clock time of
   the write, which would make each rebuild a new checksum regardless of content. The stamp is
   pinned to a fixed epoch (`scripts/fp_gpkg.R`) and
@@ -320,8 +320,8 @@ actually modelled in a group at the configured order, so a group could in princi
 the second entry.
 
 This is **what is configured**, which is not the same as what has been modelled, published, or
-re-run at the current model version — MCGR and PINE are published but cannot be re-run as things
-stand (#76). For what is actually available to download, ask the catalogue rather than this page.
+re-run at the current model version — every published floodplain predates the DEM grid fix in
+`flooded` 0.7.0 (#117), and MCGR and PINE cannot be re-run as things stand (#76). For what is actually available to download, ask the catalogue rather than this page.
 
 ## Running it
 
@@ -334,7 +334,7 @@ Run a non-default species with environment overrides rather than a config edit:
 `FP_SPECIES=ch FP_PRIMARY_SCENARIO=ch_ff06 Rscript scripts/run_area.R <area>`.
 
 Prerequisites: a local `fwapg` PostgreSQL (standard libpq environment variables);
-`link` ≥ 0.44.0, `flooded`, `drift` ≥ 0.6.0, `fresh`, `terra` ≥ 1.8-10 (see `scripts/packages.R`);
+`link` ≥ 0.44.0, `flooded` ≥ 0.7.0, `drift` ≥ 0.10.0, `fresh`, `terra` ≥ 1.9-25 (see `scripts/packages.R`);
 internet for the national MRDEM-30 DEM and the Microsoft Planetary Computer STAC; and the
 disturbance overlay layers loaded into `fwapg` via `bcdata bc2pg`.
 

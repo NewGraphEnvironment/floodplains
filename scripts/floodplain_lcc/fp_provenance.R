@@ -450,8 +450,9 @@ fp_prov_reconcile_late <- function(cfg, key, repaired = character(0), backfill =
     repair$backfilled <- TRUE
     repair$backfilled_utc <- format(Sys.time(), FP_PROV_TS_FMT, tz = "UTC")
   } else {
-    # The REPAIR's writer, not fp_toolchain(): that reports sf's GDAL, and the rewrite goes through
-    # terra, which can link a different one (3.13.0 against sf's 3.8.5 on one machine, #117).
+    # The REPAIR's writer, recorded here rather than via fp_toolchain(): this block predates #117's
+    # gdal_terra/proj_terra in fp_toolchain() and is a published shape, so it is left as it is. The
+    # rewrite goes through terra, which can link a different GDAL than sf (3.13.0 against 3.8.5).
     ver <- function(f) tryCatch(as.character(f()), error = function(e) NA_character_)
     repair$toolchain <- list(terra = ver(function() utils::packageVersion("terra")),
                              gdal_terra = ver(function() terra::gdal()))
@@ -996,6 +997,20 @@ fp_toolchain <- function() {
   pick <- function(k) if (k %in% names(soft)) unname(soft[[k]]) else NA_character_
   # GEOS and PROJ arrive in the same call for free, and the floodplain section's outputs ARE
   # geometry -- a PROJ change moves a reprojection the same way a GDAL change moves an encoder.
+  #
+  # `gdal`/`geos`/`proj` are sf's, and sf writes every vector. They are not what warps the DEM:
+  # fl_dem_aoi() reprojects through terra, and terra can link a different GDAL and PROJ in the same
+  # session (measured 2026-10-13 on one machine: sf GDAL 3.8.5 / PROJ 9.5.1, terra GDAL 3.13.0 /
+  # PROJ 9.8.1). PROJ 9.8.1's NAD83(CSRS)->NAD83 operation moved the published DEM grid ~1.3 m while
+  # this record named sf's 9.5.1 (#117). So terra's own pair rides beside them as `gdal_terra` /
+  # `proj_terra` (`gdal_terra` is the name the in-place repair record already uses). sf's `proj` still matters to
+  # the DEM: fl_dem_aoi() (flooded 0.7.0) picks its source read window with an unpinned
+  # sf::st_transform(), so sf's PROJ can move which edge cells are read. Step 3's rasters are
+  # warped by gdalcubes, whose GDAL is recorded nowhere yet (#80); here it links the same system
+  # libraries as terra, which is a fact about this machine, not a guarantee.
+  tg <- tryCatch(terra::gdal(lib = "all"), error = function(e) NULL)
+  tpick <- function(k) if (!is.null(tg) && k %in% names(tg)) as.character(tg[[k]][1]) else NA_character_
   list(terra = ver("terra"), sf = ver("sf"),
-       gdal = pick("GDAL"), geos = pick("GEOS"), proj = pick("PROJ"))
+       gdal = pick("GDAL"), geos = pick("GEOS"), proj = pick("PROJ"),
+       gdal_terra = tpick("gdal"), proj_terra = tpick("proj"))
 }

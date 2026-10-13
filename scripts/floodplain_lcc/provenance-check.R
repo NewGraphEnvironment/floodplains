@@ -96,6 +96,14 @@ SHA_SOURCES <- c("env", "RemoteSha", "git", "unresolved", "unresolved_version_mi
 # record would quietly return to the state #64 calls undiagnosable. Sections that write rasters must
 # carry it, populated -- an all-NA toolchain is the same absence wearing a key.
 KEYS_TOOLCHAIN         <- c("terra", "sf", "gdal", "geos", "proj")
+# terra's own GDAL and PROJ (#117): the pair that actually warps the DEM, where `gdal`/`proj` above
+# are sf's. Forward-only, so required by DATE rather than everywhere -- every record written before
+# #117 lacks them, and failing those would turn every existing area red for a field no step had
+# written yet. Required for a record whose STEP ran at or after the cutover; the step time is the
+# first repair's previous_datetime_utc when there are repairs, because an in-place repair moves
+# datetime_utc without re-running the step (#126) and must not make an old record look new.
+KEYS_TOOLCHAIN_TERRA   <- c("gdal_terra", "proj_terra")
+TOOLCHAIN_TERRA_SINCE  <- "2026-10-13T22:00:00Z"
 SECTIONS_WITH_RASTERS  <- c("floodplain", "landcover")
 TOOLCHAIN_FIXTURE      <- list(terra = "1.9.34", sf = "1.1.2", gdal = "3.8.5",
                                geos = "3.12.1", proj = "9.3.1")
@@ -167,6 +175,17 @@ prov_sections <- function(prov) {
   out
 }
 
+# When the STEP behind an entry ran: datetime_utc, unless an in-place repair moved it, in which
+# case the first repair carries the step's own time (#126). "" sorts before every ISO stamp, so an
+# entry with no time at all is treated as old here -- viol_split's own "no datetime_utc" arm is
+# what reports that absence.
+prov_step_time <- function(body) {
+  r <- body[["run"]]
+  # length() first: `list()[[1]]` is an error, where `NULL[[1]]` is NULL.
+  prev <- if (length(r[["repairs"]])) r[["repairs"]][[1]][["previous_datetime_utc"]]
+  as.character(prev %||% r[["datetime_utc"]] %||% "")
+}
+
 viol_split <- function(prov) {
   unlist(lapply(prov_sections(prov), function(e) {
     inp <- names(e$body[["inputs"]] %||% list())
@@ -179,6 +198,17 @@ viol_split <- function(prov) {
                 paste(setdiff(KEYS_TOOLCHAIN, names(tc)), collapse = ", "))
       else if (all(vapply(tc[KEYS_TOOLCHAIN], function(x) is.null(x) || is.na(x[1]), logical(1))))
         sprintf("%s[%s] run$toolchain is entirely NA -- the absence this field exists to remove",
+                e$section, e$key)
+      else if (prov_step_time(e$body) >= TOOLCHAIN_TERRA_SINCE &&
+               length(setdiff(KEYS_TOOLCHAIN_TERRA, names(tc))))
+        sprintf("%s[%s] run$toolchain missing terra's %s (step ran after #117's cutover %s)",
+                e$section, e$key, paste(setdiff(KEYS_TOOLCHAIN_TERRA, names(tc)), collapse = ", "),
+                TOOLCHAIN_TERRA_SINCE)
+      # Present but null/NA is the same absence wearing a key: fp_toolchain()'s tpick() returns NA
+      # when terra::gdal() errors, and the all-NA arm above reads only the original five.
+      else if (prov_step_time(e$body) >= TOOLCHAIN_TERRA_SINCE &&
+               any(vapply(tc[KEYS_TOOLCHAIN_TERRA], function(x) is.null(x) || is.na(x[1]), logical(1))))
+        sprintf("%s[%s] run$toolchain carries terra's GDAL/PROJ as NA (step ran after #117's cutover)",
                 e$section, e$key)
     }
     # ABSOLUTE assertion first. An intersection test alone passes when `run` is absent, empty or
@@ -668,6 +698,27 @@ cat("\n2. Split — `inputs` carries no run-event field\n")
     as.list(rep(NA_character_, length(KEYS_TOOLCHAIN))), KEYS_TOOLCHAIN)
   check(any(grepl("entirely NA", viol_split(b8))),
         "must-fail: an all-NA toolchain IS reported (an absence wearing a key)")
+  # terra's GDAL/PROJ (#117) are required by step time. The clean fixture is dated before the
+  # cutover and carries neither, so it is the "old record" arm; moving its date past the cutover is
+  # the must-fail, and a repair whose previous_datetime_utc is old must keep it old.
+  check(!any(grepl("terra's", viol_split(g))),
+        "a record whose step predates #117's cutover is not required to carry gdal_terra/proj_terra")
+  b9 <- g; b9$floodplain$co_ff04$run$datetime_utc <- "2026-10-14T00:00:00Z"
+  check(any(grepl("missing terra's gdal_terra, proj_terra", viol_split(b9))),
+        "must-fail: a record written after #117's cutover without terra's GDAL/PROJ IS reported")
+  b10 <- b9; b10$floodplain$co_ff04$run$toolchain[KEYS_TOOLCHAIN_TERRA] <- list("3.13.0", "9.8.1")
+  check(!any(grepl("terra's", viol_split(b10))),
+        "a post-cutover record carrying gdal_terra/proj_terra passes")
+  b11 <- b9; b11$floodplain$co_ff04$run$repairs <- list(list(
+    kind = "container_strip", previous_datetime_utc = "2026-09-01T00:00:00Z"))
+  check(!any(grepl("terra's", viol_split(b11))),
+        "an in-place repair after the cutover does not make a pre-cutover step look new (#126)")
+  b12 <- b9; b12$floodplain$co_ff04$run$repairs <- list()
+  check(any(grepl("missing terra's", viol_split(b12))),
+        "must-fail: an EMPTY repairs list falls back to datetime_utc rather than erroring")
+  b13 <- b10; b13$floodplain$co_ff04$run$toolchain$proj_terra <- NA_character_
+  check(any(grepl("terra's GDAL/PROJ as NA", viol_split(b13))),
+        "must-fail: a post-cutover record with terra's PROJ recorded as NA IS reported")
   # ... and the network section, which writes no raster, must NOT be required to carry one. Setting
   # its toolchain to NULL is a NO-OP -- the fixture never had one, so that mutant is identical() to
   # the clean fixture and the check restates the clean-fixture assertion instead of exercising the
@@ -1871,9 +1922,30 @@ prov_sections_writing_toolchain <- function(section_files) {
                 else paste0(" -- differs: ",
                             paste(union(setdiff(ll, KEYS_LINK_LOG),
                                         setdiff(KEYS_LINK_LOG, ll)), collapse = ", "))))
-  check(setequal(names(fp_toolchain()), KEYS_TOOLCHAIN),
-        sprintf("KEYS_TOOLCHAIN matches what fp_toolchain() returns (%s)",
+  check(setequal(names(fp_toolchain()), c(KEYS_TOOLCHAIN, KEYS_TOOLCHAIN_TERRA)),
+        sprintf("KEYS_TOOLCHAIN + KEYS_TOOLCHAIN_TERRA match what fp_toolchain() returns (%s)",
                 paste(names(fp_toolchain()), collapse = ", ")))
+  # ... and the terra pair must come FROM terra (#117). A name check cannot see a producer that
+  # fills gdal_terra from sf, which is the defect this field exists to fix wearing the new name. The
+  # arm has an external reference only where the two libraries differ, so say which case this is.
+  tc_now <- fp_toolchain()
+  tg_now <- terra::gdal(lib = "all")
+  terra_pair_is_terras <- function(tc) identical(tc$gdal_terra, as.character(tg_now$gdal[1])) &&
+    identical(tc$proj_terra, as.character(tg_now$proj[1]))
+  check(terra_pair_is_terras(tc_now),
+        sprintf("fp_toolchain()'s gdal_terra/proj_terra are terra's (%s / %s)",
+                tc_now$gdal_terra, tc_now$proj_terra))
+  if (identical(tc_now$gdal, tc_now$gdal_terra) && identical(tc_now$proj, tc_now$proj_terra)) {
+    cat("  info  sf and terra link the same GDAL and PROJ here, so the arm above cannot tell a\n",
+        "       producer reading sf from one reading terra; it can on a machine where they differ\n")
+  } else {
+    ok(sprintf("premise: sf (%s / %s) and terra (%s / %s) differ here, so the arm above is discriminating",
+               tc_now$gdal, tc_now$proj, tc_now$gdal_terra, tc_now$proj_terra))
+    # The defect this field fixes, wearing the new names: a producer filling the pair from sf.
+    check(!terra_pair_is_terras(utils::modifyList(tc_now, list(gdal_terra = tc_now$gdal,
+                                                               proj_terra = tc_now$proj))),
+          "must-fail: a toolchain whose gdal_terra/proj_terra are sf's IS rejected")
+  }
   # The `outputs` half of the same declare-or-fail pair. SECTIONS_WITH_OUTPUTS is a JUDGEMENT about
   # which steps must publish a digest of what they produced; the derivation is what stops it drifting
   # from the producers. Neither alone: derived-only goes empty and SILENT the moment a producer drops
@@ -1934,6 +2006,16 @@ if (length(args) >= 1 && nzchar(args[1])) {
     for (f in list(viol_split, viol_keys, viol_body, viol_sha_source, viol_config_name,
                    viol_schema_version, viol_coverage, viol_composition, viol_habitat)) {
       v <- f(prov); if (length(v)) for (m in v) bad(m)
+    }
+    # Pre-#117 raster entries: not a failure (forward-only), but say so, so a record that names only
+    # sf's GDAL is never read as having named the one that warped the DEM.
+    for (e in prov_sections(prov)) {
+      tc <- e$body[["run"]][["toolchain"]]
+      if (e$section %in% SECTIONS_WITH_RASTERS && !is.null(tc) &&
+          prov_step_time(e$body) < TOOLCHAIN_TERRA_SINCE &&
+          length(setdiff(KEYS_TOOLCHAIN_TERRA, names(tc))))
+        cat(sprintf("  info  %s[%s] predates #117: its toolchain names sf's GDAL/PROJ only\n",
+                    e$section, e$key))
     }
     v <- viol_creds(txt); if (!is.null(v)) bad(v)
 

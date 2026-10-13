@@ -1,0 +1,27 @@
+# Progress — Published floodplains do not reproduce on today's toolchain, and provenance names the wrong GDAL (#117)
+
+## Session 2026-10-13
+
+- Plan-mode exploration — phases approved by user
+- Created branch `117-published-floodplains-do-not-reproduce-o` off main
+- Scaffolded PWF baseline from issue #117 with approved phases
+- Next: start Phase 1
+
+- Phase 1 done. `fp_toolchain()` records `gdal_terra`/`proj_terra` from `terra::gdal(lib = "all")`. `provenance-check.R` requires them by step time (cutover `2026-10-13T22:00:00Z`, repair-aware via `prov_step_time()`), reports older entries as INFO in §7, and checks the terra pair against terra itself. Offline: PASS. Two mutants in scratch copies, each red: terra fields sourced from sf (1 FAIL), date arm disabled (2 FAIL).
+- Installed flooded 0.7.0 (github@698042e).
+- Phase 2 done. 02 refuses flooded < 0.7.0 for every area; the OPEN comment is replaced with the #117 outcome. flooded#67 measured cross-GDAL agreement to 0.12 mm per cell, which is not byte identity, so the comment says the digest can still differ between GDAL builds (the issue body's "reproduces" was stronger than the measurement).
+- Other `fl_dem_aoi()` callers: `attribute_tag.R`, the probe, and two `landcover_accuracy/` scripts (airphoto footprint sizing, no `target_crs`). None passes `res`/`pipeline`; all inherit the new grid. The accuracy scripts' `imagery.csv` may shift marginally on its next regeneration.
+- Phase 4 (part): CLAUDE.md's #110 bullet and `research/whole_fwa_floodplain.md` now attribute the grid move to PROJ's datum operation, note that the probe's figures are on the pre-0.7.0 grid, and point at #125 for re-runs. Filed soul#402 for the spatial convention that names GDAL.
+- Plan review (`review-plan.md`) received mid-run; dispositions recorded there. Phase 1 and 3 text revised to the landed / reviewed design.
+- Run 1 (1,2,3; launched 22:10:59Z, done by 22:16:32Z): 0 in-band errors, every entry stamped after launch, toolchain carries gdal_terra 3.13.0 / proj_terra 9.8.1. Network `outputs_hash` byte-identical to the snapshot (673.48 km, 1,915 segments); its `inputs_hash` moved only through package stamps (fresh 0.33.0->0.39.0, link SHA unresolved as checkout != installed). Floodplain moved only in dem_* and flooded stamp; landcover only in classified digests and the transition. New measurements: co_ff04 142.040 km2 (157,822 cells at 30 m, origin multiple of 30), tree loss 773.43 ha over 788 of 2,018 patches.
+- Review fixes landed (Phase 3b): attribute_tag refusal, G3/G5 in-suite arms, stale comments.
+- Filed flooded#78 (read-window `st_transform` unpinned; from reading the function, not measured). Added the DUNC cache trap to #125. CLAUDE.md's DUNC figures are marked as pre-pin; `fresh_default.streams` checked to hold DUNC (63,067 rows) before stating link#328 built it.
+- Run 2 (2,3; launched 22:18:28Z): 0 errors, every raster entry stamped after launch, `inputs_hash`/`outputs_hash` byte-identical to run 1 for floodplain co_ff02/04/06, landcover co_ff04 and its composition; `dem_res_m` 30. Live `provenance-check.R neexdzii` and `composition-check.R neexdzii` PASS.
+- New contract 673.5 km / 142.0 km2 / 773.4 ha written to `run_area.R`, CLAUDE.md, README.Rmd (both targets re-rendered; determinism + content checks OK). Log `20261013_flooded070_rebaseline_neexdzii.md`.
+- #117 body: resolution section added (decision, toolchain fields, per-toolchain reproduction caveat, new contract, probe not re-anchored).
+- code-check round 1: 4 findings, all prose (datum-shift sign reversed in research/, #117, soul#402; stale #108 parity sentence; flooded/terra floors in Prerequisites; repair-name comment). All fixed; no code defects.
+- code-check round 2: 4 findings (MORR +0.17% quoted without its base, the published-record figure is −0.25%; "published run's PROJ 9.5.1" was never recorded; drift floor in the same Prerequisites line round 1 fixed (inside a fix); attribute_tag guard one-directional). All fixed; both attribute_tag arms tested (morr refused; mutant with old flooded refuses neexdzii).
+- Enumeration (loop now ends only by enumeration): (a) every enforced pipeline floor (flooded 0.7.0 / 0.6.4 whole-network, drift 0.10.0) vs every prose statement in README.Rmd, CLAUDE.md, packages.R: consistent. (b) every percentage the branch adds (6 lines): each names its base; the 02 comment's −0.42% gained "against its published record".
+- code-check round 3: mechanism named as "a fact restated away from its source loses or mis-keeps its anchor (direction, base, run, library, date)"; third candidate set = dated/versioned references and issue-state claims. 4 findings: digest comparisons dated 09-01 when digests began 09-02 (one inside round 1's #108 fix); README's "current model version" sentence named only MCGR/PINE; soul#402 proposed adding what soul 7b2a125 already added; #117 said flooded#67 "done on its branch". All fixed (soul#402 narrowed to heading, first sentence, diagnostic).
+- Enumeration (c): every dated reference the branch adds in prose (17 lines) checked against its record; every issue-state claim (link#328 closed and DUNC in fresh_default: 63,067 rows; flooded#67 merged; #80, #76 open). Consistent after fixes.
+- Validation: offline provenance-check PASS, live neexdzii 0 FAIL, composition-check ALL PASS on 4d9bb0e. Code-check: 3 rounds + enumeration (sets: package floors, percentages, dated references/issue-state claims); 4 reviewer spawns in total with the plan review.

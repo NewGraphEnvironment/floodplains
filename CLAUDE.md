@@ -165,8 +165,9 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
     without `REFRESH=1`, and stamps `snapshot=<UTC>; rows=…; record=…` with `COMMENT ON TABLE`. The
     composition copies that stamp into its provenance. A reload moves `in_alr` and every ALR share.
   - **Forward-only:** necr and bulk carry both the table and `in_alr` (backfilled). neexdzii carries
-    them from a full step 3, which reproduced parity: 770.0 ha, 2,032 patches, and the transition
-    `outputs_hash` byte-identical. Every other area gains them on its next step 3. `composition-check.R [area]` asserts it all.
+    them from a full step 3, which reproduced parity (770.0 ha, 2,032 patches, the transition
+    `outputs_hash` byte-identical to the record before it); it has since been re-baselined on flooded 0.7.0's grid
+    (#117: 773.4 ha, 2,018 patches). Every other area gains them on its next step 3. `composition-check.R [area]` asserts it all.
 - **IO LULC accuracy (#93): `scripts/landcover_accuracy/` + `reference/<area>/`.** Measures the
   error of the land cover under every number here with a stratified reference sample (Olofsson
   2014). drift owns the sampler and estimators (`dft_accuracy_*`, drift ≥ 0.19.0); this module
@@ -233,11 +234,16 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   of the code. The probe writes only gitignored `data/<area>/probe_whole_fwa/` plus committed logs.
   Its anchor replays `fp_floodplain()` into `probe_whole_fwa/step2_replay/` rather than trusting the
   published record, because **the published record does not reproduce on today's toolchain**:
-  terra 1.9.50 links GDAL 3.13.0, its warp moves the DEM grid ~1 m, and MORR `co_ff04` comes out
-  −0.42% (#117, flooded#67). **The cause is the GDAL version, isolated:** the same crop warped
-  through sf's GDAL 3.8.5 reproduces the published grid to six decimals. `fp_toolchain()` records
-  sf's GDAL, not terra's. Verdict and rule:
-  `research/whole_fwa_floodplain.md`.
+  terra 1.9.50's warp moved the DEM grid ~1.3 m and MORR `co_ff04` came out −0.42% (#117).
+  **The cause is PROJ's datum operation, not the GDAL version** (corrected 2026-10-13: the first
+  comparison changed GDAL and PROJ together). PROJ 9.5.1 (sf's; its warp lands exactly on the published grid, so the published run used a
+  no-shift operation, though its PROJ was never recorded) converts
+  NAD83(CSRS)→NAD83 with no shift; PROJ 9.8.1 (terra's) routes through WGS 84, and GDAL's chosen
+  grid followed. flooded 0.7.0 pins the grid and the datum step (flooded#67); step 2 refuses
+  anything older. `fp_toolchain()` now records terra's GDAL and PROJ (`gdal_terra`, `proj_terra`)
+  beside sf's, required on entries written after #117. Every step-2 record from before 0.7.0 is on
+  a pre-pin grid; areas are re-run as whole-network under #125. The probe's own figures are on a
+  pre-pin grid and were not re-run. Verdict and rule: `research/whole_fwa_floodplain.md`.
 - **Habitat join on the blue-line floodplain (#104; `habitat_join-demo.R`).** Join habitat by
   position, never by blue line: by blue line, a polygon takes any habitat anywhere on its blue line
   (MORR: 82% of the floodplain reads as chinook spawning). Each cell takes the nearest segment on a
@@ -640,8 +646,13 @@ Coexistence is data-layer only (steps 01/02/03).
 
 - `neexdzii` — **parity fixture** (coho, BULK subset). The pipeline must reproduce the known-good
   numbers before any new area is trusted.
-  **Re-baselined 2026-09-01** — coho-3 network **673.5 km**, floodplain `co_ff04` **142.8 km²**,
-  floodplain tree loss **770.0 ha**. The previous contract (678.2 km / 171.0 km² / 943.13 ha) is
+  **Re-baselined 2026-10-13 (#117)** under flooded 0.7.0's pinned grid — coho-3 network
+  **673.5 km**, floodplain `co_ff04` **142.0 km²**, floodplain tree loss **773.4 ha** (2,018
+  patches). Two runs reproduced every floodplain and landcover digest byte for byte, and the network
+  content digest is unchanged from the 2026-09-02 record. The move from the 09-01 contract spans
+  flooded 0.5.0 → 0.7.0, the grid pin among it; evidence `scripts/floodplain_lcc/logs/20261013_flooded070_rebaseline_neexdzii.md`.
+  **Re-baselined 2026-09-01** — 673.5 km / 142.8 km² / 770.0 ha, on the grid that moved with
+  PROJ. The contract before that (678.2 km / 171.0 km² / 943.13 ha) is
   **dead, not merely superseded**: it was produced by flooded ≤ 0.4.1, whose bankfull regression was
   fed hectares where Hall et al. specify km² and mm where they specify cm/yr — width 8.22× and depth
   3.59× too large on every run the package ever did, so `ff04` was delineating ~14.4× bankfull depth
@@ -678,8 +689,9 @@ Coexistence is data-layer only (steps 01/02/03).
   region yet: the whole Columbia region is to go whole-network beside its bt items (#125). DUNC is
   in `fresh.streams` and link's habitat tables but in neither `fresh.streams_access` nor `fresh.log`,
   so its network record carries a null `link_log` and `fwapg_sha`. It is also absent from
-  `fresh_default`, which holds KOTL/LARL/SLOC, so one region cannot read all four until link#328.
-  Run 2026-10-12:
+  `fresh_default` as first built; link#328 (closed) has since added it there, beside KOTL/LARL/SLOC.
+  Run 2026-10-12, on flooded 0.6.5's pre-pin DEM grid (#117), so these figures move on its next run
+  and `run_region.R`'s cache would skip it as complete (#125):
   `all_ff04` **185.0 km²**, 1,942 blue lines with floodplain, step 2 in 8.9 min. 1,282 change
   patches and 119.5 ha of gross tree loss. `composition-check.R dunc` fails its 1% change-vs-patch
   bound at +4.7%: 1.1% of the floodplain lies past the group polygon (#53).
@@ -725,8 +737,8 @@ the choice unreproducible. Set them in the region file.
 
 ## Prerequisites (when running)
 
-Local `fwapg` (libpq env vars); `link` ≥ 0.44.0, `flooded`, `drift` ≥ 0.10.0, `fresh`, `terra`
-≥ 1.8-10; internet for the national MRDEM-30 (`flooded::fl_dem_aoi()`) and Microsoft Planetary
+Local `fwapg` (libpq env vars); `link` ≥ 0.44.0, `flooded` ≥ 0.7.0 (#117), `drift` ≥ 0.10.0, `fresh`, `terra`
+≥ 1.9-25 (flooded 0.7.0's floor); internet for the national MRDEM-30 (`flooded::fl_dem_aoi()`) and Microsoft Planetary
 Computer STAC. **`drift` ≥ 0.10.0 is a CORRECTNESS floor, not a feature one** — 0.6.0 was merely
 where `dft_stac_fetch` gained `tile_size`, but before **0.10.0** the fetch issued a single
 `get_request()` with no paging, so an AOI whose item set spans more than one page was built from a

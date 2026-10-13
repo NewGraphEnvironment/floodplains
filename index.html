@@ -1801,13 +1801,14 @@ areas can merge into one GeoPackage and stay separable by
 attribute.</li>
 <li><strong>Parity fixture.</strong> <code>config/neexdzii/</code> must
 reproduce known-good numbers — coho-3 network <strong>673.5 km</strong>,
-floodplain <code>co_ff04</code> <strong>142.8 km²</strong>, tree loss
-<strong>770.0 ha</strong> — before any change is trusted. Re-baselined
-2026-09-01 under <code>flooded</code> 0.5.0. The previous contract
-(678.2 / 171.0 / 943.13) is <strong>dead, not superseded</strong>: it
-came from a bankfull regression fed hectares where Hall et al. specify
-km² and mm where they specify cm/yr. Record these as a fresh contract,
-never as a delta from the old.</li>
+floodplain <code>co_ff04</code> <strong>142.0 km²</strong>, tree loss
+<strong>773.4 ha</strong> — before any change is trusted. Re-baselined
+2026-10-13 under <code>flooded</code> 0.7.0, which fixes the DEM grid,
+so a re-run on the same software reproduces it byte for byte. An earlier
+contract (678.2 / 171.0 / 943.13) is <strong>dead, not
+superseded</strong>: it came from a bankfull regression fed hectares
+where Hall et al. specify km² and mm where they specify cm/yr. Record
+each as a fresh contract, never as a delta.</li>
 <li><strong>Rebuilds are byte-reproducible.</strong> GDAL stamps every
 GeoPackage with the wall-clock time of the write, which would make each
 rebuild a new checksum regardless of content. The stamp is pinned to a
@@ -1871,8 +1872,9 @@ first one actually modelled in a group at the configured order, so a
 group could in principle resolve to the second entry.</p>
 <p>This is <strong>what is configured</strong>, which is not the same as
 what has been modelled, published, or re-run at the current model
-version — MCGR and PINE are published but cannot be re-run as things
-stand (#76). For what is actually available to download, ask the
+version — every published floodplain predates the DEM grid fix in
+<code>flooded</code> 0.7.0 (#117), and MCGR and PINE cannot be re-run as
+things stand (#76). For what is actually available to download, ask the
 catalogue rather than this page.</p>
 </div>
 <div id="running-it" class="section level2">
@@ -1883,9 +1885,9 @@ Rscript scripts/run_region.R &lt;region&gt;         # every group in a region, r
 config edit:
 <code>FP_SPECIES=ch FP_PRIMARY_SCENARIO=ch_ff06 Rscript scripts/run_area.R &lt;area&gt;</code>.</p>
 <p>Prerequisites: a local <code>fwapg</code> PostgreSQL (standard libpq
-environment variables); <code>link</code> ≥ 0.44.0,
-<code>flooded</code>, <code>drift</code> ≥ 0.6.0, <code>fresh</code>,
-<code>terra</code> ≥ 1.8-10 (see <code>scripts/packages.R</code>);
+environment variables); <code>link</code> ≥ 0.44.0, <code>flooded</code>
+≥ 0.7.0, <code>drift</code> ≥ 0.10.0, <code>fresh</code>,
+<code>terra</code> ≥ 1.9-25 (see <code>scripts/packages.R</code>);
 internet for the national MRDEM-30 DEM and the Microsoft Planetary
 Computer STAC; and the disturbance overlay layers loaded into
 <code>fwapg</code> via <code>bcdata bc2pg</code>.</p>
