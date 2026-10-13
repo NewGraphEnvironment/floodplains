@@ -1,3 +1,15 @@
+# floodplains 0.1.10 (2026-10-13)
+
+* An in-place raster repair now moves the landcover run stamp with the bytes it rewrote, and
+  necr and kotl are re-stamped so they can be staged again (#126).
+  * `raster_strip-tags.R` reconciles every landcover entry whose rasters are newer than
+    `run.datetime_utc`. Each late raster must still match its recorded content digest. The stamp
+    moves to the newest one's floored mtime, and `run.repairs` records the repair and the stamp
+    it replaced. A late file the current run did not repair needs `BACKFILL=1`.
+  * The re-stamp refuses to move past a floodplain re-run, because `fp_composition.R` reads the
+    same stamp as "when step 3 ran".
+  * `provenance-check.R` fails a raster newer than its run stamp.
+
 # floodplains 0.1.9 (2026-10-12)
 
 * Whole-network floodplains keyed by `blue_line_key`, piloted on DUNC (#104, #120).
