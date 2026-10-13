@@ -129,7 +129,7 @@ fp_floodplain <- function(cfg, scenarios = "run") {
   #
   # fp_dem_cached() (fp_dem.R) writes it to data/<area>/dem_<sp><order>.tif and reads it back while
   # its key matches: the AOI, buffer, CRS, source URL, the object's Last-Modified and ETag, the
-  # flooded version and the warp toolchain. NRCan's bucket has served at ~145 KB/s, which made
+  # flooded version and the toolchain fp_toolchain() records. NRCan's bucket has served at ~145 KB/s, which made
   # BULK's fetch 37 min of every re-run.
   #
   # Provenance (#33): the DEM's identity used to be recorded as absent, because flooded resolved the
@@ -167,7 +167,7 @@ fp_floodplain <- function(cfg, scenarios = "run") {
   # fl_dem_aoi() crops and reprojects internally, so these cells (and the header's ext/res) are
   # GDAL/PROJ output. For the NETWORK there was a toolchain-free alternative -- digest pre-subset --
   # and taking it cost nothing. For the DEM there is none: digesting the un-warped source window
-  # would mean a second read of an 84 GB COG at NRCan's rate. So the choice is not "warp-dependent digest" vs "clean digest", it is
+  # would mean reading that window of the 84 GB COG a second time, at NRCan's rate. So the choice is not "warp-dependent digest" vs "clean digest", it is
   # warp-dependent digest vs NOTHING AT ALL about the elevations, which is the status quo this issue
   # exists to end. The header formats ext/res at %.9f, a tolerance well above the ~1e-15 ULP of a
   # double near 30, so ULP-level warp noise cannot move it.

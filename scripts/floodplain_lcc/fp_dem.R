@@ -35,7 +35,8 @@
 FP_DEM_SOURCE <- paste0("/vsicurl/https://canelevation-dem.s3.ca-central-1.amazonaws.com/",
                         "mrdem-30/mrdem-30-dtm.tif")
 
-# Bumped when the key's ingredients change, so an old sidecar can never match a new key by accident.
+# Bump this whenever the key's ingredients change, so an old sidecar can never match a new key by
+# accident. (Still 1: the ingredients changed during #122's review, before any sidecar was released.)
 FP_DEM_KEY_SCHEMA <- 1L
 
 # The toolchain members the key carries: everything fp_toolchain() returns.
