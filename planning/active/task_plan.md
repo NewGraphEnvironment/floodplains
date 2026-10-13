@@ -27,11 +27,11 @@ The issue's "pin and re-run deliberately, or accept the move" fork is settled by
 - [x] Snapshot `data/neexdzii/provenance.json` before any run.
 - [x] Run 1: `run_area.R neexdzii` (1,2,3 — launched before the review). Control: the network entry's `outputs_hash` byte-identical to the snapshot, so a network change is not mixed in. Gate: zero in-band errors and every floodplain/landcover/composition `run.datetime_utc` after the launch marker.
 - [x] Field-by-field `inputs`/`outputs` diff per entry, before vs after: only the expected fields moved.
-- [ ] Run 2: `run_area.R neexdzii 2,3`. Every floodplain and landcover entry's `inputs_hash`/`outputs_hash` (incl. `dem_content_sha256`) byte-identical to run 1; run stamps moved.
-- [ ] `dem_res_m == 30`, raster origin a multiple of 30, and non-NA `gdal_terra`/`proj_terra` on every new entry.
-- [ ] `provenance-check.R neexdzii` and `composition-check.R neexdzii` pass.
-- [ ] Record the new contract as a fresh contract in `scripts/run_area.R:22`, the CLAUDE.md `neexdzii` bullet and `README.Rmd`; re-render `README.md` + `index.html`, then run `readme_determinism-check.sh` and `readme_content-check.py`.
-- [ ] Log: `scripts/floodplain_lcc/logs/20261013_flooded070_rebaseline_neexdzii.md`.
+- [x] Run 2: `run_area.R neexdzii 2,3`. Every floodplain and landcover entry's `inputs_hash`/`outputs_hash` (incl. `dem_content_sha256`) byte-identical to run 1; run stamps moved.
+- [x] `dem_res_m == 30`, raster origin a multiple of 30, and non-NA `gdal_terra`/`proj_terra` on every new entry.
+- [x] `provenance-check.R neexdzii` and `composition-check.R neexdzii` pass.
+- [x] Record the new contract as a fresh contract in `scripts/run_area.R:22`, the CLAUDE.md `neexdzii` bullet and `README.Rmd`; re-render `README.md` + `index.html`, then run `readme_determinism-check.sh` and `readme_content-check.py`.
+- [x] Log: `scripts/floodplain_lcc/logs/20261013_flooded070_rebaseline_neexdzii.md`.
 
 ## Phase 3b: Plan-review fixes
 - [x] `attribute_tag.R` refuses a pre-0.7.0 delineation by name (G2): tested, refuses `morr`, passes new `neexdzii`.

@@ -161,11 +161,11 @@ Three of these are modelled by default; the rest are configured and off. Turning
 - **Every published layer carries the item key** — `wsg`, `species`, `scenario` — so many areas
   can merge into one GeoPackage and stay separable by attribute.
 - **Parity fixture.** `config/neexdzii/` must reproduce known-good numbers — coho-3 network
-  **673.5 km**, floodplain `co_ff04` **142.8 km²**, tree loss **770.0 ha** — before any change is
-  trusted. Re-baselined 2026-09-01 under `flooded` 0.5.0. The previous contract
-  (678.2 / 171.0 / 943.13) is **dead, not superseded**: it came from a bankfull regression fed
-  hectares where Hall et al. specify km² and mm where they specify cm/yr. Record these as a fresh
-  contract, never as a delta from the old.
+  **673.5 km**, floodplain `co_ff04` **142.0 km²**, tree loss **773.4 ha** — before any change is
+  trusted. Re-baselined 2026-10-13 under `flooded` 0.7.0, which fixes the DEM grid, so a re-run on
+  the same software reproduces it byte for byte. An earlier contract (678.2 / 171.0 / 943.13) is
+  **dead, not superseded**: it came from a bankfull regression fed hectares where Hall et al.
+  specify km² and mm where they specify cm/yr. Record each as a fresh contract, never as a delta.
 - **Rebuilds are byte-reproducible.** GDAL stamps every GeoPackage with the wall-clock time of
   the write, which would make each rebuild a new checksum regardless of content. The stamp is
   pinned to a fixed epoch (`scripts/fp_gpkg.R`) and

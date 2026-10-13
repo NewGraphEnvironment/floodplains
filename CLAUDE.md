@@ -644,8 +644,13 @@ Coexistence is data-layer only (steps 01/02/03).
 
 - `neexdzii` — **parity fixture** (coho, BULK subset). The pipeline must reproduce the known-good
   numbers before any new area is trusted.
-  **Re-baselined 2026-09-01** — coho-3 network **673.5 km**, floodplain `co_ff04` **142.8 km²**,
-  floodplain tree loss **770.0 ha**. The previous contract (678.2 km / 171.0 km² / 943.13 ha) is
+  **Re-baselined 2026-10-13 (#117)** under flooded 0.7.0's pinned grid — coho-3 network
+  **673.5 km**, floodplain `co_ff04` **142.0 km²**, floodplain tree loss **773.4 ha** (2,018
+  patches). Two runs reproduced every floodplain and landcover digest byte for byte, and the network
+  digest is unchanged from 09-01. The move from 09-01 spans flooded 0.5.0 → 0.7.0, the grid pin
+  among it; evidence `scripts/floodplain_lcc/logs/20261013_flooded070_rebaseline_neexdzii.md`.
+  **Re-baselined 2026-09-01** — 673.5 km / 142.8 km² / 770.0 ha, on the grid that moved with
+  PROJ. The contract before that (678.2 km / 171.0 km² / 943.13 ha) is
   **dead, not merely superseded**: it was produced by flooded ≤ 0.4.1, whose bankfull regression was
   fed hectares where Hall et al. specify km² and mm where they specify cm/yr — width 8.22× and depth
   3.59× too large on every run the package ever did, so `ff04` was delineating ~14.4× bankfull depth

@@ -1801,13 +1801,14 @@ areas can merge into one GeoPackage and stay separable by
 attribute.</li>
 <li><strong>Parity fixture.</strong> <code>config/neexdzii/</code> must
 reproduce known-good numbers — coho-3 network <strong>673.5 km</strong>,
-floodplain <code>co_ff04</code> <strong>142.8 km²</strong>, tree loss
-<strong>770.0 ha</strong> — before any change is trusted. Re-baselined
-2026-09-01 under <code>flooded</code> 0.5.0. The previous contract
-(678.2 / 171.0 / 943.13) is <strong>dead, not superseded</strong>: it
-came from a bankfull regression fed hectares where Hall et al. specify
-km² and mm where they specify cm/yr. Record these as a fresh contract,
-never as a delta from the old.</li>
+floodplain <code>co_ff04</code> <strong>142.0 km²</strong>, tree loss
+<strong>773.4 ha</strong> — before any change is trusted. Re-baselined
+2026-10-13 under <code>flooded</code> 0.7.0, which fixes the DEM grid,
+so a re-run on the same software reproduces it byte for byte. An earlier
+contract (678.2 / 171.0 / 943.13) is <strong>dead, not
+superseded</strong>: it came from a bankfull regression fed hectares
+where Hall et al. specify km² and mm where they specify cm/yr. Record
+each as a fresh contract, never as a delta.</li>
 <li><strong>Rebuilds are byte-reproducible.</strong> GDAL stamps every
 GeoPackage with the wall-clock time of the write, which would make each
 rebuild a new checksum regardless of content. The stamp is pinned to a
