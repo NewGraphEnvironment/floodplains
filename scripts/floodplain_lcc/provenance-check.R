@@ -614,7 +614,8 @@ dem_cache_reconcile <- function(record_sha, dc, dd, network_layer) {
   if (identical(got, as.character(record_sha))) return(list(verdict = "match", why = want))
   if (same_key) return(list(verdict = "mismatch", why = paste0(want, " digests ", got,
                                                                  " under the entry's own key")))
-  list(verdict = "skip", why = paste0(want, " has been replaced under another key since"))
+  list(verdict = "skip", why = paste0(want, if (is.null(side)) " has no readable sidecar" else
+                                       " has been replaced under another key since"))
 }
 
 # --- 1. Determinism -------------------------------------------------------------------------------
