@@ -3,8 +3,9 @@
 # Offline (default): every key ingredient moves the key hash and an unchanged input keeps it; a hit
 # needs the key AND the file's digest; a tampered file, a lost sidecar or a moved key re-fetches;
 # FP_DEM_SOURCE still equals flooded's own default. The fetch and the HEAD request are replaced by
-# counting fakes for the cache arms, so those need no network and no DEM. The last three arms ("the
-# HEAD request fails closed") make real HEAD requests: offline they FAIL rather than skip.
+# counting fakes for the cache arms, so those need no network and no DEM. Two arms under "the HEAD
+# request fails closed" (the 404 and the real source) make real HEAD requests: offline they FAIL
+# rather than skip.
 #
 # LIVE=1 adds a real round trip on a tiny AOI in a temp directory: a miss, then a hit with no fetch,
 # both digesting the same.
@@ -108,7 +109,8 @@ fake_dem <- function(streams, source, buffer, target_crs) {
   r
 }
 real_object_version <- fp_dem_object_version
-fp_dem_object_version <- function(source, ...) ver   # mask the HEAD request; the key is still real
+n_head <- 0L
+fp_dem_object_version <- function(source, ...) { n_head <<- n_head + 1L; ver }   # mask the HEAD; the key is still real
 d <- file.path(tempdir(), "dem_cache_check"); unlink(d, recursive = TRUE); dir.create(d)
 tif <- file.path(d, "dem_co3.tif"); js <- file.path(d, "dem_co3.json")
 call_cache <- function(buffer = 2000) suppressMessages(
@@ -125,18 +127,21 @@ check(setequal(list.files(d, all.files = TRUE, no.. = TRUE), c("dem_co3.tif", "d
 check(all(FP_DEM_CACHE_RECORD %in% names(attr(a, "fp_dem_cache"))),
       "the returned record carries every member step 2 records (FP_DEM_CACHE_RECORD)")
 
+n_head <- 0L
 b <- call_cache()
 check(n_fetch == 0L && identical(attr(b, "fp_dem_cache")$status, "hit"), "a warm call does not fetch (hit)")
+check(n_head == 1L, sprintf("a hit makes exactly one HEAD request (made %d)", n_head))
 check(identical(attr(a, "fp_dem_cache")$dem_content_sha256, attr(b, "fp_dem_cache")$dem_content_sha256),
       "hit and miss record the same digest")
 check(identical(attr(b, "fp_dem_cache")$key_sha256, jsonlite::read_json(js)$key_sha256),
       "the returned key is the sidecar's")
 check(!terra::inMemory(a) && !terra::inMemory(b), "both paths return a file-backed raster")
 
-n_fetch <- 0L
+n_fetch <- 0L; n_head <- 0L
 c1 <- call_cache(buffer = 1500)
 check(n_fetch == 1L && identical(attr(c1, "fp_dem_cache")$status, "miss"),
       "must-fail: a moved key re-fetches")
+check(n_head == 2L, sprintf("a miss asks twice, for the key and after the fetch (asked %d)", n_head))
 invisible(call_cache(buffer = 2000))  # restore the 2000 m cache
 n_fetch <- 0L
 r <- terra::rast(tif); v <- terra::values(r); v[100] <- v[100] + 1
@@ -172,7 +177,7 @@ invisible(file.remove(js))                # force a miss
 check(errs(call_cache()), "must-fail: a source that changes during the fetch stops the write")
 check(!file.exists(js) && setequal(list.files(d, all.files = TRUE, no.. = TRUE), "dem_co3.tif"),
       "and leaves no sidecar and no temp file (a miss next time)")
-fp_dem_object_version <- function(source, ...) ver
+fp_dem_object_version <- function(source, ...) { n_head <<- n_head + 1L; ver }
 # The write itself fails after the temp file exists (fp_rast_write()'s stray-tag stop): the temp file
 # must not survive it.
 real_rast_write <- fp_rast_write

@@ -592,10 +592,12 @@ good_prov <- function() {
 # can drive it. In order:
 #   - the recorded path must be the one the entry's network layer implies (dem_<sp><order>.tif): a
 #     path checked only against itself would read a wrong one as "replaced since" and pass;
-#   - the file digesting as recorded is a match, whatever the sidecar's key (a key moves with
-#     Last-Modified or a toolchain upgrade while the cells stay put);
-#   - under the recorded key, a file or a sidecar digest that differs from the record is a mismatch;
-#   - under another key, or with no file, the record is unverifiable, not contradicted: skip.
+#   - no file: the record is unverifiable, not contradicted (skip);
+#   - a sidecar under the recorded key whose digest differs from the record is a mismatch, even if
+#     the file itself digests as recorded (only a hand-edited sidecar reaches that, and it is wrong);
+#   - otherwise the file digesting as recorded is a match, whatever the sidecar's key (a key moves
+#     with Last-Modified or a toolchain upgrade while the cells stay put);
+#   - a different digest under the recorded key is a mismatch, and under another key a skip.
 dem_cache_reconcile <- function(record_sha, dc, dd, network_layer) {
   if (is.null(dc)) return(list(verdict = "skip", why = "written before the DEM cache (#122)"))
   want <- paste0("dem_", sub("^streams_", "", as.character(network_layer)), ".tif")

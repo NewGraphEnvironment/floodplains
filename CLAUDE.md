@@ -248,9 +248,9 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
     It lives in `run` because Last-Modified can move with the cells unchanged. `provenance-check.R`
     requires it, with `dem_source`, on every entry whose `dem_resolver` is not the pre-#122 string.
     That is a content rule, not a date, so pre-#122 code running later never reads as a defect.
-  - 7c reconciles `dem_content_sha256` against the cached file. A digest match passes. The same key
-    with a different file or sidecar digest FAILs, as does a recorded path the network layer does not
-    imply. The cache is shared by every scenario of a species and replaced by any other key, so a
+  - 7c reconciles `dem_content_sha256` against the cached file. The same key with a different file
+    or sidecar digest FAILs, as does a recorded path the network layer does not imply. Otherwise a
+    digest match passes, whatever the sidecar's key. The cache is shared by every scenario of a species and replaced by any other key, so a
     replaced cache is a skip.
 - **Whole-FWA floodplain probe (#110, gates #104).** `floodplain_probe-run.sh <area>` delineates one
   scenario from five networks (order ≥ 1, ≥ 2, ≥ 3, bcfp's bypass predicate, the species network) on
