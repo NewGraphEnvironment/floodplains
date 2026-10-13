@@ -45,3 +45,4 @@ The #110 anchor and the whole-FWA `dem_common.tif` digest need re-anchoring, and
 
 | Error | Resolution |
 |-------|------------|
+| `diff -q` printed `git diff --no-index` usage | `diff` is a shell function wrapping git diff here; use `cmp` or `/usr/bin/diff` |

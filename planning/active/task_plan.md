@@ -11,13 +11,13 @@ Two things remain in this repo:
 The issue's "pin and re-run deliberately, or accept the move" fork is settled by #125 (2026-10-13). We pin through flooded 0.7.0. Every area re-runs as whole-network under #125, and the species items retire rather than re-run (stac_floodplains_bc#76). So this issue does not re-run published areas. It re-baselines only the `neexdzii` parity fixture, so #125's runs start from a known contract on the new grid.
 
 ## Phase 1: Record terra's GDAL and PROJ in provenance
-- [ ] `fp_toolchain()` adds `gdal_terra` and `proj_terra` from `terra::gdal(lib = "all")`. This matches the `gdal_terra` name the repair record already uses (`fp_provenance.R:461`). sf's `gdal`/`geos`/`proj` stay: sf still writes every vector. The comment above it says which library warps the DEM.
-- [ ] `provenance-check.R`: `KEYS_TOOLCHAIN` gains the two keys, so the offline `setequal(names(fp_toolchain()), KEYS_TOOLCHAIN)` check (line 1874) pins the producer. `viol_split` keeps requiring only the original five on parsed records. A record without the new keys is pre-#117 and is reported as INFO, not FAIL (forward-only, as for every other field).
-- [ ] Offline premise arm: `fp_toolchain()$gdal_terra == terra::gdal()` and `$proj_terra == terra::gdal(lib = "all")$proj`. Must-fail arm: a copy of `fp_toolchain` sourcing the terra fields from sf fails it. This machine's two GDALs differ, so the arm can tell the two apart.
-- [ ] Run `provenance-check.R` offline: green, and red with the defect restored.
+- [x] `fp_toolchain()` adds `gdal_terra` and `proj_terra` from `terra::gdal(lib = "all")`. This matches the `gdal_terra` name the repair record already uses (`fp_provenance.R:461`). sf's `gdal`/`geos`/`proj` stay: sf still writes every vector. The comment above it says which library warps the DEM.
+- [x] `provenance-check.R`: `KEYS_TOOLCHAIN` gains the two keys, so the offline `setequal(names(fp_toolchain()), KEYS_TOOLCHAIN)` check (line 1874) pins the producer. `viol_split` keeps requiring only the original five on parsed records. A record without the new keys is pre-#117 and is reported as INFO, not FAIL (forward-only, as for every other field).
+- [x] Offline premise arm: `fp_toolchain()$gdal_terra == terra::gdal()` and `$proj_terra == terra::gdal(lib = "all")$proj`. Must-fail arm: a copy of `fp_toolchain` sourcing the terra fields from sf fails it. This machine's two GDALs differ, so the arm can tell the two apart.
+- [x] Run `provenance-check.R` offline: green, and red with the defect restored.
 
 ## Phase 2: Adopt flooded 0.7.0
-- [ ] Install flooded 0.7.0 (`pak::pak("NewGraphEnvironment/flooded")`) and confirm `packageVersion("flooded") == "0.7.0"`.
+- [x] Install flooded 0.7.0 (`pak::pak("NewGraphEnvironment/flooded")`) and confirm `packageVersion("flooded") == "0.7.0"`.
 - [ ] `02_floodplain_model.R`: stop on flooded < 0.7.0 for every area, not just whole-network, beside the existing 0.6.4 gate (line 46). The DEM digest in `inputs` is a sound input only on the pinned grid.
 - [ ] Replace the "OPEN" comment at `02_floodplain_model.R:151-155`. It is resolved: the move was PROJ's datum step on one machine across an upgrade, now pinned by flooded#67, which measured reproduction across GDAL 3.8.5↔3.13.0 and PROJ 9.5.1↔9.8.1. Fix the "GDAL picks the grid" wording around it.
 - [ ] Grep for other `fl_dem_aoi()` callers (`attribute_tag.R:68`, probe lines 178/236). They inherit the pin and need no change. Confirm none passes `res` or `pipeline`.

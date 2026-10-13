@@ -996,6 +996,16 @@ fp_toolchain <- function() {
   pick <- function(k) if (k %in% names(soft)) unname(soft[[k]]) else NA_character_
   # GEOS and PROJ arrive in the same call for free, and the floodplain section's outputs ARE
   # geometry -- a PROJ change moves a reprojection the same way a GDAL change moves an encoder.
+  #
+  # `gdal`/`geos`/`proj` are sf's, and sf writes every vector. They are NOT what warps the DEM:
+  # fl_dem_aoi() reprojects through terra, and terra can link a different GDAL and PROJ in the same
+  # session (measured 2026-10-13 on one machine: sf GDAL 3.8.5 / PROJ 9.5.1, terra GDAL 3.13.0 /
+  # PROJ 9.8.1). PROJ 9.8.1's NAD83(CSRS)->NAD83 operation moved the published DEM grid ~1.3 m while
+  # this record named sf's 9.5.1 (#117). So terra's own pair rides beside them as `gdal_terra` /
+  # `proj_terra`, the names the in-place repair record already uses.
+  tg <- tryCatch(terra::gdal(lib = "all"), error = function(e) NULL)
+  tpick <- function(k) if (!is.null(tg) && k %in% names(tg)) as.character(tg[[k]][1]) else NA_character_
   list(terra = ver("terra"), sf = ver("sf"),
-       gdal = pick("GDAL"), geos = pick("GEOS"), proj = pick("PROJ"))
+       gdal = pick("GDAL"), geos = pick("GEOS"), proj = pick("PROJ"),
+       gdal_terra = tpick("gdal"), proj_terra = tpick("proj"))
 }
