@@ -28,17 +28,19 @@ The fetch time is set by NRCan's bucket throughput, not by the read pattern. Mea
 - [x] Replace its `fl_dem_aoi()` call with `fp_dem_cached(buffer = sc$max_width, …)`. `max_width` is 2000 = step 2's `buf` in every current scenario table, so it hits step 2's cache. A differing `max_width` misses and rewrites the cache, which is correct but slow; a comment says so
 
 ## Phase 4: Live verification
-- [ ] `dem_cache-check.R` live section on a tiny AOI in a scratch directory. The first call misses, the second hits, and the digests are identical. The second call does no fetch, which is shown by the attribute and its timing
-- [ ] neexdzii `run_area.R neexdzii 2,3` cold. The floodplain and landcover digests must equal today's #117 re-baseline (`dem_content_sha256` `192ea21e…`). Only `inputs_hash` moves, from `dem_source` and `dem_resolver`
-- [ ] neexdzii `2,3` again warm. Step 2 reports a hit, every digest is unchanged, and the DEM phase is timed with `date -u`. Then run `provenance-check.R neexdzii` and `composition-check.R neexdzii`
-- [ ] Log at `scripts/floodplain_lcc/logs/<date>_dem_cache_neexdzii.md`. Gate on the in-band error count and the output mtimes, not exit codes
+- [x] `dem_cache-check.R` live section on a tiny AOI in a scratch directory. The first call misses, the second hits, and the digests are identical. The second call does no fetch, which is shown by the attribute and its timing
+- [x] neexdzii `run_area.R neexdzii 2,3` cold. The floodplain and landcover digests must equal today's #117 re-baseline (`dem_content_sha256` `192ea21e…`). Only `inputs_hash` moves, from `dem_source` and `dem_resolver`
+- [x] neexdzii `2,3` again warm. Step 2 reports a hit, every digest is unchanged, and the DEM phase is timed with `date -u`. Then run `provenance-check.R neexdzii` and `composition-check.R neexdzii`
+- [x] Log at `scripts/floodplain_lcc/logs/<date>_dem_cache_neexdzii.md`. Gate on the in-band error count and the output mtimes, not exit codes
+
+- [x] (added by the plan review) A re-key run after the toolchain joined the key (miss names the moved ingredients); `attribute_tag.R neexdzii` live (hit, digest equals step 2's record); attribution layer compared by count and area across runs
 
 ## Phase 5: Docs
 - [x] CLAUDE.md: a bullet on the DEM cache (the key, the toolchain in the key and why, fail-closed HEAD, per-species stem, the driver owns `FP_DEM_SOURCE`). Update the Prerequisites "internet for MRDEM-30" line: a cache hit still needs the HEAD request
 - [x] Edit the #122 issue body to record the decision (driver-owned URL; the open question resolved)
 
 ## Validation
-- [ ] Tests pass: `dem_cache-check.R`, `provenance-check.R`, `composition-check.R neexdzii`
+- [x] Tests pass: `dem_cache-check.R`, `provenance-check.R`, `composition-check.R neexdzii`
 - [ ] `/code-check` clean (once over the branch with `/code-check branch`)
 - [ ] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion
