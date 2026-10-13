@@ -18,9 +18,9 @@ The issue's "pin and re-run deliberately, or accept the move" fork is settled by
 
 ## Phase 2: Adopt flooded 0.7.0
 - [x] Install flooded 0.7.0 (`pak::pak("NewGraphEnvironment/flooded")`) and confirm `packageVersion("flooded") == "0.7.0"`.
-- [ ] `02_floodplain_model.R`: stop on flooded < 0.7.0 for every area, not just whole-network, beside the existing 0.6.4 gate (line 46). The DEM digest in `inputs` is a sound input only on the pinned grid.
-- [ ] Replace the "OPEN" comment at `02_floodplain_model.R:151-155`. It is resolved: the move was PROJ's datum step on one machine across an upgrade, now pinned by flooded#67, which measured reproduction across GDAL 3.8.5↔3.13.0 and PROJ 9.5.1↔9.8.1. Fix the "GDAL picks the grid" wording around it.
-- [ ] Grep for other `fl_dem_aoi()` callers (`attribute_tag.R:68`, probe lines 178/236). They inherit the pin and need no change. Confirm none passes `res` or `pipeline`.
+- [x] `02_floodplain_model.R`: stop on flooded < 0.7.0 for every area, not just whole-network, beside the existing 0.6.4 gate (line 46). The DEM digest in `inputs` is a sound input only on the pinned grid.
+- [x] Replace the "OPEN" comment at `02_floodplain_model.R:151-155`. It is resolved: the move was PROJ's datum step on one machine across an upgrade, now pinned by flooded#67, which measured reproduction across GDAL 3.8.5↔3.13.0 and PROJ 9.5.1↔9.8.1. Fix the "GDAL picks the grid" wording around it.
+- [x] Grep for other `fl_dem_aoi()` callers (`attribute_tag.R:68`, probe lines 178/236). They inherit the pin and need no change. Confirm none passes `res` or `pipeline`.
 
 ## Phase 3: Re-baseline the neexdzii parity fixture (live)
 - [ ] `caffeinate -s Rscript scripts/run_area.R neexdzii > log 2>&1` (steps 1–3). Gate on the in-band error count and a `provenance.json` newer than a launch marker, never the exit code.

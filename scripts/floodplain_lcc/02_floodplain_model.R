@@ -47,6 +47,15 @@ fp_floodplain <- function(cfg, scenarios = "run") {
     stop("whole-network area '", cfg$name, "' needs flooded >= 0.6.4 (flooded#71); installed ",
          as.character(utils::packageVersion("flooded")), call. = FALSE)
   }
+  # Every area, a reproducibility floor (#117). Before 0.7.0, fl_dem_aoi() let GDAL pick the output
+  # grid from edges PROJ had transformed, and PROJ 9.8.1 routes NAD83(CSRS)->NAD83 through WGS 84:
+  # the DEM moved ~1.3 m with no data change and MORR co_ff04 came out -0.42%. 0.7.0 fixes the grid
+  # (30 m, aligned to multiples of 30) and pins the datum step (flooded#67). Below it, the DEM digest
+  # recorded in `inputs` moves with the machine's PROJ, so the record would not mean what it says.
+  if (utils::packageVersion("flooded") < "0.7.0") {
+    stop("step 2 needs flooded >= 0.7.0 for a DEM grid that does not move with PROJ (flooded#67, ",
+         "#117); installed ", as.character(utils::packageVersion("flooded")), call. = FALSE)
+  }
 
   out_dir <- cfg$dir_out
   fs::dir_create(out_dir)
@@ -158,11 +167,14 @@ fp_floodplain <- function(cfg, scenarios = "run") {
   # exists to end. The header formats ext/res at %.9f, a tolerance well above the ~1e-15 ULP of a
   # double near 30, so ULP-level warp noise cannot move it.
   #
-  # OPEN, and named rather than assumed: cross-machine agreement of these CELL VALUES has never been
-  # measured. #63 compared the DEM's geometry across m1 and m4 and found it identical; it never
-  # compared the heights. If a two-machine run shows this digest moving with the data unchanged, the
-  # right response is to move it to `outputs` -- diagnostic rather than required to match -- not to
-  # delete it. That check needs a second machine and is filed rather than claimed.
+  # This digest DID move with the data unchanged (#117), across a terra upgrade on one machine rather
+  # than across two machines. The cause was not GDAL but PROJ's NAD83(CSRS)->NAD83 operation, which
+  # the grid GDAL chose followed. Moving the digest to `outputs` would have hidden that rather than
+  # fixed it; the fix is a deterministic grid, so it stays in `inputs`. flooded 0.7.0 pins the grid
+  # and the datum step (gated above). Across GDAL 3.8.5 and 3.13.0 with the pin, flooded#67 measured
+  # cell values agreeing to 0.12 mm -- agreement, not byte identity, so this digest can still differ
+  # between two GDAL builds with the grid and the heights the same. That residual is why the terra
+  # GDAL/PROJ that warped the DEM is now in run$toolchain: a digest change is diagnosable from it.
   message("  Digesting DEM content for provenance...")
   dem_sha <- fp_raster_content_sha256(dem)
 
