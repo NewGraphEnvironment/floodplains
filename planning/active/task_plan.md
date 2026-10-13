@@ -41,7 +41,7 @@ The fetch time is set by NRCan's bucket throughput, not by the read pattern. Mea
 
 ## Validation
 - [x] Tests pass: `dem_cache-check.R`, `provenance-check.R`, `composition-check.R neexdzii`
-- [ ] `/code-check` clean (once over the branch with `/code-check branch`)
-- [ ] PWF checkboxes match landed work
+- [x] `/code-check` clean (once over the branch with `/code-check branch`)
+- [x] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion
 
