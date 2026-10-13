@@ -563,7 +563,7 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   copied the `.tif` **without** its sidecar and compared it against an original that had one; all
   256 category rows survive it. It
   stays rejected because it grows the file ~54 kB per invocation and needs `osgeo` bindings nothing
-  else here uses. `necr` and `kotl` need a COG rebuild in `stac_floodplains_bc` (stac#59) to pick
+  else here uses. `necr` and `kotl` need a COG rebuild in `stac_floodplains_bc` (stac#68) to pick
   the repair up; the coupling stays one-way.
   **An in-place repair moves the run stamp (#126).** PR #85 left `landcover.<scen>.run.datetime_utc`
   behind the rewritten rasters. That field is published as `nge:produced_datetime`, and stac's

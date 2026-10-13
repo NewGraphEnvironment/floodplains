@@ -78,6 +78,6 @@ would be wrong. `run.toolchain` is unchanged and still describes the step-3 run.
 
 ## What it unblocks
 
-stac_floodplains_bc#68 can stage `necr_ch_ff04` and `kotl_bt_ff04`, and `nge:produced_datetime`
-will now carry the repair time. Rebuilding the COGs to pick up the #83 strip (stac#59) is
-still a job for that repo.
+stac_floodplains_bc#68, the rebuild and republish of the necr and kotl COGs that picks up the
+#83 strip, can now stage `necr_ch_ff04` and `kotl_bt_ff04`. `nge:produced_datetime` will carry
+the repair time. The rebuild itself is a job for that repo.
