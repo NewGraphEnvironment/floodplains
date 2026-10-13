@@ -22,6 +22,9 @@
 suppressMessages({library(sf); library(terra); library(yaml); library(readr)})
 sf::sf_use_s2(FALSE)
 source(here::here("scripts", "fp_gpkg.R")); fp_gpkg_pin_date()   # #45: keep writes deterministic
+source(here::here("scripts", "fp_raster.R"))                       # fp_rast_write (the DEM cache's writer)
+source(here::here("scripts", "floodplain_lcc", "fp_provenance.R"))  # fp_raster_content_sha256, fp_toolchain
+source(here::here("scripts", "floodplain_lcc", "fp_dem.R"))         # fp_dem_cached (#122)
 
 a    <- commandArgs(TRUE)
 area <- a[1]
@@ -78,12 +81,16 @@ if (!pinned_pkg && pinned_tif) {
 message("Area: ", area, " | scenario: ", scenario, " | key: ", key,
         " | ", length(unique(streams[[key]])), " groups | ", nrow(streams), " segments")
 
-# The DEM must be the same one the delineation came from, so it is fetched the same way step 2
-# fetches it (fl_dem_aoi over the streams + the scenario's max_width buffer). Thresholds come from
-# the scenario ROW, not defaults, so the attribution matches the delineation it is describing.
+# The DEM must be the same one the delineation came from, so it is read the same way step 2 reads
+# it: through step 2's cache (#122) over the streams + the scenario's max_width buffer. max_width is
+# 2000, step 2's buffer, in every scenario table today, so this is a cache hit after step 2. A
+# different max_width is a different key: it fetches and replaces the cache, which is correct but
+# costs step 2's next run the fetch. Thresholds come from the scenario ROW, not defaults, so the
+# attribution matches the delineation it is describing.
 buf <- sc$max_width
-message("Fetching MRDEM-30 for the network + ", buf, " m buffer ...")
-dem <- flooded::fl_dem_aoi(streams, buffer = buf, target_crs = sf::st_crs(streams))
+message("DEM: MRDEM-30 for the network + ", buf, " m buffer ...")
+dem <- fp_dem_cached(streams, buffer = buf, target_crs = sf::st_crs(streams),
+                     dir = out_dir, stem = paste0(sc$species, cfg$min_order))
 
 message("Attributing ", scenario, " by '", key, "' ...")
 attributed <- flooded::fl_valley_attribute(

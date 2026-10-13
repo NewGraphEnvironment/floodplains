@@ -25,7 +25,7 @@ The fetch time is set by NRCan's bucket throughput, not by the read pattern. Mea
 - [x] Confirm `stac_floodplains_bc`'s reader ignores unknown floodplain `inputs` keys (grep shows it reads no `dem_*` field) and note it in findings
 
 ## Phase 3: attribute_tag.R reuses the cache
-- [ ] Replace its `fl_dem_aoi()` call with `fp_dem_cached(buffer = sc$max_width, …)`. `max_width` is 2000 = step 2's `buf` in every current scenario table, so it hits step 2's cache. A differing `max_width` misses and rewrites the cache, which is correct but slow; a comment says so
+- [x] Replace its `fl_dem_aoi()` call with `fp_dem_cached(buffer = sc$max_width, …)`. `max_width` is 2000 = step 2's `buf` in every current scenario table, so it hits step 2's cache. A differing `max_width` misses and rewrites the cache, which is correct but slow; a comment says so
 
 ## Phase 4: Live verification
 - [ ] `dem_cache-check.R` live section on a tiny AOI in a scratch directory. The first call misses, the second hits, and the digests are identical. The second call does no fetch, which is shown by the attribute and its timing
