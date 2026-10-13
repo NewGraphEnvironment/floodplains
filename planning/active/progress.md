@@ -7,3 +7,4 @@
 - Scaffolded PWF baseline from issue #122 with approved phases
 - Next: start Phase 1
 - Phase 1: `fp_dem.R` (key, HEAD with Last-Modified + ETag, cache) and `dem_cache-check.R` (offline PASS, 0 failures). Mutations proven: dropping the hit digest check, dropping ETag or sf PROJ from the key each turn a check red; an FLT4S write aborts on the round-trip guard. ETag added to the key beside Last-Modified (the HEAD returns both). FLT8S, as the probe found: the bilinear warp is double in memory.
+- Phase 2: step 2 calls `fp_dem_cached()`; `inputs$dem_source`, `run$dem_cache`; `provenance-check.R` adds `dem_cache_reconcile()` (5h offline with a must-fail arm; 7c live) and a #122 cutover for the new keys. Offline provenance-check, whole_network-check, floodplain_probe-check and region_config-check all PASS; `provenance-check.R neexdzii` PASS on its pre-cutover record.

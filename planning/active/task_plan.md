@@ -19,10 +19,10 @@ The fetch time is set by NRCan's bucket throughput, not by the read pattern. Mea
 - [x] Assert `FP_DEM_SOURCE` equals flooded's default by parsing `body(flooded::fl_dem_aoi)`, so a flooded default change is reported rather than silently diverged from
 
 ## Phase 2: Wire into step 2 + provenance
-- [ ] `02_floodplain_model.R`: replace the `fl_dem_aoi()` call with `fp_dem_cached()`. Rewrite the `02:123-139` comment, since the URL is now recoverable because the driver passes it. Source `fp_dem.R` wherever `run_area.R` sources the helpers
-- [ ] Provenance: `inputs$dem_source` = the URL, and `dem_resolver` becomes `"flooded::fl_dem_aoi(source = dem_source)"`. `run$dem_cache` = the hit or miss, the key hash, `last_modified` and the path. That goes in `run`, not `inputs`, because Last-Modified can move without the content moving, and `dem_content_sha256` already covers the content
-- [ ] `provenance-check.R`: add `dem_source` to `KEYS_FLOODPLAIN`. 7c reconciles `dem_content_sha256` against `dem_<stem>.tif` when the sidecar's key hash equals `run$dem_cache$key`, and FAILs on a digest mismatch. Otherwise it reports "cache replaced since". A must-fail arm covers the mismatch. Pre-#122 entries (no `dem_cache`) keep today's "not reconcilable" skip
-- [ ] Confirm `stac_floodplains_bc`'s reader ignores unknown floodplain `inputs` keys (grep shows it reads no `dem_*` field) and note it in findings
+- [x] `02_floodplain_model.R`: replace the `fl_dem_aoi()` call with `fp_dem_cached()`. Rewrite the `02:123-139` comment, since the URL is now recoverable because the driver passes it. Source `fp_dem.R` wherever `run_area.R` sources the helpers
+- [x] Provenance: `inputs$dem_source` = the URL, and `dem_resolver` becomes `"flooded::fl_dem_aoi(source = dem_source)"`. `run$dem_cache` = the hit or miss, the key hash, `last_modified` and the path. That goes in `run`, not `inputs`, because Last-Modified can move without the content moving, and `dem_content_sha256` already covers the content
+- [x] `provenance-check.R`: add `dem_source` to `KEYS_FLOODPLAIN`. 7c reconciles `dem_content_sha256` against `dem_<stem>.tif` when the sidecar's key hash equals `run$dem_cache$key`, and FAILs on a digest mismatch. Otherwise it reports "cache replaced since". A must-fail arm covers the mismatch. Pre-#122 entries (no `dem_cache`) keep today's "not reconcilable" skip
+- [x] Confirm `stac_floodplains_bc`'s reader ignores unknown floodplain `inputs` keys (grep shows it reads no `dem_*` field) and note it in findings
 
 ## Phase 3: attribute_tag.R reuses the cache
 - [ ] Replace its `fl_dem_aoi()` call with `fp_dem_cached(buffer = sc$max_width, …)`. `max_width` is 2000 = step 2's `buf` in every current scenario table, so it hits step 2's cache. A differing `max_width` misses and rewrites the cache, which is correct but slow; a comment says so

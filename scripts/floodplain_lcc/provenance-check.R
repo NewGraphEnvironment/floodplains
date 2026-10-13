@@ -105,6 +105,12 @@ KEYS_TOOLCHAIN         <- c("terra", "sf", "gdal", "geos", "proj")
 KEYS_TOOLCHAIN_TERRA   <- c("gdal_terra", "proj_terra")
 TOOLCHAIN_TERRA_SINCE  <- "2026-10-13T22:00:00Z"
 SECTIONS_WITH_RASTERS  <- c("floodplain", "landcover")
+# The DEM cache (#122): `inputs$dem_source` and `run$dem_cache`. Forward-only like terra's pair
+# above, and for the same reason: required on a floodplain entry whose step ran at or after the
+# cutover, so the areas not yet re-run stay green.
+KEYS_FLOODPLAIN_SINCE_DEM_CACHE <- "dem_source"
+KEYS_DEM_CACHE         <- c("status", "key_sha256", "path", "last_modified", "etag")
+DEM_CACHE_SINCE        <- "2026-10-13T23:15:00Z"
 TOOLCHAIN_FIXTURE      <- list(terra = "1.9.34", sf = "1.1.2", gdal = "3.8.5",
                                geos = "3.12.1", proj = "9.3.1")
 
@@ -147,7 +153,7 @@ SECTIONS_WITH_OUTPUTS <- FP_SECTIONS_WITH_OUTPUTS
 LNK_BUILD_CONFIG_EXPECTED <- "default"
 KEYS_FLOODPLAIN     <- c("wsg", "species", "scenario", "flood_factor", "slope_threshold",
                          "max_width", "cost_threshold", "size_threshold", "hole_threshold",
-                         "anchor_order", "dem_resolver", "dem_crs_epsg", "dem_res_m", "dem_ncell",
+                         "anchor_order", "dem_resolver", "dem_source", "dem_crs_epsg", "dem_res_m", "dem_ncell",
                          "dem_content_sha256",
                          "dem_buffer_m", "attribute_by", "subbasin_source", "crs_epsg",
                          "network_layer", "flooded")
@@ -393,6 +399,19 @@ viol_keys <- function(prov) {
                   paste(setdiff(have_out, wo), collapse = ", ")))
     }
     miss <- setdiff(want[[e$section]], have)
+    dem_old <- identical(e$section, "floodplain") && prov_step_time(e$body) < DEM_CACHE_SINCE
+    if (dem_old) miss <- setdiff(miss, KEYS_FLOODPLAIN_SINCE_DEM_CACHE)
+    dem_problem <- if (identical(e$section, "floodplain") && !dem_old) {
+      dc <- e$body[["run"]][["dem_cache"]]
+      if (is.null(dc)) sprintf("floodplain[%s] run has no dem_cache block (step ran after #122's cutover %s)",
+                               e$key, DEM_CACHE_SINCE)
+      else if (length(setdiff(KEYS_DEM_CACHE, names(dc))))
+        sprintf("floodplain[%s] run$dem_cache missing: %s", e$key,
+                paste(setdiff(KEYS_DEM_CACHE, names(dc)), collapse = ", "))
+      else if (!isTRUE(dc[["status"]] %in% c("hit", "miss")))
+        sprintf("floodplain[%s] run$dem_cache$status is neither hit nor miss: %s", e$key,
+                format(dc[["status"]]))
+    }
     # WHITELIST, not just a completeness check: an UNDECLARED key is reported too. A denylist grep
     # for secret-shaped strings can always be outrun by a new field; "only these keys may appear"
     # cannot.
@@ -413,7 +432,7 @@ viol_keys <- function(prov) {
                                 paste(miss, collapse = ", ")),
       if (length(undeclared)) sprintf("%s[%s].inputs has UNDECLARED key(s): %s", e$section, e$key,
                                       paste(undeclared, collapse = ", ")),
-      out_problem, extra)
+      out_problem, dem_problem, extra)
   }))
 }
 
@@ -559,6 +578,28 @@ good_prov <- function() {
                                 KEYS_LANDCOVER_OUTPUTS),
       outputs_hash = "sha256:cc2",
       run = list(datetime_utc = "2026-09-01T00:00:00Z", toolchain = TOOLCHAIN_FIXTURE))))
+}
+
+# --- The cached DEM against the digest a floodplain entry recorded (#122) -------------------------
+# Before #122 the DEM was never written, so `dem_content_sha256` could not be reconciled and 7c said
+# so. Step 2 now caches it as data/<area>/<run$dem_cache$path> with a JSON sidecar. The cache is
+# shared by every scenario of a species and by attribute_tag.R, and a later run with a different key
+# REPLACES it, so a file that no longer digests as recorded is not by itself a defect. The sidecar's
+# key decides which case it is: the same key as the entry recorded means the file must be the DEM
+# that entry was cut from, and a digest difference is then a FAIL. Pure, so 5h can drive it.
+#   verdict "skip"     -- the entry predates the cache, or the cache has been replaced since
+#   verdict "match"    -- same key, same digest
+#   verdict "mismatch" -- same key, different digest
+dem_cache_reconcile <- function(record_sha, dc, dd) {
+  if (is.null(dc)) return(list(verdict = "skip", why = "written before the DEM cache (#122)"))
+  f  <- file.path(dd, as.character(dc[["path"]]))
+  fj <- sub("[.]tif$", ".json", f)
+  side <- if (file.exists(fj)) tryCatch(jsonlite::read_json(fj), error = function(e) NULL) else NULL
+  if (!file.exists(f) || is.null(side) || !identical(side[["key_sha256"]], dc[["key_sha256"]]))
+    return(list(verdict = "skip", why = paste0(basename(f), " has been replaced or removed since")))
+  got <- fp_raster_content_sha256(f)
+  list(verdict = if (identical(got, as.character(record_sha))) "match" else "mismatch",
+       why = paste0(basename(f), " digests ", got))
 }
 
 # --- 1. Determinism -------------------------------------------------------------------------------
@@ -805,6 +846,26 @@ cat("\n3. Declared keys — present, null where absent\n")
         "must-fail: an UNDECLARED key IS reported (whitelist, not just completeness)")
   n2 <- n; n2$network$co3$link_log_note <- "no log table in source schema"
   check(length(viol_keys(n2)) == 0, "a null link_log WITH a note passes")
+  # The DEM cache keys (#122), required by step time like terra's pair. The clean fixture predates
+  # the cutover, so dropping dem_source from it is the "old record" arm.
+  d0 <- g; d0$floodplain$co_ff04$inputs$dem_source <- NULL
+  check(length(viol_keys(d0)) == 0,
+        "a floodplain entry from before #122's cutover need not carry dem_source or run$dem_cache")
+  d1 <- d0; d1$floodplain$co_ff04$run$datetime_utc <- "2026-10-14T00:00:00Z"
+  check(any(grepl("inputs missing: dem_source", viol_keys(d1))),
+        "must-fail: a post-cutover entry without dem_source IS reported")
+  check(any(grepl("no dem_cache block", viol_keys(d1))),
+        "must-fail: a post-cutover entry without run$dem_cache IS reported")
+  d2 <- g; d2$floodplain$co_ff04$run$datetime_utc <- "2026-10-14T00:00:00Z"
+  d2$floodplain$co_ff04$run$dem_cache <- list(status = "hit", key_sha256 = "sha256:k", path = "dem_co3.tif",
+                                              last_modified = "x", etag = "y")
+  check(length(viol_keys(d2)) == 0, "a post-cutover entry carrying both passes")
+  d3 <- d2; d3$floodplain$co_ff04$run$dem_cache$etag <- NULL
+  check(any(grepl("dem_cache missing: etag", viol_keys(d3))),
+        "must-fail: a dem_cache block missing a member IS reported")
+  d4 <- d2; d4$floodplain$co_ff04$run$dem_cache$status <- "cached"
+  check(any(grepl("neither hit nor miss", viol_keys(d4))),
+        "must-fail: a dem_cache status outside {hit, miss} IS reported")
   # Pins the `$` partial-matching trap: read with `$`, `link_log` resolves to `link_log_note` and
   # this case reports a spurious 9-field violation. Read with `[[`, it does not.
   check(is.null(n2$network$co3[["link_log"]]) && !is.null(n2$network$co3$link_log),
@@ -1787,6 +1848,36 @@ if (requireNamespace("terra", quietly = TRUE)) local({
   unlink(cfg$dir_out, recursive = TRUE)
 }) else bad("terra unavailable -- fp_prov_reconcile_late() was NOT checked (a skip is not a pass)")
 
+# --- 5h. The cached DEM reconciles against its record, and refuses a swapped file (#122) ---------
+if (requireNamespace("terra", quietly = TRUE) && requireNamespace("jsonlite", quietly = TRUE)) {
+  cat("\n5h. The cached DEM reconciles against its record (#122)\n")
+  d <- file.path(tempdir(), paste0("fp_prov_dem_", Sys.getpid()))
+  unlink(d, recursive = TRUE); dir.create(d, recursive = TRUE)
+  r <- terra::rast(nrows = 4, ncols = 5, xmin = 0, xmax = 150, ymin = 0, ymax = 120, crs = "EPSG:3005")
+  terra::values(r) <- seq_len(terra::ncell(r)) / 3
+  f <- file.path(d, "dem_co3.tif")
+  terra::writeRaster(r, f, datatype = "FLT8S", overwrite = TRUE)
+  sha <- fp_raster_content_sha256(f)
+  jsonlite::write_json(list(key_sha256 = "sha256:k1", dem_content_sha256 = sha),
+                       file.path(d, "dem_co3.json"), auto_unbox = TRUE)
+  dc <- list(status = "miss", key_sha256 = "sha256:k1", path = "dem_co3.tif")
+  check(identical(dem_cache_reconcile(sha, dc, d)$verdict, "match"),
+        "same key, same digest -> match")
+  check(identical(dem_cache_reconcile(sha, NULL, d)$verdict, "skip"),
+        "an entry with no run$dem_cache (pre-#122) is skipped, not failed")
+  check(identical(dem_cache_reconcile(sha, modifyList(dc, list(key_sha256 = "sha256:k0")), d)$verdict, "skip"),
+        "a cache replaced under another key is skipped")
+  r2 <- r; terra::values(r2) <- terra::values(r) + 0.5
+  terra::writeRaster(r2, file.path(d, "t.tif"), datatype = "FLT8S", overwrite = TRUE)
+  invisible(file.rename(file.path(d, "t.tif"), f))
+  check(identical(dem_cache_reconcile(sha, dc, d)$verdict, "mismatch"),
+        "must-fail: a different DEM under the recorded key is a mismatch")
+  invisible(file.remove(f))
+  check(identical(dem_cache_reconcile(sha, dc, d)$verdict, "skip"),
+        "a removed cache file is skipped (the record is not contradicted, only unverifiable)")
+  unlink(d, recursive = TRUE)
+} else bad("terra unavailable -- dem_cache_reconcile() was NOT checked (a skip is not a pass)")
+
 # --- 6. Producer/guard key drift -----------------------------------------------------------------
 # The guard's declared key sets are only worth their maintenance if they match what the STEPS
 # actually write. A typo on either side would otherwise surface as a failure after a 30-minute
@@ -2083,8 +2174,9 @@ if (length(args) >= 1 && nzchar(args[1])) {
     # describes THIS file", not "this file is correct". That is still worth having, because it is
     # precisely what broke when a zero-transition run digested the previous run's raster.
     #
-    # TWO VALUES CANNOT BE RECONCILED and are skipped rather than faked: `dem_content_sha256` (the
-    # DEM is never written to disk) and, on a SUBSET area, `inputs.network_content_sha256` (taken
+    # TWO VALUES MAY NOT BE RECONCILABLE and are skipped rather than faked: `dem_content_sha256`
+    # when the entry predates the DEM cache or the cache has since been replaced (#122,
+    # dem_cache_reconcile above), and, on a SUBSET area, `inputs.network_content_sha256` (taken
     # pre-subset, and only the post-subset layer is written). Both are reported as skipped so a
     # reader is not left thinking they were checked.
     if (requireNamespace("terra", quietly = TRUE) && requireNamespace("sf", quietly = TRUE)) {
@@ -2173,7 +2265,12 @@ if (length(args) >= 1 && nzchar(args[1])) {
                           if (length(sf_bad)) sprintf(" (found %d: %s)", length(sf_bad),
                               paste(head(sf_bad, 3), collapse = ", ")) else ""))
           }
-          ok(sprintf("floodplain[%s] dem_content_sha256 not reconcilable (the DEM is never written)", e$key))
+          rc <- dem_cache_reconcile(e$body[["inputs"]][["dem_content_sha256"]],
+                                    e$body[["run"]][["dem_cache"]], dd)
+          if (identical(rc$verdict, "skip"))
+            ok(sprintf("floodplain[%s] dem_content_sha256 not reconcilable: %s", e$key, rc$why))
+          else check(identical(rc$verdict, "match"),
+                     sprintf("floodplain[%s] dem_content_sha256 matches the cached DEM (%s)", e$key, rc$why))
         }
         if (identical(e$section, "landcover")) {
           np <- as.integer(o[["transition_patches"]])

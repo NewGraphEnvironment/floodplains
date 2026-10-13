@@ -37,6 +37,12 @@ Relates: flooded#67, #117, flooded#72.
 - `stac_floodplains_bc/scripts/fp_provenance.R` reads `run$datetime_utc` and named fields only; no `dem_*` field is read.
 - `provenance-check.R` pins floodplain inputs keys exactly (`KEYS_FLOODPLAIN`) and skips `dem_content_sha256` in 7c as "not reconcilable (the DEM is never written)".
 
+## Phase 2 (2026-10-13)
+
+- `stac_floodplains_bc/scripts/fp_provenance.R` publishes through `FP_PROV_MAP`, a fixed map of named leaf paths, and refuses only unknown TOP-LEVEL keys (`known <- c("area", ...)`). `inputs$dem_source` and `run$dem_cache` reach no published property and refuse nothing.
+- Adding `dem_source` to `KEYS_FLOODPLAIN` turned every existing area red (`provenance-check.R neexdzii`: 3 "inputs missing: dem_source"). The fix is #117's pattern: required by step time from `DEM_CACHE_SINCE` = 2026-10-13T23:15:00Z, and `run$dem_cache` is required on the same entries.
+- The probe's step-2 replay (`floodplain_probe-whole-fwa.R`) calls `fp_floodplain()` and so needed `fp_dem.R` sourced. Its replay dir is wiped each run, so it always misses, which is what an anchor replay should do.
+
 ## Errors Encountered
 
 | Error | Resolution |
