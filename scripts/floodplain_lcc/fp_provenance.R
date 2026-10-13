@@ -428,7 +428,11 @@ fp_prov_reconcile_late <- function(cfg, key, repaired = character(0), backfill =
     repair$backfilled <- TRUE
     repair$backfilled_utc <- format(Sys.time(), FP_PROV_TS_FMT, tz = "UTC")
   } else {
-    repair$toolchain <- fp_toolchain()
+    # The REPAIR's writer, not fp_toolchain(): that reports sf's GDAL, and the rewrite goes through
+    # terra, which can link a different one (3.13.0 against sf's 3.8.5 on one machine, #117).
+    ver <- function(f) tryCatch(as.character(f()), error = function(e) NA_character_)
+    repair$toolchain <- list(terra = ver(function() utils::packageVersion("terra")),
+                             gdal_terra = ver(function() terra::gdal()))
   }
   fp_prov_restamp(cfg, key, stamp, repair)
   out("restamp", late, stamp)

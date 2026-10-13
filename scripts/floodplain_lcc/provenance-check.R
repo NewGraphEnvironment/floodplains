@@ -1672,10 +1672,11 @@ if (requireNamespace("terra", quietly = TRUE)) local({
   ru <- run_of()
   check(identical(r$status, "restamp") && identical(ru$datetime_utc, "2026-09-01T03:00:00Z"),
         "reconcile: a repaired, digest-matching late raster re-stamps to its FLOORED mtime")
-  check(length(ru$repairs) == 1 && !is.null(ru$repairs[[1]][["toolchain"]]) &&
+  check(length(ru$repairs) == 1 &&
+          identical(ru$repairs[[1]][["toolchain"]][["gdal_terra"]], terra::gdal()) &&
           identical(unlist(ru$repairs[[1]]$files), "classified_2023.tif") &&
           identical(ru$repairs[[1]]$issue, 83L),
-        "reconcile: the forward repair records its files (as a list) and the toolchain that ran")
+        "reconcile: the forward repair records its files (as a list) and TERRA's GDAL, which wrote them")
   m <- md5()
   check(identical(rec(repaired = f23)$status, "current") && identical(m, md5()),
         "reconcile: a second run is a no-op (file md5 unchanged)")

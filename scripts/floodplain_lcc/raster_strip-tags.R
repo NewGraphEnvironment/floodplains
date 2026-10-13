@@ -260,7 +260,14 @@ if (!file.exists(prov_path)) {
   message("\nRe-stamp: ", length(keys), " landcover entr", if (length(keys) == 1) "y" else "ies",
           if (backfill) "  [BACKFILL: re-stamp rasters an earlier run repaired]" else "")
   for (k in keys) {
-    r <- fp_prov_reconcile_late(cfg, k, repaired = repaired_paths, backfill = backfill, dry = dry)
+    # One entry's error must not cost the others their stamp: repaired_paths lives only in this
+    # process, so an entry left unstamped here can later be re-stamped only as a BACKFILL, with its
+    # toolchain lost. An error is a refusal, reported and counted.
+    r <- tryCatch(fp_prov_reconcile_late(cfg, k, repaired = repaired_paths, backfill = backfill,
+                                         dry = dry),
+                  error = function(e) list(status = "refused", late = character(0),
+                                           stamp = NA_character_,
+                                           reason = paste("ERROR:", conditionMessage(e))))
     # Under DRY nothing was rewritten, so the files this run WOULD repair are not late yet.
     pend <- intersect(normalizePath(flagged_paths), normalizePath(fp_prov_lc_rasters(adir, k)))
     if (dry && length(pend))
