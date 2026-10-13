@@ -20,21 +20,30 @@
 #   - buffer, target CRS, source URL;
 #   - the object's Last-Modified AND ETag: NRCan re-deriving MRDEM in place keeps the URL;
 #   - the flooded version: 0.7.0 pinned the grid (flooded#67), and a later release may move it again;
-#   - the warp toolchain: terra's GDAL and PROJ, which warp the DEM, and sf's PROJ, which still picks
-#     the source read window (flooded#78). #117 was a PROJ upgrade moving the DEM ~1.3 m with the
-#     data unchanged. A cache without these in its key would keep the old DEM alive and hide exactly
+#   - the whole toolchain fp_toolchain() records: terra's GDAL and PROJ, which warp the DEM; sf's
+#     PROJ, which still picks the source read window (flooded#78); GEOS, whose st_buffer() vertices
+#     set the bbox both windows come from; and the terra and sf versions themselves. #117 was a PROJ
+#     upgrade moving the DEM ~1.3 m with the data unchanged. A cache without these in its key would keep the old DEM alive and hide exactly
 #     that shift, and `run$toolchain` (recorded from THIS session) would describe a warp that did
 #     not produce the cells. With them in the key, a hit means the cached DEM is what this session
 #     would have fetched.
 #
 # FAILS CLOSED. The key needs a HEAD request to the source. If that fails, step 2 stops: a key that
-# cannot be built is never treated as a match, and a cold fetch needs the network anyway.
+# cannot be built is never treated as a match, and a cold fetch needs the network anyway. The same
+# holds for a toolchain member fp_toolchain() cannot read (NA): step 2 stops rather than hash "NA".
 
 FP_DEM_SOURCE <- paste0("/vsicurl/https://canelevation-dem.s3.ca-central-1.amazonaws.com/",
                         "mrdem-30/mrdem-30-dtm.tif")
 
 # Bumped when the key's ingredients change, so an old sidecar can never match a new key by accident.
 FP_DEM_KEY_SCHEMA <- 1L
+
+# The toolchain members the key carries: everything fp_toolchain() returns.
+FP_DEM_KEY_TOOLCHAIN <- c("terra", "sf", "gdal", "geos", "proj", "gdal_terra", "proj_terra")
+
+# What step 2 records as run$dem_cache, and what provenance-check.R requires there. One list, read by
+# both, so the producer and the guard cannot drift apart.
+FP_DEM_CACHE_RECORD <- c("status", "key_sha256", "path", "last_modified", "etag")
 
 # Last-Modified + ETag of a /vsicurl/ http(s) source, from a HEAD request.
 #
@@ -79,7 +88,9 @@ fp_dem_key <- function(streams, buffer, target_crs, source, object_version,
   per <- vapply(wkb, function(b) digest::digest(as.raw(b), algo = "sha256", serialize = FALSE), "")
   aoi <- digest::digest(paste(c(length(per), per), collapse = "\n"), algo = "sha256",
                         serialize = FALSE)
-  list(
+  miss_tc <- setdiff(FP_DEM_KEY_TOOLCHAIN, names(toolchain))
+  if (length(miss_tc)) stop("toolchain lacks ", paste(miss_tc, collapse = ", "), call. = FALSE)
+  c(list(
     schema         = FP_DEM_KEY_SCHEMA,
     aoi_sha256     = aoi,
     aoi_features   = length(per),
@@ -88,10 +99,9 @@ fp_dem_key <- function(streams, buffer, target_crs, source, object_version,
     source         = source,
     last_modified  = object_version$last_modified,
     etag           = object_version$etag,
-    flooded        = flooded,
-    gdal_terra     = toolchain$gdal_terra,
-    proj_terra     = toolchain$proj_terra,
-    proj_sf        = toolchain$proj)
+    flooded        = flooded),
+    stats::setNames(lapply(FP_DEM_KEY_TOOLCHAIN, function(k) toolchain[[k]]),
+                    paste0("tc_", FP_DEM_KEY_TOOLCHAIN)))
 }
 
 # One hash over the key. Fixed JSON so neither a print option nor a list's R attributes reach it.
@@ -119,9 +129,10 @@ fp_dem_key_diff <- function(old, key) {
 # `stem` is `<species><min_order>`, keyed like streams_<sp><order> (#23), so two species in one area
 # keep two caches rather than evicting each other.
 #
-# Written FLT8S, not FLT4S: the warp is bilinear and terra holds the result as double, so a float
-# write would round it and the cached DEM would not be the one the digest describes (the probe's
-# dem_common.tif made the same call). The write is checked by digest before it is committed.
+# Written FLT8S, which cannot lose whatever terra returns. On terra 1.9.50 the warp's output is
+# float32-exact (measured: all 2,935,855 non-NA cells of neexdzii's DEM), so FLT4S would round-trip
+# today, but that is a terra internal and not a contract. The write is checked by digest before it
+# is committed either way.
 #
 # `fetch` is flooded::fl_dem_aoi; it is an argument only so dem_cache-check.R can count fetches
 # offline.
@@ -165,22 +176,34 @@ fp_dem_cached <- function(streams, buffer, target_crs, dir, stem, source = FP_DE
   message("  DEM fetched in ", round(as.numeric(difftime(Sys.time(), t0, units = "secs")), 1), " s")
   sha <- fp_raster_content_sha256(dem)
 
-  tmp <- tempfile("dem_", tmpdir = dir, fileext = ".tif")
+  # The object may have been replaced during a long fetch (BULK's took 37 min). Asking again closes
+  # that window: a version that moved means these cells may be from either, so nothing is cached.
+  ver2 <- fp_dem_object_version(source)
+  if (!identical(ver2, ver)) {
+    stop("the DEM source changed during the fetch (", ver$etag, " -> ", ver2$etag, "); re-run step 2",
+         call. = FALSE)
+  }
+
+  # A leading dot so the temp names never match dem_*.tif; removed on any exit, including a stop()
+  # inside fp_rast_write().
+  tmp  <- tempfile(".dem_tmp_", tmpdir = dir, fileext = ".tif")
+  tmpj <- tempfile(".dem_tmp_", tmpdir = dir, fileext = ".json")
+  on.exit(unlink(c(tmp, paste0(tmp, ".aux.xml"), tmpj)), add = TRUE)
   fp_rast_write(dem, tmp, overwrite = TRUE, datatype = "FLT8S")
   if (!identical(fp_raster_content_sha256(tmp), sha)) {
-    unlink(tmp)
     stop(basename(tif), " does not round-trip the fetched DEM; not caching it", call. = FALSE)
   }
   # The sidecar is the commit marker, so it goes first on the way out and last on the way in: a crash
   # between the two renames leaves a tif with no sidecar, which is a miss, never an old key over a new
   # file.
   if (file.exists(js) && !file.remove(js)) stop("cannot remove stale ", js, call. = FALSE)
-  if (!file.rename(tmp, tif)) { unlink(tmp); stop("cannot move the DEM into ", tif, call. = FALSE) }
-  tmpj <- tempfile("dem_", tmpdir = dir, fileext = ".json")
+  # A PAM sidecar (written by anyone opening the old file in QGIS) would otherwise describe the new one.
+  unlink(paste0(tif, ".aux.xml"))
+  if (!file.rename(tmp, tif)) stop("cannot move the DEM into ", tif, call. = FALSE)
   jsonlite::write_json(list(key_sha256 = kh, dem_content_sha256 = sha, key = key,
                             written_utc = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")),
                        tmpj, auto_unbox = TRUE, pretty = TRUE, digits = NA)
-  if (!file.rename(tmpj, js)) { unlink(tmpj); stop("cannot write ", js, call. = FALSE) }
+  if (!file.rename(tmpj, js)) stop("cannot write ", js, call. = FALSE)
 
   out <- terra::rast(tif)
   attr(out, "fp_dem_cache") <- info("miss", sha)

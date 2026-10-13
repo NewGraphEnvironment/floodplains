@@ -29,7 +29,8 @@ streams <- sf::st_sf(id = 1:2, geometry = sf::st_sfc(
   sf::st_linestring(rbind(c(1000000, 1000000), c(1001000, 1000500))),
   sf::st_linestring(rbind(c(1001000, 1000500), c(1002000, 1000200))), crs = crs))
 ver <- list(last_modified = "Wed, 24 Jun 2026 15:08:08 GMT", etag = "1bf0-9997")
-tc  <- list(gdal_terra = "3.13.0", proj_terra = "9.8.1", proj = "9.5.1")
+tc  <- list(terra = "1.9.50", sf = "1.1.2", gdal = "3.8.5", geos = "3.12.1", proj = "9.5.1",
+            gdal_terra = "3.13.0", proj_terra = "9.8.1")
 k0  <- fp_dem_key(streams, 2000, crs, FP_DEM_SOURCE, ver, flooded = "0.7.0", toolchain = tc)
 h0  <- fp_dem_key_hash(k0)
 
@@ -62,25 +63,28 @@ moved <- list(
     fp_dem_key(streams, 2000, crs, FP_DEM_SOURCE, modifyList(ver, list(etag = "1bf1-9997")),
                flooded = "0.7.0", toolchain = tc),
   "the flooded version" = function()
-    fp_dem_key(streams, 2000, crs, FP_DEM_SOURCE, ver, flooded = "0.7.1", toolchain = tc),
-  "terra's GDAL" = function()
+    fp_dem_key(streams, 2000, crs, FP_DEM_SOURCE, ver, flooded = "0.7.1", toolchain = tc))
+# Every toolchain member, derived from the key's own list so a member added there is tested here.
+for (m in FP_DEM_KEY_TOOLCHAIN) local({
+  mm <- m
+  moved[[paste0("toolchain member ", mm, if (mm == "proj") " (sf's; flooded#78)" else "")]] <<- function()
     fp_dem_key(streams, 2000, crs, FP_DEM_SOURCE, ver, flooded = "0.7.0",
-               toolchain = modifyList(tc, list(gdal_terra = "3.13.1"))),
-  "terra's PROJ" = function()
-    fp_dem_key(streams, 2000, crs, FP_DEM_SOURCE, ver, flooded = "0.7.0",
-               toolchain = modifyList(tc, list(proj_terra = "9.8.2"))),
-  "sf's PROJ (flooded#78)" = function()
-    fp_dem_key(streams, 2000, crs, FP_DEM_SOURCE, ver, flooded = "0.7.0",
-               toolchain = modifyList(tc, list(proj = "9.8.1"))))
+               toolchain = modifyList(tc, stats::setNames(list("9.9.9"), mm)))
+})
 for (nm in names(moved)) {
   check(!identical(h0, fp_dem_key_hash(moved[[nm]]())), paste0("must-fail: changing ", nm, " moves the key"))
 }
-check(errs(fp_dem_key_hash(modifyList(k0, list(proj_sf = NA_character_)))),
+check(errs(fp_dem_key_hash(modifyList(k0, list(tc_proj = NA_character_)))),
       "must-fail: an NA ingredient is refused rather than hashed as \"NA\"")
 check(errs(fp_dem_key_hash(c(k0, list(extra = character(0))))),
       "must-fail: an empty ingredient is refused")
 check(identical(fp_dem_key_diff(k0, moved[["the buffer"]]()), "buffer_m"),
       "the miss message names the ingredient that moved")
+check(errs(fp_dem_key(streams, 2000, crs, FP_DEM_SOURCE, ver, flooded = "0.7.0",
+                      toolchain = tc[setdiff(names(tc), "geos")])),
+      "must-fail: a toolchain missing a member is refused")
+check(setequal(names(fp_toolchain()), FP_DEM_KEY_TOOLCHAIN),
+      "the key carries exactly what fp_toolchain() records")
 
 cat("\nthe source agrees with flooded's default\n")
 # Parsed from flooded's body rather than restated: a flooded release changing its default is then a
@@ -115,7 +119,10 @@ check(file.exists(tif) && file.exists(js), "the miss writes the tif and its side
 check(identical(fp_raster_content_sha256(tif), fp_raster_content_sha256(fake_dem(streams, NULL, 0, crs))),
       "the cached tif digests like the fetched object (FLT8S, no rounding)")
 n_fetch <- 0L
-check(length(list.files(d, pattern = "^dem_.*[.](tif|json)$")) == 2L, "no temp files left behind")
+check(setequal(list.files(d, all.files = TRUE, no.. = TRUE), c("dem_co3.tif", "dem_co3.json")),
+      "no temp files or sidecars left behind")
+check(all(FP_DEM_CACHE_RECORD %in% names(attr(a, "fp_dem_cache"))),
+      "the returned record carries every member step 2 records (FP_DEM_CACHE_RECORD)")
 
 b <- call_cache()
 check(n_fetch == 0L && identical(attr(b, "fp_dem_cache")$status, "hit"), "a warm call does not fetch (hit)")
@@ -148,6 +155,32 @@ t3 <- call_cache()
 check(n_fetch == 1L, "must-fail: an unreadable sidecar re-fetches")
 n_fetch <- 0L
 check(identical(attr(call_cache(), "fp_dem_cache")$status, "hit"), "and the repaired cache hits again")
+
+n_fetch <- 0L
+writeLines("stale", paste0(tif, ".aux.xml"))
+invisible(call_cache(buffer = 1700))
+check(!file.exists(paste0(tif, ".aux.xml")), "a miss removes a stale PAM sidecar of the old file")
+invisible(call_cache())
+# The source changes between the key's HEAD and the post-fetch HEAD: nothing may be cached.
+n_head <- 0L
+fp_dem_object_version <- function(source, ...) {
+  n_head <<- n_head + 1L
+  if (n_head == 1L) ver else modifyList(ver, list(etag = "moved"))
+}
+invisible(file.remove(js))                # force a miss
+check(errs(call_cache()), "must-fail: a source that changes during the fetch stops the write")
+check(!file.exists(js) && setequal(list.files(d, all.files = TRUE, no.. = TRUE), "dem_co3.tif"),
+      "and leaves no sidecar and no temp file (a miss next time)")
+fp_dem_object_version <- function(source, ...) ver
+# The write itself fails after the temp file exists (fp_rast_write()'s stray-tag stop): the temp file
+# must not survive it.
+real_rast_write <- fp_rast_write
+fp_rast_write <- function(r, path, ...) { terra::writeRaster(r, path, ...); stop("stray tags (fake)") }
+check(errs(call_cache()), "must-fail: a failed write stops the cache")
+check(!any(grepl("^[.]dem_tmp_", list.files(d, all.files = TRUE, no.. = TRUE))),
+      "and removes its temp file")
+fp_rast_write <- real_rast_write
+invisible(call_cache())
 
 cat("\nthe HEAD request fails closed\n")
 fp_dem_object_version <- real_object_version   # back to the real one

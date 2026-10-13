@@ -81,16 +81,28 @@ if (!pinned_pkg && pinned_tif) {
 message("Area: ", area, " | scenario: ", scenario, " | key: ", key,
         " | ", length(unique(streams[[key]])), " groups | ", nrow(streams), " segments")
 
-# The DEM must be the same one the delineation came from, so it is read the same way step 2 reads
-# it: through step 2's cache (#122) over the streams + the scenario's max_width buffer. max_width is
-# 2000, step 2's buffer, in every scenario table today, so this is a cache hit after step 2. A
-# different max_width is a different key: it fetches and replaces the cache, which is correct but
-# costs step 2's next run the fetch. Thresholds come from the scenario ROW, not defaults, so the
-# attribution matches the delineation it is describing.
-buf <- sc$max_width
-message("DEM: MRDEM-30 for the network + ", buf, " m buffer ...")
+# The DEM must be the one the delineation came from, so it is read the way step 2 read it: through
+# step 2's cache (#122), at the buffer step 2 RECORDED for this scenario, and then checked against the
+# digest step 2 recorded. That makes "the same DEM" a check rather than a claim. The scenario's
+# max_width is NOT the buffer: it equals step 2's 2000 in every table today, but a different value
+# would fetch a DEM on another grid, replace step 2's cache, and then stop in fl_valley_attribute()'s
+# extent check. Thresholds still come from the scenario ROW, so the attribution matches the
+# delineation it describes.
+prov_path <- file.path(out_dir, "provenance.json")
+rec <- if (file.exists(prov_path)) jsonlite::read_json(prov_path)$floodplain[[scenario]]$inputs
+if (is.null(rec$dem_buffer_m) || is.null(rec$dem_content_sha256)) {
+  stop("provenance.json has no floodplain[", scenario, "] DEM record (dem_buffer_m, dem_content_sha256) ",
+       "for '", area, "'; re-run step 2 for this scenario first.", call. = FALSE)
+}
+buf <- as.numeric(rec$dem_buffer_m)
+message("DEM: MRDEM-30 for the network + ", buf, " m buffer (step 2's) ...")
 dem <- fp_dem_cached(streams, buffer = buf, target_crs = sf::st_crs(streams),
                      dir = out_dir, stem = paste0(sc$species, cfg$min_order))
+if (!identical(attr(dem, "fp_dem_cache")$dem_content_sha256, rec$dem_content_sha256)) {
+  stop("the DEM read now (", attr(dem, "fp_dem_cache")$dem_content_sha256, ") is not the one ", scenario,
+       " was delineated from (", rec$dem_content_sha256, "): the source, the toolchain or the network ",
+       "has moved since step 2. Re-run step 2 for '", area, "' first.", call. = FALSE)
+}
 
 message("Attributing ", scenario, " by '", key, "' ...")
 attributed <- flooded::fl_valley_attribute(

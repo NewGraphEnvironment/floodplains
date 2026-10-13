@@ -239,8 +239,8 @@ if (mode == "dem") {
   t_dem <- secs(t0)
   sha_mem <- fp_raster_content_sha256(d)
   dem_path <- p_out("dem_common.tif")
-  # FLT8S: the reprojected DEM is double in memory; a float write would round it and the arms would
-  # then not be delineated on the DEM the digest describes.
+  # FLT8S: it cannot lose whatever terra returns, so the arms are delineated on the DEM the digest
+  # describes. (terra 1.9.50's warp output is float32-exact, #122, but that is not a contract.)
   fp_rast_write(d, dem_path, overwrite = TRUE, datatype = "FLT8S")
   sha_file <- fp_raster_content_sha256(dem_path)
   if (!identical(sha_mem, sha_file)) stop("dem_common.tif does not round-trip the fetched DEM", call. = FALSE)

@@ -43,6 +43,24 @@ Relates: flooded#67, #117, flooded#72.
 - Adding `dem_source` to `KEYS_FLOODPLAIN` turned every existing area red (`provenance-check.R neexdzii`: 3 "inputs missing: dem_source"). The fix is #117's pattern: required by step time from `DEM_CACHE_SINCE` = 2026-10-13T23:00:00Z (after the newest pre-#122 step-2 record, neexdzii 22:19:48Z), and `run$dem_cache` is required on the same entries.
 - The probe's step-2 replay (`floodplain_probe-whole-fwa.R`) calls `fp_floodplain()` and so needed `fp_dem.R` sourced. Its replay dir is wiped each run, so it always misses, which is what an anchor replay should do.
 
+## Plan review (Plan agent, delivered 2026-10-13 ~23:16Z) and what was done with it
+
+Verified before acting. Folded in:
+- **B1 (blocker, verified by reading):** `attribute_tag.R` fetched at `buffer = sc$max_width`. Any value other than 2000 gives a different grid, replaces step 2's cache, and then stops at `fl_valley_attribute()`'s extent check. It now reads `dem_buffer_m` from step 2's record and requires the digest to match `dem_content_sha256`.
+- **G1:** the key now carries every `fp_toolchain()` member (terra, sf, gdal, geos, proj, gdal_terra, proj_terra). A test asserts the key's list equals `names(fp_toolchain())`.
+- **G2:** `FP_DEM_CACHE_RECORD` in `fp_dem.R` is the single list that 02 writes and provenance-check requires.
+- **G3/G4:** `dem_cache_reconcile()` now does four things. It checks the path against `network_layer`. It digests whenever the file exists, so a match is a match whatever the key. It treats a same-key sidecar that contradicts the record as a mismatch. It skips only when the key has moved. 5h has an arm for each.
+- **G5:** temp files carry a `.dem_tmp_` prefix and are removed by `on.exit`; a stale `.aux.xml` is removed on a miss. Proven by a failed-write arm (a mutation that drops the `on.exit` turns it red).
+- **G6:** a second HEAD after the fetch refuses to cache if the object changed.
+- **O1:** the cutover is gated on the `dem_resolver` string, not on a clock (`DEM_CACHE_SINCE` removed). One arm covers pre-#122 code running after the merge, one covers a missing resolver.
+- **A1 (verified):** the warp output is float32-exact (neexdzii: 2,935,855 of 2,935,855 non-NA cells). The FLT8S comments in fp_dem.R, 02 and the probe are reworded. FLT8S stays, because it is lossless whatever terra returns.
+- **A2:** the stale comments in fp_provenance.R, provenance-check.R 5c and CLAUDE.md's "cannot be recorded" list are fixed. **A3:** documented.
+- **Acc2/Acc3/Acc5:** Phase 4 now requires "matches the cached DEM" for all three entries, runs `attribute_tag.R neexdzii`, and names the expected `inputs_hash` move.
+
+Not taken:
+- **(4) `curl` missing from packages.R:** wrong. It was added in Phase 1 (commit 8b9b329).
+- **S2 (synthetic in-memory vs file-backed VCA):** not needed. The neexdzii cold run is that test on real data, and every floodplain `outputs_hash` was unchanged.
+
 ## Errors Encountered
 
 | Error | Resolution |

@@ -155,8 +155,9 @@ fp_floodplain <- function(cfg, scenarios = "run") {
   # Before #122 the DEM URL was not recorded either, so NOTHING in the record described the
   # elevation data the published floodplain was cut from.
   #
-  # The cache writes the DEM at FLT8S, so the file holds exactly the warped doubles and digests the
-  # same as the in-memory object did before #122 (fp_dem_cached() checks this on every write).
+  # The cache writes the DEM at FLT8S, so the file holds exactly the cells terra returned and digests
+  # the same as the in-memory object did before #122 (fp_dem_cached() checks this on every write;
+  # measured on neexdzii, the cold run's digest equals the pre-#122 record).
   #
   # ONCE, here, outside the scenario loop: every scenario is delineated from this same DEM, so
   # digesting per scenario would repeat identical work three times for an identical answer.
@@ -314,7 +315,7 @@ fp_floodplain <- function(cfg, scenarios = "run") {
       # The cache event (#122) is `run`, not `inputs`: Last-Modified and ETag can move with no change to
       # the cells, and dem_content_sha256 above already says whether the cells moved.
       run = fp_prov_run(toolchain = fp_toolchain(),
-                        dem_cache = dem_cache[c("status", "key_sha256", "path", "last_modified", "etag")])))
+                        dem_cache = dem_cache[FP_DEM_CACHE_RECORD])))
 
     # --- Per-watercourse attribution (#40) ---
     # Which part of this floodplain belongs to which river? flooded::fl_valley_attribute() applies
