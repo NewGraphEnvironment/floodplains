@@ -41,8 +41,23 @@
 #
 # Idempotent: it touches only files that actually carry stray tags, so a second run finds nothing.
 #
-# usage: Rscript scripts/floodplain_lcc/raster_strip-tags.R <area>       # repair
-#        DRY=1 Rscript scripts/floodplain_lcc/raster_strip-tags.R <area> # report only
+# IT ALSO RE-STAMPS THE RECORD (#126). A repair makes new bytes, so landcover[<scen>].run.datetime_utc
+# -- published as nge:produced_datetime, and the reference stac_floodplains_bc's staging guard
+# compares each raster's mtime against -- has to move with them. PR #85 did not, and necr and kotl
+# could not be staged. After the sweep, every landcover entry whose rasters are newer than its stamp
+# is reconciled by fp_prov_reconcile_late(): each late raster must still match its recorded content
+# digest (a re-stamp says "same content, written later"), the stamp moves to the newest one's mtime,
+# and run.repairs records the repair and the stamp it replaced. Keyed on STATE, not on what this run
+# did, because the script is idempotent: a re-run after a repair that forgot to re-stamp finds
+# nothing to strip, so a re-stamp keyed on its own repairs could never catch up. State cannot say
+# WHY a file is late, though, so a late file this run did not repair is re-stamped only under
+# BACKFILL=1, and only if it carries no stray tags. Step 2's floodplain rasters are not re-stamped:
+# none has needed it, and moving floodplain[] past landcover[] would trip the composition guard.
+#
+# usage: Rscript scripts/floodplain_lcc/raster_strip-tags.R <area>              # repair + re-stamp
+#        DRY=1 Rscript scripts/floodplain_lcc/raster_strip-tags.R <area>        # report only
+#        BACKFILL=1 Rscript scripts/floodplain_lcc/raster_strip-tags.R <area>   # also re-stamp
+#            rasters an EARLIER run repaired (the necr/kotl case after PR #85)
 
 suppressMessages({library(terra); library(sf)})
 
@@ -62,6 +77,7 @@ source(file.path(fp_root, "scripts", "floodplain_lcc", "fp_provenance.R"))
 area <- commandArgs(TRUE)[1]
 if (is.na(area)) stop("usage: Rscript raster_strip-tags.R <area>", call. = FALSE)
 dry <- nzchar(Sys.getenv("DRY"))
+backfill <- nzchar(Sys.getenv("BACKFILL"))
 
 adir <- file.path(fp_root, "data", area)
 if (!dir.exists(adir)) stop("no data/ for area '", area, "' under ", fp_root, call. = FALSE)
@@ -105,12 +121,14 @@ if (length(orphans)) {
 }
 
 flagged <- 0L; repaired <- 0L; clean <- 0L; failed <- character(0)
+flagged_paths <- character(0); repaired_paths <- character(0)
 
 for (f in tifs) {
   stray <- fp_rast_stray_tags(f)
   if (!length(stray)) { clean <- clean + 1L; next }
 
   flagged <- flagged + 1L
+  flagged_paths <- c(flagged_paths, f)
   rel <- sub(paste0("^", adir, "/"), "", f)
   message("  ", if (dry) "would repair" else "REPAIR", ": ", rel,
           " (", length(stray), " stray: ", paste(head(stray, 2), collapse = ", "), ", ...)")
@@ -213,13 +231,55 @@ for (f in tifs) {
             if (had_cats) "one -- inspect this file by hand" else "", "."); next
   }
   repaired <- repaired + 1L
+  repaired_paths <- c(repaired_paths, f)
   message("    ok: ", length(stray), " tags removed, content sha unchanged (", substr(sha_after, 1, 19), "...)")
 }
 
 message("\n", if (dry) "Would repair " else "Repaired ", if (dry) flagged else repaired,
         " of ", length(tifs), " raster", if (length(tifs) != 1) "s" else "", "; ", clean,
         " already clean", if (length(failed)) paste0("; ", length(failed), " FAILED") else "", ".")
-if (length(failed)) {
-  message("FAILED (left untouched): ", paste(failed, collapse = ", "))
-  quit(status = 1L)
+
+# --- Re-stamp the record (#126) ----------------------------------------------------------------
+# BEFORE the exit on a failed file: a failed file kept its old mtime and is not late, while the ones
+# that were repaired are, and leaving them unstamped is exactly the state #126 fixes.
+# The cfg carries the TRUE area and group: fp_prov_read() overwrites both in the file from cfg, so
+# a NULL here would delete the key on write.
+restamp_failed <- character(0)
+prov_path <- file.path(adir, "provenance.json")
+ayml <- file.path(fp_root, "config", area, "area.yml")
+wsg <- if (file.exists(ayml)) yaml::read_yaml(ayml)[["watershed_group"]] else NULL
+if (!file.exists(prov_path)) {
+  message("\nRe-stamp: no provenance.json for ", area, " -- nothing to reconcile.")
+} else if (!is.character(wsg) || length(wsg) != 1L || !nzchar(wsg)) {
+  restamp_failed <- "provenance"
+  message("\nRe-stamp: ABORT -- no watershed_group in ", ayml, ", so the record cannot be ",
+          "rewritten without losing its `wsg`.")
+} else {
+  cfg <- list(area = area, watershed_group = wsg, dir_out = adir)
+  keys <- names(fp_prov_read(cfg)[["landcover"]])
+  message("\nRe-stamp: ", length(keys), " landcover entr", if (length(keys) == 1) "y" else "ies",
+          if (backfill) "  [BACKFILL: re-stamp rasters an earlier run repaired]" else "")
+  for (k in keys) {
+    r <- fp_prov_reconcile_late(cfg, k, repaired = repaired_paths, backfill = backfill, dry = dry)
+    # Under DRY nothing was rewritten, so the files this run WOULD repair are not late yet.
+    pend <- intersect(normalizePath(flagged_paths), normalizePath(fp_prov_lc_rasters(adir, k)))
+    if (dry && length(pend))
+      message("  landcover[", k, "]: would re-stamp after repairing ", length(pend), " raster(s)")
+    switch(r$status,
+      current       = if (!(dry && length(pend))) message("  landcover[", k, "]: current"),
+      would_restamp = message("  landcover[", k, "]: would re-stamp to ", r$stamp, " (",
+                              length(r$late), " late raster(s))"),
+      restamp       = message("  landcover[", k, "]: re-stamped to ", r$stamp, " (",
+                              length(r$late), " late raster(s))"),
+      refused       = { restamp_failed <- c(restamp_failed, k)
+                        message("  landcover[", k, "]: NOT re-stamped -- ", r$reason) })
+  }
 }
+fp_repaired <- grep("/floodplain_[^/]*\\.tif$", repaired_paths, value = TRUE)
+if (length(fp_repaired))
+  message("NOTE: ", length(fp_repaired), " floodplain raster(s) were repaired and their ",
+          "floodplain[] stamp was NOT moved: ", paste(basename(fp_repaired), collapse = ", "))
+
+if (length(failed)) message("FAILED (left untouched): ", paste(failed, collapse = ", "))
+if (length(restamp_failed)) message("NOT RE-STAMPED: ", paste(restamp_failed, collapse = ", "))
+if (length(failed) || length(restamp_failed)) quit(status = 1L)

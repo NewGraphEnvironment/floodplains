@@ -64,27 +64,27 @@ toolchain, previous_datetime_utc}`. `run` is unhashed and not whitelisted, and s
 - [x] 5g arms: digest-matching late files re-stamp; a mismatched or unrecorded digest refuses with
       the file's md5 unchanged; late-but-not-repaired refuses without backfill; dry writes
       nothing; a second call is a no-op.
-- [ ] `raster_strip-tags.R`: cfg from the CLI `area` + `config/<area>/area.yml`
+- [x] `raster_strip-tags.R`: cfg from the CLI `area` + `config/<area>/area.yml`
       `watershed_group`, asserted non-empty (A3). The reconcile runs for each landcover entry
       BEFORE the final `quit(status = 1)` (O1), with `BACKFILL=1` passed through. Under DRY a
       flagged file is reported as "would re-stamp after repair" (O2). No provenance.json or no
       landcover section: reported and skipped.
-- [ ] Floodplain rasters (`floodplain_<scen>.tif`) are out of scope. None has ever been repaired,
+- [x] Floodplain rasters (`floodplain_<scen>.tif`) are out of scope. None has ever been repaired,
       and re-stamping `floodplain[]` later than `landcover[]` would trip the composition guard.
       If one is repaired, the script says so and says the stamp was not moved.
-- [ ] Update the header comment: the script now writes provenance (and why it keys on state).
+- [x] Update the header comment: the script now writes provenance (and why it keys on state).
 
 ## Phase 3: Backfill necr and kotl (live)
-- [ ] Snapshot `data/{necr,kotl}/provenance.json` (byte copies) first.
-- [ ] `DRY=1` on both: expect 0 to repair, and a re-stamp of 19:14:08Z -> 22:44:28Z (necr) and
+- [x] Snapshot `data/{necr,kotl}/provenance.json` (byte copies) first.
+- [x] `DRY=1` on both: expect 0 to repair, and a re-stamp of 19:14:08Z -> 22:44:28Z (necr) and
       19:46:31Z -> 22:47:07Z (kotl).
-- [ ] `BACKFILL=1` real run on both, then: `provenance-check.R necr` / `kotl` pass (they fail
+- [x] `BACKFILL=1` real run on both, then: `provenance-check.R necr` / `kotl` pass (they fail
       before the run, captured in the log, review AC2). Parsed comparison against the snapshot
       with the entry's `run` removed is identical (review A1; not a text diff). A second run
       leaves the file's md5 unchanged (AC1).
-- [ ] Check the stac guard reads it: call stac's `fp_prov_rasters_current()` read-only on both
+- [x] Check the stac guard reads it: call stac's `fp_prov_rasters_current()` read-only on both
       areas, set up as `01_stage.R:260-264` does (PROV_FIELDS defined, stac root as cwd; review O3). No staging and no publish (one-way coupling).
-- [ ] Commit the run log: `scripts/floodplain_lcc/logs/<yyyymmdd>_provenance_restamp_necr-kotl.md`.
+- [x] Commit the run log: `scripts/floodplain_lcc/logs/<yyyymmdd>_provenance_restamp_necr-kotl.md`.
 
 ## Phase 4: Docs
 - [ ] CLAUDE.md #83 bullet: the repair re-stamps `landcover.run.datetime_utc` and records

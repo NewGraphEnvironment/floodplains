@@ -17,3 +17,10 @@
   (7 classified each); bulk and lnth pass.
 - Mutation table (scratch copy): digest, backfill, stray-tag, no-digest, mtime floor and
   forward-only mutants each turn 5g red.
+- Phase 2: raster_strip-tags.R tracks flagged/repaired paths and runs the reconcile for every
+  landcover entry before its exit; `BACKFILL=1` opts in to re-stamping an earlier run's repair.
+- Phase 3 (live): necr 19:14:08Z -> 22:44:28Z, kotl 19:46:31Z -> 22:47:07Z. The parsed comparison
+  matches the snapshot outside `run`, the second run leaves the md5 unchanged, provenance-check
+  passes on both, and stac's guard passes on both (it stops on the pre-backfill necr snapshot).
+  Without BACKFILL the run refuses and leaves the md5 unchanged; bulk reports `current`, md5
+  unchanged. Log: scripts/floodplain_lcc/logs/20261013_provenance_restamp_necr-kotl.md
