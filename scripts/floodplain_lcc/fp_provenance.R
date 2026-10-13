@@ -345,7 +345,13 @@ fp_prov_restamp <- function(cfg, key, datetime_utc, repair) {
   step3_t <- fp_prov_ts(step3 %||% NA_character_)
   if (is.na(step3_t)) stop("provenance: landcover[", key, "].run.repairs[[1]] has no parseable ",
                            "previous_datetime_utc, so the step-3 time is unknown", call. = FALSE)
-  fp_t <- fp_prov_ts(prov[["floodplain"]][[key]][["run"]][["datetime_utc"]] %||% NA_character_)
+  fp_ent <- prov[["floodplain"]][[key]]
+  fp_t <- fp_prov_ts(fp_ent[["run"]][["datetime_utc"]] %||% NA_character_)
+  # No floodplain entry: nothing to order against. An entry whose stamp cannot be read is NOT that
+  # -- `NA > x` would wave the re-stamp through (the isTRUE() form fp_composition.R uses).
+  if (!is.null(fp_ent) && is.na(fp_t))
+    stop("provenance: floodplain[", key, "] has no parseable run$datetime_utc, so it cannot be ",
+         "ordered against the landcover step", call. = FALSE)
   if (!is.na(fp_t) && fp_t > step3_t)
     stop("provenance: refusing to re-stamp landcover[", key, "]: floodplain[", key, "] was re-run (",
          prov[["floodplain"]][[key]][["run"]][["datetime_utc"]], ") after the landcover step (",

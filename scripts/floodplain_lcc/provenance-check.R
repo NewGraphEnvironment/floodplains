@@ -1614,6 +1614,10 @@ local({
   fp_prov_write(cfg, fp_later)
   check(refuses("2026-09-03T00:00:00Z", why = "OLD floodplain"),
         "must-fail: a re-stamp past a step-2 re-run is refused (compared with the STEP-3 time, not an earlier repair's)")
+  fp_later$floodplain$co_ff04$run$datetime_utc <- "2026-08-31"
+  fp_prov_write(cfg, fp_later)
+  check(refuses("2026-09-03T00:00:00Z", why = "floodplain.*parseable"),
+        "must-fail: an unparseable floodplain stamp refuses rather than reading as 'no floodplain'")
   fp_later$floodplain$co_ff04$run$datetime_utc <- "2026-08-31T00:00:00Z"
   fp_prov_write(cfg, fp_later)
 

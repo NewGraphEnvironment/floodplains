@@ -580,6 +580,12 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
     `inputs_hash` on every live entry. It edits `run` in place, verifies the file on disk, and
     restores the original bytes if anything else moved.
   - `provenance-check.R` 7c now fails a raster newer than its stamp.
+  - **`run` can now hold more than one event.** `datetime_utc` is when the bytes were last written.
+    The step-3 time is `run.repairs[[1]].previous_datetime_utc` when there are repairs. A reader
+    asking "did step 3 re-run?" must read that, not `datetime_utc`. The re-stamp refuses to move
+    past a floodplain re-run, because `fp_composition.R`'s ordering guard reads `datetime_utc`.
+    Three readers (`provenance_ab-compare.R`'s liveness check and two stac pin checks) read a moved
+    stamp as a re-run and skip; they do not pass wrongly.
 
   necr and kotl are re-stamped (`logs/20261013_provenance_restamp_necr-kotl.md`).
 - `scripts/publish_hint.R` — `fp_publish_hint()`: after a run producing publishable outputs (steps 2

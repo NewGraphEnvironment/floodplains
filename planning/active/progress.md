@@ -25,3 +25,11 @@
   Without BACKFILL the run refuses and leaves the md5 unchanged; bulk reports `current`, md5
   unchanged. Log: scripts/floodplain_lcc/logs/20261013_provenance_restamp_necr-kotl.md
 - Phase 4: CLAUDE.md #83 bullet updated. The issue table matched the measured stamps exactly, so the issue body was not edited.
+- /code-check branch, three rounds (review-round{1,2,3}.md):
+  R1 2 findings (repair recorded sf's GDAL, not terra's; one entry's error aborted the loop).
+  R2 2 findings: re-stamping could switch off fp_composition's step-2-re-run guard (fixed: refuse
+  against the step-3 time); R1's tryCatch missed fp_prov_read one line over (inside a fix, so an
+  enumeration was needed; every raising call in the block enumerated).
+  R3 no bugs: unparseable floodplain stamp read as "none" (fixed with a must-fail arm); the reader
+  enumeration of run.datetime_utc covered 11 readers across both repos. Loop ended by enumeration:
+  every NA branch in the new code stops or refuses.

@@ -94,7 +94,7 @@ toolchain, previous_datetime_utc}`. `run` is unhashed and not whitelisted, and s
 
 ## Validation
 
-- [ ] Tests pass: `provenance-check.R` (offline) passes, and passes for necr, kotl, bulk and lnth
-- [ ] `/code-check` clean (each commit, or once over the branch with `/code-check branch`)
-- [ ] PWF checkboxes match landed work
+- [x] Tests pass: `provenance-check.R` (offline) passes, and passes for necr, kotl, bulk and lnth
+- [x] `/code-check` clean (each commit, or once over the branch with `/code-check branch`)
+- [x] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion
