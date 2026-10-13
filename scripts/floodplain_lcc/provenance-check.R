@@ -1608,6 +1608,15 @@ local({
   check(refuses("2026-09-03T00:00:00Z", key = "ch_ff06", why = "no landcover"),
         "must-fail: a missing entry is refused")
 
+  # Step 2 re-run after step 3: the rasters are masked to the old floodplain, and moving the stamp
+  # past the floodplain's would switch off fp_composition.R's only check for exactly that.
+  fp_later <- read(); fp_later$floodplain$co_ff04$run$datetime_utc <- "2026-09-01T06:00:00Z"
+  fp_prov_write(cfg, fp_later)
+  check(refuses("2026-09-03T00:00:00Z", why = "OLD floodplain"),
+        "must-fail: a re-stamp past a step-2 re-run is refused (compared with the STEP-3 time, not an earlier repair's)")
+  fp_later$floodplain$co_ff04$run$datetime_utc <- "2026-08-31T00:00:00Z"
+  fp_prov_write(cfg, fp_later)
+
   # A MUTANT helper that also edits `inputs` on its way to the write. The on-disk comparison inside
   # fp_prov_restamp() is the only thing that can catch it, so this is the arm that shows it can fire,
   # and that it puts the original bytes back.

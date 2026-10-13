@@ -247,7 +247,10 @@ message("\n", if (dry) "Would repair " else "Repaired ", if (dry) flagged else r
 restamp_failed <- character(0)
 prov_path <- file.path(adir, "provenance.json")
 ayml <- file.path(fp_root, "config", area, "area.yml")
-wsg <- if (file.exists(ayml)) yaml::read_yaml(ayml)[["watershed_group"]] else NULL
+# Read inside a net too: everything in this block that can raise is caught, so the summary below is
+# always printed (enumerated in code-check round 2; this read and fp_prov_read were the two).
+wsg <- if (file.exists(ayml)) tryCatch(yaml::read_yaml(ayml)[["watershed_group"]],
+                                       error = function(e) NULL) else NULL
 if (!file.exists(prov_path)) {
   message("\nRe-stamp: no provenance.json for ", area, " -- nothing to reconcile.")
 } else if (!is.character(wsg) || length(wsg) != 1L || !nzchar(wsg)) {
@@ -256,8 +259,12 @@ if (!file.exists(prov_path)) {
           "rewritten without losing its `wsg`.")
 } else {
   cfg <- list(area = area, watershed_group = wsg, dir_out = adir)
-  keys <- names(fp_prov_read(cfg)[["landcover"]])
-  message("\nRe-stamp: ", length(keys), " landcover entr", if (length(keys) == 1) "y" else "ies",
+  # Inside the same net as each entry: an unreadable record after rasters were renamed into place
+  # must still reach the FAILED / NOT RE-STAMPED summary below.
+  keys <- tryCatch(names(fp_prov_read(cfg)[["landcover"]]), error = function(e) {
+    restamp_failed <<- "provenance"
+    message("\nRe-stamp: ABORT -- ", conditionMessage(e)); character(0) })
+  if (!length(restamp_failed)) message("\nRe-stamp: ", length(keys), " landcover entr", if (length(keys) == 1) "y" else "ies",
           if (backfill) "  [BACKFILL: re-stamp rasters an earlier run repaired]" else "")
   for (k in keys) {
     # One entry's error must not cost the others their stamp: repaired_paths lives only in this

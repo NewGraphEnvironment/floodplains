@@ -334,6 +334,22 @@ fp_prov_restamp <- function(cfg, key, datetime_utc, repair) {
   # A stamp only moves forward. An earlier one would claim the bytes predate the run that wrote them.
   if (new_t <= old_t) stop("provenance: refusing to re-stamp landcover[", key, "] from ", old,
                            " to ", datetime_utc, " -- not later than the current stamp", call. = FALSE)
+  # The stamp is also the ONLY evidence of which floodplain the rasters were masked to:
+  # fp_composition.R refuses when floodplain[].run is later than landcover[].run, and the landcover
+  # record holds no floodplain digest. Re-stamping past a step-2 re-run would switch that guard off
+  # and let a composition be built from rasters masked to the old floodplain (code-check round 2).
+  # So the floodplain is compared with the STEP-3 time -- the first repair's previous stamp once
+  # there has been one -- never with a stamp an earlier repair already moved.
+  reps <- ent[["run"]][["repairs"]]
+  step3 <- if (length(reps)) reps[[1]][["previous_datetime_utc"]] else old
+  step3_t <- fp_prov_ts(step3 %||% NA_character_)
+  if (is.na(step3_t)) stop("provenance: landcover[", key, "].run.repairs[[1]] has no parseable ",
+                           "previous_datetime_utc, so the step-3 time is unknown", call. = FALSE)
+  fp_t <- fp_prov_ts(prov[["floodplain"]][[key]][["run"]][["datetime_utc"]] %||% NA_character_)
+  if (!is.na(fp_t) && fp_t > step3_t)
+    stop("provenance: refusing to re-stamp landcover[", key, "]: floodplain[", key, "] was re-run (",
+         prov[["floodplain"]][[key]][["run"]][["datetime_utc"]], ") after the landcover step (",
+         step3, "), so these rasters are masked to the OLD floodplain. Re-run step 3.", call. = FALSE)
 
   repair$previous_datetime_utc <- old
   repair$datetime_utc <- datetime_utc
