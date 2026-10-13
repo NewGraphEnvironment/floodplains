@@ -191,8 +191,8 @@ actually modelled in a group at the configured order, so a group could in princi
 the second entry.
 
 This is **what is configured**, which is not the same as what has been modelled, published, or
-re-run at the current model version — MCGR and PINE are published but cannot be re-run as things
-stand (#76). For what is actually available to download, ask the catalogue rather than this page.
+re-run at the current model version — every published floodplain predates the DEM grid fix in
+`flooded` 0.7.0 (#117), and MCGR and PINE cannot be re-run as things stand (#76). For what is actually available to download, ask the catalogue rather than this page.
 
 ## Running it
 

@@ -24,7 +24,7 @@
 #
 # RE-BASELINED 2026-10-13 under flooded 0.7.0, whose DEM grid is pinned (30 m, aligned to multiples
 # of 30, fixed datum step; #117, flooded#67). Two runs reproduced every floodplain and landcover
-# digest byte for byte. The network is unchanged from the 2026-09-01 baseline (same content digest).
+# digest byte for byte. The network content digest is unchanged from the 2026-09-02 record.
 # The 2026-09-01 contract (673.5 / 142.8 / 770.0, flooded 0.5.0) sat on a grid that moved with PROJ.
 # The one before it (678.2 / 171.0 / 943.13) is DEAD: a bankfull regression fed hectares where Hall
 # et al. specify km² and mm where they specify cm/yr. Record each as a fresh contract, never as a

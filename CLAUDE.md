@@ -165,8 +165,8 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
     without `REFRESH=1`, and stamps `snapshot=<UTC>; rows=…; record=…` with `COMMENT ON TABLE`. The
     composition copies that stamp into its provenance. A reload moves `in_alr` and every ALR share.
   - **Forward-only:** necr and bulk carry both the table and `in_alr` (backfilled). neexdzii carries
-    them from a full step 3, which reproduced the 2026-09-01 parity (770.0 ha, 2,032 patches, the
-    transition `outputs_hash` byte-identical); it has since been re-baselined on flooded 0.7.0's grid
+    them from a full step 3, which reproduced parity (770.0 ha, 2,032 patches, the transition
+    `outputs_hash` byte-identical to the record before it); it has since been re-baselined on flooded 0.7.0's grid
     (#117: 773.4 ha, 2,018 patches). Every other area gains them on its next step 3. `composition-check.R [area]` asserts it all.
 - **IO LULC accuracy (#93): `scripts/landcover_accuracy/` + `reference/<area>/`.** Measures the
   error of the land cover under every number here with a stratified reference sample (Olofsson
@@ -242,8 +242,8 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   grid followed. flooded 0.7.0 pins the grid and the datum step (flooded#67); step 2 refuses
   anything older. `fp_toolchain()` now records terra's GDAL and PROJ (`gdal_terra`, `proj_terra`)
   beside sf's, required on entries written after #117. Every step-2 record from before 0.7.0 is on
-  the old grid; areas are re-run as whole-network under #125. The probe's own figures are on the
-  old grid and were not re-run. Verdict and rule: `research/whole_fwa_floodplain.md`.
+  a pre-pin grid; areas are re-run as whole-network under #125. The probe's own figures are on a
+  pre-pin grid and were not re-run. Verdict and rule: `research/whole_fwa_floodplain.md`.
 - **Habitat join on the blue-line floodplain (#104; `habitat_join-demo.R`).** Join habitat by
   position, never by blue line: by blue line, a polygon takes any habitat anywhere on its blue line
   (MORR: 82% of the floodplain reads as chinook spawning). Each cell takes the nearest segment on a
@@ -649,8 +649,8 @@ Coexistence is data-layer only (steps 01/02/03).
   **Re-baselined 2026-10-13 (#117)** under flooded 0.7.0's pinned grid — coho-3 network
   **673.5 km**, floodplain `co_ff04` **142.0 km²**, floodplain tree loss **773.4 ha** (2,018
   patches). Two runs reproduced every floodplain and landcover digest byte for byte, and the network
-  digest is unchanged from 09-01. The move from 09-01 spans flooded 0.5.0 → 0.7.0, the grid pin
-  among it; evidence `scripts/floodplain_lcc/logs/20261013_flooded070_rebaseline_neexdzii.md`.
+  content digest is unchanged from the 2026-09-02 record. The move from the 09-01 contract spans
+  flooded 0.5.0 → 0.7.0, the grid pin among it; evidence `scripts/floodplain_lcc/logs/20261013_flooded070_rebaseline_neexdzii.md`.
   **Re-baselined 2026-09-01** — 673.5 km / 142.8 km² / 770.0 ha, on the grid that moved with
   PROJ. The contract before that (678.2 km / 171.0 km² / 943.13 ha) is
   **dead, not merely superseded**: it was produced by flooded ≤ 0.4.1, whose bankfull regression was

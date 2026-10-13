@@ -29,7 +29,7 @@ Toolchain recorded in every new entry's `run.toolchain`: terra 1.9.50, sf 1.1.2,
 **New contract:** coho-3 network **673.5 km**, floodplain `co_ff04` **142.0 km²**, floodplain
 tree loss **773.4 ha**.
 
-| | 2026-09-01 contract | 2026-10-13 |
+| | before (contract of 2026-09-01; record: network and floodplain 2026-09-02, landcover 2026-10-02) | 2026-10-13 |
 |---|---|---|
 | network (km, segments) | 673.48, 1,915 | 673.48, 1,915 (content digest identical) |
 | `co_ff04` (km²) | 142.823 (153,836 cells at 30.46984 m) | 142.040 (157,822 cells at 30 m) |
