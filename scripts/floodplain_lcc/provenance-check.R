@@ -1516,6 +1516,212 @@ if (!(requireNamespace("terra", quietly = TRUE) && requireNamespace("sf", quietl
   unlink(d, recursive = TRUE)
 }
 
+# --- 5g. A raster newer than its run stamp, and the re-stamp that repairs it (#126) ----------------
+# PR #85 rewrote necr's and kotl's classified rasters in place and left landcover.run.datetime_utc
+# behind them. stac_floodplains_bc's fp_prov_rasters_current() then refused to stage both, and the
+# first place that noticed was the publish layer -- nothing here compared a raster's mtime with its
+# stamp. fp_prov_late_rasters() is that comparison, by the publish guard's own rule (classified +
+# transition, mtime floored to the second); fp_prov_restamp() moves the stamp and nothing else.
+# Only mtimes matter to the first half, so the "rasters" are text files.
+cat("\n5g. Rasters newer than their run stamp, and the re-stamp (#126)\n")
+local({
+  cfg <- fixture_cfg()
+  stamp <- "2026-09-01T00:00:00Z"
+  t0 <- as.POSIXct(stamp, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  rd <- file.path(cfg$dir_out, "rasters", "co_ff04")
+  dir.create(rd, recursive = TRUE, showWarnings = FALSE)
+  cl <- file.path(rd, c("classified_2017.tif", "classified_2023.tif"))
+  tr <- file.path(rd, "transition.tif")
+  other <- c(paste0(cl[1], ".aux.xml"), file.path(cfg$dir_out, "floodplain_co_ff04.tif"))
+  for (f in c(cl, tr, other)) writeLines("x", f)
+  ent <- list(run = list(datetime_utc = stamp))
+  late <- function() basename(fp_prov_late_rasters(cfg$dir_out, "co_ff04", ent))
+
+  invisible(Sys.setFileTime(c(cl, tr, other), t0 - 15))
+  check(length(late()) == 0, "rasters written before their stamp are not late")
+  invisible(Sys.setFileTime(cl[1], t0 + 0.9))
+  check(length(late()) == 0, "a raster from the stamp's own second is the record's own raster")
+  invisible(Sys.setFileTime(other, t0 + 3 * 3600))
+  check(length(late()) == 0,
+        "a late sidecar or floodplain raster is not counted (the publish guard does not stage them)")
+  invisible(Sys.setFileTime(cl[2], t0 + 3 * 3600))
+  check(identical(late(), "classified_2023.tif"), "must-fail: a classified raster past the stamp IS late")
+  invisible(Sys.setFileTime(tr, t0 + 1))
+  check(identical(late(), c("classified_2023.tif", "transition.tif")),
+        "must-fail: transition.tif one second past the stamp IS late")
+  for (bad_ent in list(list(run = list()), list(run = list(datetime_utc = "2026-09-01")))) {
+    check(tryCatch({ fp_prov_late_rasters(cfg$dir_out, "co_ff04", bad_ent); FALSE },
+                   error = function(e) grepl("parseable", conditionMessage(e))),
+          sprintf("must-fail: an unparseable stamp (%s) errors rather than reporting nothing late",
+                  deparse(bad_ent$run$datetime_utc %||% "absent")))
+  }
+
+  # fp_prov_restamp(): the run block moves, nothing else does.
+  g <- good_prov()
+  g$landcover$co_ff04$composition <- list(inputs = list(a = 1L), inputs_hash = "sha256:dd",
+                                          run = list(datetime_utc = "2026-10-02T00:00:00Z"))
+  fp_prov_write(cfg, g)
+  # identical() on the objects, not a hash: the JSON writes 2017L and 2017 alike (measured -- the
+  # integer->double arm below passed through fp_prov_hash()).
+  sans_run <- function(p) { p$landcover$co_ff04$run <- NULL; p }
+  read <- function() fp_prov_read(cfg)
+  p0 <- read()
+  rep1 <- list(kind = "container_strip", issue = 83L, files = list("classified_2023.tif"))
+  suppressMessages(fp_prov_restamp(cfg, "co_ff04", "2026-09-01T03:00:00Z", rep1))
+  p1 <- read()
+  r1 <- p1$landcover$co_ff04$run
+  check(identical(r1$datetime_utc, "2026-09-01T03:00:00Z"), "re-stamp moves run$datetime_utc")
+  check(length(r1$repairs) == 1 && identical(r1$repairs[[1]]$previous_datetime_utc, stamp) &&
+          identical(r1$repairs[[1]]$datetime_utc, "2026-09-01T03:00:00Z") &&
+          identical(r1$repairs[[1]]$kind, "container_strip"),
+        "re-stamp records the repair with the stamp it replaced")
+  check(identical(r1$toolchain, p0$landcover$co_ff04$run$toolchain),
+        "re-stamp keeps the step-3 run's toolchain")
+  check(identical(sans_run(p0), sans_run(p1)),
+        "re-stamp leaves everything outside the entry's run byte-identical (hashes, composition, other sections)")
+  # The comparator above must be able to go red, or it is decoration.
+  dmg <- p1; dmg$landcover$co_ff04$composition$inputs_hash <- "sha256:ee"
+  check(!identical(sans_run(p1), sans_run(dmg)),
+        "must-fail: a write that also moved the composition sibling IS seen by the comparison")
+  dmg <- p1; dmg$landcover$co_ff04$inputs$years <- list(2017, 2023)
+  check(!identical(sans_run(p1), sans_run(dmg)),
+        "must-fail: an integer becoming a double inside inputs IS seen by the comparison")
+
+  suppressMessages(fp_prov_restamp(cfg, "co_ff04", "2026-09-02T00:00:00Z",
+                                   list(kind = "container_strip", issue = 83L)))
+  r2 <- read()$landcover$co_ff04$run
+  check(length(r2$repairs) == 2 && identical(r2$repairs[[1]], r1$repairs[[1]]) &&
+          identical(r2$repairs[[2]]$previous_datetime_utc, "2026-09-01T03:00:00Z"),
+        "a second repair APPENDS, keeping the first")
+
+  refuses <- function(dt, key = "co_ff04", why) {
+    before <- unname(tools::md5sum(fp_prov_path(cfg)))
+    hit <- tryCatch({ suppressMessages(fp_prov_restamp(cfg, key, dt, list(kind = "x"))); FALSE },
+                    error = function(e) grepl(why, conditionMessage(e)))
+    isTRUE(hit) && identical(before, unname(tools::md5sum(fp_prov_path(cfg))))
+  }
+  check(refuses("2026-09-01T12:00:00Z", why = "not later"),
+        "must-fail: an EARLIER stamp is refused and nothing is written")
+  check(refuses("2026-09-02T00:00:00Z", why = "not later"),
+        "must-fail: the SAME stamp is refused (a stamp only moves forward)")
+  check(refuses("2026-09-03", why = "is not"), "must-fail: a stamp not in the UTC format is refused")
+  check(refuses("2026-09-03T00:00:00Z", key = "ch_ff06", why = "no landcover"),
+        "must-fail: a missing entry is refused")
+
+  # A MUTANT helper that also edits `inputs` on its way to the write. The on-disk comparison inside
+  # fp_prov_restamp() is the only thing that can catch it, so this is the arm that shows it can fire,
+  # and that it puts the original bytes back.
+  mutant <- fp_prov_restamp
+  src <- paste(deparse(body(mutant)), collapse = "\n")
+  check(grepl("fp_prov_write(cfg, upd)", src, fixed = TRUE),
+        "premise: the mutation site exists in fp_prov_restamp()")
+  body(mutant) <- parse(text = sub("fp_prov_write(cfg, upd)",
+    "{ upd$landcover[[key]]$inputs$years <- list(1999L); fp_prov_write(cfg, upd) }",
+    src, fixed = TRUE))[[1]]
+  before <- unname(tools::md5sum(fp_prov_path(cfg)))
+  hit <- tryCatch({ suppressMessages(mutant(cfg, "co_ff04", "2026-09-05T00:00:00Z", list(kind = "x"))); FALSE },
+                  error = function(e) grepl("restored", conditionMessage(e)))
+  check(isTRUE(hit) && identical(before, unname(tools::md5sum(fp_prov_path(cfg)))),
+        "must-fail: a re-stamp that also moves `inputs` IS caught on disk and the file restored")
+  unlink(cfg$dir_out, recursive = TRUE)
+})
+
+# fp_prov_reconcile_late(): what raster_strip-tags.R runs. Real rasters this time, because the
+# re-stamp is conditional on each late file re-deriving to its recorded content digest.
+if (requireNamespace("terra", quietly = TRUE)) local({
+  cfg <- fixture_cfg()
+  rd <- file.path(cfg$dir_out, "rasters", "co_ff04")
+  dir.create(rd, recursive = TRUE, showWarnings = FALSE)
+  mk <- function(v, tags = NULL) {
+    r <- terra::rast(nrows = 10, ncols = 10, xmin = 0, xmax = 100, ymin = 0, ymax = 100,
+                     crs = "EPSG:3005")
+    terra::values(r) <- rep(v, length.out = 100)
+    if (length(tags)) terra::metags(r) <- tags
+    r
+  }
+  f17 <- file.path(rd, "classified_2017.tif"); f23 <- file.path(rd, "classified_2023.tif")
+  ftr <- file.path(rd, "transition.tif")
+  terra::writeRaster(mk(1:5), f17, overwrite = TRUE, datatype = "INT1U")
+  terra::writeRaster(mk(2:6), f23, overwrite = TRUE, datatype = "INT1U")
+  terra::writeRaster(mk(0:3), ftr, overwrite = TRUE, datatype = "INT4S")
+  stamp <- "2026-09-01T00:00:00Z"
+  t0 <- as.POSIXct(stamp, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  g <- good_prov()
+  g$landcover$co_ff04$inputs$classified_content_sha256 <-
+    list(`2017` = fp_raster_content_sha256(f17), `2023` = fp_raster_content_sha256(f23))
+  g$landcover$co_ff04$outputs$transition_content_sha256 <- fp_raster_content_sha256(ftr)
+  g$landcover$co_ff04$run$datetime_utc <- stamp
+  reset <- function(prov = g) {
+    fp_prov_write(cfg, prov)
+    invisible(Sys.setFileTime(c(f17, f23, ftr), t0 - 60))
+  }
+  md5 <- function() unname(tools::md5sum(fp_prov_path(cfg)))
+  rec <- function(...) suppressMessages(fp_prov_reconcile_late(cfg, "co_ff04", ...))
+  run_of <- function() fp_prov_read(cfg)$landcover$co_ff04$run
+
+  reset()
+  check(identical(rec()$status, "current"), "reconcile: nothing late -> current, nothing written")
+
+  # Forward path: this invocation repaired f23 at t0 + 3h.
+  late_t <- t0 + 3 * 3600 + 0.75
+  invisible(Sys.setFileTime(f23, late_t))
+  m <- md5(); r <- rec(repaired = f23, dry = TRUE)
+  check(identical(r$status, "would_restamp") && identical(r$stamp, "2026-09-01T03:00:00Z") &&
+          identical(m, md5()), "reconcile DRY: reports the floored stamp and writes nothing")
+  r <- rec(repaired = f23)
+  ru <- run_of()
+  check(identical(r$status, "restamp") && identical(ru$datetime_utc, "2026-09-01T03:00:00Z"),
+        "reconcile: a repaired, digest-matching late raster re-stamps to its FLOORED mtime")
+  check(length(ru$repairs) == 1 && !is.null(ru$repairs[[1]][["toolchain"]]) &&
+          identical(unlist(ru$repairs[[1]]$files), "classified_2023.tif") &&
+          identical(ru$repairs[[1]]$issue, 83L),
+        "reconcile: the forward repair records its files (as a list) and the toolchain that ran")
+  m <- md5()
+  check(identical(rec(repaired = f23)$status, "current") && identical(m, md5()),
+        "reconcile: a second run is a no-op (file md5 unchanged)")
+
+  # Late but NOT repaired by this invocation: refused, unless backfill and clean.
+  reset(); invisible(Sys.setFileTime(f23, late_t)); m <- md5()
+  r <- rec()
+  check(identical(r$status, "refused") && grepl("BACKFILL=1", r$reason) && identical(m, md5()),
+        "must-fail: a late raster this run did not repair is refused without backfill")
+  r <- rec(backfill = TRUE)
+  ru <- run_of()
+  check(identical(r$status, "restamp") && isTRUE(ru$repairs[[1]][["backfilled"]]) &&
+          is.null(ru$repairs[[1]][["toolchain"]]) && !is.null(ru$repairs[[1]][["backfilled_utc"]]),
+        "reconcile BACKFILL: re-stamps, and records that the repair's toolchain is unknown")
+
+  # A backfill over a file that still carries stray tags was never repaired.
+  reset()
+  terra::writeRaster(mk(2:6, tags = c("NC_GLOBAL#source" = "gdalcubes 0.3.2")), f23,
+                     overwrite = TRUE, datatype = "INT1U")
+  check(length(fp_rast_stray_tags(f23)) > 0, "premise: the planted tag is seen as stray")
+  check(identical(fp_raster_content_sha256(f23), g$landcover$co_ff04$inputs$classified_content_sha256$`2023`),
+        "premise: the tagged rewrite keeps the content digest (only the container differs)")
+  invisible(Sys.setFileTime(f23, late_t)); m <- md5()
+  r <- rec(backfill = TRUE)
+  check(identical(r$status, "refused") && grepl("stray tags", r$reason) && identical(m, md5()),
+        "must-fail: a backfill over a still-tagged raster is refused")
+  terra::writeRaster(mk(2:6), f23, overwrite = TRUE, datatype = "INT1U")
+
+  # Content moved: refused even when this run "repaired" it.
+  reset(); terra::writeRaster(mk(3:7), f17, overwrite = TRUE, datatype = "INT1U")
+  invisible(Sys.setFileTime(c(f17, f23, ftr), c(late_t, t0 - 60, t0 - 60))); m <- md5()
+  r <- rec(repaired = f17)
+  check(identical(r$status, "refused") && grepl("CONTENT moved", r$reason) && identical(m, md5()),
+        "must-fail: a late raster whose content digest moved is refused, nothing written")
+  terra::writeRaster(mk(1:5), f17, overwrite = TRUE, datatype = "INT1U")
+
+  # No recorded digest: refused, never NA == NA.
+  nod <- g; nod$landcover$co_ff04$outputs$transition_content_sha256 <- NULL
+  reset(nod); invisible(Sys.setFileTime(ftr, late_t)); m <- md5()
+  r <- rec(repaired = ftr)
+  check(identical(r$status, "refused") && grepl("no recorded content digest", r$reason) &&
+          identical(m, md5()),
+        "must-fail: a late transition.tif with no recorded digest is refused")
+  unlink(cfg$dir_out, recursive = TRUE)
+}) else bad("terra unavailable -- fp_prov_reconcile_late() was NOT checked (a skip is not a pass)")
+
 # --- 6. Producer/guard key drift -----------------------------------------------------------------
 # The guard's declared key sets are only worth their maintenance if they match what the STEPS
 # actually write. A typo on either side would otherwise surface as a failure after a 30-minute
@@ -1916,6 +2122,16 @@ if (length(args) >= 1 && nzchar(args[1])) {
                   sprintf("landcover[%s] classified tif years reconcile (disk {%s} vs recorded {%s})",
                           e$key, paste(tifs, collapse = ","), paste(yrs_rec, collapse = ",")))
           }
+          # No raster newer than the run stamp that describes it (#126) -- the publish layer's
+          # staging rule, checked here so an in-place edit that forgot to re-stamp fails in this
+          # repo rather than at stac_floodplains_bc's 01_stage.R.
+          late <- tryCatch(fp_prov_late_rasters(dd, e$key, e$body),
+                           error = function(err) paste("ERROR:", conditionMessage(err)))
+          check(!length(late),
+                sprintf("landcover[%s]: no raster newer than run$datetime_utc %s%s", e$key,
+                        e$body[["run"]][["datetime_utc"]] %||% "(absent)",
+                        if (length(late)) paste0(" -- LATE: ", paste(basename(late), collapse = ", "),
+                                                 " (re-stamp: raster_strip-tags.R ", area, ")") else ""))
           # The PER-YEAR classified digests, reconciled against the rasters they name (#83). Until
           # now `classified_content_sha256` was the one recorded digest never re-derived from its
           # artefact: viol_coverage asserts its year set equals inputs$years, and both come from

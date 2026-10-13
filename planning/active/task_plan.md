@@ -22,11 +22,11 @@ toolchain, previous_datetime_utc}`. `run` is unhashed and not whitelisted, and s
   it now finds 0 stray tags. So a re-run cannot backfill **unless the re-stamp is keyed on state**
   (raster mtime > stamp AND content digests match the record), not on "I just repaired something".
   A single reconcile step therefore covers both the forward fix and the backfill.
-- `fp_prov_set()` (`fp_provenance.R:169`) replaces the whole entry and recomputes
-  `inputs_hash`/`outputs_hash` from `inputs`/`outputs`. Passing the read-back entry with only
-  `run` edited leaves both hashes byte-identical and keeps the `composition` sibling (necr has
-  one). `fp_prov_path(cfg)` needs only `cfg$dir_out`, while `fp_prov_read()` also reads `area`
-  and `watershed_group`.
+- `fp_prov_set()` (`fp_provenance.R:169`) recomputes `inputs_hash` from a JSON round trip, and
+  that round trip MOVES it on every live landcover entry (plan review B1: `I()` vectors read back
+  as lists). So the re-stamp edits `run` in place and writes via `fp_prov_write()`, the
+  `fp_prov_set_sibling()` pattern. `fp_prov_read()` overwrites `area`/`wsg`/`schema_version` from
+  `cfg`, so the cfg must carry the true values.
 - Measured: necr `ch_ff04` stamp 19:14:08Z vs newest classified 22:44:28Z; kotl `bt_ff04` stamp
   19:46:31Z vs 22:47:07Z. `transition.tif` predates both stamps. necr's composition sibling is
   stamped 2026-10-02, so re-stamping landcover to 2026-09-05 22:44 does not trip
@@ -38,28 +38,37 @@ toolchain, previous_datetime_utc}`. `run` is unhashed and not whitelisted, and s
   (~line 1915) but never compares mtime to the stamp. That is the gap.
 
 ## Phase 1: Offline guard + helper (tests first)
-- [ ] `provenance-check.R`: new offline section (3e or 5g). A landcover entry whose classified or
+- [x] `provenance-check.R`: new offline section (3e or 5g). A landcover entry whose classified or
       transition raster mtime (floored to the second, as stac does) is later than
       `run$datetime_utc` IS reported. Must-fail arm on a fixture with a touched raster; pass arm
       on one written before its stamp. Initially red against the missing helper.
-- [ ] `fp_provenance.R`: `fp_prov_restamp(cfg, key, datetime_utc, repair)`. Reads the landcover
+- [x] `fp_provenance.R`: `fp_prov_restamp(cfg, key, datetime_utc, repair)`. Reads the landcover
       entry, sets `run$datetime_utc`, appends `repair` to `run$repairs` (adding
-      `previous_datetime_utc`), and writes through `fp_prov_set()`. Asserts afterwards that
-      `inputs_hash`, `outputs_hash` and any `composition` sibling are byte-identical to before,
-      and refuses if they moved. Refuses a stamp earlier than the current one.
-- [ ] Offline assertions for the helper: hashes and sibling unchanged; `repairs` appends rather
+      `previous_datetime_utc`), edits `run` in place and writes via `fp_prov_write()` (review B1).
+      Re-reads after writing and compares the parsed file minus that `run` with the pre-write
+      parse, restoring the original bytes on mismatch (review G4). Refuses a stamp not later
+      than the current one.
+- [x] Offline assertions for the helper: hashes and sibling unchanged; `repairs` appends rather
       than replacing; an earlier stamp is refused; must-fail arms (a helper that drops the
       sibling or edits `inputs` IS caught).
 
-## Phase 2: Reconcile step in `raster_strip-tags.R`
-- [ ] After the sweep, for each `landcover[<scen>]` entry: if any `classified_*`/`transition.tif`
-      under `rasters/<scen>/` has mtime > stamp, re-derive each one's content digest against the
-      record (`classified_content_sha256`, transition digest). All match: re-stamp to the newest
-      raster mtime, with `kind = "container_strip"`, `issue = 83`, the late files and
-      `fp_toolchain()`. Any mismatch: refuse and name `run_area.R <area> 3`, because the content
-      moved and a re-stamp would bless it. `DRY=1` reports the would-be stamp and writes nothing.
-- [ ] Build the minimal cfg (`dir_out`, `area`, `watershed_group`) from `config/<area>/area.yml`.
-      No provenance.json or no landcover section: report it and skip.
+## Phase 2: Reconcile step (`fp_prov_reconcile_late()` + `raster_strip-tags.R`)
+- [x] `fp_prov_reconcile_late(cfg, key, repaired, backfill, dry)` in `fp_provenance.R` (review G2):
+      for landcover[<key>], the late rasters must each re-derive to their recorded digest
+      (`inputs.classified_content_sha256[<yr>]`, `outputs.transition_content_sha256`); a missing
+      or null digest, or a mismatch, refuses (review G1) and names `run_area.R <area> 3`. Late
+      files this invocation did not repair re-stamp only with `backfill = TRUE` and zero stray
+      tags (review G3). Stamp = floored newest late mtime (review A2). `repair` entry: kind
+      `container_strip`, issue 83, `files` as a list of basenames (A5), `toolchain` only for files
+      repaired by this invocation, else `backfilled = TRUE` (A4). `dry` writes nothing.
+- [x] 5g arms: digest-matching late files re-stamp; a mismatched or unrecorded digest refuses with
+      the file's md5 unchanged; late-but-not-repaired refuses without backfill; dry writes
+      nothing; a second call is a no-op.
+- [ ] `raster_strip-tags.R`: cfg from the CLI `area` + `config/<area>/area.yml`
+      `watershed_group`, asserted non-empty (A3). The reconcile runs for each landcover entry
+      BEFORE the final `quit(status = 1)` (O1), with `BACKFILL=1` passed through. Under DRY a
+      flagged file is reported as "would re-stamp after repair" (O2). No provenance.json or no
+      landcover section: reported and skipped.
 - [ ] Floodplain rasters (`floodplain_<scen>.tif`) are out of scope. None has ever been repaired,
       and re-stamping `floodplain[]` later than `landcover[]` would trip the composition guard.
       If one is repaired, the script says so and says the stamp was not moved.
@@ -69,11 +78,12 @@ toolchain, previous_datetime_utc}`. `run` is unhashed and not whitelisted, and s
 - [ ] Snapshot `data/{necr,kotl}/provenance.json` (byte copies) first.
 - [ ] `DRY=1` on both: expect 0 to repair, and a re-stamp of 19:14:08Z -> 22:44:28Z (necr) and
       19:46:31Z -> 22:47:07Z (kotl).
-- [ ] Real run on both, then: `provenance-check.R necr` / `kotl` pass (they fail before the run,
-      which is the live must-fail). `inputs_hash`/`outputs_hash`/composition unchanged versus the
-      snapshot (diff only under `run`). A second run is a no-op.
-- [ ] Check the stac guard reads it: in a scratch dir, call stac's `fp_prov_rasters_current()`
-      read-only on both areas. No staging and no publish (one-way coupling).
+- [ ] `BACKFILL=1` real run on both, then: `provenance-check.R necr` / `kotl` pass (they fail
+      before the run, captured in the log, review AC2). Parsed comparison against the snapshot
+      with the entry's `run` removed is identical (review A1; not a text diff). A second run
+      leaves the file's md5 unchanged (AC1).
+- [ ] Check the stac guard reads it: call stac's `fp_prov_rasters_current()` read-only on both
+      areas, set up as `01_stage.R:260-264` does (PROV_FIELDS defined, stac root as cwd; review O3). No staging and no publish (one-way coupling).
 - [ ] Commit the run log: `scripts/floodplain_lcc/logs/<yyyymmdd>_provenance_restamp_necr-kotl.md`.
 
 ## Phase 4: Docs

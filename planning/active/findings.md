@@ -108,3 +108,17 @@ inconsistency, and the fix belongs in the record.
 
 | Error | Resolution |
 |-------|------------|
+
+## Measured while building (2026-10-13)
+
+- `fp_prov_hash()` serializes `2017L` and `2017` identically (JSON), so it cannot see a type
+  change; the re-stamp's "nothing else moved" comparison uses `identical()` on parsed JSON.
+- `$toolchain` on a repair entry partial-matched a sibling `toolchain_recorded` and read FALSE
+  where the check asked for an absent toolchain. Field renamed `backfilled`; checks use `[[`.
+- Live 7c before the backfill: necr `ch_ff04` and kotl `bt_ff04` each FAIL with 7 late classified
+  rasters; bulk `co_ff04` and lnth `ch_ff04` pass.
+
+| Error | Resolution |
+|-------|------------|
+| 5g integer->double must-fail passed through fp_prov_hash | compare parsed objects with identical() |
+| 5g backfill arm read `toolchain_recorded` via `$toolchain` | renamed to `backfilled`; `[[` in checks |
