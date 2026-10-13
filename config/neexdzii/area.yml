@@ -1,7 +1,7 @@
 # Neexdzii Kwa (Upper Bulkley) — PARITY FIXTURE.
-# The generalized pipeline must reproduce these known-good outputs:
-#   coho-3 network 678.2 km | floodplain (co_ff04) 171.0 km² | floodplain tree loss 943 ha
-# Source of truth: restoration_wedzin_kwa_2024 scripts/floodplain_lcc/01_network_extract.R
+# The generalized pipeline must reproduce the contract stated in scripts/run_area.R (one place,
+# so it cannot drift here). Originally ported from restoration_wedzin_kwa_2024
+# scripts/floodplain_lcc/01_network_extract.R, whose numbers are dead (see the note below).
 name: neexdzii
 watershed_group: BULK          # link aoi — runs the whole WSG, then subset below
 species: co
@@ -20,7 +20,7 @@ schema: neexdzii               # dedicated persist schema (never shared fresh.*)
 network_source: fresh
 # attribute_by: hand-set here -- neexdzii is deliberately outside every region file (#44).
 attribute_by: blue_line_key
-primary_scenario: co_ff04      # headline scenario for LULC (03) + parity check (171.0 km²)
+primary_scenario: co_ff04      # headline scenario for LULC (03) + parity check
 # Neexdzii is a reach of BULK: keep only the network upstream of the Wedzin Kwa confluence.
 subset:
   blue_line_key: 360873822

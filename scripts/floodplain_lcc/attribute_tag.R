@@ -57,6 +57,17 @@ if (!key %in% setdiff(names(streams), attr(streams, "sf_column"))) {
   stop("attribute_by '", key, "' is not a column of ", streams_lyr, call. = FALSE)
 }
 valleys <- terra::rast(tif)
+# The DEM fetched below comes from the installed flooded. A delineation written before flooded 0.7.0
+# sits on a grid GDAL chose (~30.4 m, not aligned), while 0.7.0 returns a 30 m grid aligned to
+# multiples of 30 (#117, flooded#67). fl_valley_attribute() would stop on the mismatch with a
+# message about extents, which points at the wrong cause. Refuse up front, naming the real one.
+if (utils::packageVersion("flooded") >= "0.7.0" &&
+    !(isTRUE(all.equal(terra::res(valleys), c(30, 30))) &&
+      isTRUE(all.equal(c(terra::xmin(valleys), terra::ymin(valleys)) %% 30, c(0, 0))))) {
+  stop(basename(tif), " is on a pre-0.7.0 DEM grid (res ", paste(signif(terra::res(valleys), 9),
+       collapse = " x "), "); flooded ", as.character(utils::packageVersion("flooded")),
+       " fetches a different one (#117). Re-run step 2 for '", area, "' first.", call. = FALSE)
+}
 message("Area: ", area, " | scenario: ", scenario, " | key: ", key,
         " | ", length(unique(streams[[key]])), " groups | ", nrow(streams), " segments")
 

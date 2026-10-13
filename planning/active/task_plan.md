@@ -12,7 +12,7 @@ The issue's "pin and re-run deliberately, or accept the move" fork is settled by
 
 ## Phase 1: Record terra's GDAL and PROJ in provenance
 - [x] `fp_toolchain()` adds `gdal_terra` and `proj_terra` from `terra::gdal(lib = "all")`. This matches the `gdal_terra` name the repair record already uses (`fp_provenance.R:461`). sf's `gdal`/`geos`/`proj` stay: sf still writes every vector. The comment above it says which library warps the DEM.
-- [x] `provenance-check.R`: `KEYS_TOOLCHAIN` gains the two keys, so the offline `setequal(names(fp_toolchain()), KEYS_TOOLCHAIN)` check (line 1874) pins the producer. `viol_split` keeps requiring only the original five on parsed records. A record without the new keys is pre-#117 and is reported as INFO, not FAIL (forward-only, as for every other field).
+- [x] `provenance-check.R`: a separate `KEYS_TOOLCHAIN_TERRA`, required by step time (`TOOLCHAIN_TERRA_SINCE`, repair-aware `prov_step_time()`): missing or NA after the cutover is a FAIL; older entries are INFO in §7 only. The producer check is `setequal` over both sets. (Revised per plan review B1/G3/G4: the original text, INFO for any record missing the keys, failed toward pass.)
 - [x] Offline premise arm: `fp_toolchain()$gdal_terra == terra::gdal()` and `$proj_terra == terra::gdal(lib = "all")$proj`. Must-fail arm: a copy of `fp_toolchain` sourcing the terra fields from sf fails it. This machine's two GDALs differ, so the arm can tell the two apart.
 - [x] Run `provenance-check.R` offline: green, and red with the defect restored.
 
@@ -23,11 +23,22 @@ The issue's "pin and re-run deliberately, or accept the move" fork is settled by
 - [x] Grep for other `fl_dem_aoi()` callers (`attribute_tag.R:68`, probe lines 178/236). They inherit the pin and need no change. Confirm none passes `res` or `pipeline`.
 
 ## Phase 3: Re-baseline the neexdzii parity fixture (live)
-- [ ] `caffeinate -s Rscript scripts/run_area.R neexdzii > log 2>&1` (steps 1–3). Gate on the in-band error count and a `provenance.json` newer than a launch marker, never the exit code.
-- [ ] Re-run step 2 a second time. `dem_content_sha256` and the floodplain `outputs_hash` must be byte-identical across the two runs (same-toolchain determinism on the pinned grid). `dem_res_m == 30`, and the record carries `gdal_terra`/`proj_terra`.
+(Revised per plan review O1/O2/A3: steps 2,3 for the determinism run; gate on per-entry stamps.)
+- [x] Snapshot `data/neexdzii/provenance.json` before any run.
+- [x] Run 1: `run_area.R neexdzii` (1,2,3 — launched before the review). Control: the network entry's `outputs_hash` byte-identical to the snapshot, so a network change is not mixed in. Gate: zero in-band errors and every floodplain/landcover/composition `run.datetime_utc` after the launch marker.
+- [x] Field-by-field `inputs`/`outputs` diff per entry, before vs after: only the expected fields moved.
+- [ ] Run 2: `run_area.R neexdzii 2,3`. Every floodplain and landcover entry's `inputs_hash`/`outputs_hash` (incl. `dem_content_sha256`) byte-identical to run 1; run stamps moved.
+- [ ] `dem_res_m == 30`, raster origin a multiple of 30, and non-NA `gdal_terra`/`proj_terra` on every new entry.
 - [ ] `provenance-check.R neexdzii` and `composition-check.R neexdzii` pass.
-- [ ] Record the new contract (network km, `co_ff04` km², tree loss ha) as a fresh contract, not a delta, in `scripts/run_area.R:22`, the CLAUDE.md `neexdzii` bullet and `README.Rmd:296`. Re-render `README.md` + `index.html`, then run `readme_determinism-check.sh` and `readme_content-check.py`.
-- [ ] Log: `scripts/floodplain_lcc/logs/20261013_flooded070_rebaseline_neexdzii.md` with before/after numbers, both digests and the toolchain.
+- [ ] Record the new contract as a fresh contract in `scripts/run_area.R:22`, the CLAUDE.md `neexdzii` bullet and `README.Rmd`; re-render `README.md` + `index.html`, then run `readme_determinism-check.sh` and `readme_content-check.py`.
+- [ ] Log: `scripts/floodplain_lcc/logs/20261013_flooded070_rebaseline_neexdzii.md`.
+
+## Phase 3b: Plan-review fixes
+- [x] `attribute_tag.R` refuses a pre-0.7.0 delineation by name (G2): tested, refuses `morr`, passes new `neexdzii`.
+- [x] In-suite must-fail for a terra pair sourced from sf (G5), and for a post-cutover NA pair (G3); mutant of the NA arm goes red.
+- [x] Stale sites: `config/neexdzii/area.yml` contract comment, `fp_provenance.R` repair comment, `packages.R` floor comment, probe header (G6); `fp_toolchain` comment notes sf's PROJ picks the DEM read window and gdalcubes warps step 3 (A1, A2).
+- [ ] File on flooded: `fl_dem_aoi()`'s read-window `st_transform` is unpinned (A1).
+- [ ] Note on #125: DUNC's cached summary is on the pre-0.7.0 grid, so a region run would skip it (G1); mark CLAUDE.md DUNC figures pre-0.7.0.
 
 ## Phase 4: Correct the record
 - [x] CLAUDE.md #110 bullet: "The cause is the GDAL version, isolated" → PROJ's datum operation. `fp_toolchain()` now records terra's GDAL/PROJ. Published records predate the pin.

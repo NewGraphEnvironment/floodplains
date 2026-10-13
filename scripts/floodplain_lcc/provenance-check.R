@@ -204,6 +204,12 @@ viol_split <- function(prov) {
         sprintf("%s[%s] run$toolchain missing terra's %s (step ran after #117's cutover %s)",
                 e$section, e$key, paste(setdiff(KEYS_TOOLCHAIN_TERRA, names(tc)), collapse = ", "),
                 TOOLCHAIN_TERRA_SINCE)
+      # Present but null/NA is the same absence wearing a key: fp_toolchain()'s tpick() returns NA
+      # when terra::gdal() errors, and the all-NA arm above reads only the original five.
+      else if (prov_step_time(e$body) >= TOOLCHAIN_TERRA_SINCE &&
+               any(vapply(tc[KEYS_TOOLCHAIN_TERRA], function(x) is.null(x) || is.na(x[1]), logical(1))))
+        sprintf("%s[%s] run$toolchain carries terra's GDAL/PROJ as NA (step ran after #117's cutover)",
+                e$section, e$key)
     }
     # ABSOLUTE assertion first. An intersection test alone passes when `run` is absent, empty or
     # renamed -- a section that lost its whole run block is exactly the defect this check is for,
@@ -710,6 +716,9 @@ cat("\n2. Split — `inputs` carries no run-event field\n")
   b12 <- b9; b12$floodplain$co_ff04$run$repairs <- list()
   check(any(grepl("missing terra's", viol_split(b12))),
         "must-fail: an EMPTY repairs list falls back to datetime_utc rather than erroring")
+  b13 <- b10; b13$floodplain$co_ff04$run$toolchain$proj_terra <- NA_character_
+  check(any(grepl("terra's GDAL/PROJ as NA", viol_split(b13))),
+        "must-fail: a post-cutover record with terra's PROJ recorded as NA IS reported")
   # ... and the network section, which writes no raster, must NOT be required to carry one. Setting
   # its toolchain to NULL is a NO-OP -- the fixture never had one, so that mutant is identical() to
   # the clean fixture and the check restates the clean-fixture assertion instead of exercising the
@@ -1921,8 +1930,9 @@ prov_sections_writing_toolchain <- function(section_files) {
   # arm has an external reference only where the two libraries differ, so say which case this is.
   tc_now <- fp_toolchain()
   tg_now <- terra::gdal(lib = "all")
-  check(identical(tc_now$gdal_terra, as.character(tg_now$gdal[1])) &&
-          identical(tc_now$proj_terra, as.character(tg_now$proj[1])),
+  terra_pair_is_terras <- function(tc) identical(tc$gdal_terra, as.character(tg_now$gdal[1])) &&
+    identical(tc$proj_terra, as.character(tg_now$proj[1]))
+  check(terra_pair_is_terras(tc_now),
         sprintf("fp_toolchain()'s gdal_terra/proj_terra are terra's (%s / %s)",
                 tc_now$gdal_terra, tc_now$proj_terra))
   if (identical(tc_now$gdal, tc_now$gdal_terra) && identical(tc_now$proj, tc_now$proj_terra)) {
@@ -1931,6 +1941,10 @@ prov_sections_writing_toolchain <- function(section_files) {
   } else {
     ok(sprintf("premise: sf (%s / %s) and terra (%s / %s) differ here, so the arm above is discriminating",
                tc_now$gdal, tc_now$proj, tc_now$gdal_terra, tc_now$proj_terra))
+    # The defect this field fixes, wearing the new names: a producer filling the pair from sf.
+    check(!terra_pair_is_terras(utils::modifyList(tc_now, list(gdal_terra = tc_now$gdal,
+                                                               proj_terra = tc_now$proj))),
+          "must-fail: a toolchain whose gdal_terra/proj_terra are sf's IS rejected")
   }
   # The `outputs` half of the same declare-or-fail pair. SECTIONS_WITH_OUTPUTS is a JUDGEMENT about
   # which steps must publish a digest of what they produced; the derivation is what stops it drifting
@@ -1998,6 +2012,7 @@ if (length(args) >= 1 && nzchar(args[1])) {
     for (e in prov_sections(prov)) {
       tc <- e$body[["run"]][["toolchain"]]
       if (e$section %in% SECTIONS_WITH_RASTERS && !is.null(tc) &&
+          prov_step_time(e$body) < TOOLCHAIN_TERRA_SINCE &&
           length(setdiff(KEYS_TOOLCHAIN_TERRA, names(tc))))
         cat(sprintf("  info  %s[%s] predates #117: its toolchain names sf's GDAL/PROJ only\n",
                     e$section, e$key))
