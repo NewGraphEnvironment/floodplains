@@ -334,7 +334,7 @@ Run a non-default species with environment overrides rather than a config edit:
 `FP_SPECIES=ch FP_PRIMARY_SCENARIO=ch_ff06 Rscript scripts/run_area.R <area>`.
 
 Prerequisites: a local `fwapg` PostgreSQL (standard libpq environment variables);
-`link` ≥ 0.44.0, `flooded`, `drift` ≥ 0.6.0, `fresh`, `terra` ≥ 1.8-10 (see `scripts/packages.R`);
+`link` ≥ 0.44.0, `flooded` ≥ 0.7.0, `drift` ≥ 0.6.0, `fresh`, `terra` ≥ 1.9-25 (see `scripts/packages.R`);
 internet for the national MRDEM-30 DEM and the Microsoft Planetary Computer STAC; and the
 disturbance overlay layers loaded into `fwapg` via `bcdata bc2pg`.
 

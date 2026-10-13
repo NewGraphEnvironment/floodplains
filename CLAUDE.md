@@ -165,8 +165,9 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
     without `REFRESH=1`, and stamps `snapshot=<UTC>; rows=…; record=…` with `COMMENT ON TABLE`. The
     composition copies that stamp into its provenance. A reload moves `in_alr` and every ALR share.
   - **Forward-only:** necr and bulk carry both the table and `in_alr` (backfilled). neexdzii carries
-    them from a full step 3, which reproduced parity: 770.0 ha, 2,032 patches, and the transition
-    `outputs_hash` byte-identical. Every other area gains them on its next step 3. `composition-check.R [area]` asserts it all.
+    them from a full step 3, which reproduced the 2026-09-01 parity (770.0 ha, 2,032 patches, the
+    transition `outputs_hash` byte-identical); it has since been re-baselined on flooded 0.7.0's grid
+    (#117: 773.4 ha, 2,018 patches). Every other area gains them on its next step 3. `composition-check.R [area]` asserts it all.
 - **IO LULC accuracy (#93): `scripts/landcover_accuracy/` + `reference/<area>/`.** Measures the
   error of the land cover under every number here with a stratified reference sample (Olofsson
   2014). drift owns the sampler and estimators (`dft_accuracy_*`, drift ≥ 0.19.0); this module
@@ -735,8 +736,8 @@ the choice unreproducible. Set them in the region file.
 
 ## Prerequisites (when running)
 
-Local `fwapg` (libpq env vars); `link` ≥ 0.44.0, `flooded`, `drift` ≥ 0.10.0, `fresh`, `terra`
-≥ 1.8-10; internet for the national MRDEM-30 (`flooded::fl_dem_aoi()`) and Microsoft Planetary
+Local `fwapg` (libpq env vars); `link` ≥ 0.44.0, `flooded` ≥ 0.7.0 (#117), `drift` ≥ 0.10.0, `fresh`, `terra`
+≥ 1.9-25 (flooded 0.7.0's floor); internet for the national MRDEM-30 (`flooded::fl_dem_aoi()`) and Microsoft Planetary
 Computer STAC. **`drift` ≥ 0.10.0 is a CORRECTNESS floor, not a feature one** — 0.6.0 was merely
 where `dft_stac_fetch` gained `tile_size`, but before **0.10.0** the fetch issued a single
 `get_request()` with no paging, so an AOI whose item set spans more than one page was built from a

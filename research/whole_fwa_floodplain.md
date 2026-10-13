@@ -399,7 +399,7 @@ no floodplain.
   res 30.430634377), and through terra (GDAL 3.13.0 with PROJ 9.8.1), which lands at 847157.099813 /
   30.430634931. That changed GDAL and PROJ together, so it could not separate them. flooded#67 did:
   PROJ 9.5.1 converts NAD83(CSRS) to NAD83 with no shift, PROJ 9.8.1 routes through WGS 84
-  (+1.13 m E, −0.61 m N near MORR, the grid move above), and GDAL's suggested grid follows the
+  (near MORR, 9.8.1's grid sits 1.14 m west and 0.61 m north of 9.5.1's: the move above), and GDAL's suggested grid follows the
   transformed edges. flooded 0.7.0 pins the grid (30 m, aligned to multiples of 30) and the datum
   step; with the pin, GDAL 3.8.5 reproduces GDAL 3.13.0 to 0.12 mm per cell.
 - **Every figure in this file is on the pre-0.7.0 grid.** The probe was not re-run after the pin.

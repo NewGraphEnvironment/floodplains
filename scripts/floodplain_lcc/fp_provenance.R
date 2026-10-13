@@ -1003,7 +1003,7 @@ fp_toolchain <- function() {
   # session (measured 2026-10-13 on one machine: sf GDAL 3.8.5 / PROJ 9.5.1, terra GDAL 3.13.0 /
   # PROJ 9.8.1). PROJ 9.8.1's NAD83(CSRS)->NAD83 operation moved the published DEM grid ~1.3 m while
   # this record named sf's 9.5.1 (#117). So terra's own pair rides beside them as `gdal_terra` /
-  # `proj_terra`, the names the in-place repair record already uses. sf's `proj` still matters to
+  # `proj_terra` (`gdal_terra` is the name the in-place repair record already uses). sf's `proj` still matters to
   # the DEM: fl_dem_aoi() (flooded 0.7.0) picks its source read window with an unpinned
   # sf::st_transform(), so sf's PROJ can move which edge cells are read. Step 3's rasters are
   # warped by gdalcubes, whose GDAL is recorded nowhere yet (#80); here it links the same system
