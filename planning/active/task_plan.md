@@ -87,10 +87,10 @@ toolchain, previous_datetime_utc}`. `run` is unhashed and not whitelisted, and s
 - [x] Commit the run log: `scripts/floodplain_lcc/logs/<yyyymmdd>_provenance_restamp_necr-kotl.md`.
 
 ## Phase 4: Docs
-- [ ] CLAUDE.md #83 bullet: the repair re-stamps `landcover.run.datetime_utc` and records
+- [x] CLAUDE.md #83 bullet: the repair re-stamps `landcover.run.datetime_utc` and records
       `run.repairs`, necr and kotl are re-stamped, and stac#68 can now stage (stac#59's COG
       rebuild is still the stac side's job).
-- [ ] Edit the issue body if anything measured differs from its table.
+- [x] Edit the issue body if anything measured differs from its table.
 
 ## Validation
 

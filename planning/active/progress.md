@@ -24,3 +24,4 @@
   passes on both, and stac's guard passes on both (it stops on the pre-backfill necr snapshot).
   Without BACKFILL the run refuses and leaves the md5 unchanged; bulk reports `current`, md5
   unchanged. Log: scripts/floodplain_lcc/logs/20261013_provenance_restamp_necr-kotl.md
+- Phase 4: CLAUDE.md #83 bullet updated. The issue table matched the measured stamps exactly, so the issue body was not edited.

@@ -565,6 +565,23 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   stays rejected because it grows the file ~54 kB per invocation and needs `osgeo` bindings nothing
   else here uses. `necr` and `kotl` need a COG rebuild in `stac_floodplains_bc` (stac#59) to pick
   the repair up; the coupling stays one-way.
+  **An in-place repair moves the run stamp (#126).** PR #85 left `landcover.<scen>.run.datetime_utc`
+  behind the rewritten rasters. That field is published as `nge:produced_datetime`, and stac's
+  staging guard refuses a raster newer than it, so necr and kotl could not be staged. The script
+  now reconciles after its sweep with `fp_prov_reconcile_late()`:
+  - Every late raster must still match its recorded content digest.
+  - The stamp moves to the newest one's floored mtime.
+  - `run.repairs` records the repair and the stamp it replaced. `run.toolchain` still describes
+    step 3.
+  - It is keyed on state, because the script is idempotent and a re-run finds nothing to strip.
+    So a late file this run did not repair is re-stamped only under `BACKFILL=1`, and only if it
+    carries no stray tags. State cannot tell a strip from a `touch`.
+  - `fp_prov_restamp()` never goes through `fp_prov_set()`, whose JSON round trip moves
+    `inputs_hash` on every live entry. It edits `run` in place, verifies the file on disk, and
+    restores the original bytes if anything else moved.
+  - `provenance-check.R` 7c now fails a raster newer than its stamp.
+
+  necr and kotl are re-stamped (`logs/20261013_provenance_restamp_necr-kotl.md`).
 - `scripts/publish_hint.R` — `fp_publish_hint()`: after a run producing publishable outputs (steps 2
   or 3) the runners print the stac release sequence (`run_pipeline.sh` rebuild → `catalogue_release.sh`
   publish; order matters, releasing without rebuilding ships a stale catalogue). `run_region` sets
