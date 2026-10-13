@@ -34,8 +34,8 @@ The fetch time is set by NRCan's bucket throughput, not by the read pattern. Mea
 - [ ] Log at `scripts/floodplain_lcc/logs/<date>_dem_cache_neexdzii.md`. Gate on the in-band error count and the output mtimes, not exit codes
 
 ## Phase 5: Docs
-- [ ] CLAUDE.md: a bullet on the DEM cache (the key, the toolchain in the key and why, fail-closed HEAD, per-species stem, the driver owns `FP_DEM_SOURCE`). Update the Prerequisites "internet for MRDEM-30" line: a cache hit still needs the HEAD request
-- [ ] Edit the #122 issue body to record the decision (driver-owned URL; the open question resolved)
+- [x] CLAUDE.md: a bullet on the DEM cache (the key, the toolchain in the key and why, fail-closed HEAD, per-species stem, the driver owns `FP_DEM_SOURCE`). Update the Prerequisites "internet for MRDEM-30" line: a cache hit still needs the HEAD request
+- [x] Edit the #122 issue body to record the decision (driver-owned URL; the open question resolved)
 
 ## Validation
 - [ ] Tests pass: `dem_cache-check.R`, `provenance-check.R`, `composition-check.R neexdzii`

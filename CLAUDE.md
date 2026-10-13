@@ -226,6 +226,23 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
     `reference/<area>/windows.csv`, which `chip_build-composite.R` reads. Failed gdalcubes chunk
     reads are invisible to R (drift#87), so every mode runs with `> log 2>&1` and every log that
     filled the count cache is grepped for `repoprted` before `windows.csv` is trusted.
+- **Step-2 DEM cache (#122): `fp_dem.R`.** Step 2 and `attribute_tag.R` read the DEM through
+  `fp_dem_cached()`, which writes `data/<area>/dem_<sp><order>.tif` plus a `.json` sidecar. NRCan's
+  bucket served MRDEM at ~145 KB/s, which made BULK's fetch 37 min of every re-run.
+  - **The driver owns the URL** (`FP_DEM_SOURCE`, passed as `source =`; decided 2026-10-13). It is
+    recorded as `inputs$dem_source`. `dem_cache-check.R` fails when flooded's default moves away from it.
+  - **The key** covers the streams' WKB (row by row), buffer, CRS, source, the object's Last-Modified
+    and ETag, the flooded version, and the warp toolchain: terra's GDAL and PROJ, plus sf's PROJ,
+    which still picks the read window (flooded#78). Without the toolchain, a cache would hide the
+    #117 shift and `run$toolchain` would describe a warp that never made the cells.
+  - **A hit needs the key and the file's digest.** A tampered file re-fetches. The tif is FLT8S:
+    the bilinear warp is double, and a float write would not be the DEM the digest describes.
+  - **Fails closed.** The key needs a HEAD request, so a cached run still needs the network.
+  - `run$dem_cache` records hit/miss, the key and the path, in `run`, because Last-Modified can
+    move with the cells unchanged. `provenance-check.R` requires it, with `dem_source`, on entries
+    from after `DEM_CACHE_SINCE`. 7c reconciles `dem_content_sha256` against the cached file when the
+    sidecar still carries that entry's key, and FAILs on a mismatch. The cache is shared by every
+    scenario of a species and replaced by any other key, so a replaced cache is a skip.
 - **Whole-FWA floodplain probe (#110, gates #104).** `floodplain_probe-run.sh <area>` delineates one
   scenario from five networks (order ≥ 1, ≥ 2, ≥ 3, bcfp's bypass predicate, the species network) on
   ONE common DEM and times the DEM fetch, the VCA and each attribution separately. Each mode runs in
@@ -738,7 +755,7 @@ the choice unreproducible. Set them in the region file.
 ## Prerequisites (when running)
 
 Local `fwapg` (libpq env vars); `link` ≥ 0.44.0, `flooded` ≥ 0.7.0 (#117), `drift` ≥ 0.10.0, `fresh`, `terra`
-≥ 1.9-25 (flooded 0.7.0's floor); internet for the national MRDEM-30 (`flooded::fl_dem_aoi()`) and Microsoft Planetary
+≥ 1.9-25 (flooded 0.7.0's floor); internet for the national MRDEM-30 (`flooded::fl_dem_aoi()`; a cached DEM still makes one HEAD request, #122) and Microsoft Planetary
 Computer STAC. **`drift` ≥ 0.10.0 is a CORRECTNESS floor, not a feature one** — 0.6.0 was merely
 where `dft_stac_fetch` gained `tile_size`, but before **0.10.0** the fetch issued a single
 `get_request()` with no paging, so an AOI whose item set spans more than one page was built from a
