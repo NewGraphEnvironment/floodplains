@@ -233,11 +233,15 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   of the code. The probe writes only gitignored `data/<area>/probe_whole_fwa/` plus committed logs.
   Its anchor replays `fp_floodplain()` into `probe_whole_fwa/step2_replay/` rather than trusting the
   published record, because **the published record does not reproduce on today's toolchain**:
-  terra 1.9.50 links GDAL 3.13.0, its warp moves the DEM grid ~1 m, and MORR `co_ff04` comes out
-  −0.42% (#117, flooded#67). **The cause is the GDAL version, isolated:** the same crop warped
-  through sf's GDAL 3.8.5 reproduces the published grid to six decimals. `fp_toolchain()` records
-  sf's GDAL, not terra's. Verdict and rule:
-  `research/whole_fwa_floodplain.md`.
+  terra 1.9.50's warp moved the DEM grid ~1.3 m and MORR `co_ff04` came out −0.42% (#117).
+  **The cause is PROJ's datum operation, not the GDAL version** (corrected 2026-10-13: the first
+  comparison changed GDAL and PROJ together). PROJ 9.5.1 (sf's, and the published run's) converts
+  NAD83(CSRS)→NAD83 with no shift; PROJ 9.8.1 (terra's) routes through WGS 84, and GDAL's chosen
+  grid followed. flooded 0.7.0 pins the grid and the datum step (flooded#67); step 2 refuses
+  anything older. `fp_toolchain()` now records terra's GDAL and PROJ (`gdal_terra`, `proj_terra`)
+  beside sf's, required on entries written after #117. Every step-2 record from before 0.7.0 is on
+  the old grid; areas are re-run as whole-network under #125. The probe's own figures are on the
+  old grid and were not re-run. Verdict and rule: `research/whole_fwa_floodplain.md`.
 - **Habitat join on the blue-line floodplain (#104; `habitat_join-demo.R`).** Join habitat by
   position, never by blue line: by blue line, a polygon takes any habitat anywhere on its blue line
   (MORR: 82% of the floodplain reads as chinook spawning). Each cell takes the nearest segment on a

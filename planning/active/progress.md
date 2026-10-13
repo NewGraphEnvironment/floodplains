@@ -11,3 +11,4 @@
 - Installed flooded 0.7.0 (github@698042e).
 - Phase 2 done. 02 refuses flooded < 0.7.0 for every area; the OPEN comment is replaced with the #117 outcome. flooded#67 measured cross-GDAL agreement to 0.12 mm per cell, which is not byte identity, so the comment says the digest can still differ between GDAL builds (the issue body's "reproduces" was stronger than the measurement).
 - Other `fl_dem_aoi()` callers: `attribute_tag.R`, the probe, and two `landcover_accuracy/` scripts (airphoto footprint sizing, no `target_crs`). None passes `res`/`pipeline`; all inherit the new grid. The accuracy scripts' `imagery.csv` may shift marginally on its next regeneration.
+- Phase 4 (part): CLAUDE.md's #110 bullet and `research/whole_fwa_floodplain.md` now attribute the grid move to PROJ's datum operation, note that the probe's figures are on the pre-0.7.0 grid, and point at #125 for re-runs. Filed soul#402 for the spatial convention that names GDAL.
