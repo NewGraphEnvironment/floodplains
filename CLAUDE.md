@@ -682,8 +682,9 @@ Coexistence is data-layer only (steps 01/02/03).
   region yet: the whole Columbia region is to go whole-network beside its bt items (#125). DUNC is
   in `fresh.streams` and link's habitat tables but in neither `fresh.streams_access` nor `fresh.log`,
   so its network record carries a null `link_log` and `fwapg_sha`. It is also absent from
-  `fresh_default`, which holds KOTL/LARL/SLOC, so one region cannot read all four until link#328.
-  Run 2026-10-12:
+  `fresh_default` as first built; link#328 (closed) has since added it there, beside KOTL/LARL/SLOC.
+  Run 2026-10-12, on flooded 0.6.5's pre-pin DEM grid (#117), so these figures move on its next run
+  and `run_region.R`'s cache would skip it as complete (#125):
   `all_ff04` **185.0 km²**, 1,942 blue lines with floodplain, step 2 in 8.9 min. 1,282 change
   patches and 119.5 ha of gross tree loss. `composition-check.R dunc` fails its 1% change-vs-patch
   bound at +4.7%: 1.1% of the floodplain lies past the group polygon (#53).

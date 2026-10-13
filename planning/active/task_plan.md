@@ -37,8 +37,8 @@ The issue's "pin and re-run deliberately, or accept the move" fork is settled by
 - [x] `attribute_tag.R` refuses a pre-0.7.0 delineation by name (G2): tested, refuses `morr`, passes new `neexdzii`.
 - [x] In-suite must-fail for a terra pair sourced from sf (G5), and for a post-cutover NA pair (G3); mutant of the NA arm goes red.
 - [x] Stale sites: `config/neexdzii/area.yml` contract comment, `fp_provenance.R` repair comment, `packages.R` floor comment, probe header (G6); `fp_toolchain` comment notes sf's PROJ picks the DEM read window and gdalcubes warps step 3 (A1, A2).
-- [ ] File on flooded: `fl_dem_aoi()`'s read-window `st_transform` is unpinned (A1).
-- [ ] Note on #125: DUNC's cached summary is on the pre-0.7.0 grid, so a region run would skip it (G1); mark CLAUDE.md DUNC figures pre-0.7.0.
+- [x] File on flooded: `fl_dem_aoi()`'s read-window `st_transform` is unpinned (A1).
+- [x] Note on #125: DUNC's cached summary is on the pre-0.7.0 grid, so a region run would skip it (G1); mark CLAUDE.md DUNC figures pre-0.7.0.
 
 ## Phase 4: Correct the record
 - [x] CLAUDE.md #110 bullet: "The cause is the GDAL version, isolated" → PROJ's datum operation. `fp_toolchain()` now records terra's GDAL/PROJ. Published records predate the pin.
