@@ -102,6 +102,7 @@ fake_dem <- function(streams, source, buffer, target_crs) {
   r[1:5] <- NA
   r
 }
+real_object_version <- fp_dem_object_version
 fp_dem_object_version <- function(source, ...) ver   # mask the HEAD request; the key is still real
 d <- file.path(tempdir(), "dem_cache_check"); unlink(d, recursive = TRUE); dir.create(d)
 tif <- file.path(d, "dem_co3.tif"); js <- file.path(d, "dem_co3.json")
@@ -149,11 +150,20 @@ n_fetch <- 0L
 check(identical(attr(call_cache(), "fp_dem_cache")$status, "hit"), "and the repaired cache hits again")
 
 cat("\nthe HEAD request fails closed\n")
-rm(fp_dem_object_version)                 # back to the real one
-check(errs(fp_dem_object_version("/data/local/dem.tif")), "must-fail: a non-/vsicurl/ source is refused")
-check(errs(fp_dem_object_version("/vsicurl/https://canelevation-dem.s3.ca-central-1.amazonaws.com/no-such-key.tif",
-                                 timeout = 20)),
-      "must-fail: a 403/404 is an error, not an empty version (needs network; an outage fails too)")
+fp_dem_object_version <- real_object_version   # back to the real one
+# Match the MESSAGE, not just "it errored": an error from anything else (the function missing, a
+# typo) would otherwise pass these arms. Measured: an earlier draft rm()'d the only definition and
+# both arms passed on "could not find function".
+err_msg <- function(expr) tryCatch({ expr; "" }, error = function(e) conditionMessage(e))
+check(grepl("only /vsicurl/http", err_msg(fp_dem_object_version("/data/local/dem.tif"))),
+      "must-fail: a non-/vsicurl/ source is refused")
+check(grepl("returned HTTP 40[34]", err_msg(fp_dem_object_version(
+        "/vsicurl/https://canelevation-dem.s3.ca-central-1.amazonaws.com/no-such-key.tif", timeout = 20))),
+      "must-fail: a 403/404 is an error naming its status, not an empty version (needs network)")
+lv <- tryCatch(fp_dem_object_version(FP_DEM_SOURCE, timeout = 20), error = function(e) NULL)
+check(!is.null(lv) && nzchar(lv$last_modified) && nzchar(lv$etag) && !grepl('"', lv$etag),
+      sprintf("the real source returns Last-Modified and an unquoted ETag (%s / %s; needs network)",
+              lv$last_modified %||% "NA", lv$etag %||% "NA"))
 
 if (identical(Sys.getenv("LIVE"), "1")) {
   cat("\nlive: a real round trip on a tiny AOI\n")
