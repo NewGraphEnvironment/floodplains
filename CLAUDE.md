@@ -236,7 +236,8 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   published record, because **the published record does not reproduce on today's toolchain**:
   terra 1.9.50's warp moved the DEM grid ~1.3 m and MORR `co_ff04` came out −0.42% (#117).
   **The cause is PROJ's datum operation, not the GDAL version** (corrected 2026-10-13: the first
-  comparison changed GDAL and PROJ together). PROJ 9.5.1 (sf's, and the published run's) converts
+  comparison changed GDAL and PROJ together). PROJ 9.5.1 (sf's; its warp lands exactly on the published grid, so the published run used a
+  no-shift operation, though its PROJ was never recorded) converts
   NAD83(CSRS)→NAD83 with no shift; PROJ 9.8.1 (terra's) routes through WGS 84, and GDAL's chosen
   grid followed. flooded 0.7.0 pins the grid and the datum step (flooded#67); step 2 refuses
   anything older. `fp_toolchain()` now records terra's GDAL and PROJ (`gdal_terra`, `proj_terra`)

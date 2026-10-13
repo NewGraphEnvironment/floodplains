@@ -1,0 +1,29 @@
+# #117 branch review — round 2
+
+Scope: `branch.diff` (merge-base...HEAD, index.html excluded), the changed files read in the repo,
+issue #117 body, flooded#67 body, flooded 0.7.0 NEWS/DESCRIPTION, live `data/*/provenance.json`,
+the pre-run snapshot `scratchpad/before/provenance.json`. Offline `provenance-check.R` re-run on the
+tip: PASS (all new arms present and green, incl. b11/b12 repair arms).
+
+## Findings
+
+- **[fragile] #117 issue body, "Resolved" section, first bullet (and `research/whole_fwa_floodplain.md:406`) — "+0.17%" is stated as the magnitude of the move for published MORR, but its base is the 9.8.1-grid replay, not the published record.**
+  The bullet reads "Measured magnitudes of the move: MORR `co_ff04` +0.17% (flooded#67), Parsnip −0.6%, neexdzii −0.55% (… spanning flooded 0.5.0 → 0.7.0)". flooded#67's +0.17% is 35,618.0 → 35,679.2 ha, i.e. from the GDAL 3.13 / PROJ 9.8.1 grid (itself −0.42% off the published 35,769.1). The move a published MORR item would actually undergo on re-run is 35,769.1 → 35,679.2 = **−0.25%**, opposite sign. The neexdzii figure in the same list *is* relative to the published record, so the list mixes bases and one entry has the wrong sign for the question the bullet answers ("the move" of published areas, which #125 is now planning against). In the research file the bullet sits under "Every figure in this file is on the pre-0.7.0 grid" and the file's probe figures are on the 9.8.1 grid, so +0.17% is defensible there, but the same paragraph block quotes the published 35,769.1, so name the base ("+0.17% from the 35,618.0 ha 9.8.1-grid replay; −0.25% from the published 35,769.1 ha"). Fix the issue body the same way.
+
+- **[fragile, minor] CLAUDE.md:239 (#110 bullet) and the #117 body's Problem bullet — "PROJ 9.5.1 (sf's, and the published run's)" / "linked by sf, and by the published run" is an inference stated as a recorded fact.**
+  Every published record's `run.toolchain.proj` is `9.5.1`, but that is sf's PROJ, which is the exact gap this branch closes; terra 1.9.34's PROJ was never recorded anywhere (the repair records carry `gdal_terra` only, and none of them). What is measured is that sf's 9.5.1 warp reproduces the published grid to six decimals, which shows the published run used a *no-shift operation*, consistent with but not proof of PROJ 9.5.1. Suggest "PROJ 9.5.1 (sf's; the published grid is reproduced by it exactly) converts …" rather than attributing the version to the published run.
+
+- **[fragile, minor] README.Rmd:337 (and README.md:208, index.html) — the Prerequisites line this branch rewrote still says `drift` ≥ 0.6.0.**
+  `03_lulc_classify.R:38` stops below drift 0.10.0 and CLAUDE.md calls 0.10.0 a correctness floor (#81). The round-1 fix added the flooded/terra floors to this exact line and left the wrong drift floor beside them, so the README now states two correct asserted floors and one that a fresh install following it would hit as an abort in step 3. Pre-existing text, but on an edited line whose purpose after round 1 is "the floors the code asserts".
+
+- **[fragile, minor] scripts/floodplain_lcc/attribute_tag.R:64 — the new grid refusal is one-directional.**
+  It fires only when the *installed* flooded is ≥ 0.7.0 and the delineation is pre-pin. The mirror case — a 0.7.0 delineation (res 30, aligned) tagged on a machine still on flooded < 0.7.0, e.g. a second host not yet upgraded — skips the guard and falls through to `fl_valley_attribute()`'s compareGeom/extent error, which is the misleading message the guard was added to replace. Dropping the version condition and instead comparing the delineation's grid predicate with the installed flooded's (aligned-30 iff ≥ 0.7.0) covers both directions. Low likelihood, since step 2 now requires 0.7.0, but `attribute_tag.R` is a standalone CLI that does not go through step 2's floor.
+
+## Checked and clean
+
+- Round-1 fixes: datum-shift sign in research/ now correct (published xmin 847158.2375 vs 9.8.1 847157.0998 → 1.138 m W; ymin 957244.2097 vs 957244.8216 → 0.612 m N); CLAUDE.md #108 parity sentence now dated with the #117 numbers (773.4 ha, 2,018 patches); flooded ≥ 0.7.0 / terra ≥ 1.9-25 in both Prerequisites (terra floor confirmed from flooded 0.7.0's DESCRIPTION `terra (>= 1.9-25)`); `fp_toolchain` comment now names only `gdal_terra` as the repair record's key. index.html re-rendered (contains `1.9-25`, no `1.8-10`).
+- Date gate: `fp_prov_set()` replaces the whole entry, so a step re-run drops `run.repairs` and a new step cannot inherit an old `previous_datetime_utc`; repairs exist only on landcover (`fp_prov_restamp`) and always carry `previous_datetime_utc`. All stamps share `FP_PROV_TS_FMT`, so string `>=` is order-correct regardless of collation (same fixed format, position-wise). Live scan: only neexdzii's four entries are post-cutover and all carry `gdal_terra 3.13.0 / proj_terra 9.8.1`; DUNC (10-12, flooded 0.6.5 per its record) and necr/kotl (repaired, step time 09-05) resolve as pre-cutover INFO. No hole found.
+- No other consumer pins the toolchain key set: `fp_toolchain()` callers are 02, 03, `fp_composition.R`; stac_floodplains_bc does not read `run.toolchain`.
+- Rebaseline log "what moved" verified field by field against the snapshot: network outputs identical, inputs moved only in fresh/link stamps; floodplain inputs only dem_* + flooded stamp, outputs only floodplain digest + valley_cells (141,504/153,836/161,555 → 144,228/157,822/165,698); landcover inputs only the three classified digests, outputs only transition digest + patches (2,032 → 2,018). DEM 6,533,563 @ 30.469844 → 3,474,262 @ 30. −0.55% and +0.44% re-derived (142.040/142.823, 773.43/770.02).
+- 02's floor sits before any write; the probe and accuracy-script `fl_dem_aoi()` callers pass no `res`/`pipeline`.
+- No script asserts the old 142.8/770.0 contract; `area.yml`'s "see the note below" resolves to its NOTE block.

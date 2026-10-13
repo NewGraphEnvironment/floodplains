@@ -49,8 +49,9 @@ fp_floodplain <- function(cfg, scenarios = "run") {
   }
   # Every area, a reproducibility floor (#117). Before 0.7.0, fl_dem_aoi() let GDAL pick the output
   # grid from edges PROJ had transformed, and PROJ 9.8.1 routes NAD83(CSRS)->NAD83 through WGS 84:
-  # the DEM moved ~1.3 m with no data change and MORR co_ff04 came out -0.42%. 0.7.0 fixes the grid
-  # (30 m, aligned to multiples of 30) and pins the datum step (flooded#67). Below it, the DEM digest
+  # the DEM moved ~1.3 m with no data change and MORR co_ff04 came out -0.42% against its
+  # published record. 0.7.0 fixes the grid (30 m, aligned to multiples of 30) and pins the datum
+  # step (flooded#67). Below it, the DEM digest
   # recorded in `inputs` moves with the machine's PROJ, so the record would not mean what it says.
   if (utils::packageVersion("flooded") < "0.7.0") {
     stop("step 2 needs flooded >= 0.7.0 for a DEM grid that does not move with PROJ (flooded#67, ",

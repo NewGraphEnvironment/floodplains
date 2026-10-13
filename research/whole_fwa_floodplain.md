@@ -403,4 +403,5 @@ no floodplain.
   transformed edges. flooded 0.7.0 pins the grid (30 m, aligned to multiples of 30) and the datum
   step; with the pin, GDAL 3.8.5 reproduces GDAL 3.13.0 to 0.12 mm per cell.
 - **Every figure in this file is on the pre-0.7.0 grid.** The probe was not re-run after the pin.
-  flooded#67 measured MORR `co_ff04` moving +0.17% under the pin.
+  Under the pin MORR `co_ff04` is 35,679.2 ha (flooded#67): +0.17% from the 9.8.1-grid replay above,
+  −0.25% from the published 35,769.1 ha.
