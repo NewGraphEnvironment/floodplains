@@ -3,7 +3,8 @@
 # Offline (default): every key ingredient moves the key hash and an unchanged input keeps it; a hit
 # needs the key AND the file's digest; a tampered file, a lost sidecar or a moved key re-fetches;
 # FP_DEM_SOURCE still equals flooded's own default. The fetch and the HEAD request are replaced by
-# counting fakes, so no network and no DEM are needed.
+# counting fakes for the cache arms, so those need no network and no DEM. The last three arms ("the
+# HEAD request fails closed") make real HEAD requests: offline they FAIL rather than skip.
 #
 # LIVE=1 adds a real round trip on a tiny AOI in a temp directory: a miss, then a hit with no fetch,
 # both digesting the same.
