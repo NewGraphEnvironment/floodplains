@@ -259,6 +259,207 @@ fp_prov_set_sibling <- function(cfg, section, key, sibling, value) {
   invisible(prov)
 }
 
+# --- An IN-PLACE repair moves the run stamp (#126) ----------------------------------------------
+# `landcover[<scen>].run.datetime_utc` is when the rasters it describes came to be. A repair that
+# rewrites them in place (raster_strip-tags.R, #83) makes new bytes, so the stamp has to move with
+# them: stac_floodplains_bc publishes it as `nge:produced_datetime`, and its freshness guard
+# (`fp_prov_rasters_current`) refuses to stage a raster newer than it. PR #85 left the stamp behind,
+# and necr and kotl became unpublishable while reporting a production time three hours early.
+#
+# The rasters that guard compares, and the rule it compares them by, mirrored here so a record this
+# repo writes cannot be one that the publish layer refuses: every classified_<yyyy>.tif under
+# rasters/<scen>/ plus transition.tif, each mtime FLOORED to the second (the stamp is written to the
+# second, so a raster from the record's own second is the record's own raster).
+FP_PROV_TS_FMT <- "%Y-%m-%dT%H:%M:%SZ"
+
+fp_prov_lc_rasters <- function(dir_out, key) {
+  rd <- file.path(dir_out, "rasters", key)
+  tr <- file.path(rd, "transition.tif")
+  c(sort(list.files(rd, pattern = "^classified_[0-9]{4}\\.tif$", full.names = TRUE)),
+    tr[file.exists(tr)])
+}
+
+fp_prov_ts <- function(x) {
+  if (!is.character(x) || length(x) != 1L) return(as.POSIXct(NA))
+  as.POSIXct(x, format = FP_PROV_TS_FMT, tz = "UTC")
+}
+
+# The rasters of landcover[<key>] written AFTER the run stamp that describes them. An unparseable
+# stamp is an error, not an empty answer: "nothing is late" from a stamp that could not be read is
+# the guard failing toward pass.
+fp_prov_late_rasters <- function(dir_out, key, entry) {
+  stamp <- entry[["run"]][["datetime_utc"]]
+  rec <- fp_prov_ts(stamp)
+  if (is.na(rec)) stop("provenance: landcover[", key, "] has no parseable run$datetime_utc (",
+                       if (is.null(stamp)) "absent" else deparse(stamp)[1], ")", call. = FALSE)
+  p <- fp_prov_lc_rasters(dir_out, key)
+  p[floor(as.numeric(file.mtime(p))) > as.numeric(rec)]
+}
+
+# Move landcover[<key>].run.datetime_utc to `datetime_utc` and append `repair` to run$repairs, with
+# the stamp it replaced, so the original step-3 time is kept and run$toolchain (which describes the
+# step-3 run, not the repair) is not left silently describing bytes another terra rewrote.
+#
+# ONLY `run` moves. Deliberately not routed through fp_prov_set(): that recomputes inputs_hash from
+# a JSON round trip of the recorded `inputs`, and the round trip MOVES it -- read_json() returns an
+# `I(c(2017L, 2023L))` vector as a list, which fp_prov_hash() serializes as `[[2017],[2023]]`
+# (measured on every live landcover entry, #126 plan review). fp_prov_set_sibling() avoids it the
+# same way: edit in place, write through fp_prov_write().
+#
+# VERIFIED ON DISK, NOT IN MEMORY. Comparing the edited object with the one it was edited from only
+# tests the three assignment lines above it. The check that can disagree is the FILE: parsed raw
+# (read_json, not fp_prov_read, which overwrites area/wsg/schema_version from cfg and so would hide
+# a cfg that disagrees with the file) before and after the write, with this entry's run removed,
+# compared with identical() -- not fp_prov_hash(), which serializes 2017L and 2017 alike. On any
+# difference the original bytes are written back before stopping.
+fp_prov_restamp <- function(cfg, key, datetime_utc, repair) {
+  stopifnot(is.character(key), length(key) == 1L, nzchar(key), is.list(repair),
+            length(repair) > 0L, !is.null(names(repair)), all(nzchar(names(repair))))
+  new_t <- fp_prov_ts(datetime_utc)
+  if (is.na(new_t)) stop("provenance: re-stamp value ", deparse(datetime_utc)[1], " is not ",
+                         FP_PROV_TS_FMT, call. = FALSE)
+  path <- fp_prov_path(cfg)
+  if (!file.exists(path) || file.size(path) == 0)
+    stop("provenance: no ", path, " to re-stamp", call. = FALSE)
+  before <- file.mtime(path)
+  orig_bytes <- readBin(path, "raw", file.size(path))
+  raw_before <- jsonlite::read_json(path, simplifyVector = FALSE)
+  prov <- fp_prov_read(cfg)
+  ent <- prov[["landcover"]][[key]]
+  if (is.null(ent)) stop("provenance: no landcover[", key, "] entry to re-stamp", call. = FALSE)
+  old <- ent[["run"]][["datetime_utc"]]
+  old_t <- fp_prov_ts(old)
+  if (is.na(old_t)) stop("provenance: landcover[", key, "] has no parseable run$datetime_utc to ",
+                         "re-stamp from", call. = FALSE)
+  # A stamp only moves forward. An earlier one would claim the bytes predate the run that wrote them.
+  if (new_t <= old_t) stop("provenance: refusing to re-stamp landcover[", key, "] from ", old,
+                           " to ", datetime_utc, " -- not later than the current stamp", call. = FALSE)
+  # The stamp is also the ONLY evidence of which floodplain the rasters were masked to:
+  # fp_composition.R refuses when floodplain[].run is later than landcover[].run, and the landcover
+  # record holds no floodplain digest. Re-stamping past a step-2 re-run would switch that guard off
+  # and let a composition be built from rasters masked to the old floodplain (code-check round 2).
+  # So the floodplain is compared with the STEP-3 time -- the first repair's previous stamp once
+  # there has been one -- never with a stamp an earlier repair already moved.
+  reps <- ent[["run"]][["repairs"]]
+  step3 <- if (length(reps)) reps[[1]][["previous_datetime_utc"]] else old
+  step3_t <- fp_prov_ts(step3 %||% NA_character_)
+  if (is.na(step3_t)) stop("provenance: landcover[", key, "].run.repairs[[1]] has no parseable ",
+                           "previous_datetime_utc, so the step-3 time is unknown", call. = FALSE)
+  fp_ent <- prov[["floodplain"]][[key]]
+  fp_t <- fp_prov_ts(fp_ent[["run"]][["datetime_utc"]] %||% NA_character_)
+  # No floodplain entry: nothing to order against. An entry whose stamp cannot be read is NOT that
+  # -- `NA > x` would wave the re-stamp through (the isTRUE() form fp_composition.R uses).
+  if (!is.null(fp_ent) && is.na(fp_t))
+    stop("provenance: floodplain[", key, "] has no parseable run$datetime_utc, so it cannot be ",
+         "ordered against the landcover step", call. = FALSE)
+  if (!is.na(fp_t) && fp_t > step3_t)
+    stop("provenance: refusing to re-stamp landcover[", key, "]: floodplain[", key, "] was re-run (",
+         prov[["floodplain"]][[key]][["run"]][["datetime_utc"]], ") after the landcover step (",
+         step3, "), so these rasters are masked to the OLD floodplain. Re-run step 3.", call. = FALSE)
+
+  repair$previous_datetime_utc <- old
+  repair$datetime_utc <- datetime_utc
+  upd <- prov
+  upd[["landcover"]][[key]][["run"]][["datetime_utc"]] <- datetime_utc
+  upd[["landcover"]][[key]][["run"]][["repairs"]] <-
+    c(ent[["run"]][["repairs"]] %||% list(), list(repair))
+
+  if (!identical(file.mtime(path), before)) {
+    stop("provenance: ", basename(path), " changed while this run was writing it -- another ",
+         "process is writing the same area. Run areas/species SEQUENTIALLY.", call. = FALSE)
+  }
+  fp_prov_write(cfg, upd)
+
+  sans_run <- function(p) { p[["landcover"]][[key]][["run"]] <- NULL; fp_prov_sort(p) }
+  raw_after <- jsonlite::read_json(path, simplifyVector = FALSE)
+  if (!identical(sans_run(raw_before), sans_run(raw_after)) ||
+      !identical(raw_after[["landcover"]][[key]][["run"]][["datetime_utc"]], datetime_utc)) {
+    writeBin(orig_bytes, path)
+    stop("provenance: re-stamping landcover[", key, "] changed more than its run block on disk; ",
+         "the original ", basename(path), " has been restored", call. = FALSE)
+  }
+  message("Provenance: landcover[", key, "].run.datetime_utc ", old, " -> ", datetime_utc,
+          " (", repair[["kind"]] %||% "repair", ")")
+  invisible(upd)
+}
+
+# --- Reconcile a landcover entry's stamp with its rasters (#126) --------------------------------
+# The re-stamp is keyed on STATE, not on "this run repaired something": raster_strip-tags.R is
+# idempotent, so after PR #85 a second run finds nothing to strip and could never backfill a stamp
+# that keyed on its own repairs. Here: the late rasters (fp_prov_late_rasters) must each re-derive
+# to the digest the record holds for them -- inputs.classified_content_sha256[<yr>] or
+# outputs.transition_content_sha256 -- because a re-stamp says "these are still the bytes this
+# record describes, written later". A missing digest refuses rather than matching: NA == NA is the
+# failure toward pass that raster_strip-tags.R already guards against.
+#
+# State cannot say WHY a file is late. A `touch`, or a copy that lost mtimes, looks the same as a
+# strip. So a late file that THIS invocation did not repair (`repaired`, full paths) re-stamps only
+# when the caller says it is a backfill AND the file carries no stray tags; otherwise it refuses.
+# The toolchain is recorded only when every late file was repaired by this invocation -- for a
+# backfill it would be today's toolchain, not the one that rewrote the bytes.
+#
+# Returns a list: status ("current" | "restamp" | "would_restamp" | "refused"), late (basenames),
+# stamp, reason. Never stops on a refusal: the caller decides the exit status.
+fp_prov_reconcile_late <- function(cfg, key, repaired = character(0), backfill = FALSE,
+                                   dry = FALSE, issue = 83L) {
+  ent <- fp_prov_read(cfg)[["landcover"]][[key]]
+  out <- function(status, late = character(0), stamp = NA_character_, reason = "")
+    list(status = status, late = basename(late), stamp = stamp, reason = reason)
+  if (is.null(ent)) return(out("refused", reason = paste0("no landcover[", key, "] entry")))
+  late <- fp_prov_late_rasters(cfg$dir_out, key, ent)
+  if (!length(late)) return(out("current"))
+
+  rec_sha <- function(f) {
+    b <- basename(f)
+    if (b == "transition.tif") return(ent[["outputs"]][["transition_content_sha256"]] %||% NA_character_)
+    yr <- sub("^classified_([0-9]{4})\\.tif$", "\\1", b)
+    ent[["inputs"]][["classified_content_sha256"]][[yr]] %||% NA_character_
+  }
+  for (f in late) {
+    want <- rec_sha(f)
+    if (!is.character(want) || length(want) != 1L || is.na(want))
+      return(out("refused", late, reason = paste0(basename(f), " has no recorded content digest")))
+    got <- fp_raster_content_sha256(f)
+    if (is.na(got) || !identical(got, want))
+      return(out("refused", late, reason = paste0(
+        basename(f), " no longer matches its recorded content digest -- the CONTENT moved, so a ",
+        "re-stamp would bless it. Re-run the landcover step (run_area.R ", cfg$area, " 3)")))
+  }
+  others <- setdiff(normalizePath(late), normalizePath(repaired, mustWork = FALSE))
+  if (length(others)) {
+    if (!isTRUE(backfill))
+      return(out("refused", late, reason = paste0(
+        length(others), " late raster(s) were not repaired by this run (", 
+        paste(basename(others), collapse = ", "), "). Nothing here says why they are late; if it ",
+        "was an earlier container repair, re-run with BACKFILL=1")))
+    dirty <- others[vapply(others, function(f) length(fp_rast_stray_tags(f)) > 0L, logical(1))]
+    if (length(dirty))
+      return(out("refused", late, reason = paste0(
+        "backfill refused: ", paste(basename(dirty), collapse = ", "),
+        " still carry stray tags, so they were not repaired")))
+  }
+  # Floored, the publish guard's arithmetic, never format()'s truncation.
+  stamp <- format(as.POSIXct(floor(max(as.numeric(file.mtime(late)))), origin = "1970-01-01",
+                             tz = "UTC"), FP_PROV_TS_FMT, tz = "UTC")
+  if (isTRUE(dry)) return(out("would_restamp", late, stamp))
+  repair <- list(kind = "container_strip", issue = as.integer(issue),
+                 files = as.list(basename(late)))
+  if (length(others)) {
+    # No `toolchain_recorded` flag: `$toolchain` would partial-match it (measured -- the check read
+    # FALSE where it asked for the absent toolchain). `backfilled` names the case instead.
+    repair$backfilled <- TRUE
+    repair$backfilled_utc <- format(Sys.time(), FP_PROV_TS_FMT, tz = "UTC")
+  } else {
+    # The REPAIR's writer, not fp_toolchain(): that reports sf's GDAL, and the rewrite goes through
+    # terra, which can link a different one (3.13.0 against sf's 3.8.5 on one machine, #117).
+    ver <- function(f) tryCatch(as.character(f()), error = function(e) NA_character_)
+    repair$toolchain <- list(terra = ver(function() utils::packageVersion("terra")),
+                             gdal_terra = ver(function() terra::gdal()))
+  }
+  fp_prov_restamp(cfg, key, stamp, repair)
+  out("restamp", late, stamp)
+}
+
 # Canonical sha256 over a subtree: keys sorted at every level, no auto_unbox (so a length-1 and a
 # length-2 field cannot serialize to different SHAPES and hash apart for that reason alone),
 # digits = NA so no float is silently rounded before hashing.
