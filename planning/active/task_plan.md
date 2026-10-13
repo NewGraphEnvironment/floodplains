@@ -14,9 +14,9 @@ The fetch time is set by NRCan's bucket throughput, not by the read pattern. Mea
 **Decided (user, 2026-10-13):** the cache lives in the driver (step 2 + attribute_tag.R), and the driver owns the DEM URL (`FP_DEM_SOURCE`, passed as `source =`). No flooded change. Space is a non-issue (~2 GB across all areas, 783 GB free).
 
 ## Phase 1: DEM cache helper + offline check
-- [ ] `scripts/floodplain_lcc/fp_dem.R`: `FP_DEM_SOURCE`, `fp_dem_last_modified()`, `fp_dem_key()`, `fp_dem_cached()`
-- [ ] `scripts/floodplain_lcc/dem_cache-check.R` offline section. Each key ingredient (AOI, buffer, CRS, source, Last-Modified, flooded version, each toolchain member) moves the key hash, and an unchanged input keeps it. Must-fail arms for a tampered tif (it must re-fetch, not hit), a missing json (a miss), and a key hash that matches but a digest that does not
-- [ ] Assert `FP_DEM_SOURCE` equals flooded's default by parsing `body(flooded::fl_dem_aoi)`, so a flooded default change is reported rather than silently diverged from
+- [x] `scripts/floodplain_lcc/fp_dem.R`: `FP_DEM_SOURCE`, `fp_dem_last_modified()`, `fp_dem_key()`, `fp_dem_cached()`
+- [x] `scripts/floodplain_lcc/dem_cache-check.R` offline section. Each key ingredient (AOI, buffer, CRS, source, Last-Modified, flooded version, each toolchain member) moves the key hash, and an unchanged input keeps it. Must-fail arms for a tampered tif (it must re-fetch, not hit), a missing json (a miss), and a key hash that matches but a digest that does not
+- [x] Assert `FP_DEM_SOURCE` equals flooded's default by parsing `body(flooded::fl_dem_aoi)`, so a flooded default change is reported rather than silently diverged from
 
 ## Phase 2: Wire into step 2 + provenance
 - [ ] `02_floodplain_model.R`: replace the `fl_dem_aoi()` call with `fp_dem_cached()`. Rewrite the `02:123-139` comment, since the URL is now recoverable because the driver passes it. Source `fp_dem.R` wherever `run_area.R` sources the helpers

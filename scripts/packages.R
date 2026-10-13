@@ -13,6 +13,7 @@ pkgs_cran <- c(
   "sf", "terra", "stars",          # spatial (terra >= 1.8-10 for drift's transition patches fix)
   "DBI", "RPostgres",              # fwapg
   "here", "fs", "yaml", "jsonlite", "digest",  # utils + config (jsonlite/digest: provenance, #33)
+  "curl",                          # HEAD of the DEM source for the step-2 DEM cache key (#122)
   "dplyr", "readr", "stringr"
 )
 
