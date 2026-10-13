@@ -50,7 +50,7 @@ The issue's "pin and re-run deliberately, or accept the move" fork is settled by
 - [x] `provenance-check.R` (offline + neexdzii live), `composition-check.R neexdzii`, README checks pass
 - [x] `/code-check` clean (each commit, or once over the branch with `/code-check branch`)
 - [x] PWF checkboxes match landed work
-- [ ] `/planning-archive` on completion
+- [x] `/planning-archive` on completion
 
 
 ## Critical files
