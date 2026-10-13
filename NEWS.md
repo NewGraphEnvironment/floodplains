@@ -1,3 +1,14 @@
+# floodplains 0.1.11 (2026-10-13)
+
+* Step 2 now requires flooded >= 0.7.0, whose DEM grid is pinned, and provenance records the GDAL
+  and PROJ that terra links (#117).
+  * Before 0.7.0 the DEM grid followed PROJ's NAD83(CSRS) to NAD83 operation and moved about 1.3 m
+    between PROJ 9.5.1 and 9.8.1 with no data change. Every step-2 output moves once when re-run.
+  * `run.toolchain` gains `gdal_terra` and `proj_terra` beside sf's fields, and
+    `provenance-check.R` requires them on entries whose step ran after the cutover.
+  * `attribute_tag.R` refuses a delineation on the other grid, in either direction, by name.
+  * The neexdzii parity contract is re-baselined: 673.5 km, 142.0 km², 773.4 ha.
+
 # floodplains 0.1.10 (2026-10-13)
 
 * An in-place raster repair now moves the landcover run stamp with the bytes it rewrote, and
