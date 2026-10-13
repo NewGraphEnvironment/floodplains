@@ -18,3 +18,4 @@
 - Filed flooded#78 (read-window `st_transform` unpinned; from reading the function, not measured). Added the DUNC cache trap to #125. CLAUDE.md's DUNC figures are marked as pre-pin; `fresh_default.streams` checked to hold DUNC (63,067 rows) before stating link#328 built it.
 - Run 2 (2,3; launched 22:18:28Z): 0 errors, every raster entry stamped after launch, `inputs_hash`/`outputs_hash` byte-identical to run 1 for floodplain co_ff02/04/06, landcover co_ff04 and its composition; `dem_res_m` 30. Live `provenance-check.R neexdzii` and `composition-check.R neexdzii` PASS.
 - New contract 673.5 km / 142.0 km2 / 773.4 ha written to `run_area.R`, CLAUDE.md, README.Rmd (both targets re-rendered; determinism + content checks OK). Log `20261013_flooded070_rebaseline_neexdzii.md`.
+- #117 body: resolution section added (decision, toolchain fields, per-toolchain reproduction caveat, new contract, probe not re-anchored).

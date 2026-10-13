@@ -44,7 +44,7 @@ The issue's "pin and re-run deliberately, or accept the move" fork is settled by
 - [x] CLAUDE.md #110 bullet: "The cause is the GDAL version, isolated" → PROJ's datum operation. `fp_toolchain()` now records terra's GDAL/PROJ. Published records predate the pin.
 - [x] `research/whole_fwa_floodplain.md`: correct the dated "Isolated: the GDAL version" paragraph to PROJ (with the correction date). Note that the probe's figures are on the pre-0.7.0 grid and were not re-run. Update the header's Verified line.
 - [x] File a soul issue: the convention "`terra::project()` given only a CRS lets GDAL choose the grid, and GDAL versions choose differently" names the wrong mechanism (PROJ's operation, not the GDAL version). It goes through an issue because soul conventions are not edited in place.
-- [ ] Edit the #117 body: decision recorded (pinned via flooded 0.7.0; published areas re-run under #125, species items retired), plus the new neexdzii contract.
+- [x] Edit the #117 body: decision recorded (pinned via flooded 0.7.0; published areas re-run under #125, species items retired), plus the new neexdzii contract.
 
 ## Validation
 - [ ] `provenance-check.R` (offline + neexdzii live), `composition-check.R neexdzii`, README checks pass
