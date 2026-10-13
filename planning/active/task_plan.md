@@ -47,9 +47,9 @@ The issue's "pin and re-run deliberately, or accept the move" fork is settled by
 - [x] Edit the #117 body: decision recorded (pinned via flooded 0.7.0; published areas re-run under #125, species items retired), plus the new neexdzii contract.
 
 ## Validation
-- [ ] `provenance-check.R` (offline + neexdzii live), `composition-check.R neexdzii`, README checks pass
-- [ ] `/code-check` clean (each commit, or once over the branch with `/code-check branch`)
-- [ ] PWF checkboxes match landed work
+- [x] `provenance-check.R` (offline + neexdzii live), `composition-check.R neexdzii`, README checks pass
+- [x] `/code-check` clean (each commit, or once over the branch with `/code-check branch`)
+- [x] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion
 
 
