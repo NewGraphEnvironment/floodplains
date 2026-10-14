@@ -226,6 +226,32 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
     `reference/<area>/windows.csv`, which `chip_build-composite.R` reads. Failed gdalcubes chunk
     reads are invisible to R (drift#87), so every mode runs with `> log 2>&1` and every log that
     filled the count cache is grepped for `repoprted` before `windows.csv` is trusted.
+- **Step-2 DEM cache (#122): `fp_dem.R`.** Step 2 and `attribute_tag.R` read the DEM through
+  `fp_dem_cached()`, which writes `data/<area>/dem_<sp><order>.tif` plus a `.json` sidecar. NRCan's
+  bucket served MRDEM at ~145 KB/s, which made BULK's fetch 37 min of every re-run.
+  - **The driver owns the URL** (`FP_DEM_SOURCE`, passed as `source =`; decided 2026-10-13). It is
+    recorded as `inputs$dem_source`. `dem_cache-check.R` fails when flooded's default moves away from it.
+  - **The key** covers the streams' WKB (row by row), buffer, CRS, source, the object's Last-Modified
+    and ETag, the flooded version, and everything `fp_toolchain()` records. That includes sf's PROJ,
+    which still picks the read window (flooded#78), and GEOS, whose buffer sets the bbox. Without
+    the toolchain, a cache would hide the #117 shift and `run$toolchain` would describe a warp that
+    never made the cells.
+  - **A hit needs the key and the file's digest.** A tampered file re-fetches. A second HEAD request
+    after the fetch refuses to cache if the object changed mid-fetch. The tif is FLT8S, which cannot
+    lose whatever terra returns. terra 1.9.50's warp output happens to be float32-exact (measured on
+    neexdzii), but that is not a contract.
+  - **Fails closed.** The key needs a HEAD request, so a cached run still needs the network. A
+    toolchain member `fp_toolchain()` reads as NA stops step 2 rather than hashing "NA".
+  - `attribute_tag.R` reads at the buffer step 2 **recorded** (`dem_buffer_m`), not the scenario's
+    `max_width`, and stops unless the DEM digests as step 2 recorded.
+  - `run$dem_cache` records `FP_DEM_CACHE_RECORD` (hit/miss, the key, the path, Last-Modified, ETag).
+    It lives in `run` because Last-Modified can move with the cells unchanged. `provenance-check.R`
+    requires it, with `dem_source`, on every entry whose `dem_resolver` is not the pre-#122 string.
+    That is a content rule, not a date, so pre-#122 code running later never reads as a defect.
+  - 7c reconciles `dem_content_sha256` against the cached file. The same key with a different file
+    or sidecar digest FAILs, as does a recorded path the network layer does not imply. Otherwise a
+    digest match passes, whatever the sidecar's key. The cache is shared by every scenario of a species and replaced by any other key, so a
+    replaced cache is a skip.
 - **Whole-FWA floodplain probe (#110, gates #104).** `floodplain_probe-run.sh <area>` delineates one
   scenario from five networks (order ≥ 1, ≥ 2, ≥ 3, bcfp's bypass predicate, the species network) on
   ONE common DEM and times the DEM fetch, the VCA and each attribution separately. Each mode runs in
@@ -410,10 +436,11 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   which is why the divergence was undiagnosable from the record. They stay out of `inputs` on
   purpose: a terra version legitimately differs between two machines that agree on every cell, so
   hashing it would reintroduce the churn #64 removes, one field over.
-  Two things that cannot be recorded, and are recorded as absent rather than guessed: the **DEM
+  Two things that could not be recorded, and were recorded as absent rather than guessed: the **DEM
   URL** (`fl_dem_aoi()` builds it in its body, and `terra::sources()` on its cropped-and-projected
   return is `""` in memory or a *random per-process temp path* when terra spills — a
-  plausible-looking string that would differ every run) and a **package git SHA** where the
+  plausible-looking string that would differ every run; since #122 the driver passes the URL and
+  records it as `inputs$dem_source`) and a **package git SHA** where the
   checkout's version does not match the installed one (the link checkout is 0.49.0, installed
   0.47.3, so its HEAD describes code that did not run — a confident wrong SHA is worse than NA).
   `sha_source` names which tier answered so an NA is diagnosable.
@@ -738,7 +765,7 @@ the choice unreproducible. Set them in the region file.
 ## Prerequisites (when running)
 
 Local `fwapg` (libpq env vars); `link` ≥ 0.44.0, `flooded` ≥ 0.7.0 (#117), `drift` ≥ 0.10.0, `fresh`, `terra`
-≥ 1.9-25 (flooded 0.7.0's floor); internet for the national MRDEM-30 (`flooded::fl_dem_aoi()`) and Microsoft Planetary
+≥ 1.9-25 (flooded 0.7.0's floor); internet for the national MRDEM-30 (`flooded::fl_dem_aoi()`; a cached DEM still makes one HEAD request, #122) and Microsoft Planetary
 Computer STAC. **`drift` ≥ 0.10.0 is a CORRECTNESS floor, not a feature one** — 0.6.0 was merely
 where `dft_stac_fetch` gained `tile_size`, but before **0.10.0** the fetch issued a single
 `get_request()` with no paging, so an AOI whose item set spans more than one page was built from a

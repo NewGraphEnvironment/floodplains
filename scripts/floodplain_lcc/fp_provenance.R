@@ -563,7 +563,7 @@ fp_norm_block <- function(v) {
 # THE AGREEMENT HAS A PRECONDITION: the file must round-trip the in-memory values EXACTLY. Writing
 # float64 values at FLT4S truncates them, so the file and the object then digest apart -- correctly,
 # because they hold different numbers. That is a lossy write, not a defect here, and it cannot arise
-# in this pipeline (the DEM is only ever digested as an object, never written). provenance-check.R
+# in this pipeline (the step-2 DEM cache writes FLT8S and checks the round trip, #122). provenance-check.R
 # 5c asserts both halves, on a float fixture, so the claim above is true as written rather than true
 # of the one Int8 raster it was first measured on.
 fp_raster_content_sha256 <- function(x, block_rows = 512L) {

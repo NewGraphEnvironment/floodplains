@@ -20,10 +20,12 @@
 #   - fwapg database for sub-basin generation (frs_watershed_split) -- local fwapg
 #     via standard libpq env vars; see scripts/README.md
 #   - Output from fp_network() (step 1)
-#   - Network access -- DEM fetched from national MRDEM-30 via flooded::fl_dem_aoi()
+#   - Network access -- DEM fetched from national MRDEM-30 via flooded::fl_dem_aoi(), and cached in
+#     data/<area>/dem_<sp><order>.tif (#122); a cache hit still makes one HEAD request for its key
 #
 # Outputs (data/<area>/):
 #   subbasins.gpkg                    (sub-basin polygons)
+#   dem_<sp><order>.tif + .json       (cached DEM and its key, #122)
 #   floodplain_<scenario_id>.tif      (raster, per scenario)
 #   floodplain.gpkg                   (one vector layer per scenario)
 #
@@ -120,24 +122,27 @@ fp_floodplain <- function(cfg, scenarios = "run") {
   waterbodies <- sf::st_read(network_gpkg, layer = waterbodies_lyr, quiet = TRUE) |> sf::st_zm(drop = TRUE)
   message("  ", nrow(waterbodies), " features")
 
-  # --- DEM from national MRDEM-30 (portable; no local DEM dependency) ---
+  # --- DEM from national MRDEM-30 (portable; no local DEM dependency), cached per area (#122) ---
   # flooded::fl_dem_aoi() fetches NRCan MRDEM-30 (30 m) via /vsicurl for the stream
   # network + buffer, reprojected to the streams CRS. Slope is derived from this DEM
   # inside fl_valley_confine() (slope = NULL below).
-  message("Fetching national MRDEM-30 for stream network + ", buf, " m buffer...")
-  dem <- flooded::fl_dem_aoi(streams, buffer = buf, target_crs = sf::st_crs(streams))
-  message("  DEM: ", terra::ncol(dem), " x ", terra::nrow(dem), " pixels")
-  # Provenance (#33): the DEM's identity is NOT recoverable here, and saying so is the honest
-  # record. fl_dem_aoi() builds the MRDEM-30 URL inside its body (source = NULL is the formal), so
-  # formals() does not expose it and restating it here would duplicate package knowledge the core
-  # principle forbids. terra::sources() does not help either -- fl_dem_aoi always crops and
-  # reprojects, so the returned object is DERIVED. Measured on terra 1.9.34: sources() on a crop or
-  # a project is "" when the result fits in memory, and a RANDOM PER-PROCESS TEMP PATH when terra
-  # spills to disk -- which is the large-AOI case, exactly where this matters. Recording that path
-  # would be a plausible-looking string that differs every run, silently breaking byte-stability.
   #
-  # So: record the resolver and the raster's MEASURABLE geometry, which does distinguish MRDEM-30
-  # from a lidar COG should one ever be passed. The URL stays recoverable from flooded's version.
+  # fp_dem_cached() (fp_dem.R) writes it to data/<area>/dem_<sp><order>.tif and reads it back while
+  # its key matches: the AOI, buffer, CRS, source URL, the object's Last-Modified and ETag, the
+  # flooded version and the toolchain fp_toolchain() records. NRCan's bucket has served at ~145 KB/s, which made
+  # BULK's fetch 37 min of every re-run.
+  #
+  # Provenance (#33): the DEM's identity used to be recorded as absent, because flooded resolved the
+  # URL in its own body and a restated copy here could drift from the one it fetched. The driver now
+  # PASSES the URL (FP_DEM_SOURCE), so the record names exactly what was fetched. terra::sources() is
+  # still no help: on a derived raster it is "" or a random per-process temp path.
+  message("DEM: national MRDEM-30 for stream network + ", buf, " m buffer...")
+  dem <- fp_dem_cached(streams, buffer = buf, target_crs = sf::st_crs(streams),
+                       dir = out_dir, stem = paste0(cfg$species, cfg$min_order))
+  dem_cache <- attr(dem, "fp_dem_cache")
+  message("  DEM: ", terra::ncol(dem), " x ", terra::nrow(dem), " pixels (cache ", dem_cache$status, ")")
+  # Record the raster's MEASURABLE geometry too, which distinguishes MRDEM-30 from a lidar COG
+  # should one ever be passed.
   dem_geom <- tryCatch(list(
     dem_crs_epsg = sf::st_crs(terra::crs(dem))$epsg,
     dem_res_m    = round(as.numeric(terra::res(dem))[1], 6),
@@ -147,12 +152,12 @@ fp_floodplain <- function(cfg, scenarios = "run") {
   # ... and the ELEVATIONS themselves (#65). The three fields above pin the GRID, not the heights:
   # NRCan re-derives MRDEM, we get the same tile at the same footprint on the same 30 m grid with
   # different values, we produce a different floodplain, and not one character of the record moves.
-  # Combined with the DEM URL being unrecoverable here (see above), NOTHING in the record described
-  # the elevation data the published floodplain was cut from.
+  # Before #122 the DEM URL was not recorded either, so NOTHING in the record described the
+  # elevation data the published floodplain was cut from.
   #
-  # Digested from the OBJECT, not a path: fl_dem_aoi() returns the cropped DEM in memory and never
-  # writes it, so a path-only digest would mean writing 6.5M cells out just to read them back --
-  # putting an encoder back in the path #64 removed. Measured: the object and path forms agree.
+  # The cache writes the DEM at FLT8S, so the file holds exactly the cells terra returned and digests
+  # the same as the in-memory object did before #122 (fp_dem_cached() checks this on every write;
+  # measured on neexdzii, the cold run's digest equals the pre-#122 record).
   #
   # ONCE, here, outside the scenario loop: every scenario is delineated from this same DEM, so
   # digesting per scenario would repeat identical work three times for an identical answer.
@@ -161,9 +166,8 @@ fp_floodplain <- function(cfg, scenarios = "run") {
   # 01 makes one file over, so state the difference rather than let a reader find the contradiction.
   # fl_dem_aoi() crops and reprojects internally, so these cells (and the header's ext/res) are
   # GDAL/PROJ output. For the NETWORK there was a toolchain-free alternative -- digest pre-subset --
-  # and taking it cost nothing. For the DEM there is none: the un-warped source is not obtainable
-  # here, fl_dem_aoi() builds its URL in its own body, and terra::sources() on the return is "" or a
-  # random temp path. So the choice is not "warp-dependent digest" vs "clean digest", it is
+  # and taking it cost nothing. For the DEM there is none: digesting the un-warped source window
+  # would mean reading that window of the 84 GB COG a second time, at NRCan's rate. So the choice is not "warp-dependent digest" vs "clean digest", it is
   # warp-dependent digest vs NOTHING AT ALL about the elevations, which is the status quo this issue
   # exists to end. The header formats ext/res at %.9f, a tolerance well above the ~1e-15 ULP of a
   # double near 30, so ULP-level warp noise cannot move it.
@@ -176,8 +180,12 @@ fp_floodplain <- function(cfg, scenarios = "run") {
   # cell values agreeing to 0.12 mm -- agreement, not byte identity, so this digest can still differ
   # between two GDAL builds with the grid and the heights the same. That residual is why the terra
   # GDAL/PROJ that warped the DEM is now in run$toolchain: a digest change is diagnosable from it.
-  message("  Digesting DEM content for provenance...")
-  dem_sha <- fp_raster_content_sha256(dem)
+  # The cache key carries that toolchain too, so on a cache hit run$toolchain still describes the warp
+  # that produced the cells.
+  #
+  # fp_dem_cached() has already digested it: a hit is only a hit when the file digests as recorded,
+  # and a miss digests the fetch to check the write. The same function, so the same value.
+  dem_sha <- dem_cache$dem_content_sha256
 
   # --- Rasterize precipitation (shared across scenarios) ---
   message("  Rasterizing precipitation...")
@@ -279,7 +287,8 @@ fp_floodplain <- function(cfg, scenarios = "run") {
         size_threshold  = sc$size_threshold,
         hole_threshold  = sc$hole_threshold,
         anchor_order    = sc$anchor_order,
-        dem_resolver    = "flooded::fl_dem_aoi(source = NULL) default",
+        dem_resolver    = "flooded::fl_dem_aoi(source = dem_source)",
+        dem_source      = dem_cache$source,
         dem_crs_epsg    = dem_geom$dem_crs_epsg,
         dem_res_m       = dem_geom$dem_res_m,
         dem_ncell       = dem_geom$dem_ncell,
@@ -303,7 +312,10 @@ fp_floodplain <- function(cfg, scenarios = "run") {
         floodplain_raster         = basename(out_raster),
         floodplain_content_sha256 = fp_raster_content_sha256(out_raster),
         valley_cells              = n_valley),
-      run = fp_prov_run(toolchain = fp_toolchain())))
+      # The cache event (#122) is `run`, not `inputs`: Last-Modified and ETag can move with no change to
+      # the cells, and dem_content_sha256 above already says whether the cells moved.
+      run = fp_prov_run(toolchain = fp_toolchain(),
+                        dem_cache = dem_cache[FP_DEM_CACHE_RECORD])))
 
     # --- Per-watercourse attribution (#40) ---
     # Which part of this floodplain belongs to which river? flooded::fl_valley_attribute() applies
