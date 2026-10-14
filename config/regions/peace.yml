@@ -1,36 +1,25 @@
-# Peace region — Peace/Parsnip drainage (Arctic slope). Bull trout is the target species:
-# chinook do not occur above the Fraser divide, so `ch` is unmodelled here (access_ch = 0)
-# and `bt` carries the network. Same whole-WSG treatment as the Fraser groups (no
-# break_points.csv => the FWA group polygon is the single sub-basin).
+# Peace region — Peace/Parsnip drainage (Arctic slope), WHOLE NETWORK (#125). Every group is
+# `species: all`: the whole stream network at order >= 2 with no access filter, one floodplain per
+# group, attributed by blue_line_key (#104), habitat joined afterwards from habitat_link. Same
+# whole-WSG treatment as every region (no break_points.csv => the FWA group polygon is the single
+# sub-basin).
 #
-# PINE (Pine River) was loaded via a link build: fresh_default + the fwapg base carry it
-# (8,509 bt segments / 2,152 km at order >= 3). NOTE: it is NOT in fresh.streams_vw_bcfp (the
-# bcfishpass reference view was not refreshed), so the run_region PRE-PASS — which checks that
-# view — will still SKIP PINE. Run it directly (`run_area.R pine`, BUILD reads the fwapg base)
-# until the bcfp view is refreshed, or the pre-pass is pointed at fresh_default.
+# This file used to carry `species: [bt]`. The bt_* items it produced are retired by the publish layer
+# as each group's all_* item replaces them (stac_floodplains_bc#76); their rows in each
+# flood_scenarios.csv and their outputs in data/<wsg>/ are left in place.
 region: peace
 mergin_project: TBD              # doc-only; set when a Peace field project exists
-min_order: 3
-species: [bt]                    # bull trout only (ch unmodelled on the Arctic slope)
-# network_source (#52): GRAB from `fresh` -- link's province-wide rebuild, 2026-08-31/09-01.
-# The per-WSG schemas (morr/bulk/necr/pars) hold July networks and were NOT touched by that rebuild
-# (streams last analyzed 2026-07-09..19), so BUILDing there would ignore the rebuild entirely.
+network: whole                   # every group is species: all, order >= 2 (#125)
+# network_source: GRAB from `fresh` -- link's province-wide rebuild. Provenance is per-WSG ROWS in
+# `fresh.log`, keyed by watershed_group_code; read it with
+# `link::lnk_log_read(conn, lnk_config("default"), aoi = "<WSG>")`.
 #
-# Provenance is per-WSG ROWS in `fresh.log`, keyed by watershed_group_code -- not a log table inside
-# each persist schema. Read it with `link::lnk_log_read(conn, lnk_config("default"), aoi = "<WSG>")`,
-# which is authoritative; introspecting information_schema for per-schema log tables finds nothing
-# and reads as "no provenance", which is wrong. All four target WSGs return one row each carrying
-# `config_hash` (sha256:19e3a...), the value #52's provenance table records.
+# The freshness guard compares the grabbed order >= 2 km against `fresh.streams_vw_bcfp` with no
+# access predicate in whole mode. Measured 2026-10-13, order >= 2 km, equal in fresh, fresh_default
+# and the bcfp view: PCEA 5,494, PARS 5,167, PINE 5,768.
 #
-# CAVEAT ON THE GUARD: the freshness guard compares grabbed km against `fresh.streams_vw_bcfp`
-# (01_network_extract.R:143). Grabbing FROM `fresh` makes that a schema compared against a view over
-# itself -- it passes at ~0% deviation and verifies nothing. Left at the default so the stamp still
-# records the comparison, but a pass here is not evidence of freshness the way it is for columbia
-# (which grabs from `fresh_default`, a genuinely different schema).
+# PINE's 10.8% shortfall against bcfp (#76) was measured on the bull-trout ACCESSIBLE network. Its
+# whole network matches bcfp to the km, so whole mode can run it; its first run is the confirmation.
 network_source: fresh
-# attribute_by (#40, #54): also write a per-watercourse floodplain and the patch<->watercourse
-# bridge for the primary scenario. blue_line_key rather than gnis_name -- on MORR, name-grouping
-# pooled 78% of the floodplain into one unnamed feature because a third of the Morice mainstem
-# itself carries no gnis_name. The name is carried as a label column instead (#48).
-attribute_by: blue_line_key
-watershed_groups: [PCEA, PARS, PINE]   # PINE built; see pre-pass caveat above
+# attribute_by is owned by whole mode (blue_line_key, #104) and needs no line here.
+watershed_groups: [PCEA, PARS, PINE]

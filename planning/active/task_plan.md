@@ -89,15 +89,15 @@ pin) and #122 (DEM cache) have both landed.
   `findings.md`).
 
 ## Phase 4: Region files + README roster
-- [ ] `skeena.yml`: add `network: whole` and drop `species`/`min_order`. Groups are `[BULK, MORR, KISP]`.
+- [x] `skeena.yml`: add `network: whole` and drop `species`/`min_order`. Groups are `[BULK, MORR, KISP]`.
   Rewrite the coho rationale comments. Delete `skeena_ch.yml`.
-- [ ] `fraser.yml` and `peace.yml`: `network: whole`, drop `species`/`min_order`, and update the
+- [x] `fraser.yml` and `peace.yml`: `network: whole`, drop `species`/`min_order`, and update the
   comments. PINE's "not in bcfp view" caveat and Fraser's co/ch note are now dead; replace them with
   the measured whole-network km.
-- [ ] `columbia.yml`: `network: whole`, `fresh_default`, and drop `network_guard: warn` (whole km
+- [x] `columbia.yml`: `network: whole`, `fresh_default`, and drop `network_guard: warn` (whole km
   matches bcfp to the km). Add DUNC and update its header and `config/dunc/area.yml`'s "not in
   columbia.yml" comment.
-- [ ] `fp_readme_roster()`: accept `network: whole` (species column `all`). Re-render README
+- [x] `fp_readme_roster()`: accept `network: whole` (species column `all`). Re-render README
   (`rmd_on = TRUE`, `update_figs = FALSE`) and run `readme_determinism-check.sh` and
   `readme_content-check.py`.
 

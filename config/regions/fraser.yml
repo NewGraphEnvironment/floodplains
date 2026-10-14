@@ -1,38 +1,27 @@
-# Fraser region — the watershed groups in the sern_fraser_2024 project.
-# The runner resolves ONE species per WSG: the first in `species` (ordered preference)
-# that is modelled at order >= min_order (checked against the province-wide
-# fresh.streams_vw_bcfp). A WSG where NONE of the listed species is modelled is NOT run
-# silently — it is flagged loudly and appears as SKIPPED in the coverage summary.
+# Fraser region — the watershed groups in the sern_fraser_2024 project, WHOLE NETWORK (#125). Every
+# group is `species: all`: the whole stream network at order >= 2 with no access filter, one floodplain
+# per group, attributed by blue_line_key (#104), habitat joined afterwards from habitat_link.
+#
+# This file used to carry `species: [ch, bt]`, resolved per group by the run_region pre-pass. The
+# ch_* items it produced are retired by the publish layer as each group's all_* item replaces them
+# (stac_floodplains_bc#76); their rows in each flood_scenarios.csv and their outputs in data/<wsg>/
+# are left in place.
 region: fraser
 mergin_project: newgraph/sern_fraser_2024
-min_order: 3
-species: [ch, bt]          # ordered: chinook, then bull trout
-# network_source (#52): GRAB from `fresh` -- link's province-wide rebuild, 2026-08-31/09-01.
-# The per-WSG schemas (morr/bulk/necr/pars) hold July networks and were NOT touched by that rebuild
-# (streams last analyzed 2026-07-09..19), so BUILDing there would ignore the rebuild entirely.
+network: whole                   # every group is species: all, order >= 2 (#125)
+# network_source: GRAB from `fresh` -- link's province-wide rebuild. Provenance is per-WSG ROWS in
+# `fresh.log`, keyed by watershed_group_code; read it with
+# `link::lnk_log_read(conn, lnk_config("default"), aoi = "<WSG>")`. `fresh`, not `fresh_default`:
+# BOWR, MCGR, THOM, LNTH and UNTH are absent from fresh_default.streams (measured 2026-10-13).
 #
-# Provenance is per-WSG ROWS in `fresh.log`, keyed by watershed_group_code -- not a log table inside
-# each persist schema. Read it with `link::lnk_log_read(conn, lnk_config("default"), aoi = "<WSG>")`,
-# which is authoritative; introspecting information_schema for per-schema log tables finds nothing
-# and reads as "no provenance", which is wrong. All four target WSGs return one row each carrying
-# `config_hash` (sha256:19e3a...), the value #52's provenance table records.
+# The freshness guard compares the grabbed order >= 2 km against `fresh.streams_vw_bcfp` with no
+# access predicate in whole mode. Grabbing FROM `fresh` makes that a schema compared against a view
+# over itself, so a pass verifies little. Measured 2026-10-13, order >= 2 km in fresh.streams, equal
+# to the bcfp view in every group: LCHL 2,460, LSAL 1,397, WILL 2,296, TABR 1,544, UFRA 5,059,
+# NECR 3,523, MORK 6,790, FRAN 4,993, BOWR 2,568, MCGR 2,833, THOM 2,975, LNTH 3,705, UNTH 3,784.
 #
-# CAVEAT ON THE GUARD: the freshness guard compares grabbed km against `fresh.streams_vw_bcfp`
-# (01_network_extract.R:143). Grabbing FROM `fresh` makes that a schema compared against a view over
-# itself -- it passes at ~0% deviation and verifies nothing. Left at the default so the stamp still
-# records the comparison, but a pass here is not evidence of freshness the way it is for columbia
-# (which grabs from `fresh_default`, a genuinely different schema).
+# MCGR was blocked (#76) because it had NO rows in fresh.streams on 2026-09-03. It has 2,833 km now,
+# so whole mode can run it; its first run is the confirmation.
 network_source: fresh
-# attribute_by (#40, #54): also write a per-watercourse floodplain and the patch<->watercourse
-# bridge for the primary scenario. blue_line_key rather than gnis_name -- on MORR, name-grouping
-# pooled 78% of the floodplain into one unnamed feature because a third of the Morice mainstem
-# itself carries no gnis_name. The name is carried as a label column instead (#48).
-attribute_by: blue_line_key
-# THOM/LNTH/UNTH (Thompson, Lower + Upper North Thompson) added 2026-09-03 after link's
-# 2026-09-03 build put them in `fresh` (config bcfishpass, sha256:19e3a..., run_uid set).
-# They resolve to `ch` like the rest. Coho IS modelled in all 13 groups, but measured
-# 2026-09-03 the co and ch ACCESSIBLE SETS are identical at every order 1-5 (co_only=0,
-# ch_only=0) -- they differ only in the 1-vs-2 confidence code, and the pipeline selects
-# IN (1,2). With ff04 primary either way, a coho pass would reproduce the same floodplain
-# under different layer names, so it is not run.
+# attribute_by is owned by whole mode (blue_line_key, #104) and needs no line here.
 watershed_groups: [LCHL, LSAL, WILL, TABR, UFRA, NECR, MORK, FRAN, BOWR, MCGR, THOM, LNTH, UNTH]

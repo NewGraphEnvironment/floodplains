@@ -12,3 +12,6 @@
   rule, SKIP-row rbind fix; checks moved to frozen fixtures, whole-mode arms added, mutation table
   (8 mutations, all red) in findings.md.
 - Plan review (Plan agent) spawned 2026-10-14T12:31:49Z, running in background.
+- Phase 4: all four region files `network: whole` (KISP folded into skeena.yml, skeena_ch.yml deleted,
+  DUNC added to columbia.yml, Columbia's `network_guard: warn` dropped); `fp_readme_roster()` reads the
+  mode; README re-rendered (md with `rmd_on = FALSE` per the build chunk), determinism + content checks OK.

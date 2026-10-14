@@ -148,8 +148,9 @@ Three of these are modelled by default; the rest are configured and off. Turning
 - **Several species coexist in one area.** Outputs are keyed by species (`streams_co3`,
   `co_ff04` / `ch_ff06`), so MORR carries both coho and chinook without either overwriting the
   other.
-- **Regions batch a set of groups.** `config/regions/<region>.yml` names the groups and a species
-  preference. A region run **reconciles** each area’s config rather than regenerating it, so a
+- **Regions batch a set of groups.** `config/regions/<region>.yml` names the groups and either
+  `network: whole` (every group is the whole stream network at order 2 and up, species `all`) or
+  a species preference. A region run **reconciles** each area’s config rather than regenerating it, so a
   second species’ scenario rows, citations and every comment survive. `DRY=1` writes nothing at
   all.
 - **A floodplain can be attributed per watercourse.** Optional `attribute_by:` adds one row per
@@ -177,22 +178,23 @@ Three of these are modelled by default; the rest are configured and off. Turning
 
 Read from `config/regions/*.yml`, which is what the region runner itself consumes:
 
-| region | species preference | watershed groups |
+| region | network | watershed groups |
 |:---|:---|:---|
-| columbia | bt | KOTL, LARL, SLOC |
-| fraser | ch | BOWR, FRAN, LCHL, LNTH, LSAL, MCGR, MORK, NECR, TABR, THOM, UFRA, UNTH, WILL |
-| peace | bt | PARS, PCEA, PINE |
-| skeena | ch | KISP |
-| skeena | co | BULK, MORR |
+| columbia | whole (species `all`) | DUNC, KOTL, LARL, SLOC |
+| fraser | whole (species `all`) | BOWR, FRAN, LCHL, LNTH, LSAL, MCGR, MORK, NECR, TABR, THOM, UFRA, UNTH, WILL |
+| peace | whole (species `all`) | PARS, PCEA, PINE |
+| skeena | whole (species `all`) | BULK, KISP, MORR |
 
 Plus the `neexdzii` parity fixture, which is a reach inside BULK and is deliberately not part of
-any region. The species column is the region’s **preference**: the runner takes the first one
-actually modelled in a group at the configured order, so a group could in principle resolve to
-the second entry.
+any region. A whole-network region runs every group as the whole stream network at order 2 and
+up, with habitat joined afterwards rather than cut into the floodplain. A species preference is
+only that: the runner takes the first species actually modelled in a group at the configured
+order.
 
 This is **what is configured**, which is not the same as what has been modelled, published, or
 re-run at the current model version — every published floodplain predates the DEM grid fix in
-`flooded` 0.7.0 (#117), and MCGR and PINE cannot be re-run as things stand (#76). For what is actually available to download, ask the catalogue rather than this page.
+`flooded` 0.7.0 (#117). MCGR and PINE were blocked on their species networks (#76); their whole
+networks are present and match the reference, but neither has run in whole mode yet. For what is actually available to download, ask the catalogue rather than this page.
 
 ## Running it
 

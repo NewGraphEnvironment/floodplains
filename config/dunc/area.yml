@@ -13,7 +13,9 @@
 # needs no access join, and the freshness guard compares order >= 2 km with no access predicate:
 # 3,493 km against bcfp's 3,493 km. So the guard stays strict.
 #
-# Not in config/regions/columbia.yml: region runs resolve a species per group and refuse `all`.
+# Listed in config/regions/columbia.yml since #125, which runs every Columbia group whole-network and
+# reads fresh_default. That region owns name, species, min_order, schema, primary_scenario,
+# network_source and attribute_by, so a region run sets network_source here to fresh_default.
 name: dunc
 watershed_group: DUNC
 species: all
