@@ -1,4 +1,4 @@
-# Bulkley watershed group (BULK) — WHOLE WSG, coho.
+# Bulkley watershed group (BULK) — WHOLE WSG, WHOLE NETWORK (#125; coho until then).
 # `neexdzii` models only the upper reach (upstream of the Wedzin Kwa confluence); this config
 # runs the ENTIRE Bulkley group as a single sub-basin (FWA group polygon, no break_points.csv),
 # consistent with the whole-WSG treatment of MORR/UFRA/PCEA/etc. Deliberately duplicates
@@ -6,14 +6,16 @@
 # by watershed group.
 name: bulk
 watershed_group: BULK          # link aoi — whole group
-species: co                    # coho runs the whole Bulkley
-min_order: 3
+species: all                   # the whole network, no access filter (#104, #125)
+min_order: 2
 schema: bulk                   # dedicated persist schema (never shared fresh.*, never neexdzii)
-primary_scenario: co_ff04      # headline scenario for LULC (03)
+primary_scenario: all_ff04     # headline scenario for LULC (03)
 subset: null                   # whole WSG — the group polygon is the single sub-basin
 attribute_by: blue_line_key
 network_source: fresh
-# flood_scenarios.csv copied from the coho scenario set (co_ff04 = functional floodplain).
+# flood_scenarios.csv: the all_* rows run (all_ff04 = functional floodplain). The co_* rows above them
+# are the retired coho item's (stac_floodplains_bc#76); nothing runs them, and the README still reads
+# their citations and its figures still read data/bulk/'s co_ff04 outputs until #128.
 # No break_points.csv — whole-WSG single sub-basin.
 # lulc_annual (#79): fetch EVERY year in change_interval (2017..2023) rather than the endpoints
 # + midpoint, so drift's dft_rast_break_class() can separate a sustained switch from flicker.

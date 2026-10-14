@@ -6,11 +6,13 @@
 #   Rscript scripts/run_region.R <region> [steps]      # plan + reconcile configs + run
 #   DRY=1 Rscript scripts/run_region.R <region>        # PREVIEW ONLY -- writes nothing at all
 #
-# Reads config/regions/<region>.yml (watershed_groups, ordered `species` preference,
-# min_order, mergin_project). For each WSG it:
-#   1. PRE-PASS resolves ONE species — the first in the preference list modelled at
-#      order >= min_order (province-wide fresh.streams_vw_bcfp). A WSG where none of the
-#      listed species is modelled is flagged LOUDLY and SKIPPED (never silently dropped).
+# Reads config/regions/<region>.yml (watershed_groups, ordered `species` preference OR
+# `network: whole`, min_order, mergin_project). For each WSG it:
+#   1. PRE-PASS. Species mode resolves ONE species — the first in the preference list modelled at
+#      order >= min_order (province-wide fresh.streams_vw_bcfp). Whole mode (`network: whole`,
+#      #125) has no species to resolve: every group is `species: all`, and the pre-pass counts the
+#      group's segments in `network_source`.streams instead. Either way a WSG that would produce no
+#      network is flagged LOUDLY and SKIPPED (never silently dropped).
 #   2. RECONCILES config/<wsg>/ against the region file -- it does not regenerate it (#44). The
 #      region owns FP_REGION_OWNED (species, min_order, network_source, attribute_by, ...); the area
 #      owns everything else, so a second species' scenario rows, citations, hand-set area.yml keys
@@ -40,15 +42,19 @@ steps  <- if (length(args) >= 2) args[2] else "1,2,3"
 dry    <- nzchar(Sys.getenv("DRY"))
 if (is.na(region)) stop("usage: Rscript scripts/run_region.R <region> [steps]", call. = FALSE)
 
-reg <- yaml::read_yaml(here::here("config", "regions", paste0(region, ".yml")))
-min_order <- reg$min_order %||% 3
-prefs     <- reg$species
+reg_path <- here::here("config", "regions", paste0(region, ".yml"))
+reg <- yaml::read_yaml(reg_path)
+# Before the pre-pass: a species list naming `all` would interpolate access_all into SQL (#104), and
+# a whole region with a species list is a contradiction (#125). Refused with no connection open.
+mode      <- fp_region_mode(reg, paste0("config/regions/", region, ".yml"))
+whole     <- identical(mode, "whole")
+min_order <- fp_region_min_order(reg)
+prefs     <- if (whole) FP_SPECIES_WHOLE else reg$species
 wsgs      <- reg$watershed_groups
-# Before the pre-pass, which would interpolate access_all into SQL (#104).
-fp_region_refuse_whole(prefs, paste0("config/regions/", region, ".yml"))
-message("Region: ", region, " | groups: ", length(wsgs), " | species preference: ",
-        paste(prefs, collapse = ">"), " | min_order: ", min_order,
-        if (dry) "  [DRY: plan only]" else "")
+message("Region: ", region, " | groups: ", length(wsgs), " | mode: ", mode,
+        if (whole) paste0(" (network_source ", reg$network_source, ")")
+        else paste0(" | species preference: ", paste(prefs, collapse = ">")),
+        " | min_order: ", min_order, if (dry) "  [DRY: plan only]" else "")
 
 conn <- DBI::dbConnect(RPostgres::Postgres())
 
@@ -76,10 +82,21 @@ n_access <- function(wsg, sp) DBI::dbGetQuery(conn, sprintf(
   "SELECT count(*)::int FROM fresh.streams_vw_bcfp
    WHERE watershed_group_code = '%s' AND access_%s IN (1,2) AND stream_order >= %d",
   wsg, sp, min_order))[1, 1]
+# Whole mode: the group's segments in the schema step 1 will actually READ, not the bcfp view -- a
+# group the view carries and the source lacks (MCGR in `fresh` until link added it, #76) must SKIP
+# here rather than die in step 1's freshness guard. The schema name is checked before it reaches SQL.
+n_whole <- function(wsg) {
+  src <- reg$network_source
+  if (!grepl("^[a-z_][a-z0-9_]*$", src)) stop("bad network_source: ", src, call. = FALSE)
+  DBI::dbGetQuery(conn, sprintf(
+    "SELECT count(*)::int FROM %s.streams WHERE watershed_group_code = '%s' AND stream_order >= %d",
+    src, wsg, as.integer(min_order)))[1, 1]
+}
 
-message("\n=== Pre-pass: species coverage (order >= ", min_order, ") ===")
+message("\n=== Pre-pass: ", if (whole) paste0("whole-network segments in ", reg$network_source)
+        else "species coverage", " (order >= ", min_order, ") ===")
 plan <- lapply(wsgs, function(w) {
-  cnts <- vapply(prefs, function(sp) n_access(w, sp), numeric(1))
+  cnts <- if (whole) c(all = n_whole(w)) else vapply(prefs, function(sp) n_access(w, sp), numeric(1))
   sel  <- prefs[which(cnts > 0)[1]]
   data.frame(wsg = w, species = ifelse(is.na(sel), NA_character_, sel),
              n_segments = ifelse(is.na(sel), 0, cnts[[which(cnts > 0)[1]]]),
@@ -90,8 +107,13 @@ plan <- do.call(rbind, plan)
 for (i in seq_len(nrow(plan))) {
   p <- plan[i, ]
   if (is.na(p$species)) {
-    message(sprintf("  ⚠ %-5s SKIP: none of [%s] modelled (%s)", p$wsg,
-                    paste(prefs, collapse = ","), p$counts))
+    if (whole) {
+      message(sprintf("  ⚠ %-5s SKIP: no segments at order >= %s in %s.streams", p$wsg, min_order,
+                      reg$network_source))
+    } else {
+      message(sprintf("  ⚠ %-5s SKIP: none of [%s] modelled (%s)", p$wsg,
+                      paste(prefs, collapse = ","), p$counts))
+    }
   } else {
     message(sprintf("  %-5s -> %s (%.0f segments; %s)", p$wsg, p$species, p$n_segments, p$counts))
   }
@@ -108,17 +130,9 @@ if (nrow(skipped) > 0)
 runnable <- plan[!is.na(plan$species), ]
 plans <- lapply(seq_len(nrow(runnable)), function(i) {
   w <- runnable$wsg[i]; sp <- runnable$species[i]
-  # network_source / network_guard: the REGION file is the source of truth for how the accessible
-  # network is obtained -- GRAB from an already-built schema (e.g. fresh_default) vs BUILD the link
-  # pipeline per WSG. The env overrides (FP_NETWORK_SOURCE/_GUARD) work for one run but leave the
-  # choice unreproducible, so carry it through from the region instead. Absent => fp_network BUILDs.
-  # attribute_by (#40) is region-wide for the same reason.
-  owned <- list(name = tolower(w), watershed_group = w, species = sp,
-                min_order = min_order, schema = tolower(w),
-                primary_scenario = paste0(sp, "_ff04"))
-  for (k in c("network_source", "network_guard", "attribute_by")) {
-    if (!is.null(reg[[k]])) owned[[k]] <- reg[[k]]
-  }
+  # The region-owned keys (network_source, attribute_by, ... and in whole mode species = all) are
+  # built in ONE place, fp_region_owned(), which the offline checks exercise too.
+  owned <- fp_region_owned(reg, w, sp)
   fp_region_plan(here::here("config", tolower(w)), owned, base_scenarios(sp))
 })
 
@@ -164,32 +178,55 @@ for (i in seq_len(nrow(runnable))) {
   # the forward-only rollout then self-heals on the next region run instead of being frozen out by
   # the very cache. A PRESENT one is reported with its date, so staleness is a number on screen.
   prov_json <- file.path(here::here("data", area), "provenance.json")
-  # Read whichever landcover section is there rather than guessing the scenario id: MORR's chinook
-  # is ch_ff06, not ch_ff04, so a `<sp>_ff04` lookup would silently miss and report "date unread"
-  # for a group that has a perfectly good record. jsonlite is namespaced and this file does not
-  # source packages.R, so an absent jsonlite degrades to "date unread" rather than aborting a
-  # region run.
-  prov_date <- NA_character_
-  if (file.exists(prov_json)) {
-    prov_date <- tryCatch({
-      lc <- jsonlite::read_json(prov_json, simplifyVector = FALSE)[["landcover"]]
-      dts <- vapply(lc, function(e) as.character(e[["run"]][["datetime_utc"]] %||% NA), character(1))
-      if (length(dts)) max(dts, na.rm = TRUE) else NA_character_
+  # The PRIMARY scenario's landcover record, the one the cache is keyed on. It used to be the max over
+  # every landcover entry, which for a converted group reports a retired species record's date beside
+  # the all_ff04 run. Read again after the child runs, so the coverage CSV states the record that run
+  # wrote rather than the one it replaced. jsonlite is namespaced and this file does not source
+  # packages.R, so an absent jsonlite degrades to "date unread" rather than aborting a region run.
+  prov_date_of <- function() {
+    if (!file.exists(prov_json)) return(NA_character_)
+    tryCatch({
+      e <- jsonlite::read_json(prov_json, simplifyVector = FALSE)[["landcover"]][[plans[[i]]$area$primary_scenario]]
+      v <- e[["run"]][["datetime_utc"]]
+      if (is.character(v) && length(v) == 1L) v else NA_character_
     }, error = function(e) NA_character_, warning = function(w) NA_character_)
   }
-  cached <- file.exists(summary_rds) && file.exists(prov_json) && !nzchar(Sys.getenv("FORCE"))
+  prov_date <- prov_date_of()
+  # Present files are not a finished run of THIS config (fp_region_cache_reason): a floodplain on a
+  # pre-0.7.0 grid (#117; DUNC's 2026-10-12 run), a network read under another min_order or
+  # network_source (DUNC going fresh -> fresh_default), or a landcover record older than the network
+  # or floodplain beneath it (a direct partial run, or a step 3 killed in its fetch) all re-run.
+  # Every test reads the records, never this run's reconciliation diff, so a resume still sees it.
+  why <- NA_character_
+  if (file.exists(summary_rds) && file.exists(prov_json)) {
+    why <- tryCatch(
+      fp_region_cache_reason(jsonlite::read_json(prov_json, simplifyVector = FALSE), plans[[i]]$area),
+      error = function(e) paste0("its provenance.json could not be read (", conditionMessage(e), ")"))
+  }
+  stale <- !is.na(why)
+  cached <- file.exists(summary_rds) && file.exists(prov_json) && !stale && !nzchar(Sys.getenv("FORCE"))
   if (cached) {
     message("\n### ", w, " -> ", sp, ": complete (", basename(summary_rds), " present) — SKIP (FORCE=1 to redo)",
             " [provenance ", if (is.na(prov_date)) "present, date unread" else prov_date, "] ###")
     rc <- 0L
-  } else if (file.exists(summary_rds) && !file.exists(prov_json)) {
-    message("\n### ", w, " -> ", sp, ": outputs present but NO provenance.json — re-running (#33) ###")
-    rc <- system2("Rscript", c(here::here("scripts", "run_area.R"), area, steps),
-                  stdout = log, stderr = log)
   } else {
-    message("\n### ", w, " -> ", sp, " (steps ", steps, ") -> ", basename(log), " ###")
+    if (file.exists(summary_rds) && !file.exists(prov_json)) {
+      message("\n### ", w, " -> ", sp, ": outputs present but NO provenance.json — re-running (#33) ###")
+    } else if (stale && !nzchar(Sys.getenv("FORCE"))) {
+      message("\n### ", w, " -> ", sp, ": outputs present but ", why, " — re-running ###")
+    } else {
+      message("\n### ", w, " -> ", sp, " (steps ", steps, ") -> ", basename(log), " ###")
+    }
+    # Retire the resume marker the moment the group is chosen to re-run. Every signal above is read
+    # from provenance.json, which steps 1 and 2 rewrite early, while step 3 replaces the summary
+    # last: a run interrupted in between would leave new records beside the OLD summary, and the
+    # next resume would read that as complete. With the summary gone, any interruption re-runs.
+    if (file.exists(summary_rds) && !file.remove(summary_rds)) {
+      stop("cannot remove ", summary_rds, " before re-running ", w, call. = FALSE)
+    }
     rc <- system2("Rscript", c(here::here("scripts", "run_area.R"), area, steps),
                   stdout = log, stderr = log)
+    prov_date <- prov_date_of()
   }
   # POST-VERIFY: network non-empty (guards pre-pass-said-yes / run-gave-empty)
   km <- NA_real_; fp_km2 <- NA_real_
@@ -215,8 +252,12 @@ for (i in seq_len(nrow(runnable))) {
 
 # --- Coverage summary ---
 summ <- do.call(rbind, c(results, list(
-  if (nrow(skipped) > 0) data.frame(wsg = skipped$wsg, species = NA, status = "SKIP(no species)",
-    network_km = NA, floodplain_km2 = NA, log = "", stringsAsFactors = FALSE))))
+  # Every column the result rows carry, provenance included: rbind() refuses frames whose columns
+  # differ, so a region with any SKIPPED group used to abort here, after every run had finished.
+  if (nrow(skipped) > 0) data.frame(wsg = skipped$wsg, species = NA,
+    status = if (whole) "SKIP(no network)" else "SKIP(no species)",
+    network_km = NA, floodplain_km2 = NA, provenance = NA_character_, log = "",
+    stringsAsFactors = FALSE))))
 csv <- file.path(log_dir, sprintf("region_%s_%s.csv", region, ts))
 readr::write_csv(summ, csv)
 message("\n=== Region ", region, " coverage ===")

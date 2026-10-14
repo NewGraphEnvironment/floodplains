@@ -14,6 +14,10 @@
 # Nothing here touches the STAC API. This repo owns the model; `stac_floodplains_bc` owns the
 # catalogue, and neither states the other's numbers (floodplains#77).
 
+# The region-mode predicate (#125). fp_region.R holds functions and constants only, so sourcing it
+# needs no database and no data.
+source(file.path("scripts", "floodplain_lcc", "fp_region.R"))
+
 FIG_DIR <- "fig"
 
 # The figures are built from BULK, not from the `neexdzii` parity fixture. neexdzii is
@@ -92,27 +96,28 @@ fp_readme_roster <- function(dir = "config/regions") {
   if (!length(files)) stop("no region files under ", dir, call. = FALSE)
   rows <- lapply(files, function(f) {
     y <- yaml::read_yaml(f)
-    for (k in c("region", "species", "watershed_groups")) {
+    for (k in c("region", "watershed_groups")) {
       if (is.null(y[[k]])) stop(basename(f), ": `", k, "` is missing", call. = FALSE)
     }
+    # A region is either `network: whole` (every group is the whole network, species `all`, #125)
+    # or a species preference. Decided by the runner's own predicate, so a file the runner refuses
+    # (a species list beside `network: whole`, say) stops the render rather than reading as whole.
+    whole <- identical(fp_region_mode(y, basename(f)), "whole")
     data.frame(
       region = y$region,
-      # The region's FIRST PREFERENCE, which is not always what a group resolves to: the
-      # run_region pre-pass picks the first listed species actually modelled at >= min_order.
-      # Every group resolves to the first entry today (columbia lists `wct` as a fallback that
-      # never fires), so the column is labelled "species preference" rather than "species" —
-      # a table stating the wrong species for one group, with nothing to notice, is the same
-      # shape as the counts #77 was filed over.
-      species = y$species[[1]],
+      # For a species region, the FIRST PREFERENCE, which is not always what a group resolves to:
+      # the run_region pre-pass picks the first listed species actually modelled at >= min_order.
+      # Labelled as a preference so a table stating the wrong species for one group cannot pass
+      # for a fact -- the same shape as the counts #77 was filed over.
+      network = if (whole) "whole (species `all`)" else paste0("species preference `", y$species[[1]], "`"),
       groups = paste(sort(unlist(y$watershed_groups)), collapse = ", "),
       stringsAsFactors = FALSE
     )
   })
   out <- do.call(rbind, rows)
-  # Two region files can share a `region:` label with different species (skeena.yml and
-  # skeena_ch.yml), which is the documented way to model a second species. Keep them as
-  # separate rows rather than merging: the species is what the row is about.
-  out[order(out$region, out$species), , drop = FALSE]
+  # Two region files can share a `region:` label (a second species region beside the first). Keep
+  # them as separate rows rather than merging: the network is what the row is about.
+  out[order(out$region, out$network), , drop = FALSE]
 }
 
 #' The flood scenarios an area is configured with

@@ -54,16 +54,161 @@ fp_whole_network_validate <- function(cfg) {
   invisible(cfg)
 }
 
-# A region resolves ONE species per group from the access columns (run_region.R's pre-pass), and it
-# owns `species` and `min_order` (FP_REGION_OWNED). Neither fits the whole network yet: the pre-pass
-# would query access_all, and reconciling a whole-network area against a species region would turn it
-# back into a species item. So both directions are refused until regions learn the mode.
+# --- Region mode (#125) ---------------------------------------------------------------------------
+#
+# A region runs in one of two modes, and the region file says which:
+#
+#   species  (default)  an ordered `species:` preference, resolved per group by run_region.R's
+#                       pre-pass from the access columns (first species modelled at >= min_order).
+#   whole               `network: whole`. Every group is the whole network (`species: all`), so there
+#                       is no pre-pass to run -- it would query access_all, which does not exist. The
+#                       region owns species = all, attribute_by = blue_line_key and min_order (default
+#                       2, the #110 floor) for every group it lists.
+#
+# `all` is refused in a SPECIES region's list: the pre-pass would interpolate it into SQL as a column
+# name. And a species region may not reconcile an existing whole-network area, which would turn it
+# back into a species item. A WHOLE region converting a species area is the point of the mode, so
+# that direction is legal (fp_region_plan).
+FP_WHOLE_MIN_ORDER <- 2L   # integer: yaml writes a double 2 as "2.0"
+
 fp_region_refuse_whole <- function(species, where) {
   if (FP_SPECIES_WHOLE %in% species) {
-    stop("species '", FP_SPECIES_WHOLE, "' (the whole network, #104) is not supported by region ",
-         "runs yet: ", where, ". Run the area directly with run_area.R.", call. = FALSE)
+    stop("species '", FP_SPECIES_WHOLE, "' (the whole network, #104) cannot be listed as a species: ",
+         where, ". Set `network: whole` in the region file instead (#125).", call. = FALSE)
   }
   invisible(species)
+}
+
+# fp_region_mode(reg, where) -> "species" | "whole", refusing a region file that mixes the two.
+# Pure: run_region.R calls it before it opens a connection, and the checks call it with no database.
+#
+# Every read here is `[[`, never `$`: `reg$network` partial-matches `network_source` when the region
+# has no `network:` key, so an ordinary species region (network_source, no network_guard) read as
+# `network: fresh` and was refused. With network_guard present as well the match is ambiguous and
+# returns NULL, which is why the old columbia.yml passed by accident.
+fp_region_mode <- function(reg, where = "region file") {
+  net <- reg[["network"]]
+  if (!is.null(net) && !(is.character(net) && length(net) == 1L && identical(net, "whole"))) {
+    stop(where, ": `network:` must be `whole` or absent, got: ", format(net), call. = FALSE)
+  }
+  if (is.null(net)) {
+    if (!length(reg[["species"]])) stop(where, ": a species region needs a `species:` list", call. = FALSE)
+    fp_region_refuse_whole(reg[["species"]], where)
+    return("species")
+  }
+  # A species list beside `network: whole` is a contradiction, not a fallback: refuse it rather than
+  # guess which of the two the author meant.
+  if (!is.null(reg[["species"]])) {
+    stop(where, ": `network: whole` takes no `species:` (every group is species `all`)", call. = FALSE)
+  }
+  if (!is.null(reg[["attribute_by"]]) && !identical(reg[["attribute_by"]], "blue_line_key")) {
+    stop(where, ": a whole-network region is attributed by blue_line_key (#104), got: ",
+         format(reg[["attribute_by"]]), call. = FALSE)
+  }
+  if (is.null(reg[["network_source"]]) || !nzchar(reg[["network_source"]])) {
+    stop(where, ": a whole-network region needs `network_source` (a BUILD is not supported in ",
+         "whole mode)", call. = FALSE)
+  }
+  # min_order may be raised, never lowered past the #110 floor: order 1 was measured and rejected
+  # (research/whole_fwa_floodplain.md).
+  mo <- reg[["min_order"]]
+  if (!is.null(mo) && !(is.numeric(mo) && length(mo) == 1L && !is.na(mo) && mo >= FP_WHOLE_MIN_ORDER)) {
+    stop(where, ": a whole-network region's min_order must be >= ", FP_WHOLE_MIN_ORDER,
+         " (the #110 floor), got: ", format(mo), call. = FALSE)
+  }
+  "whole"
+}
+
+# The region's min_order: what the file states, else the mode's default.
+fp_region_min_order <- function(reg) {
+  if (!is.null(reg[["min_order"]])) return(reg[["min_order"]])
+  if (identical(fp_region_mode(reg), "whole")) FP_WHOLE_MIN_ORDER else 3L
+}
+
+# fp_region_owned(reg, wsg, sp) -> the region-owned key list for one group, the only place it is
+# built. `sp` is the pre-pass's resolved species in species mode and is ignored in whole mode.
+fp_region_owned <- function(reg, wsg, sp = NULL) {
+  whole <- identical(fp_region_mode(reg), "whole")
+  if (whole) sp <- FP_SPECIES_WHOLE
+  owned <- list(name = tolower(wsg), watershed_group = wsg, species = sp,
+                min_order = fp_region_min_order(reg), schema = tolower(wsg),
+                primary_scenario = paste0(sp, "_ff04"))
+  # network_source / network_guard: the REGION file is the source of truth for how the network is
+  # obtained -- GRAB from an already-built schema vs BUILD the link pipeline per WSG. The env
+  # overrides (FP_NETWORK_SOURCE/_GUARD) work for one run but leave the choice unreproducible, so it
+  # is carried through from the region. attribute_by (#40) is region-wide for the same reason.
+  for (k in c("network_source", "network_guard", "attribute_by")) {
+    if (!is.null(reg[[k]])) owned[[k]] <- reg[[k]]
+  }
+  if (whole) owned$attribute_by <- "blue_line_key"
+  owned
+}
+
+# fp_region_cache_stale(prov, scenario) -> TRUE when a cached group's floodplain predates flooded
+# 0.7.0's pinned grid (#117), or carries no flooded version at all. run_region.R's cache is keyed on
+# file presence, so without this DUNC's 2026-10-12 run on 0.6.5's grid would read as complete. Pure:
+# `prov` is the parsed provenance.json (a list), so the check needs no data/.
+FP_FLOODED_GRID_PIN <- "0.7.0"
+
+# fp_region_cache_moved(prov, area) -> TRUE when the network record on disk was not made under this
+# area config: no `network[<species><min_order>]` entry (min_order or species moved), or its recorded
+# read schema differs from what the config now reads (network_source moved -- DUNC going fresh ->
+# fresh_default as it joins columbia.yml). Compared against the RECORD, not against what this run's
+# reconciliation changed: run_region.R writes every config before the first child runs, so a resume
+# after an interruption would see no change and report the old outputs as this config's.
+fp_region_cache_moved <- function(prov, area) {
+  net <- prov[["network"]][[paste0(area[["species"]], area[["min_order"]])]]
+  if (is.null(net)) return(TRUE)
+  want <- area[["network_source"]]
+  if (is.null(want) || !nzchar(want)) want <- area[["schema"]]   # BUILD reads its own schema
+  got <- net[["inputs"]][["read_schema"]]
+  !(is.character(got) && length(got) == 1L && identical(got, want))
+}
+
+# fp_region_cache_unordered(prov, area) -> TRUE unless the primary landcover record was written AFTER
+# the network and primary floodplain records it rests on.
+#
+# The summary file is a step-3 marker, and the records beside it are written by three different steps
+# at three different times. Sitting together on disk says nothing about having come from one run: a
+# direct `run_area.R <area> 1,2`, or a step 3 killed in its STAC fetch, rewrites the network and
+# floodplain while the old summary stays put. Ordering the records' own run stamps is what tells a
+# finished run from a half-replaced one, whoever started it. The step-3 time is
+# run.repairs[[1]].previous_datetime_utc when there are repairs: an in-place raster repair moves
+# datetime_utc (#126) without re-running step 3.
+fp_region_cache_unordered <- function(prov, area) {
+  sp <- area[["species"]]
+  stamp <- function(ent, step3 = FALSE) {
+    run <- ent[["run"]]
+    v <- if (step3 && length(run[["repairs"]])) run[["repairs"]][[1]][["previous_datetime_utc"]]
+         else run[["datetime_utc"]]
+    if (!is.character(v) || length(v) != 1L) return(NA)
+    as.POSIXct(v, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  }
+  lc <- stamp(prov[["landcover"]][[area[["primary_scenario"]]]], step3 = TRUE)
+  up <- c(stamp(prov[["network"]][[paste0(sp, area[["min_order"]])]]),
+          stamp(prov[["floodplain"]][[area[["primary_scenario"]]]]))
+  is.na(lc) || anyNA(up) || any(lc < up)
+}
+
+# fp_region_cache_reason(prov, area) -> NA when a group's outputs are this config's finished run, else
+# why not. The one verdict run_region.R's cache acts on.
+fp_region_cache_reason <- function(prov, area) {
+  if (fp_region_cache_stale(prov, area[["primary_scenario"]])) {
+    return(paste0("the floodplain record predates flooded ", FP_FLOODED_GRID_PIN, "'s grid (#117)"))
+  }
+  if (fp_region_cache_moved(prov, area)) {
+    return("its network record was made under another min_order or network_source")
+  }
+  if (fp_region_cache_unordered(prov, area)) {
+    return("its landcover record is older than the network or floodplain it rests on")
+  }
+  NA_character_
+}
+fp_region_cache_stale <- function(prov, scenario) {
+  v <- prov[["floodplain"]][[scenario]][["inputs"]][["flooded"]][["version"]]
+  if (is.null(v) || !is.character(v) || length(v) != 1L || is.na(v) || !nzchar(v)) return(TRUE)
+  pv <- tryCatch(package_version(v), error = function(e) NULL)
+  is.null(pv) || pv < package_version(FP_FLOODED_GRID_PIN)
 }
 
 # --- Region-owned area config (#44) ---------------------------------------------------------------
@@ -109,12 +254,33 @@ fp_region_plan <- function(cfg_dir, region_owned, base) {
 
   # --- area.yml: strip the region-owned set, then apply the region's current values ---
   existing <- if (file.exists(area_path)) yaml::read_yaml(area_path) else NULL
-  fp_region_refuse_whole(region_owned$species, "the region file lists it")
-  if (!is.null(existing)) {
-    fp_region_refuse_whole(existing$species, paste0(area_path, " is a whole-network area"))
+  # A whole region (species = all) may convert a species area; a species region may not reconcile a
+  # whole-network area back into a species item (#125).
+  whole_region <- identical(region_owned$species, FP_SPECIES_WHOLE)
+  if (!whole_region) {
+    fp_region_refuse_whole(region_owned$species, "the region resolves a species to it")
+    if (!is.null(existing)) {
+      fp_region_refuse_whole(existing$species, paste0(area_path, " is a whole-network area and ",
+                                                      "the region is not `network: whole`"))
+    }
   }
   kept     <- if (is.null(existing)) list() else existing[setdiff(names(existing), FP_REGION_OWNED)]
   area     <- c(region_owned, kept)   # deterministic order: region keys first, then area-owned
+  # Refuse what step 1 would refuse, here, so DRY=1 reports it rather than a run dying in step 1.
+  fp_whole_network_validate(area)
+  # `targets` is area-owned (the publish layer's per-item list), so a region never rewrites it. In
+  # whole mode a target naming a species scenario points at an item being retired (stac#76) and would
+  # keep publishing it: refuse, and say what to do.
+  if (whole_region && length(area$targets)) {
+    tsc <- vapply(area$targets, function(t)
+      if (is.null(t$scenario)) NA_character_ else as.character(t$scenario)[1], character(1))
+    bad <- tsc[is.na(tsc) | !startsWith(tsc, paste0(FP_SPECIES_WHOLE, "_"))]
+    if (length(bad)) {
+      stop(area_path, ": `targets:` names species scenario(s) ", paste(bad, collapse = ", "),
+           ", which a whole-network region retires (stac_floodplains_bc#76). Remove the block, or ",
+           "list only all_* scenarios.", call. = FALSE)
+    }
+  }
 
   # all.equal, not identical: yaml reads `min_order: 3` back as integer while the runner's default is
   # numeric, and identical(3L, 3) is FALSE. Comparing with identical would report a spurious change
@@ -165,6 +331,18 @@ fp_region_plan <- function(cfg_dir, region_owned, base) {
            call. = FALSE)
     }
     for (m in setdiff(names(cur), names(base))) base[[m]] <- NA
+    # A new species' rows (in whole mode, `all`) are the same scenarios at the same flood factors,
+    # so they rest on the same sources. Carry an existing row's citations onto an appended row with
+    # none, when every existing row at that flood factor agrees -- otherwise the README loses every
+    # citation the day it points at the new rows (#128). Existing rows are still never rewritten.
+    if (all(c("citations", "flood_factor") %in% names(cur))) {
+      for (j in seq_len(nrow(base))) {
+        if (!is.na(base$citations[j]) && nzchar(trimws(base$citations[j]))) next
+        cit <- cur$citations[!is.na(cur$flood_factor) & cur$flood_factor == base$flood_factor[j]]
+        cit <- unique(cit[!is.na(cit) & nzchar(trimws(cit))])
+        if (length(cit) == 1L) base$citations[j] <- cit
+      }
+    }
     scen <- base[, names(cur), drop = FALSE]; scen_mode <- "append"
     scen_action <- paste0("append ", nrow(scen), " ", sp, " rows (", nrow(cur), " -> ",
                           nrow(cur) + nrow(scen), ")")
