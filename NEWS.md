@@ -1,3 +1,18 @@
+# floodplains 0.1.12 (2026-10-14)
+
+* Step 2 caches its DEM per area and species, as `data/<area>/dem_<sp><order>.tif` with a JSON
+  sidecar (#122). NRCan's bucket had been serving MRDEM-30 at ~145 KB/s, so BULK's fetch took
+  37 min of every re-run.
+  * The key covers the streams' geometry, buffer, CRS, source URL, the object's Last-Modified and
+    ETag, the flooded version and everything `fp_toolchain()` records. A hit also needs the file
+    to digest as recorded. A cached run still makes one HEAD request, and fails closed without it.
+  * The driver now owns the DEM URL (`FP_DEM_SOURCE`) and records it as `inputs$dem_source`;
+    `run$dem_cache` records the hit or miss, key, path and object version.
+  * `attribute_tag.R` reads the same cache at the buffer step 2 recorded, and stops unless the DEM
+    digests as step 2 recorded.
+  * `provenance-check.R` 7c reconciles `dem_content_sha256` against the cached file.
+    `dem_cache-check.R` asserts the cache offline (`LIVE=1` adds a real round trip).
+
 # floodplains 0.1.11 (2026-10-13)
 
 * Step 2 now requires flooded >= 0.7.0, whose DEM grid is pinned, and provenance records the GDAL
