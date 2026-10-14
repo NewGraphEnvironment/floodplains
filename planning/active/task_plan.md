@@ -57,7 +57,7 @@ pin) and #122 (DEM cache) have both landed.
 
 ## Phase 2: `run_region.R`
 - [x] Mode dispatch:
-  - **Species mode** is unchanged.
+  - **Species mode** keeps its pre-pass; the pre-0.7.0 cache rule applies in both modes (review G3).
   - **Whole mode** has no species pre-pass. It runs a cheap per-group count of
     `<network_source>.streams` at order ≥ `min_order` instead, so a group absent from the schema is a
     loud SKIP, as MCGR would have been.

@@ -200,6 +200,11 @@ for (i in seq_len(nrow(runnable))) {
       fp_region_cache_stale(jsonlite::read_json(prov_json, simplifyVector = FALSE), paste0(sp, "_ff04")),
       error = function(e) TRUE)
   }
+  # Reconciliation that moved a region-owned key (network_source, min_order, ...) means the outputs
+  # on disk were made under another config -- DUNC's network_source going fresh -> fresh_default as it
+  # joins columbia.yml is the live case. Re-run rather than report the old outputs as this config's.
+  moved <- length(plans[[i]]$area_set) > 0L || length(plans[[i]]$area_remove) > 0L
+  if (moved) stale <- TRUE
   cached <- file.exists(summary_rds) && file.exists(prov_json) && !stale && !nzchar(Sys.getenv("FORCE"))
   if (cached) {
     message("\n### ", w, " -> ", sp, ": complete (", basename(summary_rds), " present) — SKIP (FORCE=1 to redo)",
@@ -210,8 +215,10 @@ for (i in seq_len(nrow(runnable))) {
     rc <- system2("Rscript", c(here::here("scripts", "run_area.R"), area, steps),
                   stdout = log, stderr = log)
   } else if (stale && !nzchar(Sys.getenv("FORCE"))) {
-    message("\n### ", w, " -> ", sp, ": outputs present but the floodplain record predates flooded ",
-            FP_FLOODED_GRID_PIN, "'s grid (#117) — re-running ###")
+    message("\n### ", w, " -> ", sp, ": outputs present but ",
+            if (moved) paste0("the region changed area.yml (", plans[[i]]$area_action, ")")
+            else paste0("the floodplain record predates flooded ", FP_FLOODED_GRID_PIN, "'s grid (#117)"),
+            " — re-running ###")
     rc <- system2("Rscript", c(here::here("scripts", "run_area.R"), area, steps),
                   stdout = log, stderr = log)
   } else {

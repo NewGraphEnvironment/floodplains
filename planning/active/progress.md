@@ -20,3 +20,7 @@
   2026-10-14T12:37:17Z from a frozen worktree at b4414eb (data/ symlinked), log + RSS sampler in scratchpad.
 - Phase 6: CLAUDE.md updated for the region mode (Skeena numbers pending the run); filed #131
   (species-output prune, gated on stac#76 + #128); #76 body updated with MCGR/PINE whole-mode km.
+- Plan review landed (planning/active/review-plan.md). Fixes: DUNC comment (G1), cache invalidated by a
+  moved region-owned key (G2), citations carried onto appended rows (G6), README roster calls
+  fp_region_mode (G7), whole min_order floor (A2), gnis_name arm (AC1). Mutations M8/M9 red.
+  provenance-check baseline: MORR + KISP PASS pre-run.

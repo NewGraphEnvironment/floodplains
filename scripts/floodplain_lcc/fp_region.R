@@ -104,6 +104,13 @@ fp_region_mode <- function(reg, where = "region file") {
     stop(where, ": a whole-network region needs `network_source` (a BUILD is not supported in ",
          "whole mode)", call. = FALSE)
   }
+  # min_order may be raised, never lowered past the #110 floor: order 1 was measured and rejected
+  # (research/whole_fwa_floodplain.md).
+  if (!is.null(reg$min_order) && !(is.numeric(reg$min_order) && length(reg$min_order) == 1L &&
+                                   reg$min_order >= FP_WHOLE_MIN_ORDER)) {
+    stop(where, ": a whole-network region's min_order must be >= ", FP_WHOLE_MIN_ORDER,
+         " (the #110 floor), got: ", format(reg$min_order), call. = FALSE)
+  }
   "whole"
 }
 
@@ -264,6 +271,18 @@ fp_region_plan <- function(cfg_dir, region_owned, base) {
            call. = FALSE)
     }
     for (m in setdiff(names(cur), names(base))) base[[m]] <- NA
+    # A new species' rows (in whole mode, `all`) are the same scenarios at the same flood factors,
+    # so they rest on the same sources. Carry an existing row's citations onto an appended row with
+    # none, when every existing row at that flood factor agrees -- otherwise the README loses every
+    # citation the day it points at the new rows (#128). Existing rows are still never rewritten.
+    if (all(c("citations", "flood_factor") %in% names(cur))) {
+      for (j in seq_len(nrow(base))) {
+        if (!is.na(base$citations[j]) && nzchar(trimws(base$citations[j]))) next
+        cit <- cur$citations[!is.na(cur$flood_factor) & cur$flood_factor == base$flood_factor[j]]
+        cit <- unique(cit[!is.na(cit) & nzchar(trimws(cit))])
+        if (length(cit) == 1L) base$citations[j] <- cit
+      }
+    }
     scen <- base[, names(cur), drop = FALSE]; scen_mode <- "append"
     scen_action <- paste0("append ", nrow(scen), " ", sp, " rows (", nrow(cur), " -> ",
                           nrow(cur) + nrow(scen), ")")

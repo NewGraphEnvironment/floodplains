@@ -14,6 +14,10 @@
 # Nothing here touches the STAC API. This repo owns the model; `stac_floodplains_bc` owns the
 # catalogue, and neither states the other's numbers (floodplains#77).
 
+# The region-mode predicate (#125). fp_region.R holds functions and constants only, so sourcing it
+# needs no database and no data.
+source(file.path("scripts", "floodplain_lcc", "fp_region.R"))
+
 FIG_DIR <- "fig"
 
 # The figures are built from BULK, not from the `neexdzii` parity fixture. neexdzii is
@@ -96,11 +100,9 @@ fp_readme_roster <- function(dir = "config/regions") {
       if (is.null(y[[k]])) stop(basename(f), ": `", k, "` is missing", call. = FALSE)
     }
     # A region is either `network: whole` (every group is the whole network, species `all`, #125)
-    # or a species preference. Stop on a file that is neither rather than print an empty cell.
-    whole <- identical(y$network, "whole")
-    if (!whole && is.null(y$species)) {
-      stop(basename(f), ": neither `network: whole` nor `species` is set", call. = FALSE)
-    }
+    # or a species preference. Decided by the runner's own predicate, so a file the runner refuses
+    # (a species list beside `network: whole`, say) stops the render rather than reading as whole.
+    whole <- identical(fp_region_mode(y, basename(f)), "whole")
     data.frame(
       region = y$region,
       # For a species region, the FIRST PREFERENCE, which is not always what a group resolves to:

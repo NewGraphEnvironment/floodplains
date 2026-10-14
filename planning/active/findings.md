@@ -87,6 +87,9 @@ Each defect restored in a scratch copy of the repo, both checks run; red = non-z
 | M5 plan skips `fp_whole_network_validate` | 0 | rc 1, 1 FAIL (after fixing the arm, below) |
 | M6 whole min_order a double (yaml writes `2.0`) | 3 FAIL | 0 |
 | M7 whole mode keeps the region's attribute_by | rc 1, 1 FAIL | rc 1, 3 FAIL |
+| M8 citation carry removed (review G6) | rc 1, 1 FAIL | 0 |
+| M9 whole min_order floor removed (review A2) | rc 1, 1 FAIL | 0 |
+| M5 re-run after the gnis_name arm | 0 | rc 1, 2 FAIL |
 
 M5 first came back green on both. The arm "refuses 'all' from a region missing network_source" built
 its owned list through `fp_region_owned()`, which calls `fp_region_mode()`, which refuses a species list

@@ -86,6 +86,9 @@ check(errs(fp_region_plan(scratch, no_src, base_all)),
       "fp_region_plan refuses an 'all' area with no network_source (step 1 would)")
 check(!errs(fp_region_plan(scratch, c(no_src, list(network_source = "fresh")), base_all)),
       "must-fail control: the same owned list with a network_source plans")
+gnis <- modifyList(no_src, list(network_source = "fresh", attribute_by = "gnis_name"))
+check(errs(fp_region_plan(scratch, gnis, base_all)),
+      "fp_region_plan refuses an 'all' area attributed by gnis_name (no keyed layer, #104)")
 check(!errs(fp_region_plan(scratch, fp_region_owned(whole_reg, "DUNC"), base_all)),
       "a whole region plans a new whole-network area")
 yaml::write_yaml(list(name = "dunc", watershed_group = "DUNC", species = "all", min_order = 2L),

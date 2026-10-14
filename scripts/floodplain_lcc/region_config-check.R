@@ -247,6 +247,8 @@ ok("must-fail: a species region listing all", errs(fp_region_mode(list(species =
 ok("must-fail: a species region with no species", errs(fp_region_mode(list(min_order = 3))))
 ok("whole min_order defaults to 2 (#110 floor)", identical(fp_region_min_order(whole_reg), 2L))
 ok("a stated min_order wins", identical(fp_region_min_order(c(whole_reg, list(min_order = 3L))), 3L))
+ok("must-fail: a whole region below the #110 floor (min_order 1)",
+   errs(fp_region_mode(c(whole_reg, list(min_order = 1L)))))
 
 wo <- fp_region_owned(whole_reg, "BULK", sp = "co")   # a stray species is ignored in whole mode
 ok("whole owned: species all, ff04 primary, blue_line_key",
@@ -269,6 +271,12 @@ after_rows <- readLines(fs::path(d, "flood_scenarios.csv"), warn = FALSE)
 ok("the species rows are kept byte for byte, the all rows appended after them",
    identical(after_rows[seq_along(before_rows)], before_rows) &&
      sum(grepl("^all_ff", after_rows)) == 6L)
+conv <- readr::read_csv(fs::path(d, "flood_scenarios.csv"), show_col_types = FALSE)
+co_cit  <- conv$citations[conv$species == "co"][order(conv$flood_factor[conv$species == "co"])]
+all_cit <- conv$citations[conv$species == "all"][order(conv$flood_factor[conv$species == "all"])]
+ok("the appended all rows carry the co rows' citations, flood factor by flood factor",
+   identical(all_cit, co_cit) && sum(!is.na(all_cit) & nzchar(all_cit)) > 0L,
+   paste(sum(!is.na(all_cit) & nzchar(all_cit)), "cited rows"))
 ok("comments survive the conversion",
    sum(grepl("^\\s*#", readLines(fs::path(d, "area.yml")))) == sum(grepl("^\\s*#", before_lines)))
 ok("area-owned lulc_annual survives the conversion", identical(y$lulc_annual, TRUE))
