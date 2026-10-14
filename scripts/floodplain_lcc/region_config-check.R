@@ -7,7 +7,11 @@
 # nothing failed and no error was raised; `git status` was the only signal. A guard is the only thing
 # that turns that back into a loud failure.
 #
-# Runs against a TEMP COPY of the real configs, so the check itself can never damage what it guards.
+# Runs against a TEMP COPY of FROZEN fixtures (scripts/floodplain_lcc/fixtures/region_config/), so the
+# check itself can never damage what it guards. They are config/morr and config/bulk as they stood
+# before #125 converted both to whole-network areas: the species-mode rules still need a two-species
+# area with citations and a targets block, and the live configs no longer are one. Frozen rather than
+# read live, so a later config edit cannot quietly change what a rule is tested against.
 # No database: fp_region_plan is pure, which is the whole point of factoring it out of the runner.
 #
 # usage: Rscript scripts/floodplain_lcc/region_config-check.R
@@ -37,9 +41,9 @@ base_scenarios <- function(sp, min_order = 3) data.frame(
   run = c(FALSE, TRUE, TRUE, TRUE, FALSE, FALSE),
   description = "", ecological_process = "", citations = "", stringsAsFactors = FALSE)
 
+# Built by fp_region_owned(), the runner's own constructor, from a species-mode region file.
 owned_for <- function(w, sp, extra = list()) {
-  c(list(name = tolower(w), watershed_group = w, species = sp, min_order = 3,
-         schema = tolower(w), primary_scenario = paste0(sp, "_ff04")), extra)
+  fp_region_owned(c(list(species = sp, min_order = 3L), extra), w, sp)
 }
 
 scratch <- fs::path(tempdir(), "region_config_check")
@@ -48,7 +52,7 @@ on.exit(fs::dir_delete(scratch), add = TRUE)
 copy_cfg <- function(area) {
   d <- fs::path(scratch, area)
   if (fs::dir_exists(d)) fs::dir_delete(d)
-  fs::dir_copy(here::here("config", area), d)
+  fs::dir_copy(here::here("scripts", "floodplain_lcc", "fixtures", "region_config", area), d)
   d
 }
 
@@ -222,6 +226,78 @@ ok("second plan reports no change", !isTRUE(p2$changed),
 fp_region_write(p2)
 ok("second write leaves every file byte-identical",
    identical(snap, vapply(fs::dir_ls(d), function(f) unname(tools::md5sum(f)), character(1))))
+
+# ---------------------------------------------------------------------------------------------
+message("\nWhole-network region mode (#125)")
+# ---------------------------------------------------------------------------------------------
+
+whole_reg <- list(region = "skeena", network = "whole", network_source = "fresh",
+                  watershed_groups = c("BULK", "MORR"))
+errs <- function(expr) inherits(tryCatch(expr, error = function(e) e), "error")
+ok("network: whole is whole mode", identical(fp_region_mode(whole_reg), "whole"))
+ok("a species list is species mode", identical(fp_region_mode(list(species = c("ch", "bt"))), "species"))
+ok("must-fail: network: whole beside a species list",
+   errs(fp_region_mode(c(whole_reg, list(species = "co")))))
+ok("must-fail: network: whole with no network_source",
+   errs(fp_region_mode(whole_reg[setdiff(names(whole_reg), "network_source")])))
+ok("must-fail: network: whole attributed by gnis_name",
+   errs(fp_region_mode(c(whole_reg, list(attribute_by = "gnis_name")))))
+ok("must-fail: an unknown network: value", errs(fp_region_mode(list(network = "all", network_source = "fresh"))))
+ok("must-fail: a species region listing all", errs(fp_region_mode(list(species = c("bt", "all")))))
+ok("must-fail: a species region with no species", errs(fp_region_mode(list(min_order = 3))))
+ok("whole min_order defaults to 2 (#110 floor)", identical(fp_region_min_order(whole_reg), 2L))
+ok("a stated min_order wins", identical(fp_region_min_order(c(whole_reg, list(min_order = 3L))), 3L))
+
+wo <- fp_region_owned(whole_reg, "BULK", sp = "co")   # a stray species is ignored in whole mode
+ok("whole owned: species all, ff04 primary, blue_line_key",
+   identical(wo$species, "all") && identical(wo$primary_scenario, "all_ff04") &&
+     identical(wo$attribute_by, "blue_line_key") && identical(wo$network_source, "fresh"))
+
+# Converting a species area: the case every group in a converted region takes.
+d <- copy_cfg("bulk")
+before_lines <- readLines(fs::path(d, "area.yml"), warn = FALSE)
+before_rows  <- readLines(fs::path(d, "flood_scenarios.csv"), warn = FALSE)
+p <- fp_region_plan(d, wo, base_scenarios("all", min_order = 2L))
+ok("conversion plans an update and an append", p$area_mode == "update" && p$scenarios_mode == "append",
+   paste(p$area_action, "/", p$scenarios_action))
+fp_region_write(p)
+y <- yaml::read_yaml(fs::path(d, "area.yml"))
+ok("converted area: species all, min_order 2, all_ff04",
+   identical(y$species, "all") && identical(y$min_order, 2L) && identical(y$primary_scenario, "all_ff04"))
+ok("min_order is written as an integer", any(grepl("^min_order: 2(\\s|$)", readLines(fs::path(d, "area.yml")))))
+after_rows <- readLines(fs::path(d, "flood_scenarios.csv"), warn = FALSE)
+ok("the species rows are kept byte for byte, the all rows appended after them",
+   identical(after_rows[seq_along(before_rows)], before_rows) &&
+     sum(grepl("^all_ff", after_rows)) == 6L)
+ok("comments survive the conversion",
+   sum(grepl("^\\s*#", readLines(fs::path(d, "area.yml")))) == sum(grepl("^\\s*#", before_lines)))
+ok("area-owned lulc_annual survives the conversion", identical(y$lulc_annual, TRUE))
+snap <- vapply(fs::dir_ls(d), function(f) unname(tools::md5sum(f)), character(1))
+p2 <- fp_region_plan(d, wo, base_scenarios("all", min_order = 2L))
+fp_region_write(p2)
+ok("a second whole run is a byte-identical no-op",
+   !isTRUE(p2$changed) && identical(snap, vapply(fs::dir_ls(d), function(f) unname(tools::md5sum(f)), character(1))))
+ok("must-fail: a species region may not reconcile the now-whole area back",
+   errs(fp_region_plan(d, owned_for("BULK", "co"), base_scenarios("co"))))
+
+# targets: area-owned, and in whole mode a species target would keep publishing a retired item.
+d <- copy_cfg("morr")
+ok("must-fail: whole mode refuses a targets block naming species scenarios",
+   errs(fp_region_plan(d, fp_region_owned(whole_reg, "MORR"), base_scenarios("all", 2L))))
+y <- yaml::read_yaml(fs::path(d, "area.yml"))
+y$targets <- list(list(species = "all", scenario = "all_ff04"))
+yaml::write_yaml(y, fs::path(d, "area.yml"))
+ok("control: a targets block naming only all_* scenarios passes",
+   !errs(fp_region_plan(d, fp_region_owned(whole_reg, "MORR"), base_scenarios("all", 2L))))
+
+# The cache rule: a floodplain record on a pre-0.7.0 grid is not complete (#117).
+prov_v <- function(v) list(floodplain = list(all_ff04 = list(inputs = list(flooded = list(version = v)))))
+ok("cache stale: flooded 0.6.5 (DUNC's 2026-10-12 record)", fp_region_cache_stale(prov_v("0.6.5"), "all_ff04"))
+ok("cache current: flooded 0.7.0", !fp_region_cache_stale(prov_v("0.7.0"), "all_ff04"))
+ok("cache current: flooded 0.10.0 (numeric, not string, comparison)",
+   !fp_region_cache_stale(prov_v("0.10.0"), "all_ff04"))
+ok("cache stale: no record for the scenario", fp_region_cache_stale(prov_v("0.7.0"), "co_ff04"))
+ok("cache stale: an unparseable version", fp_region_cache_stale(prov_v("dev"), "all_ff04"))
 
 message("")
 if (fails > 0L) {

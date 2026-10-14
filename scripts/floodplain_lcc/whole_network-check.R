@@ -3,8 +3,8 @@
 # `species: all` is a token that reaches SQL, so what it must never do is checked against the SQL
 # itself: the whole-network read joins no access table and filters no access column; the species read
 # is BYTE-IDENTICAL to what step 1 ran before the read was lifted into fp_network_sql() (so the lift
-# moves no existing area's network); only the exact token takes the whole path; region runs refuse it
-# in both directions; and the habitat table is keyed per watershed group and digests by content.
+# moves no existing area's network); only the exact token takes the whole path; a species region refuses
+# it in both directions while a `network: whole` region may convert a species area (#125); and the habitat table is keyed per watershed group and digests by content.
 # Every predicate is also run against a mutated input it must reject.
 #
 # usage: Rscript scripts/floodplain_lcc/whole_network-check.R
@@ -68,23 +68,38 @@ for (sp in list("ALL", "a; DROP", c("bt", "co"), NA_character_, 3)) {
   check(errs(fp_network_sql("fresh", "DUNC", sp, 2)), sprintf("refuses species [%s]", fmt(sp)))
 }
 
-cat("\nregion runs refuse the whole network, both directions\n")
+cat("\nregions: a species region refuses the whole network, a whole region takes it (#125)\n")
 check(errs(fp_region_refuse_whole(c("bt", "all"), "test")), "a region species list naming 'all' is refused")
+check(errs(fp_region_mode(list(species = c("bt", "all")))), "fp_region_mode refuses a species list naming 'all'")
 check(!errs(fp_region_refuse_whole(c("bt", "wct"), "test")), "a species region is not refused")
 base <- data.frame(scenario_id = "bt_ff04", species = "bt", run = TRUE)
+base_all <- data.frame(scenario_id = "all_ff04", species = "all", run = TRUE)
 scratch <- fs::path(tempdir(), "whole_network_check")
 fs::dir_create(scratch)
-owned <- function(sp) list(name = "dunc", watershed_group = "DUNC", species = sp, min_order = 3,
-                           schema = "dunc", primary_scenario = paste0(sp, "_ff04"))
-check(errs(fp_region_plan(scratch, owned("all"), base)), "fp_region_plan refuses a region resolving to 'all'")
-yaml::write_yaml(list(name = "dunc", watershed_group = "DUNC", species = "all", min_order = 2),
+owned <- function(sp) fp_region_owned(list(species = sp, min_order = 3L), "DUNC", sp)
+whole_reg <- list(network = "whole", network_source = "fresh")
+# Built by hand, not through fp_region_owned(): that refuses a whole region with no network_source
+# itself, so the plan's own validation would never be reached and this arm would pass without it.
+no_src <- list(name = "dunc", watershed_group = "DUNC", species = "all", min_order = 2L,
+               schema = "dunc", primary_scenario = "all_ff04", attribute_by = "blue_line_key")
+check(errs(fp_region_plan(scratch, no_src, base_all)),
+      "fp_region_plan refuses an 'all' area with no network_source (step 1 would)")
+check(!errs(fp_region_plan(scratch, c(no_src, list(network_source = "fresh")), base_all)),
+      "must-fail control: the same owned list with a network_source plans")
+check(!errs(fp_region_plan(scratch, fp_region_owned(whole_reg, "DUNC"), base_all)),
+      "a whole region plans a new whole-network area")
+yaml::write_yaml(list(name = "dunc", watershed_group = "DUNC", species = "all", min_order = 2L),
                  fs::path(scratch, "area.yml"))
 check(errs(fp_region_plan(scratch, owned("bt"), base)),
       "fp_region_plan refuses to reconcile an existing whole-network area into a species item")
-yaml::write_yaml(list(name = "dunc", watershed_group = "DUNC", species = "bt", min_order = 3),
+check(!errs(fp_region_plan(scratch, fp_region_owned(whole_reg, "DUNC"), base_all)),
+      "a whole region reconciles an existing whole-network area")
+yaml::write_yaml(list(name = "dunc", watershed_group = "DUNC", species = "bt", min_order = 3L),
                  fs::path(scratch, "area.yml"))
 check(!errs(fp_region_plan(scratch, owned("bt"), base)),
-      "must-fail control: the same plan on a species area is not refused")
+      "must-fail control: the same species plan on a species area is not refused")
+check(!errs(fp_region_plan(scratch, fp_region_owned(whole_reg, "DUNC"), base_all)),
+      "a whole region converts a species area")
 fs::dir_delete(scratch)
 
 cat("\nthe habitat table\n")

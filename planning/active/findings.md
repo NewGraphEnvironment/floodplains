@@ -73,6 +73,27 @@ Order >= 2 km per group (`sum(length_metre)` / 1000):
 - Every group has `streams_habitat_<sp>` rows in its region's schema (fresh: bt/ch/co/... ; fresh_default adds rb/gr/ko).
 - `fp_bcfp_km_sql("all", ...)` already compares total km, so the guard is meaningful in whole mode.
 
+## Mutation table — Phase 3 guards (2026-10-14)
+
+Each defect restored in a scratch copy of the repo, both checks run; red = non-zero exit or a FAIL line.
+
+| mutation | region_config-check | whole_network-check |
+|---|---|---|
+| M0 none (baseline) | rc 0, 0 FAIL | rc 0, 0 FAIL |
+| M1 whole region also refuses an existing whole area | rc 1 (aborts) | rc 1, 4 FAIL |
+| M2 targets refusal removed | 1 FAIL | 0 |
+| M3 cache compares version strings (`"0.10.0" < "0.7.0"`) | 2 FAIL | 0 |
+| M4 whole mode accepts a species list | 1 FAIL | 0 |
+| M5 plan skips `fp_whole_network_validate` | 0 | rc 1, 1 FAIL (after fixing the arm, below) |
+| M6 whole min_order a double (yaml writes `2.0`) | 3 FAIL | 0 |
+| M7 whole mode keeps the region's attribute_by | rc 1, 1 FAIL | rc 1, 3 FAIL |
+
+M5 first came back green on both. The arm "refuses 'all' from a region missing network_source" built
+its owned list through `fp_region_owned()`, which calls `fp_region_mode()`, which refuses a species list
+naming `all` -- so the error came from the mode check and the plan's own validation was never reached.
+The arm now builds the list by hand, with a control that the same list plus a `network_source` plans.
+The first counter also read an aborted script as 0 FAIL; it now reports the exit status too.
+
 ## Errors Encountered
 
 | Error | Resolution |

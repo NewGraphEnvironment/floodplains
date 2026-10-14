@@ -37,41 +37,41 @@ pin) and #122 (DEM cache) have both landed.
   whenever a group is SKIPPED, because the skipped frame lacks the `provenance` column.
 
 ## Phase 1: Region mode in `fp_region.R` (pure, offline-testable)
-- [ ] `fp_region_mode(reg)`: returns `"whole"` when the region says `network: whole`, else `"species"`.
+- [x] `fp_region_mode(reg)`: returns `"whole"` when the region says `network: whole`, else `"species"`.
   - It refuses any other `network:` value.
   - Whole mode refuses a `species:` key, an `attribute_by` other than `blue_line_key`, and a missing
     `network_source`.
   - Species mode refuses an empty `species` list, or one naming `all` (via `fp_region_refuse_whole`).
-- [ ] `fp_region_owned(reg, wsg, sp, min_order)`: builds the region-owned list. It is lifted from
+- [x] `fp_region_owned(reg, wsg, sp, min_order)`: builds the region-owned list. It is lifted from
   `run_region.R:116-121` so the runner and the checks build it one way. Whole mode forces
   `species: all` and `attribute_by: blue_line_key`, and `min_order` defaults to 2 (#110 floor).
-- [ ] `fp_region_plan()`:
+- [x] `fp_region_plan()`:
   - Refuses an existing whole area only when the region is **not** whole (the species-to-all
     conversion becomes legal).
   - Calls `fp_whole_network_validate()` on the resulting area, so DRY catches it.
   - In whole mode, refuses an area whose `targets:` names any non-`all` scenario, with the remedy (the
     species items are retired, stac#76) in the message. `targets` stays area-owned.
-- [ ] `fp_region_cache_stale(prov, scenario)`: TRUE when `floodplain[<scenario>].inputs.flooded.version`
+- [x] `fp_region_cache_stale(prov, scenario)`: TRUE when `floodplain[<scenario>].inputs.flooded.version`
   is below 0.7.0 or absent (#117). That is DUNC's 10-12 record.
-- [ ] Update the comment block above `fp_region_refuse_whole` / `FP_SPECIES_WHOLE` to the new rule.
+- [x] Update the comment block above `fp_region_refuse_whole` / `FP_SPECIES_WHOLE` to the new rule.
 
 ## Phase 2: `run_region.R`
-- [ ] Mode dispatch:
+- [x] Mode dispatch:
   - **Species mode** is unchanged.
   - **Whole mode** has no species pre-pass. It runs a cheap per-group count of
     `<network_source>.streams` at order ≥ `min_order` instead, so a group absent from the schema is a
     loud SKIP, as MCGR would have been.
-- [ ] Use `fp_region_owned()`, and pass `base_scenarios("all")` at `min_order` 2.
-- [ ] Cache:
+- [x] Use `fp_region_owned()`, and pass `base_scenarios("all")` at `min_order` 2.
+- [x] Cache:
   - A whole-mode group is stale when `fp_region_cache_stale()` says so (it re-runs and reports why).
   - Fix the SKIP-row `rbind` (missing `provenance` column).
-- [ ] Update the header usage text and the startup message (`mode: whole`).
+- [x] Update the header usage text and the startup message (`mode: whole`).
 
 ## Phase 3: Checks
-- [ ] `region_config-check.R`: move the fixtures off live config. Commit today's `config/morr/` and
+- [x] `region_config-check.R`: move the fixtures off live config. Commit today's `config/morr/` and
   `config/bulk/` as frozen copies under `scripts/floodplain_lcc/fixtures/region_config/`. Every
   existing arm then runs on them unchanged.
-- [ ] Add whole-mode arms to `region_config-check.R`:
+- [x] Add whole-mode arms to `region_config-check.R`:
   - Converting a species area: `species` becomes `all`, `min_order` 2, `attribute_by` blue_line_key.
   - The `all` rows are appended and the species rows stay byte-identical.
   - Comments survive, and a second run is a byte-identical no-op.
@@ -79,13 +79,13 @@ pin) and #122 (DEM cache) have both landed.
   - `fp_region_cache_stale` on 0.6.5 / 0.7.0 / absent.
   - `fp_region_mode` must-fail arms: `species` + `network: whole`, a missing `network_source`,
     `network: foo`, and `species: [bt, all]`.
-- [ ] `whole_network-check.R`: the region section goes from "refuse both directions" to "refuse unless
+- [x] `whole_network-check.R`: the region section goes from "refuse both directions" to "refuse unless
   whole".
   - Keep the must-fail arm for a species region naming `all`.
   - Keep the arm refusing a species region reconciling a whole area.
   - Add: a whole region converting a species area passes, and a whole plan with no `network_source`
     is refused.
-- [ ] Restore each new guard's defect once and confirm the check goes red (mutation table in
+- [x] Restore each new guard's defect once and confirm the check goes red (mutation table in
   `findings.md`).
 
 ## Phase 4: Region files + README roster
