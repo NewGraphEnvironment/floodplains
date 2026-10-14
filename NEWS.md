@@ -1,3 +1,24 @@
+# floodplains 0.1.13 (2026-10-14)
+
+* `run_region.R` runs a region as the whole stream network: `network: whole` in a region file makes
+  every group `species: all` at order >= 2, attributed by `blue_line_key` (#125, #104).
+  * The species pre-pass is skipped. A count of the group's segments in `network_source` stands in,
+    so a group the schema lacks is a loud SKIP. The region owns `species`, `attribute_by` and
+    `min_order` (default 2, never lower).
+  * A whole region converts a species area in place and appends the `all_*` scenario rows, carrying
+    the species rows' citations. A species region still refuses `all` both ways, and whole mode
+    refuses a `targets:` block naming a species scenario.
+  * All four region files are whole-network. KISP folds into `skeena.yml`, DUNC joins
+    `columbia.yml`, and Columbia drops `network_guard: warn`.
+  * Skeena ran whole-network on flooded 0.7.0: `all_ff04` BULK 660.0, MORR 479.3, KISP 324.4 km²
+    (`scripts/floodplain_lcc/logs/20261014_whole_network_skeena.md`).
+* The region cache calls a group complete only when its records are this config's finished run: a
+  floodplain on flooded 0.7.0's grid, a network read with the configured schema and `min_order`, and
+  a landcover record newer than both. A group chosen to re-run has its summary removed first. Files
+  sitting together on disk were being read as one run.
+* `fp_region_mode()` reads region keys with `[[`: `reg$network` partial-matched `network_source` and
+  refused an ordinary species region. The coverage CSV no longer aborts when a group is skipped.
+
 # floodplains 0.1.12 (2026-10-14)
 
 * Step 2 caches its DEM per area and species, as `data/<area>/dem_<sp><order>.tif` with a JSON
