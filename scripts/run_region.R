@@ -178,39 +178,32 @@ for (i in seq_len(nrow(runnable))) {
   # the forward-only rollout then self-heals on the next region run instead of being frozen out by
   # the very cache. A PRESENT one is reported with its date, so staleness is a number on screen.
   prov_json <- file.path(here::here("data", area), "provenance.json")
-  # Read whichever landcover section is there rather than guessing the scenario id: MORR's chinook
-  # is ch_ff06, not ch_ff04, so a `<sp>_ff04` lookup would silently miss and report "date unread"
-  # for a group that has a perfectly good record. jsonlite is namespaced and this file does not
-  # source packages.R, so an absent jsonlite degrades to "date unread" rather than aborting a
-  # region run.
-  prov_date <- NA_character_
-  if (file.exists(prov_json)) {
-    prov_date <- tryCatch({
-      lc <- jsonlite::read_json(prov_json, simplifyVector = FALSE)[["landcover"]]
-      dts <- vapply(lc, function(e) as.character(e[["run"]][["datetime_utc"]] %||% NA), character(1))
-      if (length(dts)) max(dts, na.rm = TRUE) else NA_character_
+  # The PRIMARY scenario's landcover record, the one the cache is keyed on. It used to be the max over
+  # every landcover entry, which for a converted group reports a retired species record's date beside
+  # the all_ff04 run. Read again after the child runs, so the coverage CSV states the record that run
+  # wrote rather than the one it replaced. jsonlite is namespaced and this file does not source
+  # packages.R, so an absent jsonlite degrades to "date unread" rather than aborting a region run.
+  prov_date_of <- function() {
+    if (!file.exists(prov_json)) return(NA_character_)
+    tryCatch({
+      e <- jsonlite::read_json(prov_json, simplifyVector = FALSE)[["landcover"]][[plans[[i]]$area$primary_scenario]]
+      v <- e[["run"]][["datetime_utc"]]
+      if (is.character(v) && length(v) == 1L) v else NA_character_
     }, error = function(e) NA_character_, warning = function(w) NA_character_)
   }
-  # A record on a pre-0.7.0 grid is not complete, whatever files exist (#117): DUNC's 2026-10-12 run
-  # would otherwise read as done. Only the primary scenario's floodplain record is consulted -- that
-  # is the scenario the summary above is keyed on.
-  stale <- FALSE
+  prov_date <- prov_date_of()
+  # Present files are not a finished run of THIS config (fp_region_cache_reason): a floodplain on a
+  # pre-0.7.0 grid (#117; DUNC's 2026-10-12 run), a network read under another min_order or
+  # network_source (DUNC going fresh -> fresh_default), or a landcover record older than the network
+  # or floodplain beneath it (a direct partial run, or a step 3 killed in its fetch) all re-run.
+  # Every test reads the records, never this run's reconciliation diff, so a resume still sees it.
+  why <- NA_character_
   if (file.exists(summary_rds) && file.exists(prov_json)) {
-    stale <- tryCatch(
-      fp_region_cache_stale(jsonlite::read_json(prov_json, simplifyVector = FALSE), paste0(sp, "_ff04")),
-      error = function(e) TRUE)
+    why <- tryCatch(
+      fp_region_cache_reason(jsonlite::read_json(prov_json, simplifyVector = FALSE), plans[[i]]$area),
+      error = function(e) paste0("its provenance.json could not be read (", conditionMessage(e), ")"))
   }
-  # A network record made under another config (min_order, or network_source -- DUNC going fresh ->
-  # fresh_default as it joins columbia.yml) is not this config's output. Read from the record, so a
-  # rerun that never finished still sees it (fp_region_cache_moved), together with the marker
-  # retirement below.
-  moved <- FALSE
-  if (file.exists(summary_rds) && file.exists(prov_json)) {
-    moved <- tryCatch(
-      fp_region_cache_moved(jsonlite::read_json(prov_json, simplifyVector = FALSE), plans[[i]]$area),
-      error = function(e) TRUE)
-  }
-  if (moved) stale <- TRUE
+  stale <- !is.na(why)
   cached <- file.exists(summary_rds) && file.exists(prov_json) && !stale && !nzchar(Sys.getenv("FORCE"))
   if (cached) {
     message("\n### ", w, " -> ", sp, ": complete (", basename(summary_rds), " present) — SKIP (FORCE=1 to redo)",
@@ -220,10 +213,7 @@ for (i in seq_len(nrow(runnable))) {
     if (file.exists(summary_rds) && !file.exists(prov_json)) {
       message("\n### ", w, " -> ", sp, ": outputs present but NO provenance.json — re-running (#33) ###")
     } else if (stale && !nzchar(Sys.getenv("FORCE"))) {
-      message("\n### ", w, " -> ", sp, ": outputs present but ",
-              if (moved) "its network record was made under another min_order or network_source"
-              else paste0("the floodplain record predates flooded ", FP_FLOODED_GRID_PIN, "'s grid (#117)"),
-              " — re-running ###")
+      message("\n### ", w, " -> ", sp, ": outputs present but ", why, " — re-running ###")
     } else {
       message("\n### ", w, " -> ", sp, " (steps ", steps, ") -> ", basename(log), " ###")
     }
@@ -236,6 +226,7 @@ for (i in seq_len(nrow(runnable))) {
     }
     rc <- system2("Rscript", c(here::here("scripts", "run_area.R"), area, steps),
                   stdout = log, stderr = log)
+    prov_date <- prov_date_of()
   }
   # POST-VERIFY: network non-empty (guards pre-pass-said-yes / run-gave-empty)
   km <- NA_real_; fp_km2 <- NA_real_

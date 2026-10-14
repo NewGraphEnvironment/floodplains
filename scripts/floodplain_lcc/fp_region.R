@@ -164,6 +164,46 @@ fp_region_cache_moved <- function(prov, area) {
   got <- net[["inputs"]][["read_schema"]]
   !(is.character(got) && length(got) == 1L && identical(got, want))
 }
+
+# fp_region_cache_unordered(prov, area) -> TRUE unless the primary landcover record was written AFTER
+# the network and primary floodplain records it rests on.
+#
+# The summary file is a step-3 marker, and the records beside it are written by three different steps
+# at three different times. Sitting together on disk says nothing about having come from one run: a
+# direct `run_area.R <area> 1,2`, or a step 3 killed in its STAC fetch, rewrites the network and
+# floodplain while the old summary stays put. Ordering the records' own run stamps is what tells a
+# finished run from a half-replaced one, whoever started it. The step-3 time is
+# run.repairs[[1]].previous_datetime_utc when there are repairs: an in-place raster repair moves
+# datetime_utc (#126) without re-running step 3.
+fp_region_cache_unordered <- function(prov, area) {
+  sp <- area[["species"]]
+  stamp <- function(ent, step3 = FALSE) {
+    run <- ent[["run"]]
+    v <- if (step3 && length(run[["repairs"]])) run[["repairs"]][[1]][["previous_datetime_utc"]]
+         else run[["datetime_utc"]]
+    if (!is.character(v) || length(v) != 1L) return(NA)
+    as.POSIXct(v, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  }
+  lc <- stamp(prov[["landcover"]][[area[["primary_scenario"]]]], step3 = TRUE)
+  up <- c(stamp(prov[["network"]][[paste0(sp, area[["min_order"]])]]),
+          stamp(prov[["floodplain"]][[area[["primary_scenario"]]]]))
+  is.na(lc) || anyNA(up) || any(lc < up)
+}
+
+# fp_region_cache_reason(prov, area) -> NA when a group's outputs are this config's finished run, else
+# why not. The one verdict run_region.R's cache acts on.
+fp_region_cache_reason <- function(prov, area) {
+  if (fp_region_cache_stale(prov, area[["primary_scenario"]])) {
+    return(paste0("the floodplain record predates flooded ", FP_FLOODED_GRID_PIN, "'s grid (#117)"))
+  }
+  if (fp_region_cache_moved(prov, area)) {
+    return("its network record was made under another min_order or network_source")
+  }
+  if (fp_region_cache_unordered(prov, area)) {
+    return("its landcover record is older than the network or floodplain it rests on")
+  }
+  NA_character_
+}
 fp_region_cache_stale <- function(prov, scenario) {
   v <- prov[["floodplain"]][[scenario]][["inputs"]][["flooded"]][["version"]]
   if (is.null(v) || !is.character(v) || length(v) != 1L || is.na(v) || !nzchar(v)) return(TRUE)

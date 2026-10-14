@@ -32,10 +32,15 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   as complete. It also refuses a group whose `network[<sp><order>]` record read another schema or
   another `min_order` than the reconciled config (`fp_region_cache_moved`). That is read from the
   record, not from this run's reconciliation diff, because every config is written before the first
-  child runs and a resume would see no diff. Steps 1 and 2 rewrite those records long before step 3
-  replaces the summary, so a group chosen to re-run has its stale primary summary **removed before
-  the child starts**. Without that, an interrupted re-run leaves new records beside the old summary,
-  and the next resume reads the pair as complete. `scripts/floodplain_lcc/fp_region.R` holds
+  child runs and a resume would see no diff. And it refuses a landcover record older than the network
+  or primary floodplain record beneath it (`fp_region_cache_unordered`; the step-3 time is
+  `run.repairs[[1]].previous_datetime_utc` when #126 has re-stamped it). **Files sitting together on
+  disk are not one run:** steps 1, 2 and 3 write their records at different times, so a direct
+  `run_area.R <area> 1,2`, or a step 3 killed in its STAC fetch, leaves new records beside the old
+  summary. `fp_region_cache_reason()` is the one verdict. A group chosen to re-run also has its primary
+  summary removed before the child starts. Took three review rounds (#125), each finding the
+  previous fix's hole; it ended by enumerating every writer of the records the cache reads.
+  `scripts/floodplain_lcc/fp_region.R` holds
   `fp_wsg_subbasin` (the whole-WSG sub-basin = group polygon).
 - `config/<area>/` — per-area config: `area.yml` + `flood_scenarios.csv` (+ optional `break_points.csv`;
   absent ⇒ whole-WSG single sub-basin = group polygon, present ⇒ interior sub-basins).

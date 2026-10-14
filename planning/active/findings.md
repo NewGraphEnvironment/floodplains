@@ -92,6 +92,26 @@ Each defect restored in a scratch copy of the repo, both checks run; red = non-z
 | M5 re-run after the gnis_name arm | 0 | rc 1, 2 FAIL |
 | M10 `reg$network` again (code-check r1: partial-matches network_source) | rc 1, 1 FAIL | 0 |
 | M11 cache_moved ignores read_schema | rc 1, 1 FAIL | 0 |
+| M12 ordering rule never fires (code-check r3) | rc 1, 5 FAIL | 0 |
+| M13 ordering ignores run.repairs | rc 1, 1 FAIL | 0 |
+
+## Cache verdict: termination by enumeration (code-check r3, 2026-10-14)
+
+Mechanism (r3): co-presence on disk was read as co-provenance. Steps 1, 2 and 3 write the records
+the cache reads at different times. Every writer of those records:
+
+| writer | record it moves | closed by |
+|---|---|---|
+| 01 `fp_prov_set(network)` | `network[<sp><ord>]` run stamp + `read_schema` | ordering + `fp_region_cache_moved` |
+| 01 `fp_prov_set_sibling(habitat)` | sibling of network; not read by the cache | n/a |
+| 02 `fp_prov_set(floodplain)` | primary floodplain stamp + `flooded` version | ordering + `fp_region_cache_stale` |
+| 03 `fp_prov_set(landcover)` | the completion record, written before the summary | summary absent => re-run |
+| `fp_composition` sibling | inside landcover; no stamp regression | n/a |
+| `raster_strip-tags.R` `fp_prov_reconcile_late` | moves `datetime_utc`, appends `repairs` | step-3 time from `previous_datetime_utc` (M13) |
+
+`fire_tag.R`, `attribute_tag.R`, `composition_build.R` write no record the cache reads.
+r3 finding 3 (provenance-check 7c's "step 3 died in its composition" message now has a second cause)
+accepted: unreachable for `all_*` records, which all carry a composition.
 
 M5 first came back green on both. The arm "refuses 'all' from a region missing network_source" built
 its owned list through `fp_region_owned()`, which calls `fp_region_mode()`, which refuses a species list

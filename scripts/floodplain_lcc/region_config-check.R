@@ -322,6 +322,35 @@ ok("cache current: record read the schema the config reads", !fp_region_cache_mo
 ok("cache moved: network_source changed (DUNC fresh -> fresh_default)", fp_region_cache_moved(prov_n("all2", "fresh"), area_c))
 ok("cache moved: min_order changed (no all3 record)", fp_region_cache_moved(prov_n("all2", "fresh_default"),
                                                                           modifyList(area_c, list(min_order = 3L))))
+# Ordering: the landcover record must postdate the network and floodplain beneath it. Co-presence
+# on disk is not co-provenance -- a direct `run_area.R <area> 1,2` rewrites both records and leaves
+# the old summary.
+rec <- function(t, repairs = NULL) list(run = c(list(datetime_utc = t), if (!is.null(repairs)) list(repairs = repairs)))
+prov_o <- function(net, fp, lc) list(
+  network = list(all2 = c(rec(net), list(inputs = list(read_schema = "fresh_default")))),
+  floodplain = list(all_ff04 = c(rec(fp), list(inputs = list(flooded = list(version = "0.7.0"))))),
+  landcover = list(all_ff04 = lc))
+area_o <- c(area_c, list(primary_scenario = "all_ff04"))
+ok("cache current: landcover after network and floodplain",
+   is.na(fp_region_cache_reason(prov_o("2026-10-12T01:29:39Z", "2026-10-12T01:25:14Z",
+                                       rec("2026-10-12T01:38:40Z")), area_o)))
+ok("cache unordered: a partial 1,2 run rewrote the floodplain after the landcover",
+   fp_region_cache_unordered(prov_o("2026-10-14T01:00:00Z", "2026-10-14T01:05:00Z",
+                                    rec("2026-10-12T01:38:40Z")), area_o))
+ok("cache unordered: only the network was re-run",
+   fp_region_cache_unordered(prov_o("2026-10-14T01:00:00Z", "2026-10-12T01:25:14Z",
+                                    rec("2026-10-12T01:38:40Z")), area_o))
+ok("cache unordered: a raster repair moved datetime_utc but step 3 predates the floodplain (#126)",
+   fp_region_cache_unordered(prov_o("2026-10-12T01:00:00Z", "2026-10-14T01:05:00Z",
+     rec("2026-10-15T00:00:00Z", list(list(previous_datetime_utc = "2026-10-12T01:38:40Z")))), area_o))
+ok("cache current: a repair after a finished step 3 keeps it complete",
+   !fp_region_cache_unordered(prov_o("2026-10-12T01:00:00Z", "2026-10-12T01:05:00Z",
+     rec("2026-10-15T00:00:00Z", list(list(previous_datetime_utc = "2026-10-12T01:38:40Z")))), area_o))
+ok("cache unordered: no landcover record", fp_region_cache_unordered(prov_o("2026-10-12T01:00:00Z",
+   "2026-10-12T01:05:00Z", NULL), area_o))
+ok("cache unordered: an unparseable stamp", fp_region_cache_unordered(prov_o("yesterday",
+   "2026-10-12T01:05:00Z", rec("2026-10-12T01:38:40Z")), area_o))
+
 ok("cache current: a BUILD reads its own schema",
    !fp_region_cache_moved(prov_n("all2", "dunc"), area_c[setdiff(names(area_c), "network_source")]))
 
