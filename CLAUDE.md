@@ -771,6 +771,14 @@ schema (measured 2026-10-13), and every group has `streams_habitat_<sp>` rows th
 **MCGR (2,833 km in `fresh.streams`) and PINE (5,768 km)**, the two groups #76 blocked on their
 species networks: neither block applies to the whole network, but neither has run in that mode yet.
 
+**Skeena ran whole-network 2026-10-14** (`run_region.R skeena`, flooded 0.7.0), and is the first
+region in that mode. `all_ff04` came out at BULK **660.0 km²**, MORR **479.3**, KISP **324.4**.
+Gross tree loss 2017→2023 was 2,793.4 / 659.5 / 350.5 ha. Wall time was 59.0 / 15.7 / 24.0 min,
+with about 16.5 GiB peak. `composition-check.R` fails its 1% change-vs-patch bound in all three
+(+1.47 / +4.40 / +1.27%). That is the #53 edge effect: change cells inside the group polygon equal
+the patch totals exactly. The species layers stay beside these and fail `disturbance-check.R`'s
+context-column arms, which are forward-only. Log: `scripts/floodplain_lcc/logs/20261014_whole_network_skeena.md`.
+
 **Fraser region** (`sern_fraser_2024`, chinook until #125): LCHL, LSAL, WILL, TABR, UFRA, NECR, MORK, FRAN,
 BOWR, MCGR plus THOM, LNTH, UNTH (the Thompson groups, added 2026-09-03) — **13 groups**.
 `ch_ff04` totals **3,127 km²** across the 12 that have been re-run on `flooded` >= 0.5.0.

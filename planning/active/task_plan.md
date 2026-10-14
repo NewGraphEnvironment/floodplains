@@ -102,22 +102,22 @@ pin) and #122 (DEM cache) have both landed.
   `readme_content-check.py`.
 
 ## Phase 5: Skeena live run
-- [ ] Hand-edit `config/{bulk,morr,kisp}/area.yml` before the run:
+- [x] Hand-edit `config/{bulk,morr,kisp}/area.yml` before the run:
   - Remove MORR's `targets:` block.
   - Rewrite the species comments the in-place writer would leave beside `species: all`, including
     the trailing `# coho runs the whole Bulkley`.
-- [ ] `DRY=1 Rscript scripts/run_region.R skeena`, and confirm the reconciliation reads as planned.
-- [ ] `caffeinate -s Rscript scripts/run_region.R skeena > log 2>&1`, run in the background and gated
+- [x] `DRY=1 Rscript scripts/run_region.R skeena`, and confirm the reconciliation reads as planned.
+- [x] `caffeinate -s Rscript scripts/run_region.R skeena > log 2>&1`, run in the background and gated
   on in-band errors plus output mtimes, not the exit code.
-- [ ] Per area:
+- [x] Per area:
   - Run `provenance-check.R`, `composition-check.R <area>` and `dem_cache-check.R`.
   - Check that classified coverage ≈ floodplain area.
   - Record km, km², gross tree loss, and wall and peak-RSS figures in
     `scripts/floodplain_lcc/logs/<date>_whole_network_skeena.md`.
-- [ ] Commit the reconciled configs and the log.
+- [x] Commit the reconciled configs and the log.
 
 ## Phase 6: Docs + follow-ups
-- [ ] `CLAUDE.md`:
+- [x] `CLAUDE.md`:
   - The region mode.
   - The refuse-unless-whole rule.
   - Skeena's whole-network numbers.
