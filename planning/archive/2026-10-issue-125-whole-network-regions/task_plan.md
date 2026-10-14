@@ -128,11 +128,11 @@ pin) and #122 (DEM cache) have both landed.
 - [x] File follow-ups (#131 prune issue; #76 body updated with the whole-mode measurement):
   - A species-output prune pattern for `gpkg_prune-legacy.R`, gated on stac#76 and #128.
   - Comment on #76 with the whole-mode MCGR/PINE measurement.
-- [ ] Re-check origin (`git log HEAD..origin/main`), then `/code-check branch`.
+- [x] Re-check origin (`git log HEAD..origin/main`), then `/code-check branch`.
 
 ## Validation
 
-- [ ] Tests pass (`region_config-check.R`, `whole_network-check.R`, `provenance-check.R` offline)
-- [ ] `/code-check` clean (each commit, or once over the branch with `/code-check branch`)
-- [ ] PWF checkboxes match landed work
-- [ ] `/planning-archive` on completion
+- [x] Tests pass (`region_config-check.R`, `whole_network-check.R`, `provenance-check.R` offline)
+- [x] `/code-check` clean (each commit, or once over the branch with `/code-check branch`) — 3 rounds + plan review; ended by enumeration (findings.md)
+- [x] PWF checkboxes match landed work
+- [x] `/planning-archive` on completion

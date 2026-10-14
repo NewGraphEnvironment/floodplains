@@ -32,3 +32,6 @@
   the #53 edge effect (change inside the polygon == patch totals, measured). Reconciled csvs regenerated
   in the main checkout with the current code (citations carried), non-citation columns identical to the
   run's. Log: scripts/floodplain_lcc/logs/20261014_whole_network_skeena.md.
+- Phase 6 done: #59/#73 pointers posted, #125 body gains a Status section (decisions, Skeena done,
+  Fraser/Peace/Columbia left, stac stage_years-check note, publish freeze). Origin unmoved; offline
+  checks + README determinism/content PASS on the final tree; worktrees removed, data/ intact.
