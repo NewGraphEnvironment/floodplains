@@ -15,3 +15,8 @@
 - Phase 4: all four region files `network: whole` (KISP folded into skeena.yml, skeena_ch.yml deleted,
   DUNC added to columbia.yml, Columbia's `network_guard: warn` dropped); `fp_readme_roster()` reads the
   mode; README re-rendered (md with `rmd_on = FALSE` per the build chunk), determinism + content checks OK.
+- Phase 5 started: Skeena area.yml hand-edited and committed (b4414eb); DRY preview read as planned and
+  wrote nothing (md5 of config/*/area.yml + flood_scenarios.csv unchanged). Live run launched
+  2026-10-14T12:37:17Z from a frozen worktree at b4414eb (data/ symlinked), log + RSS sampler in scratchpad.
+- Phase 6: CLAUDE.md updated for the region mode (Skeena numbers pending the run); filed #131
+  (species-output prune, gated on stac#76 + #128); #76 body updated with MCGR/PINE whole-mode km.
