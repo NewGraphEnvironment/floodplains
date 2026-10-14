@@ -236,6 +236,14 @@ whole_reg <- list(region = "skeena", network = "whole", network_source = "fresh"
 errs <- function(expr) inherits(tryCatch(expr, error = function(e) e), "error")
 ok("network: whole is whole mode", identical(fp_region_mode(whole_reg), "whole"))
 ok("a species list is species mode", identical(fp_region_mode(list(species = c("ch", "bt"))), "species"))
+# The ordinary species-region shape: network_source and NO network_guard. `$network` partial-matched
+# network_source on exactly this and refused the file as `network: fresh`.
+ok("a species region with network_source and no network_guard is species mode",
+   identical(tryCatch(fp_region_mode(list(species = c("ch", "bt"), network_source = "fresh")),
+                      error = function(e) conditionMessage(e)), "species"))
+ok("the same region's owned keys carry its network_source",
+   identical(fp_region_owned(list(species = "ch", network_source = "fresh"), "UFRA", "ch")$network_source,
+             "fresh"))
 ok("must-fail: network: whole beside a species list",
    errs(fp_region_mode(c(whole_reg, list(species = "co")))))
 ok("must-fail: network: whole with no network_source",
@@ -306,6 +314,16 @@ ok("cache current: flooded 0.10.0 (numeric, not string, comparison)",
    !fp_region_cache_stale(prov_v("0.10.0"), "all_ff04"))
 ok("cache stale: no record for the scenario", fp_region_cache_stale(prov_v("0.7.0"), "co_ff04"))
 ok("cache stale: an unparseable version", fp_region_cache_stale(prov_v("dev"), "all_ff04"))
+
+# The config-moved rule reads the RECORD, so it holds after an interrupted run re-plans.
+prov_n <- function(key, schema) list(network = stats::setNames(list(list(inputs = list(read_schema = schema))), key))
+area_c <- list(species = "all", min_order = 2L, schema = "dunc", network_source = "fresh_default")
+ok("cache current: record read the schema the config reads", !fp_region_cache_moved(prov_n("all2", "fresh_default"), area_c))
+ok("cache moved: network_source changed (DUNC fresh -> fresh_default)", fp_region_cache_moved(prov_n("all2", "fresh"), area_c))
+ok("cache moved: min_order changed (no all3 record)", fp_region_cache_moved(prov_n("all2", "fresh_default"),
+                                                                          modifyList(area_c, list(min_order = 3L))))
+ok("cache current: a BUILD reads its own schema",
+   !fp_region_cache_moved(prov_n("all2", "dunc"), area_c[setdiff(names(area_c), "network_source")]))
 
 message("")
 if (fails > 0L) {

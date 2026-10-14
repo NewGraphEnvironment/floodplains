@@ -81,42 +81,47 @@ fp_region_refuse_whole <- function(species, where) {
 
 # fp_region_mode(reg, where) -> "species" | "whole", refusing a region file that mixes the two.
 # Pure: run_region.R calls it before it opens a connection, and the checks call it with no database.
+#
+# Every read here is `[[`, never `$`: `reg$network` partial-matches `network_source` when the region
+# has no `network:` key, so an ordinary species region (network_source, no network_guard) read as
+# `network: fresh` and was refused. With network_guard present as well the match is ambiguous and
+# returns NULL, which is why the old columbia.yml passed by accident.
 fp_region_mode <- function(reg, where = "region file") {
-  net <- reg$network
+  net <- reg[["network"]]
   if (!is.null(net) && !(is.character(net) && length(net) == 1L && identical(net, "whole"))) {
     stop(where, ": `network:` must be `whole` or absent, got: ", format(net), call. = FALSE)
   }
   if (is.null(net)) {
-    if (!length(reg$species)) stop(where, ": a species region needs a `species:` list", call. = FALSE)
-    fp_region_refuse_whole(reg$species, where)
+    if (!length(reg[["species"]])) stop(where, ": a species region needs a `species:` list", call. = FALSE)
+    fp_region_refuse_whole(reg[["species"]], where)
     return("species")
   }
   # A species list beside `network: whole` is a contradiction, not a fallback: refuse it rather than
   # guess which of the two the author meant.
-  if (!is.null(reg$species)) {
+  if (!is.null(reg[["species"]])) {
     stop(where, ": `network: whole` takes no `species:` (every group is species `all`)", call. = FALSE)
   }
-  if (!is.null(reg$attribute_by) && !identical(reg$attribute_by, "blue_line_key")) {
+  if (!is.null(reg[["attribute_by"]]) && !identical(reg[["attribute_by"]], "blue_line_key")) {
     stop(where, ": a whole-network region is attributed by blue_line_key (#104), got: ",
-         format(reg$attribute_by), call. = FALSE)
+         format(reg[["attribute_by"]]), call. = FALSE)
   }
-  if (is.null(reg$network_source) || !nzchar(reg$network_source)) {
+  if (is.null(reg[["network_source"]]) || !nzchar(reg[["network_source"]])) {
     stop(where, ": a whole-network region needs `network_source` (a BUILD is not supported in ",
          "whole mode)", call. = FALSE)
   }
   # min_order may be raised, never lowered past the #110 floor: order 1 was measured and rejected
   # (research/whole_fwa_floodplain.md).
-  if (!is.null(reg$min_order) && !(is.numeric(reg$min_order) && length(reg$min_order) == 1L &&
-                                   reg$min_order >= FP_WHOLE_MIN_ORDER)) {
+  mo <- reg[["min_order"]]
+  if (!is.null(mo) && !(is.numeric(mo) && length(mo) == 1L && !is.na(mo) && mo >= FP_WHOLE_MIN_ORDER)) {
     stop(where, ": a whole-network region's min_order must be >= ", FP_WHOLE_MIN_ORDER,
-         " (the #110 floor), got: ", format(reg$min_order), call. = FALSE)
+         " (the #110 floor), got: ", format(mo), call. = FALSE)
   }
   "whole"
 }
 
 # The region's min_order: what the file states, else the mode's default.
 fp_region_min_order <- function(reg) {
-  if (!is.null(reg$min_order)) return(reg$min_order)
+  if (!is.null(reg[["min_order"]])) return(reg[["min_order"]])
   if (identical(fp_region_mode(reg), "whole")) FP_WHOLE_MIN_ORDER else 3L
 }
 
@@ -144,6 +149,21 @@ fp_region_owned <- function(reg, wsg, sp = NULL) {
 # file presence, so without this DUNC's 2026-10-12 run on 0.6.5's grid would read as complete. Pure:
 # `prov` is the parsed provenance.json (a list), so the check needs no data/.
 FP_FLOODED_GRID_PIN <- "0.7.0"
+
+# fp_region_cache_moved(prov, area) -> TRUE when the network record on disk was not made under this
+# area config: no `network[<species><min_order>]` entry (min_order or species moved), or its recorded
+# read schema differs from what the config now reads (network_source moved -- DUNC going fresh ->
+# fresh_default as it joins columbia.yml). Compared against the RECORD, not against what this run's
+# reconciliation changed: run_region.R writes every config before the first child runs, so a resume
+# after an interruption would see no change and report the old outputs as this config's.
+fp_region_cache_moved <- function(prov, area) {
+  net <- prov[["network"]][[paste0(area[["species"]], area[["min_order"]])]]
+  if (is.null(net)) return(TRUE)
+  want <- area[["network_source"]]
+  if (is.null(want) || !nzchar(want)) want <- area[["schema"]]   # BUILD reads its own schema
+  got <- net[["inputs"]][["read_schema"]]
+  !(is.character(got) && length(got) == 1L && identical(got, want))
+}
 fp_region_cache_stale <- function(prov, scenario) {
   v <- prov[["floodplain"]][[scenario]][["inputs"]][["flooded"]][["version"]]
   if (is.null(v) || !is.character(v) || length(v) != 1L || is.na(v) || !nzchar(v)) return(TRUE)

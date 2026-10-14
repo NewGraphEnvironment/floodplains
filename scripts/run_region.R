@@ -200,10 +200,15 @@ for (i in seq_len(nrow(runnable))) {
       fp_region_cache_stale(jsonlite::read_json(prov_json, simplifyVector = FALSE), paste0(sp, "_ff04")),
       error = function(e) TRUE)
   }
-  # Reconciliation that moved a region-owned key (network_source, min_order, ...) means the outputs
-  # on disk were made under another config -- DUNC's network_source going fresh -> fresh_default as it
-  # joins columbia.yml is the live case. Re-run rather than report the old outputs as this config's.
-  moved <- length(plans[[i]]$area_set) > 0L || length(plans[[i]]$area_remove) > 0L
+  # A network record made under another config (min_order, or network_source -- DUNC going fresh ->
+  # fresh_default as it joins columbia.yml) is not this config's output. Read from the record, so a
+  # resume after an interruption still sees it (fp_region_cache_moved).
+  moved <- FALSE
+  if (file.exists(summary_rds) && file.exists(prov_json)) {
+    moved <- tryCatch(
+      fp_region_cache_moved(jsonlite::read_json(prov_json, simplifyVector = FALSE), plans[[i]]$area),
+      error = function(e) TRUE)
+  }
   if (moved) stale <- TRUE
   cached <- file.exists(summary_rds) && file.exists(prov_json) && !stale && !nzchar(Sys.getenv("FORCE"))
   if (cached) {
@@ -216,7 +221,7 @@ for (i in seq_len(nrow(runnable))) {
                   stdout = log, stderr = log)
   } else if (stale && !nzchar(Sys.getenv("FORCE"))) {
     message("\n### ", w, " -> ", sp, ": outputs present but ",
-            if (moved) paste0("the region changed area.yml (", plans[[i]]$area_action, ")")
+            if (moved) "its network record was made under another min_order or network_source"
             else paste0("the floodplain record predates flooded ", FP_FLOODED_GRID_PIN, "'s grid (#117)"),
             " — re-running ###")
     rc <- system2("Rscript", c(here::here("scripts", "run_area.R"), area, steps),

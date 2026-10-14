@@ -29,7 +29,10 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   would mark a group done whose own step 3 died before its composition (#108). The cache also
   refuses a primary floodplain record whose `flooded` version is below 0.7.0 or absent
   (`fp_region_cache_stale`, #117): file presence alone read DUNC's 2026-10-12 run on the pre-pin grid
-  as complete. `scripts/floodplain_lcc/fp_region.R` holds
+  as complete. It also refuses a group whose `network[<sp><order>]` record read another schema or
+  another `min_order` than the reconciled config (`fp_region_cache_moved`). That is read from the
+  record, not from this run's reconciliation diff, because every config is written before the first
+  child runs and a resume would see no diff. `scripts/floodplain_lcc/fp_region.R` holds
   `fp_wsg_subbasin` (the whole-WSG sub-basin = group polygon).
 - `config/<area>/` — per-area config: `area.yml` + `flood_scenarios.csv` (+ optional `break_points.csv`;
   absent ⇒ whole-WSG single sub-basin = group polygon, present ⇒ interior sub-basins).

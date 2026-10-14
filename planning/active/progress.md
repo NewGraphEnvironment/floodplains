@@ -24,3 +24,4 @@
   moved region-owned key (G2), citations carried onto appended rows (G6), README roster calls
   fp_region_mode (G7), whole min_order floor (A2), gnis_name arm (AC1). Mutations M8/M9 red.
   provenance-check baseline: MORR + KISP PASS pre-run.
+- code-check round 1: 2 findings, both fixed — `reg$network` partial-matched `network_source` (species regions refused); config-moved cache signal now read from the network record (survives a resume). M10/M11 red.

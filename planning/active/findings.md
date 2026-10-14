@@ -90,6 +90,8 @@ Each defect restored in a scratch copy of the repo, both checks run; red = non-z
 | M8 citation carry removed (review G6) | rc 1, 1 FAIL | 0 |
 | M9 whole min_order floor removed (review A2) | rc 1, 1 FAIL | 0 |
 | M5 re-run after the gnis_name arm | 0 | rc 1, 2 FAIL |
+| M10 `reg$network` again (code-check r1: partial-matches network_source) | rc 1, 1 FAIL | 0 |
+| M11 cache_moved ignores read_schema | rc 1, 1 FAIL | 0 |
 
 M5 first came back green on both. The arm "refuses 'all' from a region missing network_source" built
 its owned list through `fp_region_owned()`, which calls `fp_region_mode()`, which refuses a species list
