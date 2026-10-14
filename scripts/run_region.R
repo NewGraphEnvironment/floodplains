@@ -202,7 +202,8 @@ for (i in seq_len(nrow(runnable))) {
   }
   # A network record made under another config (min_order, or network_source -- DUNC going fresh ->
   # fresh_default as it joins columbia.yml) is not this config's output. Read from the record, so a
-  # resume after an interruption still sees it (fp_region_cache_moved).
+  # rerun that never finished still sees it (fp_region_cache_moved), together with the marker
+  # retirement below.
   moved <- FALSE
   if (file.exists(summary_rds) && file.exists(prov_json)) {
     moved <- tryCatch(
@@ -215,19 +216,24 @@ for (i in seq_len(nrow(runnable))) {
     message("\n### ", w, " -> ", sp, ": complete (", basename(summary_rds), " present) — SKIP (FORCE=1 to redo)",
             " [provenance ", if (is.na(prov_date)) "present, date unread" else prov_date, "] ###")
     rc <- 0L
-  } else if (file.exists(summary_rds) && !file.exists(prov_json)) {
-    message("\n### ", w, " -> ", sp, ": outputs present but NO provenance.json — re-running (#33) ###")
-    rc <- system2("Rscript", c(here::here("scripts", "run_area.R"), area, steps),
-                  stdout = log, stderr = log)
-  } else if (stale && !nzchar(Sys.getenv("FORCE"))) {
-    message("\n### ", w, " -> ", sp, ": outputs present but ",
-            if (moved) "its network record was made under another min_order or network_source"
-            else paste0("the floodplain record predates flooded ", FP_FLOODED_GRID_PIN, "'s grid (#117)"),
-            " — re-running ###")
-    rc <- system2("Rscript", c(here::here("scripts", "run_area.R"), area, steps),
-                  stdout = log, stderr = log)
   } else {
-    message("\n### ", w, " -> ", sp, " (steps ", steps, ") -> ", basename(log), " ###")
+    if (file.exists(summary_rds) && !file.exists(prov_json)) {
+      message("\n### ", w, " -> ", sp, ": outputs present but NO provenance.json — re-running (#33) ###")
+    } else if (stale && !nzchar(Sys.getenv("FORCE"))) {
+      message("\n### ", w, " -> ", sp, ": outputs present but ",
+              if (moved) "its network record was made under another min_order or network_source"
+              else paste0("the floodplain record predates flooded ", FP_FLOODED_GRID_PIN, "'s grid (#117)"),
+              " — re-running ###")
+    } else {
+      message("\n### ", w, " -> ", sp, " (steps ", steps, ") -> ", basename(log), " ###")
+    }
+    # Retire the resume marker the moment the group is chosen to re-run. Every signal above is read
+    # from provenance.json, which steps 1 and 2 rewrite early, while step 3 replaces the summary
+    # last: a run interrupted in between would leave new records beside the OLD summary, and the
+    # next resume would read that as complete. With the summary gone, any interruption re-runs.
+    if (file.exists(summary_rds) && !file.remove(summary_rds)) {
+      stop("cannot remove ", summary_rds, " before re-running ", w, call. = FALSE)
+    }
     rc <- system2("Rscript", c(here::here("scripts", "run_area.R"), area, steps),
                   stdout = log, stderr = log)
   }

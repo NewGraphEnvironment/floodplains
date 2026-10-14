@@ -25,3 +25,4 @@
   fp_region_mode (G7), whole min_order floor (A2), gnis_name arm (AC1). Mutations M8/M9 red.
   provenance-check baseline: MORR + KISP PASS pre-run.
 - code-check round 1: 2 findings, both fixed — `reg$network` partial-matched `network_source` (species regions refused); config-moved cache signal now read from the network record (survives a resume). M10/M11 red.
+- code-check round 2: 1 finding inside round 1's fix — cache records are rewritten by steps 1-2 before step 3 replaces the summary, so an interrupted re-run read as complete. Fixed by retiring the primary summary on every re-run path (also covers the no-provenance and FORCE paths, same mechanism). Not offline-testable: run_region.R opens a DB at load.
