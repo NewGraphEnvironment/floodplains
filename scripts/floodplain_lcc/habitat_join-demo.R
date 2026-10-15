@@ -28,7 +28,8 @@ sf::sf_use_s2(FALSE)
 terra::terraOptions(threads = 4, memfrac = 0.3, progress = 0)
 lcc <- here::here("scripts", "floodplain_lcc")
 source(file.path(lcc, "fp_whole_fwa.R"))   # fp_wf_seg_key
-source(file.path(lcc, "fp_habitat_join.R")) # the position join, shared with habitat_join-query.R
+source(file.path(lcc, "fp_habitat_join.R")) # claims, the by-blue-line contrast, summaries; shared with habitat_join-query.R
+# The position (range) join is flooded::fl_valley_join() (flooded#83).
 
 wsg <- "MORR"; species <- "ch"; builds <- c("fresh", "morr")
 dir_in  <- here::here("data", "morr", "probe_whole_fwa")
@@ -71,7 +72,10 @@ dbDisconnect(con)
 
 # --- floodplain cells per group, and the integrity check: every floodplain cell attributed, ------
 # --- nothing outside it ---------------------------------------------------------------------------
-grid_cells <- function(tif, gpkg, key) fp_hj_grid_cells(rast(p(tif)), st_read(p(gpkg), quiet = TRUE), key, st_crs(hab[[1]]))
+grid_cells <- function(tif, gpkg, key) {
+  v <- st_read(p(gpkg), quiet = TRUE)
+  g <- fp_hj_grid_cells(rast(p(tif)), v, key, st_crs(hab[[1]])); g$v <- v; g
+}
 a2 <- grid_cells("arm2_floodplain.tif", "arm2_by_blk.gpkg", "blue_line_key")
 a3 <- grid_cells("arm3_floodplain.tif", "arm3_by_blk.gpkg", "blue_line_key")
 s3 <- grid_cells("arm3_floodplain.tif", "arm3_by_seg.gpkg", "seg_key")
@@ -83,7 +87,8 @@ if (any(ck[, c("missing", "extra")] != 0)) {
 cell_ha <- prod(res(a2$r)) / 1e4
 
 # --- the joins: per-claim flags, then OR over the groups that claim a cell ----------------------
-or_by_cell <- fp_hj_or_by_cell; join_blk <- fp_hj_join_blk; join_range <- fp_hj_join_range
+or_by_cell <- fp_hj_or_by_cell; join_blk <- fp_hj_join_blk
+join_range <- function(a, h) fp_hj_join_position(a$r, a$v, h, "blue_line_key")
 join_seg <- function(cells, h) {
   m <- match(cells$key, fp_wf_seg_key(h$blue_line_key, h$drm))
   f <- or_by_cell(cells$cell, !is.na(m) & h$spawning[m], !is.na(m) & h$rearing[m])
@@ -94,12 +99,12 @@ summ <- function(f, label, build) fp_hj_summ(f, label, build, cell_ha)
 res2 <- list(); res3 <- list(); keep <- list(); km <- list()
 for (b in builds) {
   h <- hab[[b]]
-  fb <- join_blk(a2$cells, h); fr <- join_range(a2$cells, h, a2$r)
+  fb <- join_blk(a2$cells, h); fr <- join_range(a2, h)
   res2[[b]] <- rbind(summ(fb, "blk", b), summ(fr$nearest, "range, nearest", b), summ(fr$any, "range, any", b))
-  res2[[b]]$blk_without_segments <- c(NA, attr(fr$nearest, "blk_without_segments"), attr(fr$any, "blk_without_segments"))
-  res2[[b]]$tied_cells <- c(NA, attr(fr$nearest, "ties"), NA)
+  res2[[b]]$blk_without_segments <- c(NA, length(fr$no_segments), length(fr$no_segments))
+  res2[[b]]$tied_cells <- c(NA, fr$ties, NA)
   keep[[b]] <- list(blk = fb, nearest = fr$nearest, any = fr$any)
-  r3 <- join_range(a3$cells, h, a3$r); sg <- join_seg(s3$cells, h)
+  r3 <- join_range(a3, h); sg <- join_seg(s3$cells, h)
   res3[[b]] <- rbind(summ(r3$nearest, "range, nearest (arm 3 blk)", b), summ(r3$any, "range, any (arm 3 blk)", b),
                      summ(sg, "segment (arm 3 seg)", b))
   res3[[b]]$seg_key_match <- c(NA, NA, attr(sg, "key_match"))

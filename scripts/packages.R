@@ -20,7 +20,9 @@ pkgs_cran <- c(
 pkgs_gh <- c(
   "newgraphenvironment/link",      # network extraction (>= 0.44.0 access fix)
   "newgraphenvironment/flooded",   # VCA floodplain delineation (>= 0.7.0: pinned DEM grid and datum step,
-                                   #   #117, flooded#67; 02 asserts this floor; needs terra >= 1.9-25)
+                                   #   #117, flooded#67; 02 asserts this floor; needs terra >= 1.9-25).
+                                   #   The habitat join needs fl_valley_join(), released after 0.7.2
+                                   #   (flooded#83); fp_habitat_join.R asserts it
   "newgraphenvironment/drift",     # STAC LULC classify + transition (>= 0.10.0: paged STAC fetch, #81; fp_lulc asserts this floor;
                                    #   >= 0.19.0 for dft_accuracy_*, >= 0.20.0 for aggregation = "count" in
                                    #   scripts/landcover_accuracy/, #93, drift#92)

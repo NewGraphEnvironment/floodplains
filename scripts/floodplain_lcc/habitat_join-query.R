@@ -11,8 +11,9 @@
 # line. The match rate is reported, so a habitat table that no longer describes the schema's segments
 # cannot pass as a join.
 #
-# Joins (fp_habitat_join.R; the rules are CLAUDE.md's "Habitat join on the blue-line floodplain"):
-# by blue line (the contrast), by position under `nearest` (areas) and `any` (connected view).
+# Joins (the rules are CLAUDE.md's "Habitat join on the blue-line floodplain"): by blue line (the
+# contrast, fp_habitat_join.R), by position under `nearest` (areas) and `any` (connected view), from
+# flooded::fl_valley_join() through fp_hj_join_position().
 #
 # Read-only on data/ and the database. Writes the committed log named below.
 #
@@ -25,7 +26,7 @@ sf::sf_use_s2(FALSE)
 terra::terraOptions(threads = 4, memfrac = 0.3, progress = 0)
 lcc <- here::here("scripts", "floodplain_lcc")
 source(file.path(lcc, "fp_region.R"))        # fp_whole_network
-source(file.path(lcc, "fp_habitat_join.R"))  # the position join, shared with habitat_join-demo.R
+source(file.path(lcc, "fp_habitat_join.R"))  # claims, the by-blue-line contrast, summaries; shared with habitat_join-demo.R
 
 args <- commandArgs(trailingOnly = TRUE)
 area <- args[1]
@@ -83,13 +84,14 @@ for (sp in species) {
   hs <- seg[!is.na(m), ]
   hs$spawning <- !is.na(h$spawning[m[!is.na(m)]]) & as.logical(h$spawning[m[!is.na(m)]])
   hs$rearing  <- !is.na(h$rearing[m[!is.na(m)]])  & as.logical(h$rearing[m[!is.na(m)]])
-  fb <- fp_hj_join_blk(g$cells, hs); fr <- fp_hj_join_range(g$cells, hs, r)
+  fb <- fp_hj_join_blk(g$cells, hs)
+  fr <- fp_hj_join_position(r, v, hs, cfg$attribute_by)
   res[[sp]] <- rbind(fp_hj_summ(fb, "by blue line", sp, cell_ha),
                      fp_hj_summ(fr$nearest, "by position, nearest", sp, cell_ha),
                      fp_hj_summ(fr$any, "by position, any", sp, cell_ha))
   names(res[[sp]])[names(res[[sp]]) == "build"] <- "species"   # fp_hj_summ's second column
-  res[[sp]]$tied_cells <- c(NA, attr(fr$nearest, "ties"), NA)
-  res[[sp]]$blk_without_segments <- c(NA, attr(fr$nearest, "blk_without_segments"), attr(fr$any, "blk_without_segments"))
+  res[[sp]]$tied_cells <- c(NA, fr$ties, NA)
+  res[[sp]]$blk_without_segments <- c(NA, length(fr$no_segments), length(fr$no_segments))
   d <- st_drop_geometry(hs); on <- d$blue_line_key %in% g$cells$key
   blk_max <- tapply(d$stream_order, sprintf("%.0f", d$blue_line_key), max)[sprintf("%.0f", d$blue_line_key)]
   km[[sp]] <- data.frame(species = sp,
