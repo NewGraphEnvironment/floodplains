@@ -1,3 +1,11 @@
+# floodplains 0.1.14 (2026-10-15)
+
+* The habitat join's position join now comes from `flooded::fl_valley_join()`
+  (NewGraphEnvironment/flooded#83) instead of the local `fp_hj_join_range()` (#104).
+  * `habitat_join-query.R` and `habitat_join-demo.R` stop unless flooded is above 0.7.2; install the
+    release with `scripts/packages.R`. Per-cell flags and tie counts are identical to the old join on
+    DUNC, MORR, KISP and BULK.
+
 # floodplains 0.1.13 (2026-10-14)
 
 * `run_region.R` runs a region as the whole stream network: `network: whole` in a region file makes
