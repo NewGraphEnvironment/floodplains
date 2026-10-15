@@ -1,8 +1,8 @@
 name: fran
 watershed_group: FRAN
-species: ch
-min_order: 3
+species: all
+min_order: 2
 schema: fran
-primary_scenario: ch_ff04
+primary_scenario: all_ff04
 network_source: fresh
 attribute_by: blue_line_key

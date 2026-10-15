@@ -786,8 +786,12 @@ The former figure (3,366 km² over 10 groups) is **dead, not merely superseded**
 under the bankfull units defect, same class as the neexdzii contract in `README.md`. The gross
 tree-loss figure that sat beside it (15,022 ha) is pre-correction too and is **not restated here
 because it has not been recomputed**; recompute before quoting it. MCGR is excluded from the
-3,127: it is still on its 2026-07-12 pre-0.5.0 output (290 km², over-mapped) and cannot be re-run
-(#76).
+3,127: it is still on its 2026-07-12 pre-0.5.0 output (290 km², over-mapped), and its species network
+cannot be re-run (#76).
+**Fraser ran whole-network 2026-10-15** (`run_region.R fraser`, about 5 h): all 13 groups have
+`all_ff04`, MCGR among them at 355.3 km² (#76 does not block whole mode). Per-group figures are in the
+coverage CSV under `data/logs/region_fraser_20261015_*`. #125's per-region acceptance checks have
+not been run on it yet. Do not sum the groups: neighbouring floodplains overlap (#53).
 
 **Columbia region** (`columbia.yml`, **bull trout** until #125; DUNC joined then): KOTL 707.8 km², LARL 306.9, SLOC 129.6 at
 `bt_ff04`. ch/co/st/salmon are unmodelled here — verified empirically (`access_* = -9`, the "not

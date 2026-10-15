@@ -1,9 +1,9 @@
 name: lnth
 watershed_group: LNTH
-species: ch
-min_order: 3
+species: all
+min_order: 2
 schema: lnth
-primary_scenario: ch_ff04
+primary_scenario: all_ff04
 network_source: fresh
 attribute_by: blue_line_key
 # lulc_annual (#79): fetch EVERY year in change_interval (2017..2023) rather than the endpoints

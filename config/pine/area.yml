@@ -1,8 +1,8 @@
 name: pine
 watershed_group: PINE
-species: bt
-min_order: 3
+species: all
+min_order: 2
 schema: pine
-primary_scenario: bt_ff04
+primary_scenario: all_ff04
 network_source: fresh
 attribute_by: blue_line_key

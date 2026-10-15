@@ -1,8 +1,8 @@
 name: pcea
 watershed_group: PCEA
-species: bt
-min_order: 3
+species: all
+min_order: 2
 schema: pcea
-primary_scenario: bt_ff04
+primary_scenario: all_ff04
 network_source: fresh
 attribute_by: blue_line_key

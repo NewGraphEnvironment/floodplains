@@ -1,0 +1,100 @@
+Spherical geometry (s2) switched off
+Region: fraser | groups: 13 | mode: whole (network_source fresh) | min_order: 2
+
+=== Pre-pass: whole-network segments in fresh (order >= 2) ===
+  LCHL  -> all (9216 segments; all=9216)
+  LSAL  -> all (5608 segments; all=5608)
+  WILL  -> all (9334 segments; all=9334)
+  TABR  -> all (6049 segments; all=6049)
+  UFRA  -> all (39354 segments; all=39354)
+  NECR  -> all (13186 segments; all=13186)
+  MORK  -> all (42264 segments; all=42264)
+  FRAN  -> all (20205 segments; all=20205)
+  BOWR  -> all (12483 segments; all=12483)
+  MCGR  -> all (17655 segments; all=17655)
+  THOM  -> all (22066 segments; all=22066)
+  LNTH  -> all (23593 segments; all=23593)
+  UNTH  -> all (29197 segments; all=29197)
+
+=== Config reconciliation ===
+  LCHL  area.yml: update: species, min_order, primary_scenario | flood_scenarios.csv: append 6 all rows (6 -> 12) | break_points.csv: absent (whole-WSG group polygon)
+  LSAL  area.yml: update: species, min_order, primary_scenario | flood_scenarios.csv: append 6 all rows (6 -> 12) | break_points.csv: absent (whole-WSG group polygon)
+  WILL  area.yml: update: species, min_order, primary_scenario | flood_scenarios.csv: append 6 all rows (6 -> 12) | break_points.csv: absent (whole-WSG group polygon)
+  TABR  area.yml: update: species, min_order, primary_scenario | flood_scenarios.csv: append 6 all rows (6 -> 12) | break_points.csv: absent (whole-WSG group polygon)
+  UFRA  area.yml: update: species, min_order, primary_scenario | flood_scenarios.csv: append 6 all rows (6 -> 12) | break_points.csv: absent (whole-WSG group polygon)
+  NECR  area.yml: update: species, min_order, primary_scenario | flood_scenarios.csv: append 6 all rows (6 -> 12) | break_points.csv: absent (whole-WSG group polygon)
+  MORK  area.yml: update: species, min_order, primary_scenario | flood_scenarios.csv: append 6 all rows (6 -> 12) | break_points.csv: absent (whole-WSG group polygon)
+  FRAN  area.yml: update: species, min_order, primary_scenario | flood_scenarios.csv: append 6 all rows (6 -> 12) | break_points.csv: absent (whole-WSG group polygon)
+  BOWR  area.yml: update: species, min_order, primary_scenario | flood_scenarios.csv: append 6 all rows (6 -> 12) | break_points.csv: absent (whole-WSG group polygon)
+  MCGR  area.yml: update: species, min_order, primary_scenario | flood_scenarios.csv: append 6 all rows (6 -> 12) | break_points.csv: absent (whole-WSG group polygon)
+  THOM  area.yml: update: species, min_order, primary_scenario | flood_scenarios.csv: append 6 all rows (6 -> 12) | break_points.csv: absent (whole-WSG group polygon)
+  LNTH  area.yml: update: species, min_order, primary_scenario | flood_scenarios.csv: append 6 all rows (6 -> 12) | break_points.csv: absent (whole-WSG group polygon)
+  UNTH  area.yml: update: species, min_order, primary_scenario | flood_scenarios.csv: append 6 all rows (6 -> 12) | break_points.csv: absent (whole-WSG group polygon)
+13 of 13 config(s) updated; the rest were already current.
+
+### LCHL -> all (steps 1,2,3) -> region_fraser_lchl_20261015_001710.log ###
+
+### LSAL -> all (steps 1,2,3) -> region_fraser_lsal_20261015_001710.log ###
+
+### WILL -> all (steps 1,2,3) -> region_fraser_will_20261015_001710.log ###
+
+### TABR -> all (steps 1,2,3) -> region_fraser_tabr_20261015_001710.log ###
+
+### UFRA -> all (steps 1,2,3) -> region_fraser_ufra_20261015_001710.log ###
+
+### NECR -> all (steps 1,2,3) -> region_fraser_necr_20261015_001710.log ###
+
+### MORK -> all (steps 1,2,3) -> region_fraser_mork_20261015_001710.log ###
+
+### FRAN -> all (steps 1,2,3) -> region_fraser_fran_20261015_001710.log ###
+
+### BOWR -> all (steps 1,2,3) -> region_fraser_bowr_20261015_001710.log ###
+
+### MCGR -> all (steps 1,2,3) -> region_fraser_mcgr_20261015_001710.log ###
+
+### THOM -> all (steps 1,2,3) -> region_fraser_thom_20261015_001710.log ###
+
+### LNTH -> all (steps 1,2,3) -> region_fraser_lnth_20261015_001710.log ###
+
+### UNTH -> all (steps 1,2,3) -> region_fraser_unth_20261015_001710.log ###
+
+=== Region fraser coverage ===
+  wsg species status network_km floodplain_km2           provenance
+ LCHL     all     ok     2459.9          426.8 2026-10-15T00:28:46Z
+ LSAL     all     ok     1397.0          290.9 2026-10-15T00:37:13Z
+ WILL     all     ok     2296.2          351.2 2026-10-15T00:49:15Z
+ TABR     all     ok     1544.4          267.2 2026-10-15T00:58:13Z
+ UFRA     all     ok     5059.5          301.7 2026-10-15T01:29:50Z
+ NECR     all     ok     3522.9          759.6 2026-10-15T02:01:03Z
+ MORK     all     ok     6790.1          667.0 2026-10-15T02:48:40Z
+ FRAN     all     ok     4992.9         1096.3 2026-10-15T03:30:25Z
+ BOWR     all     ok     2567.8          390.0 2026-10-15T03:48:22Z
+ MCGR     all     ok     2832.5          355.3 2026-10-15T04:10:28Z
+ THOM     all     ok     2975.2          257.0 2026-10-15T04:23:47Z
+ LNTH     all     ok     3704.5          388.6 2026-10-15T04:56:24Z
+ UNTH     all     ok     3784.0          234.9 2026-10-15T05:18:02Z
+                                    log
+ region_fraser_lchl_20261015_001710.log
+ region_fraser_lsal_20261015_001710.log
+ region_fraser_will_20261015_001710.log
+ region_fraser_tabr_20261015_001710.log
+ region_fraser_ufra_20261015_001710.log
+ region_fraser_necr_20261015_001710.log
+ region_fraser_mork_20261015_001710.log
+ region_fraser_fran_20261015_001710.log
+ region_fraser_bowr_20261015_001710.log
+ region_fraser_mcgr_20261015_001710.log
+ region_fraser_thom_20261015_001710.log
+ region_fraser_lnth_20261015_001710.log
+ region_fraser_unth_20261015_001710.log
+
+13/13 groups have a floodplain. Summary: /Users/airvine/Projects/repo/floodplains/data/logs/region_fraser_20261015_001710.csv
+
+------------------------------------------------------------------------------
+Publish lchl, lsal, will, tabr, ufra, necr, mork, fran, bowr, mcgr, thom, lnth, unth to the STAC catalogue:
+  cd ../stac_floodplains_bc
+  bash scripts/run_pipeline.sh        # rebuild data/stac from these outputs
+  bash scripts/catalogue_release.sh   # validate -> sync -> register -> verify
+Both are idempotent. Retract an item with scripts/item_unregister.sh.
+Suppress this note with FP_NO_PUBLISH_HINT=1.
+------------------------------------------------------------------------------
