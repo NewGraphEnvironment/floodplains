@@ -745,17 +745,18 @@ Coexistence is data-layer only (steps 01/02/03).
   also `readme_functions.R`'s `FIG_AREA`, so its transition layer must keep `in_fire`/`in_harvest`
   or the attribution figure builder **stops**.
 - `dunc` — Duncan Lake group (Lardeau River; #120), the **first whole-network area** (#104):
-  `species: all`, order ≥ 2, `attribute_by: blue_line_key`. In `columbia.yml` since #125, which sets
-  its `network_source` to `fresh_default` on the next region run (it was `fresh`). DUNC is
-  in `fresh.streams` and link's habitat tables but in neither `fresh.streams_access` nor `fresh.log`,
-  so its network record carries a null `link_log` and `fwapg_sha`. It is also absent from
-  `fresh_default` as first built; link#328 (closed) has since added it there, beside KOTL/LARL/SLOC.
-  Run 2026-10-12, on flooded 0.6.5's pre-pin DEM grid (#117), so these figures move on its next run;
-  `fp_region_cache_stale` makes the region run redo it rather than skip it:
-  `all_ff04` **185.0 km²**, 1,942 blue lines with floodplain, step 2 in 8.9 min. 1,282 change
-  patches and 119.5 ha of gross tree loss. `composition-check.R dunc` fails its 1% change-vs-patch
-  bound at +4.7%: 1.1% of the floodplain lies past the group polygon (#53).
-  Log: `scripts/floodplain_lcc/logs/20261012_whole_network_dunc.md`.
+  `species: all`, order ≥ 2, `attribute_by: blue_line_key`. In `columbia.yml` since #125, which moved
+  its `network_source` from `fresh` to `fresh_default`. DUNC was in `fresh.streams` and link's habitat
+  tables but in neither `fresh.streams_access` nor `fresh.log`, so its first network record carried a
+  null `link_log` and `fwapg_sha`. link#328 (closed) added it to `fresh_default`, and the record from
+  the 2026-10-15 Columbia run carries that schema's log row (`config_name: default`, `link_sha`
+  present).
+  First run 2026-10-12 on flooded 0.6.5's pre-pin grid: `all_ff04` 185.0 km², 1,942 blue lines with
+  floodplain, step 2 in 8.9 min. Log: `scripts/floodplain_lcc/logs/20261012_whole_network_dunc.md`.
+  The 2026-10-15 re-run on the pinned grid (`fp_region_cache_stale` forced it) gives **185.2 km²**,
+  1,948 blue lines, 1,299 change patches and 116.9 ha of gross tree loss.
+  `composition-check.R dunc` fails its 1% change-vs-patch bound at +4.70%; change cells inside the
+  group polygon equal the patch total (#53). Log: `scripts/floodplain_lcc/logs/20261017_whole_network_columbia.md`.
 
 Whole-WSG areas use the **FWA group polygon** as the single sub-basin (`fp_wsg_subbasin`; no
 `break_points.csv` needed). The earlier single-outlet break point does NOT generalize — delineating
@@ -789,15 +790,31 @@ because it has not been recomputed**; recompute before quoting it. MCGR is exclu
 3,127: it is still on its 2026-07-12 pre-0.5.0 output (290 km², over-mapped), and its species network
 cannot be re-run (#76).
 **Fraser ran whole-network 2026-10-15** (`run_region.R fraser`, about 5 h): all 13 groups have
-`all_ff04`, MCGR among them at 355.3 km² (#76 does not block whole mode). Per-group figures are in the
-coverage CSV under `data/logs/region_fraser_20261015_*`. #125's per-region acceptance checks have
-not been run on it yet. Do not sum the groups: neighbouring floodplains overlap (#53).
+`all_ff04`, MCGR among them at 355.3 km² (#76 does not block whole mode). Do not sum the groups:
+neighbouring floodplains overlap (#53).
 
 **Peace and Columbia ran whole-network 2026-10-15** (chained, flooded 0.7.0), every group `ok`.
 `all_ff04`: PCEA 843.3 km², PARS 559.4, PINE 488.9 (PINE's #76 block does not apply in whole mode);
-KOTL 754.1, LARL 375.5, SLOC 154.5, DUNC 185.2 (DUNC's re-run on the pinned grid). Coverage CSVs are
-under `data/logs/region_{peace,columbia}_20261015_*`. #125's per-region acceptance checks have not been
-run on either yet, and the habitat join now needs flooded > 0.7.2 (v0.1.14).
+KOTL 754.1, LARL 375.5, SLOC 154.5, DUNC 185.2 (DUNC's re-run on the pinned grid).
+
+**All four regions passed #125's acceptance 2026-10-17**, read-only on the runs' outputs. Logs:
+`scripts/floodplain_lcc/logs/20261017_whole_network_{fraser,peace,columbia}.md`, beside Skeena's.
+`region_checks-run.sh <region>` runs the per-group checks, and `region_acceptance-report.R <region>|all`
+derives every figure in those logs from disk. Both reproduced the Skeena log before being trusted.
+- `provenance-check.R` passes in all 23 groups, as does the `all_ff04` section of `disturbance-check.R`.
+  Inside-polygon change cells equal the patch totals within ±0.1 ha everywhere, and classified
+  coverage of the floodplain is 0.9991–1.0001.
+- Expected failures: `composition-check.R`'s 1% bound in every group (#53), and the species layers'
+  context columns.
+- Three FAILs are new, each with its own issue:
+  - NECR's composition check (5): the #93 accuracy module still resolves `area.yml`'s scenario, but
+    its design is on `ch_ff04` (#ACCURACY).
+  - `bridge-check.R`'s unweighted union proxy on PCEA, LARL and SLOC. The true union is 0.94–0.96
+    (#BRIDGE).
+  - The outlier screen flagged **PCEA**: 41.7% of its floodplain lies outside its polygon, and 83.6%
+    is reservoir or large lake (Williston). Waterbody polygons enter the floodplain unclipped
+    (#WATERBODY). The retired `bt_ff04` was worse.
+- The order-2 headwater look over imagery is #VISUAL. The habitat join needs flooded > 0.7.2 (v0.1.14).
 
 **Columbia region** (`columbia.yml`, **bull trout** until #125; DUNC joined then): KOTL 707.8 km², LARL 306.9, SLOC 129.6 at
 `bt_ff04`. ch/co/st/salmon are unmodelled here — verified empirically (`access_* = -9`, the "not
