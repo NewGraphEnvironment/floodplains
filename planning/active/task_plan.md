@@ -32,7 +32,7 @@ What I found that shaped this:
 
 ## Phase 1: Checks that read the current toolchain (flooded 0.7.0)
 
-- [ ] Add `scripts/floodplain_lcc/region_checks-run.sh <region>`. For each group in
+- [x] Add `scripts/floodplain_lcc/region_checks-run.sh <region>`. For each group in
       `config/regions/<region>.yml` it runs `provenance-check.R <wsg>`, `composition-check.R <wsg>
       all_ff04`, `bridge-check.R <wsg> all_ff04` and `disturbance-check.R <wsg>`, plus
       `dem_cache-check.R` once. Each output goes to `data/logs/region_checks_<region>_<wsg>_<check>_<stamp>.log`
@@ -47,7 +47,7 @@ What I found that shaped this:
 
 ## Phase 2: Results report, derived by one script
 
-- [ ] Add `scripts/floodplain_lcc/region_acceptance-report.R <region>`. No database. It reads each
+- [x] Add `scripts/floodplain_lcc/region_acceptance-report.R <region>`. No database. It reads each
       group's `provenance.json`, `floodplain_all_ff0N.tif`, `floodplain.gpkg`
       (`all_ff04_by_blue_line_key`), the transition and composition layers, `subbasins.gpkg` and the
       group log, through the existing helpers: `fp_composition_summary()` (`fp_composition.R`),
@@ -59,7 +59,7 @@ What I found that shaped this:
       - floodplain share outside the polygon;
       - km² of floodplain per km of network;
       - classified coverage over floodplain area, which is the "classified ≈ floodplain" criterion.
-- [ ] Verify it against Skeena: every figure in `20261014_whole_network_skeena.md` reproduces. A
+- [x] Verify it against Skeena: every figure in `20261014_whole_network_skeena.md` reproduces. A
       mismatch is resolved before any new region's numbers are trusted.
 - [ ] **Outlier rule, written down before any of the new numbers are read:** over all 23 groups, flag
       any whose km²/km or outside-polygon share lies beyond 1.5 × IQR of the 23. The flagged groups

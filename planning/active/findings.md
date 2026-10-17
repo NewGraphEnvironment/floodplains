@@ -88,3 +88,30 @@ Relates: #104, #117, #120, #122, #123, #128, #53, #76
 
 | Error | Resolution |
 |-------|------------|
+
+## Skeena control (2026-10-17)
+
+`region_checks-run.sh skeena` reproduced the committed Skeena checks table exactly: provenance and
+bridge PASS in all three groups, composition FAIL(1) each (the #53 bound, +1.47 / +4.40 / +1.27%),
+disturbance FAIL(4) MORR and FAIL(2) KISP on the species layers, with the `all_ff04` section PASS in all three.
+`dem_cache-check.R` PASS.
+
+`region_acceptance-report.R skeena` reproduced every figure in `20261014_whole_network_skeena.md`
+(network km, habitat rows, ff02/04/06 km², blue lines, patches, tree loss, cause shares, bridge
+coverage, wall time, the inside/outside change table) except one: BULK floodplain outside its polygon
+comes out at **1,317.5 ha**, against the log's hand-derived 1,318.2 ha (0.7 ha, ~8 cells of 30 m).
+The script counts by cell centre (`fp_rast_cells`, the repo's rule). The hand derivation's method is
+not recorded, so the script's figure is the one carried forward, and the difference is noted here.
+
+## Runner mutation table
+
+Stub checks under a sed-patched copy of the runner (`chk` pointed at the stubs), region skeena:
+
+| planted | expected | got |
+|---|---|---|
+| check exits 1 with a FAIL line | FAIL(1) | FAIL(1) |
+| check crashes (`stop()`), no FAIL line | FAIL(0) | FAIL(0) |
+| dem_cache exits 1 | FAIL(0) | FAIL(0) |
+| disturbance exits 0, FAIL inside the `all_ff04` section | PASS / FAIL(1) | PASS / FAIL(1) |
+| disturbance has no `all_ff04` section | ABSENT | ABSENT |
+| disturbance FAIL only in a species section | FAIL(1) / ABSENT or PASS | FAIL(1) / ABSENT (no all section in stub) |
