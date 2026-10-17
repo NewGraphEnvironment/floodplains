@@ -7,9 +7,10 @@
 #   habitat_link          rows and species in aquatic_network.gpkg
 #   floodplain km2        every <sp>_ffNN polygon layer in floodplain.gpkg (the coverage rule again)
 #   blue lines            distinct blue_line_key in <primary>_by_blue_line_key
-#   patches, tree loss    transition_<primary>_<span>: one row per transition class within an
-#                         8-connected change region; the 1 ha sieve is on the REGION, so most rows
-#                         are smaller (the count under 1 ha is printed). Loss and its causes through
+#   patches, tree loss    transition_<primary>_<span>: one row per 8-connected patch of a single
+#                         transition code (drift's dft_transition_vectors); the 1 ha sieve is on the
+#                         8-connected CHANGE REGION around it, so most rows are smaller (the count
+#                         under 1 ha is printed). Loss and its causes through
 #                         fp_disturbance_report(), so "tree loss" has one definition
 #   bridge                union coverage (mean of max overlap_frac per patch) and unbridged patches,
 #                         step 3's own definition, from patch_watercourse_<primary>_<span>
@@ -22,9 +23,13 @@
 #   wall time             each group log's mtime minus the previous one (the run stamp for the
 #                         first), from the region's coverage CSV in data/logs/
 #
-# Every group is first tied to its records: fp_region_cache_reason() (one finished run, in record
-# order), and the floodplain and transition rasters and the composition table must digest as
-# provenance.json says. A group that fails either stops the report.
+# Every group is first tied to its records, and a group that fails any tie stops the report: the
+# summary marker plus fp_region_cache_reason() (run_region.R's verdict: one finished run, in record
+# order); streams_<sp><order>, every floodplain_<sc>.tif printed, transition.tif and the composition
+# table digesting as provenance.json says; every scenario's record from the step 2 between network
+# and step 3. NOT tied, because their writers record nothing: the attribution layer (blue lines),
+# the bridge table, and the cause columns on the patches, which attribute_tag.R and fire_tag.R can
+# rewrite in place. Those columns are the layers' current state.
 #
 # No database, no network. Read-only.
 #
@@ -111,24 +116,50 @@ group_report <- function(area) {
   dd   <- file.path(root, "data", area)
   sp   <- cfg$species; ord <- cfg$min_order; prim <- cfg$primary_scenario
   prov <- jsonlite::read_json(file.path(dd, "provenance.json"))
-  # The outputs must be this config's finished run, in record order (the region cache's verdict),
-  # and the rasters and table read below must be the ones the records digest. Otherwise a row could
-  # mix a step-2 re-run with an older step 3.
+  # The outputs must be this config's finished run: the region cache's whole verdict (the summary
+  # marker run_region.R deletes before a re-run, then fp_region_cache_reason's record order), every
+  # floodplain scenario printed from that run's step 2, and every layer that carries a digest
+  # digesting as its record says. Otherwise a row could mix a re-run step with an older one.
+  refuse <- function(...) stop(area, ": ", ..., call. = FALSE)
+  if (!file.exists(file.path(dd, paste0("lulc_summary_", prim, ".rds"))))
+    refuse("no lulc_summary_", prim, ".rds -- step 3 has not finished since the last re-run began")
   why <- fp_region_cache_reason(prov, cfg)
-  if (!is.na(why)) stop(area, ": not one finished run -- ", why, call. = FALSE)
+  if (!is.na(why)) refuse("not one finished run -- ", why)
   same <- function(rec, path) {
     if (!identical(fp_raster_content_sha256(path), rec))
-      stop(area, ": ", basename(path), " does not digest as its provenance record says", call. = FALSE)
+      refuse(basename(path), " does not digest as its provenance record says")
   }
+  utc <- function(v) as.numeric(as.POSIXct(v %||% NA_character_, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))
   net_gpkg <- file.path(dd, "aquatic_network.gpkg")
   fp_gpkg  <- file.path(dd, "floodplain.gpkg")
   lc_gpkg  <- file.path(dd, "floodplain_landcover.gpkg")
 
   streams <- sf::st_read(net_gpkg, layer = paste0("streams_", sp, ord), quiet = TRUE)
+  # 01's own output digest, over the same key and value columns (01_network_extract.R).
+  if (!identical(fp_table_content_sha256(streams, c("blue_line_key", "downstream_route_measure"),
+                                         c("length_metre", "stream_order", "upstream_area_ha",
+                                           "map_upstream", "channel_width", "waterbody_key")),
+                 prov$network[[paste0(sp, ord)]]$outputs$streams_content_sha256))
+    refuse("streams_", sp, ord, " does not digest as its provenance record says")
   net_km  <- sum(as.numeric(sf::st_length(streams))) / 1000
   hl <- if ("habitat_link" %in% gpkg_layers(net_gpkg)) read_attrs(net_gpkg, "habitat_link", "species") else NULL
 
   fp_lyrs <- grep(sprintf("^%s_ff[0-9]{2}$", sp), gpkg_layers(fp_gpkg), value = TRUE)
+  # Each scenario printed: on the pinned grid, its raster as recorded, and its record between the
+  # network record and step 3 (one step 2). A step 2 killed mid-sweep leaves a new ff02 beside an
+  # old ff04, which this catches; the polygon layer itself carries no digest.
+  lrun  <- prov$landcover[[prim]]$run
+  step3 <- if (length(lrun$repairs)) lrun$repairs[[1]]$previous_datetime_utc else lrun$datetime_utc
+  t_net <- utc(prov$network[[paste0(sp, ord)]]$run$datetime_utc)
+  for (sc in fp_lyrs) {
+    rec <- prov$floodplain[[sc]]
+    if (is.null(rec)) refuse(sc, " has no floodplain record")
+    if (fp_region_cache_stale(prov, sc)) refuse(sc, "'s record predates flooded ", FP_FLOODED_GRID_PIN)
+    t_sc <- utc(rec$run$datetime_utc)
+    if (is.na(t_sc) || is.na(t_net) || t_sc < t_net || t_sc > utc(step3))
+      refuse(sc, "'s floodplain record is not from the step 2 between this network and step 3")
+    same(rec$outputs$floodplain_content_sha256, file.path(dd, paste0("floodplain_", sc, ".tif")))
+  }
   fp_km2  <- vapply(fp_lyrs, function(l) km2(fp_gpkg, l), numeric(1))
   by_lyr  <- paste0(prim, "_by_blue_line_key")
   blk     <- if (by_lyr %in% gpkg_layers(fp_gpkg))
@@ -179,16 +210,11 @@ group_report <- function(area) {
   n_cells <- function(r) { f <- terra::freq(r); if (is.null(f) || !nrow(f)) 0 else sum(f$count) }
   chg_ha    <- n_cells(chg) * cell_ha(chg)
   chg_in_ha <- n_cells(terra::mask(chg, inside_tr)) * cell_ha(chg)
-  fp_path <- file.path(dd, paste0("floodplain_", prim, ".tif"))
-  same(prov$floodplain[[prim]]$outputs$floodplain_content_sha256, fp_path)
-  fpr <- terra::rast(fp_path)
+  fpr <- terra::rast(file.path(dd, paste0("floodplain_", prim, ".tif")))   # digested above
   fp1 <- terra::ifel(fpr == 1, 1L, NA)
   fp_ha     <- n_cells(fp1) * cell_ha(fp1)
   fp_out_ha <- fp_ha - n_cells(terra::mask(fp1, fp_rast_cells(sb, fp1))) * cell_ha(fp1)
 
-  # When step 3 last ran: run.repairs[[1]] holds it once an in-place repair re-stamped the record (#126).
-  lrun  <- prov$landcover[[prim]]$run
-  step3 <- if (length(lrun$repairs)) lrun$repairs[[1]]$previous_datetime_utc else lrun$datetime_utc
   nk <- paste0(sp, ord)
   data.frame(
     wsg = toupper(area), net_km = net_km,
@@ -210,7 +236,7 @@ group_report <- function(area) {
     fp_ha = fp_ha, fp_out_ha = fp_out_ha, fp_out_pct = 100 * fp_out_ha / fp_ha,
     km2_per_km = fp_km2[prim] / net_km,
     span = span,
-    step3_utc = as.numeric(as.POSIXct(step3 %||% NA_character_, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")),
+    step3_utc = utc(step3), net_utc = t_net, fp_utc = utc(prov$floodplain[[prim]]$run$datetime_utc),
     row.names = NULL, stringsAsFactors = FALSE)
 }
 `%||%` <- function(x, y) if (is.null(x) || (length(x) == 1 && is.na(x))) y else x
@@ -231,11 +257,11 @@ for (region in regions) {
   rows <- do.call(rbind, lapply(groups, group_report))
   rows$wall_min <- unname(wt$min[tolower(rows$wsg)])
   # The CSV times a run; the outputs on disk may be a later one (a direct run_area.R, or a region run
-  # killed before it wrote its CSV). A group's time counts only when its step-3 record lies in its
-  # own window of that run.
+  # killed before it wrote its CSV), or that run may have done only some steps. A group's time counts
+  # only when its network, primary floodplain and step-3 records all lie in its own window of that run.
   k <- tolower(rows$wsg)
-  tied <- !is.na(rows$step3_utc) & !is.na(wt$from[k]) &
-          rows$step3_utc >= wt$from[k] & rows$step3_utc <= wt$to[k]
+  inwin <- function(t) !is.na(t) & !is.na(wt$from[k]) & t >= wt$from[k] & t <= wt$to[k]
+  tied <- inwin(rows$net_utc) & inwin(rows$fp_utc) & inwin(rows$step3_utc)
   untied <- rows$wsg[!tied & !is.na(rows$wall_min)]
   rows$wall_min[!tied] <- NA
   rows$region <- region
@@ -245,7 +271,7 @@ for (region in regions) {
   cat(sprintf("Produced by `Rscript scripts/floodplain_lcc/region_acceptance-report.R %s`, %s UTC. ",
               region, format(Sys.time(), "%Y-%m-%d %H:%M", tz = "UTC")))
   cat(sprintf("Timings from `data/logs/%s` (log mtimes).", wt$csv %||% "<no coverage csv>"))
-  if (length(untied)) cat(sprintf(" No wall time for %s: its step-3 record is not from that run.",
+  if (length(untied)) cat(sprintf(" No wall time for %s: its network, floodplain and step-3 records are not all from that run.",
                                   paste(untied, collapse = ", ")))
   cat("\n\n")
   cat("### Results\n\n")

@@ -34,7 +34,7 @@ Produced by `Rscript scripts/floodplain_lcc/region_acceptance-report.R columbia`
 | SLOC | 15,437.3 / 15,449.5 ha (0.9992) | 404.2 | 398.8 | 5.4 | 398.8 | +0.0 | 128.2 of 15,449.5 ha (0.83%) | 0.0586 |
 | DUNC | 18,505.4 / 18,521.4 ha (0.9991) | 748.6 | 715.0 | 33.6 | 715.0 | -0.0 | 204.9 of 18,521.4 ha (1.11%) | 0.0530 |
 
-A transition patch is one row of the transition layer: one transition class within an 8-connected change region. Step 3's 1 ha sieve applies to the region, so most rows are smaller, and the count under 1 ha is in brackets. Step 3's log calls them "change patches >= 1 ha", which describes the region, not the row.
+A transition patch is one row of the transition layer: one 8-connected patch of a single transition code (drift's `dft_transition_vectors()`). Step 3's 1 ha sieve applies to the 8-connected change region around it, so most rows are smaller; the count under 1 ha is in brackets. Step 3's log calls them "change patches >= 1 ha", which describes the region, not the row. Blue lines, the bridge and the cause shares are read from layers whose writers record no digest (`attribute_tag.R` and `fire_tag.R` rewrite them in place), so they are those layers' state when the report ran. Every other figure is tied to `provenance.json` (see the report's header).
 
 ## Checks
 

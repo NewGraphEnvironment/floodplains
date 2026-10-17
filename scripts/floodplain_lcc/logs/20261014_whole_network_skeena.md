@@ -90,7 +90,8 @@ guard's 1% tolerance was measured on species networks; it was not loosened.
 
 ## Correction (2026-10-17, #125 acceptance)
 
-"Change patches ≥ 1 ha" in the results table counts rows of the transition layer. Each row is one
-transition class within an 8-connected change region, and step 3's 1 ha sieve applies to the
-region, so most rows are smaller: BULK 8,058 of 9,210 are under 1 ha. The areas and counts stand.
+"Change patches ≥ 1 ha" in the results table counts rows of the transition layer. Each row is
+one 8-connected patch of a single transition code. Step 3's 1 ha sieve applies to the 8-connected
+change region around it, so most rows are smaller: 8,058 of BULK's 9,210 are under 1 ha. The areas
+and counts stand.
 `region_acceptance-report.R skeena` reproduces this table under the label "transition patches".

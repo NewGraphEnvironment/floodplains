@@ -253,3 +253,37 @@ tie used only the step-3 record time.
   the DEM times are from session probes, recorded here. PCEA's 1,700.3 ha is change outside the
   polygon, of which 1,627.0 ha is on waterbody polygons by cell centre (round 3's 1,652.9 was
   any-touch).
+
+## Code-check round 4: the enumeration (2026-10-17)
+
+`review-round4.md` walked all 37 of round 3's rows against 8951d9e and added rows 38–49. Every
+table in the four logs regenerates byte for byte. Three findings; F1 and F3 sit inside round 3's fix:
+- **F1:** the tie covered only what carries a digest. Network km, ff02/ff06, blue lines, the bridge
+  and the cause shares could come from a different run. Now tied: run_region.R's summary marker
+  (`lulc_summary_<prim>.rds`), `streams_<sp><ord>` against `outputs.streams_content_sha256` (01's
+  own key and value columns), and every printed `<sp>_ffNN` on the pinned grid, digesting as
+  recorded, with its record between the network record and step 3. Blue lines, the bridge and the
+  cause columns have writers that record no digest (`attribute_tag.R`, `fire_tag.R`), so the
+  report's header and each log say they are the layers' current state.
+- **F2:** a transition row is one 8-connected patch of a single transition code
+  (`dft_transition_vectors(directions = 8, values = TRUE)`), not "one class within a region". Fixed
+  in the report header, the three logs and the Skeena correction.
+- **F3:** a group's wall time now needs its network, primary floodplain and step-3 records all
+  inside its window, so a steps-3-only run does not print as a full run.
+
+Mutation on a symlinked SLOC (`scratchpad/mut4`), each against Columbia's real coverage CSV:
+
+| planted | result |
+|---|---|
+| none | row, wall 10.2 min |
+| streams digest moved | stops: streams_all2 does not digest |
+| all_ff02 record before the network | stops: not from the step 2 between network and step 3 |
+| all_ff06 tif digest moved | stops: floodplain_all_ff06.tif does not digest |
+| network record before the group's window | row, wall NA, named |
+| summary marker absent | stops: no lulc_summary_all_ff04.rds |
+
+Real data: all 23 groups pass every tie, and every table is byte-identical to the committed logs.
+
+**The loop ends on round 4's enumeration.** Its 49 rows cover every input, verdict branch and claim
+of both scripts. After F1–F3, each row is tied (by digest, record order or window) or documented as
+untied. Four reviewer rounds; the review issues had nothing else to do with this repo.
