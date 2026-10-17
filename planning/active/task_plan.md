@@ -39,9 +39,9 @@ What I found that shaped this:
       (gitignored). It prints a PASS/FAIL table from each check's exit status, and the `all_ff04`
       section's verdict separately for `disturbance-check.R`, whose species-layer FAILs are expected
       (Skeena log). One process loop, one invocation per region.
-- [ ] Run it for fraser, peace and columbia, then skeena again as a control: it should reproduce the
+- [x] Run it for fraser, peace and columbia, then skeena again as a control: it should reproduce the
       Skeena table.
-- [ ] Every FAIL other than the known two (composition's 1% bound from #53, disturbance on the
+- [x] Every FAIL other than the known two (composition's 1% bound from #53, disturbance on the
       species layers) is diagnosed to `file:line` before going further. A real defect gets an issue
       or a fix on this branch, depending on size.
 
@@ -61,7 +61,7 @@ What I found that shaped this:
       - classified coverage over floodplain area, which is the "classified ≈ floodplain" criterion.
 - [x] Verify it against Skeena: every figure in `20261014_whole_network_skeena.md` reproduces. A
       mismatch is resolved before any new region's numbers are trusted.
-- [ ] **Outlier rule, written down before any of the new numbers are read:** over all 23 groups, flag
+- [x] **Outlier rule, written down before any of the new numbers are read:** over all 23 groups, flag
       any whose km²/km or outside-polygon share lies beyond 1.5 × IQR of the 23. The flagged groups
       join BULK in the visual-review issue.
 

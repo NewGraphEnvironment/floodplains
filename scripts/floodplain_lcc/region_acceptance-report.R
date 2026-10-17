@@ -34,6 +34,7 @@
 
 suppressPackageStartupMessages({ library(sf); library(terra) })
 sf::sf_use_s2(FALSE)
+terra::terraOptions(progress = 0)   # its progress bars write to stdout, which is the report
 root <- here::here()
 lcc  <- file.path(root, "scripts", "floodplain_lcc")
 source(file.path(root, "scripts", "fp_raster.R"))      # fp_rast_cells

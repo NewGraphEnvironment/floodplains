@@ -115,3 +115,77 @@ Stub checks under a sed-patched copy of the runner (`chk` pointed at the stubs),
 | disturbance exits 0, FAIL inside the `all_ff04` section | PASS / FAIL(1) | PASS / FAIL(1) |
 | disturbance has no `all_ff04` section | ABSENT | ABSENT |
 | disturbance FAIL only in a species section | FAIL(1) / ABSENT or PASS | FAIL(1) / ABSENT (no all section in stub) |
+
+## All-region report and the outlier screen (2026-10-17)
+
+`region_acceptance-report.R all` over 23 groups (per-group values in
+`data/logs/region_acceptance_20261017_174646.csv`). The rule was written into the script header
+before the new regions' numbers were read.
+
+- `km2_per_km`: median 0.1113, IQR 0.0837–0.1532. **Nothing flagged.**
+- `fp_out_pct`: median 1.73%, IQR 1.12–2.42%. **PCEA flagged at 41.7%.**
+
+**PCEA is a waterbody spill, not the #53 edge.** 35,197 of PCEA's 84,334 ha `all_ff04` floodplain lies
+outside the PCEA polygon, almost all of it in PARA (Parsnip Arm) and FINA (Finlay Arm), the other
+arms of Williston Reservoir. 83.6% of the floodplain is on reservoir or large lakes (FWA manmade
+waterbodies plus lakes > 1,000 ha). Step 1 selects waterbodies by `waterbody_key` from the network
+(`01_network_extract.R:305`), and step 2 puts their polygons into the floodplain with no spatial
+filter, so Williston's single polygon reaches all three arms. ff02 / ff04 / ff06 are 840.2 / 843.3 /
+846.6 km², nearly flat, because a reservoir surface floods whatever the factor.
+
+**This predates whole mode.** The retired `bt_ff04` was worse: 92.1% on reservoir and 58.4%
+outside the polygon. It also changes nothing in the inside-polygon change reconciliation: PCEA's
+754.4 ha of change cells inside its polygon equal the patch total.
+
+Every other group's outside share is 0.81–3.25%. Classified coverage of the floodplain is
+0.9991–1.0001 everywhere. Inside-polygon change cells equal the patch totals within ±0.1 ha in
+all 23 groups.
+
+## NECR composition FAIL(2): the accuracy module is still bound to area.yml's scenario (2026-10-17)
+
+NECR's second composition FAIL is check (5), `composition-check.R:234-242`: "footprint in_wetland
+matches the accuracy module's FWA-wetland count", 12,809.04 vs 6,436.64 ha. The reference,
+`data/necr/accuracy/wetland_composition.csv`, carries no scenario. Its 6,436.64 ha equals the
+`co_ff04`-era composition (`logs/20261002_composition_build-rollout_necr-bulk.md:51`, "6,436.64 vs
+6,436.64 (exact)"). The check binds it to the current `primary_scenario`, now `all_ff04`.
+
+The cause is wider than the check. `fp_acc_area()` (`scripts/landcover_accuracy/fp_accuracy.R:18-20`)
+takes the scenario from `area.yml`, so since #125 it resolves `all_ff04` for NECR. NECR's reference
+sample was drawn on `ch_ff04`: `sample.gpkg` has `scenario = ch_ff04`, and `design.json` has
+`transition_layer = transition_ch_ff04_2017_2023` on a 6,288 x 8,945 grid. The `all_ff04` grid is
+6,832 x 9,423. `transition_layer` is recorded by `sample_draw-pilot.R:136` and compared nowhere.
+This is not fixed here: it is the #93 module's binding, filed as its own issue.
+
+## Bridge union coverage below 0.90 on PCEA, LARL, SLOC (2026-10-17)
+
+`bridge-check.R:79` asserts `mean(tapply(overlap_frac, patch, max)) >= 0.90`, an UNWEIGHTED mean
+over patches. It fails on PCEA (0.8980), LARL (0.8886) and SLOC (0.8944). KISP passed at 0.9015.
+Every other bridge assertion passes in all 23 groups, including the apportioned tree loss
+reconciling to the ungrouped total.
+
+| group | max-proxy, unweighted | max-proxy, area-weighted | true union, area-weighted | watercourses per patch |
+|---|---|---|---|---|
+| LARL | 0.8886 | 0.9587 | 0.9610 | 2.82 |
+| SLOC | 0.8944 | 0.9364 | 0.9363 | 3.09 |
+| PCEA | 0.8980 | 0.9210 | 0.9405 | 3.66 |
+| KISP | 0.9015 | 0.9497 | 0.9522 | 2.63 |
+| BULK | 0.9421 | 0.9577 | 0.9625 | 3.25 |
+
+True union is the patch ∩ st_union(`all_ff04_by_blue_line_key`), measured ad hoc in this session.
+
+**Wrong turn, kept:** I first attributed the gap to patches spanning several blue lines, so that
+the max under-reads the union. The area-weighted column refutes that for LARL, SLOC and KISP:
+weighted, the max and the union agree within 0.003. The gap is the weighting. Small patches, built
+on the 10 m grid, lie partly outside the 30 m attribution polygons. An unweighted mean counts each
+1 ha patch as much as a 100 ha one, and whole-network groups add narrow headwater floodplains,
+where those edge patches are common. PCEA keeps a 0.02 max-vs-union gap: it has the most
+watercourses per patch, at 3.66.
+
+No ground is lost that a passing group does not also lose: LARL's true union (0.961) is above KISP's
+(0.952). The threshold was set on species networks (MORR 0.966), and it was not loosened here.
+Filed as its own issue.
+
+**Second correction (same day):** over all 23 groups, the area-weighted max is *lower* than the
+unweighted one in some (WILL 0.947 -> 0.924, MORR 0.953 -> 0.942), and FRAN fails weighted at
+0.8994, with a true union of 0.9235. So weighting explains the three failures, but it is not a fix.
+The issue recommends asserting the true union, measured at 0.92-0.96 on eight groups.
