@@ -793,6 +793,12 @@ cannot be re-run (#76).
 coverage CSV under `data/logs/region_fraser_20261015_*`. #125's per-region acceptance checks have
 not been run on it yet. Do not sum the groups: neighbouring floodplains overlap (#53).
 
+**Peace and Columbia ran whole-network 2026-10-15** (chained, flooded 0.7.0), every group `ok`.
+`all_ff04`: PCEA 843.3 km², PARS 559.4, PINE 488.9 (PINE's #76 block does not apply in whole mode);
+KOTL 754.1, LARL 375.5, SLOC 154.5, DUNC 185.2 (DUNC's re-run on the pinned grid). Coverage CSVs are
+under `data/logs/region_{peace,columbia}_20261015_*`. #125's per-region acceptance checks have not been
+run on either yet, and the habitat join now needs flooded > 0.7.2 (v0.1.14).
+
 **Columbia region** (`columbia.yml`, **bull trout** until #125; DUNC joined then): KOTL 707.8 km², LARL 306.9, SLOC 129.6 at
 `bt_ff04`. ch/co/st/salmon are unmodelled here — verified empirically (`access_* = -9`, the "not
 modelled" SENTINEL, not NULL) rather than inferred from the barrier history (Grand Coulee / Chief

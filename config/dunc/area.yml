@@ -25,5 +25,5 @@ min_order: 2
 schema: dunc
 primary_scenario: all_ff04
 subset: null
-network_source: fresh
+network_source: fresh_default
 attribute_by: blue_line_key

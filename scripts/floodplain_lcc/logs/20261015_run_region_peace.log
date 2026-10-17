@@ -1,0 +1,40 @@
+Spherical geometry (s2) switched off
+Region: peace | groups: 3 | mode: whole (network_source fresh) | min_order: 2
+
+=== Pre-pass: whole-network segments in fresh (order >= 2) ===
+  PCEA  -> all (39528 segments; all=39528)
+  PARS  -> all (32880 segments; all=32880)
+  PINE  -> all (38165 segments; all=38165)
+
+=== Config reconciliation ===
+  PCEA  area.yml: update: species, min_order, primary_scenario | flood_scenarios.csv: append 6 all rows (6 -> 12) | break_points.csv: absent (whole-WSG group polygon)
+  PARS  area.yml: update: species, min_order, primary_scenario | flood_scenarios.csv: append 6 all rows (6 -> 12) | break_points.csv: absent (whole-WSG group polygon)
+  PINE  area.yml: update: species, min_order, primary_scenario | flood_scenarios.csv: append 6 all rows (6 -> 12) | break_points.csv: absent (whole-WSG group polygon)
+3 of 3 config(s) updated; the rest were already current.
+
+### PCEA -> all (steps 1,2,3) -> region_peace_pcea_20261015_154454.log ###
+
+### PARS -> all (steps 1,2,3) -> region_peace_pars_20261015_154454.log ###
+
+### PINE -> all (steps 1,2,3) -> region_peace_pine_20261015_154454.log ###
+
+=== Region peace coverage ===
+  wsg species status network_km floodplain_km2           provenance
+ PCEA     all     ok     5493.9          843.3 2026-10-15T16:03:19Z
+ PARS     all     ok     5167.4          559.4 2026-10-15T16:35:32Z
+ PINE     all     ok     5767.8          488.9 2026-10-15T17:11:59Z
+                                   log
+ region_peace_pcea_20261015_154454.log
+ region_peace_pars_20261015_154454.log
+ region_peace_pine_20261015_154454.log
+
+3/3 groups have a floodplain. Summary: /Users/airvine/Projects/repo/floodplains/data/logs/region_peace_20261015_154454.csv
+
+------------------------------------------------------------------------------
+Publish pcea, pars, pine to the STAC catalogue:
+  cd ../stac_floodplains_bc
+  bash scripts/run_pipeline.sh        # rebuild data/stac from these outputs
+  bash scripts/catalogue_release.sh   # validate -> sync -> register -> verify
+Both are idempotent. Retract an item with scripts/item_unregister.sh.
+Suppress this note with FP_NO_PUBLISH_HINT=1.
+------------------------------------------------------------------------------

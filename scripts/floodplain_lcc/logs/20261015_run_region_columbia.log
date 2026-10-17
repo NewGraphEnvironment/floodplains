@@ -1,0 +1,46 @@
+Spherical geometry (s2) switched off
+Region: columbia | groups: 4 | mode: whole (network_source fresh_default) | min_order: 2
+
+=== Pre-pass: whole-network segments in fresh_default (order >= 2) ===
+  KOTL  -> all (40847 segments; all=40847)
+  LARL  -> all (34650 segments; all=34650)
+  SLOC  -> all (23339 segments; all=23339)
+  DUNC  -> all (28526 segments; all=28526)
+
+=== Config reconciliation ===
+  KOTL  area.yml: update: species, min_order, primary_scenario, attribute_by, -network_guard | flood_scenarios.csv: append 6 all rows (6 -> 12) | break_points.csv: absent (whole-WSG group polygon)
+  LARL  area.yml: update: species, min_order, primary_scenario, attribute_by, -network_guard | flood_scenarios.csv: append 6 all rows (6 -> 12) | break_points.csv: absent (whole-WSG group polygon)
+  SLOC  area.yml: update: species, min_order, primary_scenario, attribute_by, -network_guard | flood_scenarios.csv: append 6 all rows (6 -> 12) | break_points.csv: absent (whole-WSG group polygon)
+  DUNC  area.yml: update: network_source | flood_scenarios.csv: unchanged (6 rows, all) | break_points.csv: absent (whole-WSG group polygon)
+4 of 4 config(s) updated; the rest were already current.
+
+### KOTL -> all (steps 1,2,3) -> region_columbia_kotl_20261015_171455.log ###
+
+### LARL -> all (steps 1,2,3) -> region_columbia_larl_20261015_171455.log ###
+
+### SLOC -> all (steps 1,2,3) -> region_columbia_sloc_20261015_171455.log ###
+
+### DUNC -> all: outputs present but the floodplain record predates flooded 0.7.0's grid (#117) — re-running ###
+
+=== Region columbia coverage ===
+  wsg species status network_km floodplain_km2           provenance
+ KOTL     all     ok     5722.7          754.1 2026-10-15T18:01:15Z
+ LARL     all     ok     4540.0          375.5 2026-10-15T18:25:33Z
+ SLOC     all     ok     2635.9          154.5 2026-10-15T18:36:37Z
+ DUNC     all     ok     3493.0          185.2 2026-10-15T18:49:33Z
+                                      log
+ region_columbia_kotl_20261015_171455.log
+ region_columbia_larl_20261015_171455.log
+ region_columbia_sloc_20261015_171455.log
+ region_columbia_dunc_20261015_171455.log
+
+4/4 groups have a floodplain. Summary: /Users/airvine/Projects/repo/floodplains/data/logs/region_columbia_20261015_171455.csv
+
+------------------------------------------------------------------------------
+Publish kotl, larl, sloc, dunc to the STAC catalogue:
+  cd ../stac_floodplains_bc
+  bash scripts/run_pipeline.sh        # rebuild data/stac from these outputs
+  bash scripts/catalogue_release.sh   # validate -> sync -> register -> verify
+Both are idempotent. Retract an item with scripts/item_unregister.sh.
+Suppress this note with FP_NO_PUBLISH_HINT=1.
+------------------------------------------------------------------------------
