@@ -800,7 +800,7 @@ KOTL 754.1, LARL 375.5, SLOC 154.5, DUNC 185.2 (DUNC's re-run on the pinned grid
 **#125's acceptance ran on all four regions 2026-10-17**, read-only on the runs' outputs. Logs:
 `scripts/floodplain_lcc/logs/20261017_whole_network_{fraser,peace,columbia}.md`, beside Skeena's.
 `region_checks-run.sh <region>` runs the per-group checks, and `region_acceptance-report.R <region>|all`
-derives every figure in those logs from disk. Both reproduced the Skeena log before being trusted,
+derives every table in those logs from disk. Both reproduced the Skeena log before being trusted,
 except BULK's outside-polygon area: 1,317.5 ha by cell centre, against a hand-derived 1,318.2.
 - `provenance-check.R` passes in all 23 groups, as does the `all_ff04` section of `disturbance-check.R`.
   Inside-polygon change cells equal the patch totals within 0.12 ha everywhere, and classified

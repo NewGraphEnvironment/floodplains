@@ -55,7 +55,7 @@ run() {
 dst_section() {
   local log="$out/$1_disturbance.log"
   awk -v hdr="  -- transition_${scen}_" '
-    index($0, hdr) == 1                   { on = 1; seen = 1; next }
+    index($0, hdr) == 1                   { on = 1; seen = 1; closed = 0; next }
     on && /^  -- /                        { on = 0; closed = 1 }
     on && /^(ALL PASS|[0-9]+ FAIL)$/      { on = 0; closed = 1 }
     on && /^  FAIL /                      { n++ }

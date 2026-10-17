@@ -225,5 +225,31 @@ sits inside a round-1 fix**, so only an enumeration ends the loop:
 - **Runner:** `grep | sed || echo none` never printed "none", because the pipeline's status is
   sed's. It is now captured, then tested.
 - **Claims:** CLAUDE.md counted PCEA's outlier flag as a FAIL. PCEA's composition FAIL is
-  +225.39% (1,700.3 ha of change on the reservoir outside its polygon), not the #53 edge. The other
+  +225.39% (1,700.3 ha of change outside its polygon, 1,627.0 ha of it on the network's waterbody
+  polygons by cell centre), not the #53 edge. The other
   22 groups breach at +1.11% to +7.81% (WILL the highest).
+
+## Code-check round 3 (2026-10-17)
+
+`review-round3.md`: the mechanism, plus a 37-row enumeration of every input, verdict branch and
+claim. **The mechanism:** a value was trusted because of where it was found (the last log section,
+a line's shape, the newest file, a pipeline's last command, a nearby measurement), not because its
+producer stamped an identity on it. Six findings, all real. One is again inside a fix: round 2's
+tie used only the step-3 record time.
+- **Report:** each group is now tied to its records before anything is derived:
+  `fp_region_cache_reason()`, the region cache's own verdict (one finished run, in record order),
+  plus the floodplain raster, `transition.tif` and the composition table digesting as
+  `provenance.json` says. Mutation on a symlinked SLOC with a doctored record: each of the four
+  stops the report, naming the cause.
+- **Report:** a malformed or unknown `RUN_STAMP` now stops rather than falling back to the newest CSV.
+- **Runner:** `closed` is reset on each section header. Two `all_ff04` spans with a species
+  section between them and a crash in the second now give INCOMPLETE (they gave PASS).
+- **Label:** "patches >= 1 ha" counted transition-layer rows, and 78–94% of them are under 1 ha. The
+  sieve is applied to 8-connected change regions (`drift::dft_rast_transition`, `directions = 8`), and
+  rows are per transition class within them. The column is now "transition patches", with the
+  count under 1 ha shown. Step 3's message (`03_lulc_classify.R:248`) carries the same label.
+  It is left alone here, and Skeena's log gains a correction note.
+- **Claims:** "derives every figure" is now "every table". The true union, the reservoir shares and
+  the DEM times are from session probes, recorded here. PCEA's 1,700.3 ha is change outside the
+  polygon, of which 1,627.0 ha is on waterbody polygons by cell centre (round 3's 1,652.9 was
+  any-touch).

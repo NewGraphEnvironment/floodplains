@@ -14,25 +14,25 @@ The acceptance checks ran 2026-10-17, read-only on the run's outputs and on the 
 starting from the run stamp.
 
 
-Produced by `Rscript scripts/floodplain_lcc/region_acceptance-report.R fraser`, 2026-10-17 18:39 UTC. Timings from `data/logs/region_fraser_20261015_001710.csv` (log mtimes).
+Produced by `Rscript scripts/floodplain_lcc/region_acceptance-report.R fraser`, 2026-10-17 20:14 UTC. Timings from `data/logs/region_fraser_20261015_001710.csv` (log mtimes).
 
 ## Results
 
-| group | network km (order >= 2) | freshness | habitat_link rows | ff02 / ff04 / ff06 km2 | blue lines | patches >= 1 ha | gross tree loss | fire / harvest / unattributed | bridge union (unbridged) | wall min |
+| group | network km (order >= 2) | freshness | habitat_link rows | ff02 / ff04 / ff06 km2 | blue lines | transition patches (< 1 ha) | gross tree loss | fire / harvest / unattributed | bridge union (unbridged) | wall min |
 |---|---|---|---|---|---|---|---|---|---|---|
-| LCHL | 2,459.9 | 0.0% dev | 63,516 (bt, ch, co) | 395.6 / 426.8 / 456.8 | 998 | 9,396 (4,802.0 ha) | 1,526.4 ha in 2,043 | 6.6 / 20.8 / 73.5% | 0.928 (13) | 12.4 |
-| LSAL | 1,397.0 | 0.0% dev | 11,609 (ch) | 261.8 / 290.9 / 314.4 | 466 | 4,562 (2,535.3 ha) | 1,003.9 ha in 1,118 | 0.0 / 34.5 / 65.5% | 0.947 (5) | 8.2 |
-| WILL | 2,296.2 | 0.0% dev | 78,489 (bt, ch, co) | 331.5 / 351.2 / 369.2 | 861 | 2,337 (1,631.6 ha) | 679.3 ha in 725 | 0.2 / 31.5 / 68.3% | 0.947 (3) | 12.7 |
-| TABR | 1,544.4 | 0.0% dev | 29,304 (bt, ch) | 242.5 / 267.2 / 290.3 | 615 | 2,646 (1,799.9 ha) | 634.6 ha in 803 | 0.2 / 41.4 / 58.4% | 0.937 (6) | 8.4 |
-| UFRA | 5,059.5 | 0.0% dev | 192,598 (bt, ch) | 282.7 / 301.7 / 311.9 | 2,613 | 10,799 (3,037.2 ha) | 827.2 ha in 2,544 | 0.0 / 13.1 / 86.9% | 0.940 (32) | 32.7 |
-| NECR | 3,522.9 | 0.0% dev | 119,804 (bt, ch, co, sk) | 699.7 / 759.6 / 813.4 | 1,336 | 11,323 (10,003.3 ha) | 4,463.8 ha in 3,545 | 31.0 / 39.8 / 37.2% | 0.918 (24) | 30.9 |
-| MORK | 6,790.1 | 0.0% dev | 221,020 (bt, ch) | 604.5 / 667.0 / 729.7 | 3,361 | 6,502 (3,371.6 ha) | 1,063.0 ha in 1,547 | 1.3 / 36.4 / 62.5% | 0.947 (6) | 50.2 |
-| FRAN | 4,992.9 | 0.0% dev | 160,074 (bt, ch, sk) | 1,059.4 / 1,096.3 / 1,130.3 | 1,879 | 9,888 (12,002.5 ha) | 10,139.8 ha in 4,211 | 80.1 / 34.5 / 10.7% | 0.916 (11) | 40.8 |
-| BOWR | 2,567.8 | 0.0% dev | 146,904 (bt, ch, co, sk) | 368.5 / 390.0 / 409.1 | 1,083 | 2,346 (1,412.7 ha) | 586.5 ha in 623 | 0.7 / 37.0 / 62.3% | 0.927 (6) | 16.3 |
-| MCGR | 2,832.5 | 0.0% dev | 98,010 (bt, ch) | 328.4 / 355.3 / 372.0 | 1,647 | 4,063 (2,426.5 ha) | 776.7 ha in 658 | 0.0 / 53.3 / 46.7% | 0.956 (0) | 22.2 |
-| THOM | 2,975.2 | 0.0% dev | 372,912 (bt, ch, co, pk, sk, st) | 248.4 / 257.0 / 265.3 | 1,400 | 2,564 (2,709.0 ha) | 1,169.1 ha in 561 | 80.4 / 15.9 / 17.2% | 0.911 (6) | 12.8 |
-| LNTH | 3,704.5 | 0.0% dev | 321,660 (bt, ch, co, pk, sk) | 369.1 / 388.6 / 408.0 | 1,558 | 4,745 (2,504.8 ha) | 746.5 ha in 1,356 | 4.1 / 28.4 / 67.5% | 0.953 (6) | 33.1 |
-| UNTH | 3,784.0 | 0.0% dev | 218,766 (bt, ch, co) | 226.5 / 234.9 / 242.2 | 1,753 | 4,544 (1,441.1 ha) | 672.9 ha in 1,329 | 0.0 / 26.5 / 73.5% | 0.949 (6) | 21.6 |
+| LCHL | 2,459.9 | 0.0% dev | 63,516 (bt, ch, co) | 395.6 / 426.8 / 456.8 | 998 | 9,396 (8,241); 4,802.0 ha | 1,526.4 ha in 2,043 | 6.6 / 20.8 / 73.5% | 0.928 (13) | 12.4 |
+| LSAL | 1,397.0 | 0.0% dev | 11,609 (ch) | 261.8 / 290.9 / 314.4 | 466 | 4,562 (3,909); 2,535.3 ha | 1,003.9 ha in 1,118 | 0.0 / 34.5 / 65.5% | 0.947 (5) | 8.2 |
+| WILL | 2,296.2 | 0.0% dev | 78,489 (bt, ch, co) | 331.5 / 351.2 / 369.2 | 861 | 2,337 (1,918); 1,631.6 ha | 679.3 ha in 725 | 0.2 / 31.5 / 68.3% | 0.947 (3) | 12.7 |
+| TABR | 1,544.4 | 0.0% dev | 29,304 (bt, ch) | 242.5 / 267.2 / 290.3 | 615 | 2,646 (2,206); 1,799.9 ha | 634.6 ha in 803 | 0.2 / 41.4 / 58.4% | 0.937 (6) | 8.4 |
+| UFRA | 5,059.5 | 0.0% dev | 192,598 (bt, ch) | 282.7 / 301.7 / 311.9 | 2,613 | 10,799 (10,134); 3,037.2 ha | 827.2 ha in 2,544 | 0.0 / 13.1 / 86.9% | 0.940 (32) | 32.7 |
+| NECR | 3,522.9 | 0.0% dev | 119,804 (bt, ch, co, sk) | 699.7 / 759.6 / 813.4 | 1,336 | 11,323 (9,386); 10,003.3 ha | 4,463.8 ha in 3,545 | 31.0 / 39.8 / 37.2% | 0.918 (24) | 30.9 |
+| MORK | 6,790.1 | 0.0% dev | 221,020 (bt, ch) | 604.5 / 667.0 / 729.7 | 3,361 | 6,502 (5,734); 3,371.6 ha | 1,063.0 ha in 1,547 | 1.3 / 36.4 / 62.5% | 0.947 (6) | 50.2 |
+| FRAN | 4,992.9 | 0.0% dev | 160,074 (bt, ch, sk) | 1,059.4 / 1,096.3 / 1,130.3 | 1,879 | 9,888 (7,884); 12,002.5 ha | 10,139.8 ha in 4,211 | 80.1 / 34.5 / 10.7% | 0.916 (11) | 40.8 |
+| BOWR | 2,567.8 | 0.0% dev | 146,904 (bt, ch, co, sk) | 368.5 / 390.0 / 409.1 | 1,083 | 2,346 (1,984); 1,412.7 ha | 586.5 ha in 623 | 0.7 / 37.0 / 62.3% | 0.927 (6) | 16.3 |
+| MCGR | 2,832.5 | 0.0% dev | 98,010 (bt, ch) | 328.4 / 355.3 / 372.0 | 1,647 | 4,063 (3,519); 2,426.5 ha | 776.7 ha in 658 | 0.0 / 53.3 / 46.7% | 0.956 (0) | 22.2 |
+| THOM | 2,975.2 | 0.0% dev | 372,912 (bt, ch, co, pk, sk, st) | 248.4 / 257.0 / 265.3 | 1,400 | 2,564 (2,007); 2,709.0 ha | 1,169.1 ha in 561 | 80.4 / 15.9 / 17.2% | 0.911 (6) | 12.8 |
+| LNTH | 3,704.5 | 0.0% dev | 321,660 (bt, ch, co, pk, sk) | 369.1 / 388.6 / 408.0 | 1,558 | 4,745 (4,124); 2,504.8 ha | 746.5 ha in 1,356 | 4.1 / 28.4 / 67.5% | 0.953 (6) | 33.1 |
+| UNTH | 3,784.0 | 0.0% dev | 218,766 (bt, ch, co) | 226.5 / 234.9 / 242.2 | 1,753 | 4,544 (4,178); 1,441.1 ha | 672.9 ha in 1,329 | 0.0 / 26.5 / 73.5% | 0.949 (6) | 21.6 |
 
 ## Coverage and the #53 edge
 
@@ -52,9 +52,7 @@ Produced by `Rscript scripts/floodplain_lcc/region_acceptance-report.R fraser`, 
 | LNTH | 38,862.0 / 38,856.2 ha (1.0001) | 2,549.7 | 2,504.8 | 44.8 | 2,504.8 | +0.0 | 909.1 of 38,856.2 ha (2.34%) | 0.1049 |
 | UNTH | 23,490.7 / 23,493.2 ha (0.9999) | 1,464.1 | 1,441.1 | 23.0 | 1,441.1 | +0.0 | 190.9 of 23,493.2 ha (0.81%) | 0.0621 |
 
-Fire and harvest are additive (a salvage patch is both), so the three shares can sum past 100%. These
-figures replace nothing: the retired `ch_*` items measured the chinook-accessible network at order ≥ 3,
-a different population.
+A transition patch is one row of the transition layer: one transition class within an 8-connected change region. Step 3's 1 ha sieve applies to the region, so most rows are smaller, and the count under 1 ha is in brackets. Step 3's log calls them "change patches >= 1 ha", which describes the region, not the row.
 
 ## Checks
 

@@ -7,7 +7,9 @@
 #   habitat_link          rows and species in aquatic_network.gpkg
 #   floodplain km2        every <sp>_ffNN polygon layer in floodplain.gpkg (the coverage rule again)
 #   blue lines            distinct blue_line_key in <primary>_by_blue_line_key
-#   patches, tree loss    transition_<primary>_<span>; loss and its causes through
+#   patches, tree loss    transition_<primary>_<span>: one row per transition class within an
+#                         8-connected change region; the 1 ha sieve is on the REGION, so most rows
+#                         are smaller (the count under 1 ha is printed). Loss and its causes through
 #                         fp_disturbance_report(), so "tree loss" has one definition
 #   bridge                union coverage (mean of max overlap_frac per patch) and unbridged patches,
 #                         step 3's own definition, from patch_watercourse_<primary>_<span>
@@ -19,6 +21,10 @@
 #   km2 per km            primary floodplain km2 over network km
 #   wall time             each group log's mtime minus the previous one (the run stamp for the
 #                         first), from the region's coverage CSV in data/logs/
+#
+# Every group is first tied to its records: fp_region_cache_reason() (one finished run, in record
+# order), and the floodplain and transition rasters and the composition table must digest as
+# provenance.json says. A group that fails either stops the report.
 #
 # No database, no network. Read-only.
 #
@@ -40,6 +46,8 @@ lcc  <- file.path(root, "scripts", "floodplain_lcc")
 source(file.path(root, "scripts", "fp_raster.R"))      # fp_rast_cells
 source(file.path(lcc, "fp_composition.R"))              # fp_composition_summary
 source(file.path(lcc, "fp_disturbance.R"))              # fp_disturbance_report
+source(file.path(lcc, "fp_provenance.R"))               # fp_raster_content_sha256
+source(file.path(lcc, "fp_region.R"))                   # fp_region_cache_reason
 
 a <- commandArgs(TRUE)
 if (!length(a)) stop("usage: region_acceptance-report.R <region> [region ...] | all", call. = FALSE)
@@ -50,7 +58,13 @@ stamps <- local({
   s <- Sys.getenv("RUN_STAMP")
   if (!nzchar(s)) return(character())
   kv <- strsplit(strsplit(s, ",")[[1]], "=")
-  setNames(vapply(kv, `[`, "", 2), vapply(kv, `[`, "", 1))
+  bad <- !vapply(kv, function(x) length(x) == 2 && grepl("^[0-9]{8}_[0-9]{6}$", x[2]), logical(1))
+  if (any(bad)) stop("RUN_STAMP must be <region>=<yyyymmdd_HHMMSS>[,...]: ", s, call. = FALSE)
+  out <- setNames(vapply(kv, `[`, "", 2), vapply(kv, `[`, "", 1))
+  unknown <- setdiff(names(out), regions)
+  if (length(unknown)) stop("RUN_STAMP names a region not being reported: ",
+                            paste(unknown, collapse = ", "), call. = FALSE)
+  out
 })
 
 dst <- yaml::read_yaml(file.path(root, "config", "disturbance.yml"))
@@ -97,6 +111,15 @@ group_report <- function(area) {
   dd   <- file.path(root, "data", area)
   sp   <- cfg$species; ord <- cfg$min_order; prim <- cfg$primary_scenario
   prov <- jsonlite::read_json(file.path(dd, "provenance.json"))
+  # The outputs must be this config's finished run, in record order (the region cache's verdict),
+  # and the rasters and table read below must be the ones the records digest. Otherwise a row could
+  # mix a step-2 re-run with an older step 3.
+  why <- fp_region_cache_reason(prov, cfg)
+  if (!is.na(why)) stop(area, ": not one finished run -- ", why, call. = FALSE)
+  same <- function(rec, path) {
+    if (!identical(fp_raster_content_sha256(path), rec))
+      stop(area, ": ", basename(path), " does not digest as its provenance record says", call. = FALSE)
+  }
   net_gpkg <- file.path(dd, "aquatic_network.gpkg")
   fp_gpkg  <- file.path(dd, "floodplain.gpkg")
   lc_gpkg  <- file.path(dd, "floodplain_landcover.gpkg")
@@ -142,8 +165,13 @@ group_report <- function(area) {
     sum(comp$ha[comp$in_floodplain %in% TRUE & comp$status != "nodata"]) else NA_real_
 
   # The #53 edge: the group polygon on each grid, by cell centre (fp_rast_cells).
+  if (!is.null(comp) && !identical(fp_composition_digest(comp),
+                                   prov$landcover[[prim]]$composition$outputs$table_content_sha256))
+    stop(area, ": ", comp_lyr, " does not digest as its provenance record says", call. = FALSE)
   sb  <- sf::st_read(file.path(dd, "subbasins.gpkg"), quiet = TRUE)
-  tr  <- terra::rast(file.path(dd, "rasters", prim, "transition.tif"))
+  tr_path <- file.path(dd, "rasters", prim, "transition.tif")
+  same(prov$landcover[[prim]]$outputs$transition_content_sha256, tr_path)
+  tr  <- terra::rast(tr_path)
   levels(tr) <- NULL
   chg <- terra::ifel(!is.na(tr) & (tr %/% 1000) != (tr %% 1000), 1L, NA)
   inside_tr <- fp_rast_cells(sb, chg)
@@ -151,7 +179,9 @@ group_report <- function(area) {
   n_cells <- function(r) { f <- terra::freq(r); if (is.null(f) || !nrow(f)) 0 else sum(f$count) }
   chg_ha    <- n_cells(chg) * cell_ha(chg)
   chg_in_ha <- n_cells(terra::mask(chg, inside_tr)) * cell_ha(chg)
-  fpr <- terra::rast(file.path(dd, paste0("floodplain_", prim, ".tif")))
+  fp_path <- file.path(dd, paste0("floodplain_", prim, ".tif"))
+  same(prov$floodplain[[prim]]$outputs$floodplain_content_sha256, fp_path)
+  fpr <- terra::rast(fp_path)
   fp1 <- terra::ifel(fpr == 1, 1L, NA)
   fp_ha     <- n_cells(fp1) * cell_ha(fp1)
   fp_out_ha <- fp_ha - n_cells(terra::mask(fp1, fp_rast_cells(sb, fp1))) * cell_ha(fp1)
@@ -168,6 +198,7 @@ group_report <- function(area) {
     km2_ff02 = fp_km2[paste0(sp, "_ff02")] %||% NA, km2_ff04 = fp_km2[paste0(sp, "_ff04")] %||% NA,
     km2_ff06 = fp_km2[paste0(sp, "_ff06")] %||% NA, km2_primary = fp_km2[prim],
     blue_lines = blk, patches = nrow(pat), patch_ha = sum(pat$area_ha),
+    patches_under_1ha = sum(pat$area_ha < 1),
     loss_ha = loss_ha, loss_patches = nrow(loss),
     fire_pct = cause_share["in_fire"], harvest_pct = cause_share["in_harvest"],
     unattributed_pct = share(!any_c),
@@ -226,7 +257,8 @@ for (region in regions) {
                                  " (", rows$habitat_species, ")"),
     `ff02 / ff04 / ff06 km2` = paste(f1(rows$km2_ff02), f1(rows$km2_ff04), f1(rows$km2_ff06), sep = " / "),
     `blue lines` = formatC(rows$blue_lines, big.mark = ",", format = "d"),
-    `patches >= 1 ha` = sprintf("%s (%s ha)", formatC(rows$patches, big.mark = ",", format = "d"), f1(rows$patch_ha)),
+    `transition patches (< 1 ha)` = sprintf("%s (%s); %s ha", formatC(rows$patches, big.mark = ",", format = "d"),
+                                            formatC(rows$patches_under_1ha, big.mark = ",", format = "d"), f1(rows$patch_ha)),
     `gross tree loss` = sprintf("%s ha in %s", f1(rows$loss_ha), formatC(rows$loss_patches, big.mark = ",", format = "d")),
     `fire / harvest / unattributed` = sprintf("%s / %s / %s%%", f1(rows$fire_pct), f1(rows$harvest_pct), f1(rows$unattributed_pct)),
     `bridge union (unbridged)` = sprintf("%.3f (%d)", rows$union_cov, rows$unbridged),

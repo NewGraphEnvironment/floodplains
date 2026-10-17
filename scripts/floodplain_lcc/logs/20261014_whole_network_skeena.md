@@ -87,3 +87,10 @@ guard's 1% tolerance was measured on species networks; it was not loosened.
 - The publish hint printed the stac release sequence, but that sequence cannot stage these
   groups until NewGraphEnvironment/stac_floodplains_bc#75. Their `provenance.json` now carries
   `all_*` keys, which its key-shape check refuses.
+
+## Correction (2026-10-17, #125 acceptance)
+
+"Change patches ≥ 1 ha" in the results table counts rows of the transition layer. Each row is one
+transition class within an 8-connected change region, and step 3's 1 ha sieve applies to the
+region, so most rows are smaller: BULK 8,058 of 9,210 are under 1 ha. The areas and counts stand.
+`region_acceptance-report.R skeena` reproduces this table under the label "transition patches".
