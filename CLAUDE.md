@@ -805,16 +805,17 @@ except BULK's outside-polygon area: 1,317.5 ha by cell centre, against a hand-de
 - `provenance-check.R` passes in all 23 groups, as does the `all_ff04` section of `disturbance-check.R`.
   Inside-polygon change cells equal the patch totals within 0.12 ha everywhere, and classified
   coverage of the floodplain is 0.9991–1.0001.
-- Expected failures: `composition-check.R`'s 1% bound in every group (#53), and the species layers'
-  context columns.
-- Three FAILs are new, each with its own issue:
+- Expected failures: `composition-check.R`'s 1% bound, breached in every group, and the species layers'
+  context columns. The breach is +1.1% to +7.8% in the other 22 groups, which is the #53 edge. In PCEA
+  it is +225%, from the reservoir spill below.
+- Two kinds of FAIL are new, each with its own issue:
   - NECR's composition check (5): the #93 accuracy module still resolves `area.yml`'s scenario, but
     its design is on `ch_ff04` (#ACCURACY).
   - `bridge-check.R`'s unweighted union proxy on PCEA, LARL and SLOC. The true union is 0.94–0.96
     (#BRIDGE).
-  - The outlier screen flagged **PCEA**: 41.7% of its floodplain lies outside its polygon, and 83.6%
-    is reservoir or large lake (Williston). Waterbody polygons enter the floodplain unclipped
-    (#WATERBODY). The retired `bt_ff04` was worse.
+- The outlier screen flagged **PCEA**: 41.7% of its floodplain lies outside its polygon, and 83.6%
+  is reservoir or large lake (Williston). Waterbody polygons enter the floodplain unclipped
+  (#WATERBODY). The retired `bt_ff04` was worse.
 - The order-2 headwater look over imagery is #VISUAL. The habitat join needs flooded > 0.7.2 (v0.1.14).
 
 **Columbia region** (`columbia.yml`, **bull trout** until #125; DUNC joined then): KOTL 707.8 km², LARL 306.9, SLOC 129.6 at

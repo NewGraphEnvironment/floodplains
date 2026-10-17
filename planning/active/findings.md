@@ -210,3 +210,20 @@ Mutation table, second pass (`scratchpad/mut2`): provenance with one FAIL plus i
 FAIL(1); dem_cache likewise FAIL(1); a crash inside the `all_ff04` section gives INCOMPLETE; a FAIL
 in the section closed by the next header gives FAIL(1). Re-parsing every real check log with the new
 rules leaves every committed table unchanged.
+
+## Code-check round 2 (2026-10-17)
+
+`review-round2.md`. Round 1's three code fixes held: BSD awk with an in-section FAIL, a crash, a
+warning after the summary, and CRLF (fails closed as INCOMPLETE). Four findings, all real. **One
+sits inside a round-1 fix**, so only an enumeration ends the loop:
+- **Report, one step on from fix 3:** nothing tied the newest coverage CSV to the run whose outputs
+  are on disk. A group's wall time now counts only when its step-3 record time lies in that group's
+  own window [previous log mtime, its log mtime]. The step-3 time is `run.repairs[[1]]` when #126
+  re-stamped the record. The CSV's `provenance` column is not used: Skeena's holds pre-fix values.
+  Mutation: `RUN_STAMP=columbia=20260827_190638` (a species-mode run) blanks KOTL, LARL and SLOC and
+  names them. All 23 real groups keep their wall times.
+- **Runner:** `grep | sed || echo none` never printed "none", because the pipeline's status is
+  sed's. It is now captured, then tested.
+- **Claims:** CLAUDE.md counted PCEA's outlier flag as a FAIL. PCEA's composition FAIL is
+  +225.39% (1,700.3 ha of change on the reservoir outside its polygon), not the #53 edge. The other
+  22 groups breach at +1.11% to +7.81% (WILL the highest).

@@ -75,18 +75,21 @@ coverage_csv <- function(region) {
   if (length(f)) f[length(f)] else NA_character_
 }
 
-# A cached group (no log) ran nothing, so it has no wall time; the chain of mtimes skips it.
+# A cached group (no log) ran nothing, so it has no wall time; the chain of mtimes skips it. Each
+# group's window is [previous log's mtime (the run stamp for the first), its own log's mtime].
 wall_times <- function(region) {
   f <- coverage_csv(region)
-  if (is.na(f)) return(list(csv = NA_character_, min = numeric()))
+  if (is.na(f)) return(list(csv = NA_character_, min = numeric(), from = numeric(), to = numeric()))
   cv <- utils::read.csv(f, stringsAsFactors = FALSE)
   st <- sub(sprintf("^region_%s_([0-9]{8}_[0-9]{6})\\.csv$", region), "\\1", basename(f))
   t0 <- as.POSIXct(st, format = "%Y%m%d_%H%M%S", tz = "UTC")
   ran <- !is.na(cv$log) & nzchar(cv$log)
   mt <- file.info(file.path(dirname(f), cv$log[ran]))$mtime
-  out <- setNames(rep(NA_real_, nrow(cv)), tolower(cv$wsg))
-  out[ran] <- as.numeric(diff(c(t0, mt)), units = "mins")
-  list(csv = basename(f), start = t0, min = out)
+  out <- from <- to <- setNames(rep(NA_real_, nrow(cv)), tolower(cv$wsg))
+  out[ran]  <- as.numeric(diff(c(t0, mt)), units = "mins")
+  from[ran] <- as.numeric(c(t0, mt)[seq_len(sum(ran))])
+  to[ran]   <- as.numeric(mt)
+  list(csv = basename(f), start = t0, min = out, from = from, to = to)
 }
 
 group_report <- function(area) {
@@ -153,6 +156,9 @@ group_report <- function(area) {
   fp_ha     <- n_cells(fp1) * cell_ha(fp1)
   fp_out_ha <- fp_ha - n_cells(terra::mask(fp1, fp_rast_cells(sb, fp1))) * cell_ha(fp1)
 
+  # When step 3 last ran: run.repairs[[1]] holds it once an in-place repair re-stamped the record (#126).
+  lrun  <- prov$landcover[[prim]]$run
+  step3 <- if (length(lrun$repairs)) lrun$repairs[[1]]$previous_datetime_utc else lrun$datetime_utc
   nk <- paste0(sp, ord)
   data.frame(
     wsg = toupper(area), net_km = net_km,
@@ -172,7 +178,9 @@ group_report <- function(area) {
     chg_ha = chg_ha, chg_in_ha = chg_in_ha, chg_out_ha = chg_ha - chg_in_ha,
     fp_ha = fp_ha, fp_out_ha = fp_out_ha, fp_out_pct = 100 * fp_out_ha / fp_ha,
     km2_per_km = fp_km2[prim] / net_km,
-    span = span, row.names = NULL, stringsAsFactors = FALSE)
+    span = span,
+    step3_utc = as.numeric(as.POSIXct(step3 %||% NA_character_, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")),
+    row.names = NULL, stringsAsFactors = FALSE)
 }
 `%||%` <- function(x, y) if (is.null(x) || (length(x) == 1 && is.na(x))) y else x
 
@@ -191,13 +199,24 @@ for (region in regions) {
   wt <- wall_times(region)
   rows <- do.call(rbind, lapply(groups, group_report))
   rows$wall_min <- unname(wt$min[tolower(rows$wsg)])
+  # The CSV times a run; the outputs on disk may be a later one (a direct run_area.R, or a region run
+  # killed before it wrote its CSV). A group's time counts only when its step-3 record lies in its
+  # own window of that run.
+  k <- tolower(rows$wsg)
+  tied <- !is.na(rows$step3_utc) & !is.na(wt$from[k]) &
+          rows$step3_utc >= wt$from[k] & rows$step3_utc <= wt$to[k]
+  untied <- rows$wsg[!tied & !is.na(rows$wall_min)]
+  rows$wall_min[!tied] <- NA
   rows$region <- region
   all_rows[[region]] <- rows
 
   cat(sprintf("\n## %s (%d groups)\n\n", region, nrow(rows)))
   cat(sprintf("Produced by `Rscript scripts/floodplain_lcc/region_acceptance-report.R %s`, %s UTC. ",
               region, format(Sys.time(), "%Y-%m-%d %H:%M", tz = "UTC")))
-  cat(sprintf("Timings from `data/logs/%s` (log mtimes).\n\n", wt$csv %||% "<no coverage csv>"))
+  cat(sprintf("Timings from `data/logs/%s` (log mtimes).", wt$csv %||% "<no coverage csv>"))
+  if (length(untied)) cat(sprintf(" No wall time for %s: its step-3 record is not from that run.",
+                                  paste(untied, collapse = ", ")))
+  cat("\n\n")
   cat("### Results\n\n")
   md(data.frame(
     group = rows$wsg,

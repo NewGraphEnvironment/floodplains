@@ -86,4 +86,5 @@ done
 
 echo
 echo "FAIL lines (file: line):"
-grep -H '^  FAIL ' "$out"/*.log | sed "s#^$out/##" || echo "  none"
+fl=$(grep -H '^  FAIL ' "$out"/*.log) || fl=""
+if [ -n "$fl" ]; then printf '%s\n' "$fl" | sed "s#^$out/##"; else echo "  none"; fi

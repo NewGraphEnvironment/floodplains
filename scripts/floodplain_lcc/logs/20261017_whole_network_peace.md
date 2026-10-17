@@ -61,7 +61,11 @@ Filed as #WATERBODY. PCEA is on the visual-review list (#VISUAL).
 | PARS | PASS | FAIL(1) | PASS | FAIL(2) | PASS |
 | PINE | PASS | FAIL(1) | PASS | FAIL(2) | PASS |
 
-- **`composition-check.R`, FAIL(1) in all three:** the #53 bound, as on Fraser and Skeena.
+- **`composition-check.R`, FAIL(1) in all three:** the 1% change-vs-patch bound. PARS and PINE breach
+  it by the #53 edge effect, as Fraser and Skeena do. PCEA breaches it by +225.4% (2,454.6 ha of
+  change cells against 754.4 ha of patches), and 1,700.3 ha of that change lies on the reservoir
+  outside its polygon. That is the waterbody spill above (#WATERBODY), not the #53 edge. Inside the
+  polygon, change and patches agree.
 - **`disturbance-check.R`, FAIL(2) in all three:** on the retired `bt_ff04` layers. The `all_ff04`
   section passes.
 - **`bridge-check.R` PCEA, FAIL(1):** `union coverage >= 0.90 mean`, 0.8980. This is the check's
