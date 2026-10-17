@@ -51,7 +51,7 @@ DUNC's figures replace the 2026-10-12 run on flooded 0.6.5's pre-pin grid (`2026
 | DUNC | PASS | FAIL(1) | PASS | PASS | PASS |
 
 - **`composition-check.R`, FAIL(1) in all four:** the #53 bound. Change cells inside the polygon equal
-  the patch totals within ±0.1 ha.
+  the patch totals within 0.07 ha.
 - **`disturbance-check.R`, FAIL(2) in KOTL, LARL and SLOC:** on the retired `bt_ff04` layers. DUNC has
   no species layer. The `all_ff04` section passes in all four.
 - **`bridge-check.R` LARL (0.8886) and SLOC (0.8944):** the unweighted union-coverage proxy. Their true

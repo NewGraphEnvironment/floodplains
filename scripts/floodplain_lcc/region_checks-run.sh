@@ -12,7 +12,8 @@
 # The verdict is the check's own exit status, never a grep of its output. disturbance-check.R also
 # gets a second column: the verdict of its transition_<primary> section alone, because the retired
 # species layers beside it predate the context and lookback overlays (#95, #103) and fail by design.
-# Every FAIL line is printed under the table, so an expected failure (composition's 1% change-vs-patch
+# Every assertion FAIL line (indented two spaces in every check; their summary lines are not) is
+# printed under the table, so an expected failure (composition's 1% change-vs-patch
 # bound, #53) can be told from a new one by reading its label.
 #
 # usage: bash scripts/floodplain_lcc/region_checks-run.sh <region> [scenario]
@@ -41,22 +42,29 @@ run() {
     echo "PASS"
   else
     local n
-    n=$(grep -c '^ *FAIL ' "$log") || n=0
+    n=$(grep -c '^  FAIL ' "$log") || n=0
     echo "FAIL($n)"
   fi
 }
 
 # The transition_<scen> section of a disturbance-check log: from its "  -- <layer>" header to the
 # next layer header or the summary line. Absent counts as FAIL: a check that never reached the
-# layer has not passed it.
+# layer has not passed it. A section that never reaches either end is INCOMPLETE: the check died
+# inside it (an error prints no summary line), and the layer is last in every log, so without this
+# a crash there would read as PASS.
 dst_section() {
   local log="$out/$1_disturbance.log"
   awk -v hdr="  -- transition_${scen}_" '
-    index($0, hdr) == 1          { on = 1; seen = 1; next }
-    on && /^  -- /               { on = 0 }
-    on && /^(ALL PASS|[0-9]+ FAIL)$/ { on = 0 }
-    on && /^ *FAIL /             { n++ }
-    END { if (!seen) print "ABSENT"; else if (n) print "FAIL(" n ")"; else print "PASS" }
+    index($0, hdr) == 1                   { on = 1; seen = 1; next }
+    on && /^  -- /                        { on = 0; closed = 1 }
+    on && /^(ALL PASS|[0-9]+ FAIL)$/      { on = 0; closed = 1 }
+    on && /^  FAIL /                      { n++ }
+    END {
+      if (!seen) print "ABSENT"
+      else if (!closed) print "INCOMPLETE"
+      else if (n) print "FAIL(" n ")"
+      else print "PASS"
+    }
   ' "$log"
 }
 
@@ -78,4 +86,4 @@ done
 
 echo
 echo "FAIL lines (file: line):"
-grep -H '^ *FAIL ' "$out"/*.log | sed "s#^$out/##" || echo "  none"
+grep -H '^  FAIL ' "$out"/*.log | sed "s#^$out/##" || echo "  none"

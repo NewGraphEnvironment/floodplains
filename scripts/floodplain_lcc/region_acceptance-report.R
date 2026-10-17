@@ -25,8 +25,8 @@
 # usage: Rscript scripts/floodplain_lcc/region_acceptance-report.R <region> [region ...]
 #        Rscript scripts/floodplain_lcc/region_acceptance-report.R all
 #   `all` takes every config/regions/*.yml and adds the outlier screen (below).
-#   RUN_STAMP=<region>=<yyyymmdd_HHMMSS>,... picks the coverage CSV; default is the newest whose
-#   rows all name a log (a resumed run with cached groups cannot time them).
+#   RUN_STAMP=<region>=<yyyymmdd_HHMMSS>,... picks the coverage CSV; default is the newest. A cached
+#   group in it (no log) gets no wall time.
 #
 # OUTLIER SCREEN (written before the Fraser, Peace and Columbia numbers were read, #125): over every
 # group, flag one whose km2-per-km or outside-polygon share lies beyond 1.5 x IQR of all groups.
@@ -61,29 +61,32 @@ read_attrs <- function(f, lyr, cols) {
 }
 km2 <- function(f, lyr) sum(as.numeric(sf::st_area(sf::st_read(f, layer = lyr, quiet = TRUE)))) / 1e6
 
-# The coverage CSV a region's timings come from: RUN_STAMP if given, else the newest whose rows all
-# name a log.
+# The coverage CSV a region's timings come from: RUN_STAMP if given, else the newest. Never an older
+# one: falling back past a resumed run would print a different run's wall times (a species-mode CSV,
+# say) against outputs it did not produce.
 coverage_csv <- function(region) {
   d <- file.path(root, "data", "logs")
-  f <- if (!is.na(stamps[region])) file.path(d, sprintf("region_%s_%s.csv", region, stamps[region]))
-       else rev(sort(list.files(d, sprintf("^region_%s_[0-9]{8}_[0-9]{6}\\.csv$", region), full.names = TRUE)))
-  for (x in f) {
-    if (!file.exists(x)) next
-    cv <- utils::read.csv(x, stringsAsFactors = FALSE)
-    if (nrow(cv) && all(nzchar(cv$log) & !is.na(cv$log))) return(x)
+  if (!is.na(stamps[region])) {
+    f <- file.path(d, sprintf("region_%s_%s.csv", region, stamps[region]))
+    if (!file.exists(f)) stop("RUN_STAMP names no coverage CSV: ", f, call. = FALSE)
+    return(f)
   }
-  NA_character_
+  f <- sort(list.files(d, sprintf("^region_%s_[0-9]{8}_[0-9]{6}\\.csv$", region), full.names = TRUE))
+  if (length(f)) f[length(f)] else NA_character_
 }
 
+# A cached group (no log) ran nothing, so it has no wall time; the chain of mtimes skips it.
 wall_times <- function(region) {
   f <- coverage_csv(region)
   if (is.na(f)) return(list(csv = NA_character_, min = numeric()))
   cv <- utils::read.csv(f, stringsAsFactors = FALSE)
   st <- sub(sprintf("^region_%s_([0-9]{8}_[0-9]{6})\\.csv$", region), "\\1", basename(f))
   t0 <- as.POSIXct(st, format = "%Y%m%d_%H%M%S", tz = "UTC")
-  mt <- file.info(file.path(dirname(f), cv$log))$mtime
-  list(csv = basename(f), start = t0,
-       min = setNames(as.numeric(diff(c(t0, mt)), units = "mins"), tolower(cv$wsg)))
+  ran <- !is.na(cv$log) & nzchar(cv$log)
+  mt <- file.info(file.path(dirname(f), cv$log[ran]))$mtime
+  out <- setNames(rep(NA_real_, nrow(cv)), tolower(cv$wsg))
+  out[ran] <- as.numeric(diff(c(t0, mt)), units = "mins")
+  list(csv = basename(f), start = t0, min = out)
 }
 
 group_report <- function(area) {

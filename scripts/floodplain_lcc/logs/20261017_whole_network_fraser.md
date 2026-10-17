@@ -1,6 +1,6 @@
 # Whole-network floodplains, Fraser region: acceptance (#125)
 
-`caffeinate -s Rscript scripts/run_region.R fraser` (steps 1,2,3) ran 2026-10-15 00:17 to 05:18 UTC,
+`caffeinate -s Rscript scripts/run_region.R fraser` (steps 1,2,3) ran 2026-10-15 00:17 to 05:19 UTC,
 about 5 h, on flooded 0.7.0 (the pinned grid, #117), drift 0.20.0, terra 1.9.50 (GDAL 3.13.0 / PROJ 9.8.1),
 and sf 1.1.2 (GDAL 3.8.5 / PROJ 9.5.1). Every group was `ok` with no error in its log. The run log is
 `20261014_run_region_fraser.log`; the group logs and coverage CSV are gitignored under
@@ -81,7 +81,7 @@ The failures, every one read from its `FAIL` line:
 
 - **`composition-check.R`, FAIL(1) in all 13:** the 1% change-vs-patch bound. This is the #53 edge
   effect. The "inside − patches" column above shows change cells inside the group polygon equal the
-  patch totals within ±0.1 ha in every group.
+  patch totals within 0.12 ha in every group (LSAL +0.12).
 - **`disturbance-check.R`, FAIL(2) in 12:** on the retired `ch_ff04` transition layers, which predate
   the context and lookback overlays (#95, #103). Those columns are forward-only, and these layers
   will not see another step 3. NECR has none of these failures because its species layer was

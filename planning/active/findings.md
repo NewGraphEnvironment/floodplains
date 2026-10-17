@@ -138,15 +138,15 @@ outside the polygon. It also changes nothing in the inside-polygon change reconc
 754.4 ha of change cells inside its polygon equal the patch total.
 
 Every other group's outside share is 0.81–3.25%. Classified coverage of the floodplain is
-0.9991–1.0001 everywhere. Inside-polygon change cells equal the patch totals within ±0.1 ha in
-all 23 groups.
+0.9991–1.0001 everywhere. Inside-polygon change cells equal the patch totals within 0.12 ha in
+all 23 groups (range −0.07 to +0.12, LSAL the largest).
 
 ## NECR composition FAIL(2): the accuracy module is still bound to area.yml's scenario (2026-10-17)
 
 NECR's second composition FAIL is check (5), `composition-check.R:234-242`: "footprint in_wetland
 matches the accuracy module's FWA-wetland count", 12,809.04 vs 6,436.64 ha. The reference,
 `data/necr/accuracy/wetland_composition.csv`, carries no scenario. Its 6,436.64 ha equals the
-`co_ff04`-era composition (`logs/20261002_composition_build-rollout_necr-bulk.md:51`, "6,436.64 vs
+`ch_ff04` composition (`logs/20261002_composition_build-rollout_necr-bulk.md:51`, "6,436.64 vs
 6,436.64 (exact)"). The check binds it to the current `primary_scenario`, now `all_ff04`.
 
 The cause is wider than the check. `fp_acc_area()` (`scripts/landcover_accuracy/fp_accuracy.R:18-20`)
@@ -189,3 +189,24 @@ Filed as its own issue.
 unweighted one in some (WILL 0.947 -> 0.924, MORR 0.953 -> 0.942), and FRAN fails weighted at
 0.8994, with a true union of 0.9235. So weighting explains the three failures, but it is not a fix.
 The issue recommends asserting the true union, measured at 0.92-0.96 on eight groups.
+
+## Code-check round 1 (branch, 2026-10-17)
+
+`review-round1.md`, nine findings, all real:
+- **Runner, guard failing toward pass:** a crash inside the `all_ff04` disturbance section read
+  PASS. The section is the last in every log, and an error prints no summary line. It now reads
+  INCOMPLETE unless the section closes.
+- **Runner:** `'^ *FAIL '` also matched the column-0 summary lines of provenance-check
+  (`FAIL — n problem(s).`) and dem_cache-check (`FAIL (n failure)`), double-counting. The pattern
+  is now `'^  FAIL '`.
+- **Report:** `coverage_csv()` fell back past a resumed run to an older CSV, possibly a species-mode
+  one. It now takes the newest only, and a cached row gets no wall time.
+- **Claims:** "passed acceptance" before the habitat join ran; "±0.1 ha" when the range is −0.07 to
+  +0.12 (LSAL); "reproduced the Skeena log" without the 0.7 ha exception; `co_ff04` for NECR's
+  reference, which is `ch_ff04`; Fraser's end time 05:18 for 05:19; placeholder issue numbers (to
+  be replaced when GitHub answers; it timed out from ~18:25 UTC).
+
+Mutation table, second pass (`scratchpad/mut2`): provenance with one FAIL plus its summary gives
+FAIL(1); dem_cache likewise FAIL(1); a crash inside the `all_ff04` section gives INCOMPLETE; a FAIL
+in the section closed by the next header gives FAIL(1). Re-parsing every real check log with the new
+rules leaves every committed table unchanged.
