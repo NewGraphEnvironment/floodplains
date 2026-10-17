@@ -286,4 +286,4 @@ Real data: all 23 groups pass every tie, and every table is byte-identical to th
 
 **The loop ends on round 4's enumeration.** Its 49 rows cover every input, verdict branch and claim
 of both scripts. After F1–F3, each row is tied (by digest, record order or window) or documented as
-untied. Four reviewer rounds; the review issues had nothing else to do with this repo.
+untied. Four reviewer rounds in all, inside the five-per-task bound.
