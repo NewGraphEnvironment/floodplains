@@ -819,7 +819,10 @@ except BULK's outside-polygon area: 1,317.5 ha by cell centre, against a hand-de
     (#139).
 - The outlier screen flagged **PCEA**: 41.7% of its floodplain lies outside its polygon, and 83.6%
   is reservoir or large lake (Williston). Waterbody polygons enter the floodplain unclipped
-  (#138). The retired `bt_ff04` was worse.
+  (#138): FWA holds Williston in `fwa_lakes_poly` as one polygon per group (PCEA, PARA, FINA)
+  sharing one `waterbody_key`, and step 1 selects lake and wetland polygons by key with no group
+  filter, so PCEA takes all three. FWA files a dammed lake as a lake, which is why #138 flags
+  `in_open_water` rather than reservoirs. The retired `bt_ff04` was worse.
 - The order-2 headwater look over imagery is #141.
 - `habitat_join-query.R` ran on the 20 Fraser, Peace and Columbia groups (2026-10-18, flooded 0.8.2): every floodplain cell is
   attributed everywhere, and every habitat row matches in Fraser, Peace and DUNC. KOTL, LARL and SLOC
