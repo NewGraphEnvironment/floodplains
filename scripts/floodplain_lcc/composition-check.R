@@ -178,6 +178,7 @@ if (is.na(a[1])) {
     ok("in_floodplain present (the population shares of the floodplain use)", "in_floodplain" %in% in_cols)
     fpc <- comp$in_floodplain %in% TRUE
 
+    fp  <- sf::st_read(file.path(dir, "floodplain.gpkg"), layer = scen, quiet = TRUE)
     # (1) change == the transition layer, an independent vectorisation of the same cells.
     tr <- sf::st_read(gpkg, tlyr, quiet = TRUE, promote_to_multi = FALSE)
     v_ha <- sum(tr$area_ha); c_ha <- sum(comp$ha[chg])
@@ -190,10 +191,22 @@ if (is.na(a[1])) {
       # +225%): the patches were clipped to the sub-basin, the cells were not.
       w_c <- sum(comp$ha[chg & comp$in_wsg]); w_v <- sum(tr$area_ha[tr$in_wsg])
       rw <- (w_c - w_v) / w_v
-      ok("in_wsg change ha agrees with the in_wsg patches within 1% (both split at the group line)",
-         abs(rw) < 0.01, sprintf("cells %.1f ha vs patches %.1f ha, %+.2f%%", w_c, w_v, 100 * rw))
-      ok("the whole footprint's change agrees with all the patches within 1% (nothing clipped)",
-         abs(rel) < 0.01, sprintf("cells %.1f ha vs patches %.1f ha, %+.2f%%", c_ha, v_ha, 100 * rel))
+      # ABSOLUTE, at the scale of the effect: a group's outside share is 0.8-3.3% (#138), so a 1% bound
+      # would pass an in_wsg that was wrongly all TRUE (#53 plan review, AC1). The two sides differ only
+      # by the cell-centre rule along the line -- #125 measured inside cells against clipped patches
+      # within 0.12 ha in all 23 groups -- so 0.5 ha, or 0.1% where change is large.
+      ok("in_wsg change ha agrees with the in_wsg patches within 0.5 ha (or 0.1%)",
+         abs(w_c - w_v) <= max(0.5, 0.001 * w_v),
+         sprintf("cells %.2f ha vs patches %.2f ha, %+.2f ha", w_c, w_v, w_c - w_v))
+      # Unclipped patches are the change cells' own polygons, so the whole footprint is exact up to
+      # floating point; anything more means a patch was clipped or a cell was dropped.
+      ok("the whole footprint's change equals all the patches (1e-6 relative; nothing clipped)",
+         abs(rel) < 1e-6, sprintf("cells %.4f ha vs patches %.4f ha", c_ha, v_ha))
+      # in_wsg on the cells against the vector floodplain's in_wsg pieces: the same line, two rules.
+      fpw <- sum(as.numeric(sf::st_area(fp[fp$in_wsg %in% TRUE, ]))) / 1e4
+      cw  <- sum(comp$ha[fpc & comp$in_wsg])
+      ok("in_floodplain & in_wsg cells agree with the vector floodplain's in_wsg pieces within 1%",
+         "in_wsg" %in% names(fp) && abs(cw - fpw) / fpw < 0.01, sprintf("cells %.1f ha vs vector %.1f ha", cw, fpw))
       message(sprintf("  INFO  outside %s: %.1f ha of change cells (%.2f%%), %.1f ha of floodplain cells (%.2f%%)",
                       acfg$watershed_group, c_ha - w_c, 100 * (c_ha - w_c) / c_ha,
                       sum(comp$ha[fpc & !comp$in_wsg]), 100 * sum(comp$ha[fpc & !comp$in_wsg]) / sum(comp$ha[fpc])))
@@ -205,7 +218,6 @@ if (is.na(a[1])) {
          rel >= -1e-6 && rel < 0.01, sprintf("cells %.1f ha vs patches %.1f ha, %+.2f%%", c_ha, v_ha, 100 * rel))
     }
     # The vector floodplain against in_floodplain: the cell-centre rule, measured on the area itself.
-    fp  <- sf::st_read(file.path(dir, "floodplain.gpkg"), layer = scen, quiet = TRUE)
     fpv <- sum(as.numeric(sf::st_area(fp))) / 1e4   # split pieces are disjoint, so a sum is the whole (#53)
     ok("in_floodplain ha agrees with the vector floodplain area within 1%",
        abs(sum(comp$ha[fpc]) - fpv) / fpv < 0.01, sprintf("cells %.1f ha vs vector %.1f ha", sum(comp$ha[fpc]), fpv))
