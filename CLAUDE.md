@@ -64,7 +64,7 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   point the region-owned keys at the wrong species. (KISP had `skeena_ch.yml` for exactly this; whole
   mode has no species to differ, so it folded into `skeena.yml` under #125.) `targets:` stays
   area-owned, but a whole region **refuses** an area whose `targets` names a non-`all` scenario: it
-  would keep publishing an item stac#76 retires. The publish layer derives its WSG→region roster
+  would republish a species item, and stac_floodplains_bc v2.0.0 retired those (2026-10-15, stac#76). The publish layer derives its WSG→region roster
   from these files (`region:` + `watershed_groups` only).
   **`DRY=1` writes nothing at all** — it prints the per-group reconciliation it would perform and
   exits. It used to write configs before the dry gate, so the preview was as destructive as a real
@@ -334,7 +334,8 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
     species item. A whole region converting a species area in place is the legal direction:
     `config/<wsg>/` becomes the whole-network area, the `all_*` rows are appended to
     `flood_scenarios.csv`, and the species rows and `data/<wsg>/` species outputs stay (decided
-    2026-10-13: the README (#128) and stac staging read them until stac#76 retires the items).
+    2026-10-13, while the README (#128) and stac staging read them). stac_floodplains_bc v2.0.0
+    retired the species items on 2026-10-15; pruning the files left on disk is #131.
     `fp_region_plan` runs `fp_whole_network_validate` itself, so `DRY=1` reports what step 1 would
     refuse.
   - `habitat_join-query.R <area> [species]` is the consumer side. It joins `habitat_link` flags by
@@ -766,12 +767,12 @@ MORR/UFRA happened to work). Interior sub-basin delineation is deferred. Pick sp
 `access_<species>` column the fwapg schema populates — the region pre-pass does this automatically.
 A whole-network area (`species: all`) needs no access column at all.
 
-**Every region file is `network: whole` since #125**, so the species figures below describe the
-items stac#76 retires; they stand until each group's whole-network run replaces them. Whole-network
+**Every region file is `network: whole` since #125**, so the species figures below describe
+items stac_floodplains_bc v2.0.0 retired on 2026-10-15, when it published every group's `all_ff04`. Whole-network
 km at order ≥ 2 equal `fresh.streams_vw_bcfp` to the km in all 23 region groups in their region's
 schema (measured 2026-10-13), and every group has `streams_habitat_<sp>` rows there. That includes
 **MCGR (2,833 km in `fresh.streams`) and PINE (5,768 km)**, the two groups #76 blocked on their
-species networks: neither block applies to the whole network, but neither has run in that mode yet.
+species networks: neither block applies to the whole network, and both ran in that mode on 2026-10-15.
 
 **Skeena ran whole-network 2026-10-14** (`run_region.R skeena`, flooded 0.7.0), and is the first
 region in that mode. `all_ff04` came out at BULK **660.0 km²**, MORR **479.3**, KISP **324.4**.
@@ -798,7 +799,9 @@ neighbouring floodplains overlap (#53).
 `all_ff04`: PCEA 843.3 km², PARS 559.4, PINE 488.9 (PINE's #76 block does not apply in whole mode);
 KOTL 754.1, LARL 375.5, SLOC 154.5, DUNC 185.2 (DUNC's re-run on the pinned grid).
 
-**#125's acceptance ran on all four regions 2026-10-17**, read-only on the runs' outputs. Logs:
+**#125's acceptance ran on all four regions 2026-10-17**, read-only on the runs' outputs. That was
+after stac_floodplains_bc v2.0.0 had published them (2026-10-15), so it checked live items and gated
+no release. Logs:
 `scripts/floodplain_lcc/logs/20261017_whole_network_{fraser,peace,columbia}.md`, beside Skeena's.
 `region_checks-run.sh <region>` runs the per-group checks, and `region_acceptance-report.R <region>|all`
 derives every table in those logs from disk. Both reproduced the Skeena log before being trusted,

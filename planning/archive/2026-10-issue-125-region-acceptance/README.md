@@ -40,6 +40,8 @@ claim that the checks ran on flooded 0.7.0. Every claim in its fixes was then ch
 Wrong turns kept in `findings.md`:
 - The bridge mechanism was first put down to "multiple blue lines", until a weighting measurement
   refuted it. "Area-weighting fixes it" was refuted next, by FRAN.
+- The acceptance was believed to gate the publish. stac_floodplains_bc v2.0.0 had already published
+  all 23 `all_ff04` items on 2026-10-15, so the checks verified live items; the verdicts stand.
 - The checks were believed to run on flooded 0.7.0 before the install. 0.8.2 had in fact been in
   place since 11:00 UTC; the verdicts were unaffected.
 - The Skeena log's "patches >= 1 ha" counts rows, which are 8-connected single-code patches;
