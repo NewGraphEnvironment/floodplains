@@ -52,6 +52,9 @@ sp <- fp_wsg_split(x, wsg)
 cons <- tapply(area_of(sp), sp$id, sum)[x$id]
 ok("every row's pieces conserve its area", isTRUE(all.equal(as.numeric(cons), area_of(x))),
    paste(sprintf("%s %.0f", x$id, cons), collapse = ", "))
+xk <- x; xk$wsg <- "AAAA"; xk$species <- "all"; xk$scenario <- "all_ff04"
+ok("the item key stays the last columns, in_wsg before it",
+   identical(tail(setdiff(names(fp_wsg_split(xk, wsg)), "geom"), 4), c("in_wsg", "wsg", "species", "scenario")))
 ok("every column is kept, plus in_wsg", all(c("id", "v", "in_wsg") %in% names(sp)) && is.logical(sp$in_wsg) &&
      !anyNA(sp$in_wsg))
 ok("a row crossing the line becomes two rows, inside then outside, same attributes",
@@ -68,6 +71,15 @@ ok("premise: the raw intersection for that row IS a GEOMETRYCOLLECTION, so the r
 ok("in_wsg pieces lie inside the group, the others outside",
    all(area_of(suppressWarnings(sf::st_difference(sp[sp$in_wsg, ], sf::st_geometry(wsg)))) < 1e-9) &&
      all(area_of(suppressWarnings(sf::st_intersection(sf::st_geometry(sp[!sp$in_wsg, ]), sf::st_geometry(wsg)))) < 1e-9))
+sliver <- sf::st_sf(id = "sliver", v = 6L, geom = sf::st_sfc(rect(90, 100 + 1e-7, 10, 20), crs = crs))
+ssp <- fp_wsg_split(sliver, wsg)
+ok("a noding sliver below FP_WSG_MIN_PIECE_M2 is not published as an outside piece",
+   nrow(ssp) == 1 && isTRUE(ssp$in_wsg))
+mp <- sf::st_cast(x[x$id %in% c("inside", "straddle"), ], "MULTIPOLYGON")
+ok("an all-MULTIPOLYGON layer stays MULTIPOLYGON (its declared type does not become GEOMETRY)",
+   all(sf::st_geometry_type(fp_wsg_split(mp, wsg)) == "MULTIPOLYGON"))
+ok("premise: the raw pieces of that layer include a POLYGON, so the cast is load-bearing",
+   any(sf::st_geometry_type(suppressWarnings(sf::st_intersection(mp, sf::st_geometry(wsg)))) == "POLYGON"))
 inn_only <- suppressWarnings(sf::st_intersection(x, sf::st_geometry(wsg)))
 ok("must-fail arm: inside pieces alone do NOT conserve the rows (the remainder is load-bearing)",
    !isTRUE(all.equal(sum(area_of(inn_only)), sum(area_of(x)))))
@@ -127,6 +139,23 @@ ok("subset: the (name_basin, patch_id, in_wsg) key is unique",
    !anyDuplicated(paste(ps$name_basin, ps$patch_id, ps$in_wsg)))
 ok("must-fail arm: WITHOUT in_wsg the key collides (the straddler's two NA-basin pieces)",
    anyDuplicated(paste(ps$name_basin, ps$patch_id)) > 0)
+# A sub-basin drawn slightly past the group line (neexdzii's reach 3.94 ha past BULK). A sub-basin
+# piece crossing it by less than FP_WSG_CROSS_M2 stays drift's own bytes and in_wsg TRUE; one crossing
+# by more is split. Sub-basin x 0..100.05; group x 0..100 (patch 3 spans x 80..130, so it crosses by
+# 0.05 x 40 = 2 m2), and a second group at x 0..100.02 (0.8 m2, below the threshold).
+over <- sf::st_sf(name_basin = "over", geom = sf::st_sfc(rect(0, 100.05, 0, 200), crs = 32610))
+g_far  <- grp2
+g_near <- sf::st_sf(watershed_group_code = "AAAA", geom = sf::st_sfc(rect(0, 100.03, 0, 200), crs = 32610))
+attr(g_near, "zones_are_wsg") <- FALSE
+p_far  <- fp_split_patches(unclipped, over, "name_basin", g_far)
+p_near <- fp_split_patches(unclipped, over, "name_basin", g_near)
+clip_over <- suppressWarnings(sf::st_intersection(unclipped, sf::st_transform(over["name_basin"], sf::st_crs(unclipped))))
+ok("subset: a sub-basin piece crossing the group line by >= 1 m2 is split (an in_wsg FALSE piece keeps its basin)",
+   any(!p_far$in_wsg & !is.na(p_far$name_basin)), sprintf("%.2f m2 of sub-basin outside", attr(p_far, "subbasins_outside_wsg_m2")))
+ok("subset: one crossing by < 1 m2 stays whole, in_wsg TRUE, byte-identical to drift's clip",
+   !any(!p_near$in_wsg & !is.na(p_near$name_basin)) &&
+     same_rows(p_near[!is.na(p_near$name_basin), ], clip_over))
+ok("subset: the sub-basin area outside the group is reported", attr(p_near, "subbasins_outside_wsg_m2") > 0)
 
 # ---------------------------------------------------------------------------------------------
 message("\noffline: fp_wsg_polygon and fp_floodplain_whole")

@@ -132,11 +132,11 @@ if (!identical(key, label_col) && label_col %in% names(streams)) {
 }
 attr_lyr <- paste0(scenario, "_by_", key)
 # Split at the group line, as step 2 splits it (#53): the same layer from either writer.
+fb <- attr(attributed, "fl_fallback_cells")   # before the split: rbind() drops attributes
 attributed <- fp_wsg_split(attributed, fp_wsg_polygon(list(watershed_group = cfg$watershed_group,
                                                            dir_out = out_dir)))
 sf::st_write(attributed, fp_gpkg, layer = attr_lyr,
              append = file.exists(fp_gpkg), delete_layer = TRUE, quiet = TRUE)
-fb <- attr(attributed, "fl_fallback_cells")
 message("  Wrote ", attr_lyr, " (", nrow(attributed), " groups",
         if (!is.null(fb)) paste0("; ", fb, " fallback cells") else "", ")")
 

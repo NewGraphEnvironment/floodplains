@@ -382,6 +382,7 @@ fp_floodplain <- function(cfg, scenarios = "run") {
       attr_lyr <- paste0(sc$scenario_id, "_by_", cfg$attribute_by)
       # Each watercourse's row becomes its inside and outside pieces (#53); a key can therefore hold
       # two rows, which fl_valley_join() and the bridge both take (claims dedupe by cell).
+      fb <- attr(attributed, "fl_fallback_cells")   # before the split: rbind() drops attributes
       attributed <- fp_wsg_split(attributed, wsg_poly)
       sf::st_write(attributed, out_gpkg, layer = attr_lyr,
                    append = file.exists(out_gpkg), delete_layer = TRUE, quiet = TRUE)
@@ -389,7 +390,6 @@ fp_floodplain <- function(cfg, scenarios = "run") {
       # hole filling, channel buffer, waterbody polygons get no spatial filter). complete = TRUE
       # assigns them to the nearest group, so this is a QA signal on how much of the delineation
       # attribution could not reach on its own terms -- log it rather than let it pass silently.
-      fb <- attr(attributed, "fl_fallback_cells")
       message("  Saved: layer ", attr_lyr, " (", nrow(attributed), " groups",
               if (!is.null(fb)) paste0("; ", fb, " fallback cells assigned to nearest") else "", ")")
     }

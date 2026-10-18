@@ -74,9 +74,20 @@ fp_wsg_polygon <- function(cfg, conn = NULL) {
   sf::st_sfc(out, crs = crs)
 }
 
+# A piece smaller than this is a noding artefact, not ground: a row lying wholly inside the group
+# still comes back from st_difference() with a ~1e-10 m2 sliver where its vertices sit on the line,
+# and kept, it would publish as an "outside" row. 1 cm2 is 1e-6 of one 10 m land cover cell, so
+# dropping one cannot move any reported area at the precision anything is reported to.
+FP_WSG_MIN_PIECE_M2 <- 1e-4
+# A sub-basin piece crossing the group line by less than this is not split (fp_split_patches): the
+# sub-basins of a subset area and the group polygon are drawn separately, so a 0.1 m2 overhang is a
+# drawing difference, not ground in a neighbour, and splitting would re-node a piece that is otherwise
+# step 3's own bytes. 1 m2 is 1% of one land cover cell.
+FP_WSG_CROSS_M2 <- 1
+
 .fp_keep_area <- function(x) {
   sf::st_geometry(x) <- .fp_poly_only(sf::st_geometry(x))
-  x[!sf::st_is_empty(x) & as.numeric(sf::st_area(x)) > 0, , drop = FALSE]
+  x[!sf::st_is_empty(x) & as.numeric(sf::st_area(x)) >= FP_WSG_MIN_PIECE_M2, , drop = FALSE]
 }
 
 # Split every row of `x` along the group polygon. Each row becomes up to two rows -- the part inside
@@ -95,15 +106,32 @@ fp_wsg_split <- function(x, wsg_poly) {
   res <- res[order(res$._row, !res$in_wsg), , drop = FALSE]
   res$._row <- NULL
   rownames(res) <- NULL
+  # Keep the layer's declared type: the floodplain, attribution-free scenario and classified layers
+  # are all MULTIPOLYGON, and a piece the line leaves whole can come back a POLYGON, which would
+  # re-declare the layer GEOMETRY. A layer that was already mixed (the transition patches) stays mixed.
+  if (nrow(x) && all(sf::st_geometry_type(x) == "MULTIPOLYGON"))
+    sf::st_geometry(res) <- sf::st_cast(sf::st_geometry(res), "MULTIPOLYGON")
+  # The item key (#30) stays the last columns, as every writer puts it; in_wsg goes before it.
+  keys <- intersect(c("wsg", "species", "scenario"), names(res))
+  if (length(keys)) {
+    a <- setdiff(names(res), c(keys, attr(res, "sf_column")))
+    res <- res[, c(a, keys)]
+  }
   res
 }
 
 # Change patches -> sub-basin pieces + group pieces. `patches` is dft_transition_vectors() run with
 # NO zones. The inside half is EXACTLY the intersection drift ran with zones= (same transform, same
-# column subset, same st_intersection), so those rows equal what step 3 wrote before #53. The rest of
+# column subset, same st_intersection), so those rows equal what step 3 wrote before #53 -- provided
+# the caller passes the zones as step 3 read them (EPSG:4326 first: a 3005 -> UTM chain moves the
+# WKB of 3 of DUNC's 1,299 rows in the last digits, measured by the #53 plan review). The rest of
 # each patch -- outside every sub-basin -- follows with `zone_col` NA. Then `in_wsg`:
 #   zones are the group polygon (every whole-WSG area): in_wsg is exactly "has a zone"
-#   zones are interior sub-basins (neexdzii): every piece is split along the group line
+#   zones are interior sub-basins (neexdzii): a sub-basin piece is split along the group line only
+#     where it crosses it by at least FP_WSG_CROSS_M2, so the pieces stay drift's own bytes; the
+#     remainder outside every sub-basin is always split. neexdzii's sub-basins reach 3.94 ha past
+#     BULK (frs_watershed_split's watersheds and the group polygon are drawn separately), and two of
+#     its patch pieces cross by 0.12 m2 -- below the threshold, so they stay whole and in_wsg TRUE.
 fp_split_patches <- function(patches, zones, zone_col, wsg_poly) {
   zones_proj <- sf::st_transform(zones[zone_col], sf::st_crs(patches))
   inn <- suppressWarnings(sf::st_intersection(patches, zones_proj))
@@ -114,10 +142,25 @@ fp_split_patches <- function(patches, zones, zone_col, wsg_poly) {
   if (isTRUE(attr(wsg_poly, "zones_are_wsg"))) {
     inn$in_wsg <- rep(TRUE, nrow(inn)); out$in_wsg <- rep(FALSE, nrow(out))
     res <- rbind(inn, out)
+    sb_out_m2 <- 0
   } else {
-    res <- fp_wsg_split(rbind(inn, out), wsg_poly)
+    g <- sf::st_union(sf::st_geometry(sf::st_transform(wsg_poly, sf::st_crs(patches))))
+    sb_out <- suppressWarnings(sf::st_difference(sf::st_union(sf::st_geometry(zones_proj)), g))
+    sb_out_m2 <- sum(as.numeric(sf::st_area(sb_out)))
+    cross <- rep(FALSE, nrow(inn))
+    if (sb_out_m2 > 0 && nrow(inn)) {
+      hit <- suppressWarnings(sf::st_intersection(sf::st_sf(._r = seq_len(nrow(inn)), geometry = sf::st_geometry(inn)),
+                                                  sb_out))
+      if (nrow(hit)) {
+        a <- tapply(as.numeric(sf::st_area(hit)), hit$._r, sum)
+        cross[as.integer(names(a))[a >= FP_WSG_CROSS_M2]] <- TRUE
+      }
+    }
+    keep <- inn[!cross, , drop = FALSE]; keep$in_wsg <- rep(TRUE, nrow(keep))
+    res <- rbind(keep, fp_wsg_split(rbind(inn[cross, , drop = FALSE], out), wsg_poly))
   }
   rownames(res) <- NULL
+  attr(res, "subbasins_outside_wsg_m2") <- sb_out_m2
   res
 }
 

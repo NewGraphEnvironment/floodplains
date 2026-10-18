@@ -82,11 +82,18 @@ fp_lulc <- function(cfg, scenario = cfg$primary_scenario) {
   ) |> sf::st_transform(4326)
 
   fp_file <- file.path(out_dir, "floodplain.gpkg")
-  # ONE feature: since #53 the scenario layer is split at the group line, and the STAC fetch takes it
-  # as the AOI. fp_floodplain_whole() re-joins the pieces (an unsplit layer passes through). The
-  # union's bytes are not the pre-split layer's, so drift's AOI-keyed cache misses once per area.
-  floodplain <- sf::st_read(fp_file, layer = scenario_id, quiet = TRUE) |>
-    fp_floodplain_whole() |> sf::st_transform(4326)
+  # ONE feature, and the SAME bytes as before #53. The scenario layer is now split at the group line,
+  # but the STAC fetch takes the delineation as its AOI and drift keys its cache on the AOI's WKB, so a
+  # union of the pieces would miss the cache once per area (a ~30 min fetch) and could re-mask the
+  # rasters. fl_valley_poly() of step 2's raster IS the pre-split layer (WKB-identical on DUNC, #53
+  # plan review), so the AOI comes from the raster; a missing raster falls back to the union.
+  fp_tif <- file.path(out_dir, paste0("floodplain_", scenario_id, ".tif"))
+  floodplain <- if (file.exists(fp_tif)) {
+    flooded::fl_valley_poly(terra::rast(fp_tif))
+  } else {
+    fp_floodplain_whole(sf::st_read(fp_file, layer = scenario_id, quiet = TRUE))
+  }
+  floodplain <- sf::st_transform(floodplain, 4326)
 
   # Use name_basin from break_points (carried through via fresh::frs_watershed_split)
 

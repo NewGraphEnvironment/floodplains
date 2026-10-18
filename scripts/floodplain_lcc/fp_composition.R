@@ -185,7 +185,12 @@ fp_composition_digest <- function(comp) {
 #' cfg needs dir_out, change_interval, watershed_group, species and context_overlays (the
 #' config/disturbance.yml `context:` list). A DB connection is opened only when context is configured,
 #' or when a subset area's group polygon has to be read (fp_wsg_polygon).
-fp_composition_build <- function(cfg, scenario_id, conn = NULL) {
+# The composition's premises, every one checked before anything is computed or written: the record
+# that vouches for the rasters exists, the floodplain has not been re-run since, the span is the one
+# recorded, and the rasters on disk digest as recorded. Its own function so a caller that writes OTHER
+# layers first (gpkg_backfill-split.R) can run the same guards before its first write -- otherwise
+# they would fire after it, with the gpkg already changed (#53 plan review, O1).
+fp_composition_premise <- function(cfg, scenario_id) {
   # EVERY refusal before any computation or write. A guard that fires after the st_write below leaves
   # a table nobody vouches for in a gpkg the publisher copies whole -- and on an area with no
   # provenance.json at all (mcgr, pine) nothing downstream would ever report it.
@@ -230,6 +235,14 @@ fp_composition_build <- function(cfg, scenario_id, conn = NULL) {
                  "landcover[", scenario_id, "] records -- step 3 rewrote them and did not finish. Re-run step 3.")
   if (!identical(tr_sha, lc_rec[["outputs"]][["transition_content_sha256"]] %||% NA_character_))
     .comp_refuse("transition.tif is not the one landcover[", scenario_id, "] records -- re-run step 3.")
+  list(fp_out_hash = fp_out_hash, yrs = yrs, paths = paths, tr_path = tr_path, cls_sha = cls_sha,
+       tr_sha = tr_sha)
+}
+
+fp_composition_build <- function(cfg, scenario_id, conn = NULL) {
+  pr <- fp_composition_premise(cfg, scenario_id)
+  fp_out_hash <- pr$fp_out_hash; yrs <- pr$yrs; paths <- pr$paths; tr_path <- pr$tr_path
+  cls_sha <- pr$cls_sha; tr_sha <- pr$tr_sha
   fr <- .comp_read_class(paths[1]); to <- .comp_read_class(paths[2])
   # The rasters' own category tables first, drift's class table to fill: a year whose table omits a
   # class (NECR's carries no Clouds; BULK 2017 has 280 Clouds cells) must still decode.
@@ -251,10 +264,14 @@ fp_composition_build <- function(cfg, scenario_id, conn = NULL) {
   # the same ground in both, and items are disjoint under it (group polygons tile BC).
   wsg_poly <- fp_wsg_polygon(cfg, conn)
   overlays$wsg <- fp_rast_cells(sf::st_transform(wsg_poly, sf::st_crs(fp)), fr$r)
+  # Recorded beside the context overlays, under `overlays` (whose members provenance-check.R does not
+  # key-check), never as a new `inputs` key: KEYS_COMPOSITION_INPUTS is a closed set checked both ways,
+  # so a new key would be UNDECLARED here and "missing" on every composition nobody rebuilds. The
+  # digest is of the polygon's WKB, so an FWA boundary change moves the input.
   wsg_g <- sf::st_geometry(sf::st_transform(wsg_poly, 3005))
-  wsg_rec <- list(source = if (isTRUE(attr(wsg_poly, "zones_are_wsg"))) "subbasins.gpkg" else
-                    "whse_basemapping.fwa_watershed_groups_poly",
-                  wkb_sha256 = digest::digest(sf::st_as_binary(wsg_g, endian = "little"), algo = "sha256"))
+  ov_rec$wsg <- list(table = "whse_basemapping.fwa_watershed_groups_poly",
+                     source = if (isTRUE(attr(wsg_poly, "zones_are_wsg"))) "subbasins.gpkg" else "fwapg",
+                     wkb_sha256 = digest::digest(sf::st_as_binary(wsg_g, endian = "little"), algo = "sha256"))
   if (length(ctx)) {
     if (is.null(conn)) {
       conn <- DBI::dbConnect(RPostgres::Postgres())
@@ -309,7 +326,6 @@ fp_composition_build <- function(cfg, scenario_id, conn = NULL) {
       transition_content_sha256 = tr_sha,
       membership                = "cell_centre",
       population                = "either_endpoint",
-      wsg_polygon               = wsg_rec,
       overlays                  = ov_rec),
     outputs = list(
       layer                 = lyr,

@@ -25,7 +25,9 @@ fp_hj_grid_cells <- function(r, v, key, crs) {
   # covering no cell centre claims nothing (terra returns NaN for it).
   cb <- terra::cells(r, terra::vect(v), touches = FALSE, small = FALSE)
   cb <- cb[!is.na(cb[, "cell"]), , drop = FALSE]
-  out <- data.frame(key = v[[key]][cb[, "ID"]], cell = cb[, "cell"])
+  # unique(): since #53 a key can be two rows (its pieces either side of the group line), and a cell
+  # centre on that line would be claimed once by each -- one claim, not two.
+  out <- unique(data.frame(key = v[[key]][cb[, "ID"]], cell = cb[, "cell"]))
   fpc <- which(terra::values(r, mat = FALSE) == 1L)
   chk <- c(floodplain_cells = length(fpc), attributed_cells = length(unique(out$cell)),
            missing = length(setdiff(fpc, out$cell)), extra = length(setdiff(out$cell, fpc)))
