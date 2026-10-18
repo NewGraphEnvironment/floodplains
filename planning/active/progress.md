@@ -76,3 +76,14 @@
   digests, both hashes, the composition digest and every landcover layer's WKB.
 - Filed stac_floodplains_bc#98 (schema, headline metrics over in_wsg, republish).
 - Log: `scripts/floodplain_lcc/logs/20261018_wsg_split_backfill.md`.
+- `/code-check branch`, 4 rounds (22:42–23:49 UTC). Every finding was fixed and committed:
+  - r1: 4 findings: a probe missing a source, the bridge's resume state, the provenance premise
+    running after writes, attribution totals;
+  - r2: 2: the composition's resume state, and attribute_tag writing before it refuses;
+  - r3: 2: an incomplete backup kept, and the work list read from the live file;
+  - r4: 4: the backup's predecessor premise, input from the live layer, the hot-journal message,
+    DRY's work list.
+  Rounds 2-4 each found a defect inside an earlier fix, all in the resume class, so the loop ended by
+  enumeration (`review-enumeration.md`): every write of the backfill, its predicate and its work-list
+  source. The no-op sweep over all 24 real areas left every file byte-identical. Filed #143
+  (attribute_tag's layer name for retired species), which predates this branch.
