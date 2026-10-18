@@ -114,7 +114,7 @@ What exploration found, which shaped the phases:
 - [x] `provenance-check.R` offline arms, mirroring the restamp ones.
 
 ## Phase 7: Backfill script
-- [ ] `scripts/floodplain_lcc/gpkg_backfill-split.R <area>` (`DRY=1` previews only, `FORCE=1`
+- [x] `scripts/floodplain_lcc/gpkg_backfill-split.R <area>` (`DRY=1` previews only, `FORCE=1`
   overrides), for the area's current-species layers. It:
   - splits the `floodplain.gpkg` layers;
   - re-vectorizes `transition.tif` through `fp_lulc_vectors()`;
@@ -122,56 +122,56 @@ What exploration found, which shaped the phases:
   - writes the bridge;
   - rebuilds the composition through `fp_composition_build`;
   - edits the provenance outputs.
-- [ ] Refuses before any write unless the inside pieces match the existing layer by
+- [x] Refuses before any write unless the inside pieces match the existing layer by
   `(name_basin, patch_id)`: same count, same area to 1e-6 relative, same cause columns
   (`fp_same_values`).
-- [ ] Idempotent: a second run is a no-op.
-- [ ] Backs up `floodplain.gpkg`, `floodplain_landcover.gpkg` and `provenance.json` to the scratchpad
+- [x] Idempotent: a second run is a no-op.
+- [x] Backs up `floodplain.gpkg`, `floodplain_landcover.gpkg` and `provenance.json` to the scratchpad
   first.
-- [ ] Run on dunc. Run the checks. Then run the other 22 region groups and neexdzii, logged to
+- [x] Run on dunc. Run the checks. Then run the other 22 region groups and neexdzii, logged to
   `scripts/floodplain_lcc/logs/`.
 
 ## Phase 8: Live verification
-- [ ] Per area: `wsg_split-check.R`, `composition-check.R`, `provenance-check.R`, `disturbance-check.R`,
+- [x] Per area: `wsg_split-check.R`, `composition-check.R`, `provenance-check.R`, `disturbance-check.R`,
   `bridge-check.R`.
-- [ ] Inside patch totals equal the pre-backfill layer totals, read from the backup.
-- [ ] neexdzii: tree loss over pieces with a sub-basin is 773.4 ha, and the outside share is stated.
-- [ ] The measurement log goes to `scripts/floodplain_lcc/logs/20261018_wsg_split_backfill.md`, with
+- [x] Inside patch totals equal the pre-backfill layer totals, read from the backup.
+- [x] neexdzii: tree loss over pieces with a sub-basin is 773.4 ha, and the outside share is stated.
+- [x] The measurement log goes to `scripts/floodplain_lcc/logs/20261018_wsg_split_backfill.md`, with
   outside shares per group (PCEA among them).
 
 ## Phase 9: README totals + docs
-- [ ] A gated builder in `readme_functions.R` writes the committed `fig/region_totals.csv`. Per region:
+- [x] A gated builder in `readme_functions.R` writes the committed `fig/region_totals.csv`. Per region:
   - groups;
   - the sum of whole items;
   - the `in_wsg` sum, which is a union;
   - open water in `in_wsg`.
-- [ ] `README.Rmd` gets a table stating that the totals are a union. Render it, then run
+- [x] `README.Rmd` gets a table stating that the totals are a union. Render it, then run
   `readme_determinism-check.sh` and `readme_content-check.py`.
-- [ ] `CLAUDE.md`:
+- [x] `CLAUDE.md`:
   - a #53/#138 bullet;
   - the composition bound;
   - the neexdzii parity, restated;
   - the patch counts and tree-loss figures that moved (DUNC, Skeena).
 
 ## Phase 10: Publish-layer handoff
-- [ ] File a stac_floodplains_bc issue: the schema adds `in_wsg`, `in_open_water` and
+- [x] File a stac_floodplains_bc issue: the schema adds `in_wsg`, `in_open_water` and
   `open_water_poly_id`, the floodplain layer is now two rows, and the items need a republish. This
   repo does not call the publish layer, so the handoff stays one-way.
 
 ## Validation
-- [ ] Tests pass (all offline checks + live checks above)
+- [x] Tests pass (all offline checks + live checks above)
 - [ ] `/code-check` clean (each commit, or once over the branch with `/code-check branch`)
 - [ ] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion
 
 ## Verification (end to end)
-- [ ] Offline: `Rscript` each of `wsg_split-check.R`, `disturbance-check.R`, `composition-check.R`,
+- [x] Offline: `Rscript` each of `wsg_split-check.R`, `disturbance-check.R`, `composition-check.R`,
   `provenance-check.R` and `bridge-check.R` with no area. Each ends `ALL PASS`, and each new guard is
   shown to go red with its defect restored.
-- [ ] Live on dunc after its backfill:
+- [x] Live on dunc after its backfill:
   - the `in_wsg` patch total equals the backup's patch total;
   - `composition-check.R dunc` passes the new bound (it failed at +4.70%);
   - `provenance-check.R` passes 7c with the new `transition_patches`;
   - the backfill re-runs as a no-op.
-- [ ] One forward step 3 on a small area (dunc) reproduces the backfill's layers (same rows, same
+- [x] One forward step 3 on a small area (dunc) reproduces the backfill's layers (same rows, same
   in/out totals), so the two paths cannot disagree.

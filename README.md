@@ -162,8 +162,8 @@ Three of these are modelled by default; the rest are configured and off. Turning
 - **Every published layer carries the item key** — `wsg`, `species`, `scenario` — so many areas
   can merge into one GeoPackage and stay separable by attribute.
 - **Parity fixture.** `config/neexdzii/` must reproduce known-good numbers — coho-3 network
-  **673.5 km**, floodplain `co_ff04` **142.0 km²**, tree loss **773.4 ha** — before any change is
-  trusted. Re-baselined 2026-10-13 under `flooded` 0.7.0, which fixes the DEM grid, so a re-run on
+  **673.5 km**, floodplain `co_ff04` **142.0 km²**, tree loss **773.4 ha** over the patches inside
+  its sub-basins — before any change is trusted. Re-baselined 2026-10-13 under `flooded` 0.7.0, which fixes the DEM grid, so a re-run on
   the same software reproduces it byte for byte. An earlier contract (678.2 / 171.0 / 943.13) is
   **dead, not superseded**: it came from a bankfull regression fed hectares where Hall et al.
   specify km² and mm where they specify cm/yr. Record each as a fresh contract, never as a delta.
@@ -184,6 +184,28 @@ Read from `config/regions/*.yml`, which is what the region runner itself consume
 | fraser | whole (species `all`) | BOWR, FRAN, LCHL, LNTH, LSAL, MCGR, MORK, NECR, TABR, THOM, UFRA, UNTH, WILL |
 | peace | whole (species `all`) | PARS, PCEA, PINE |
 | skeena | whole (species `all`) | BULK, KISP, MORR |
+
+### Floodplain area by region
+
+A floodplain runs past its own watershed group: onto the receiving river’s valley floor at the
+outlet, and across a lake two groups share. It is delineated whole and never cut at the line.
+Instead every published layer is **split along the group polygon**, and each piece carries `in_wsg`
+(TRUE inside the group, FALSE outside). Group polygons do not overlap, so summed over `in_wsg` the
+groups are disjoint. That sum is the floodplain inside the region’s own group polygons, which makes
+it a union, not a sum of overlapping polygons. Summing the whole delineations counts the shared
+ground once for each group, and it includes ground in groups no region lists. Open water is every
+FWA lake and manmade waterbody (`in_open_water`), counted by cell centre inside the group. It is
+reported beside the floodplain and never subtracted, because a reservoir surface is still mapped
+floodplain.
+
+| region | groups | floodplain in its groups (km²) | of which open water (km²) | sum of whole delineations (km²) | shared or outside the groups (km²) |
+|:---|---:|---:|---:|---:|---:|
+| columbia | 4 | 1453.4 | 862.7 | 1469.4 | 16.0 |
+| fraser | 13 | 5674.1 | 1068.9 | 5786.7 | 112.6 |
+| peace | 3 | 1523.5 | 404.6 | 1891.7 | 368.2 |
+| skeena | 3 | 1441.3 | 282.3 | 1463.7 | 22.4 |
+
+Read from `fig/region_totals.csv`, which `update_figs` rebuilds from each group’s primary scenario.
 
 Plus the `neexdzii` parity fixture, which is a reach inside BULK and is deliberately not part of
 any region. A whole-network region runs every group as the whole stream network at order 2 and

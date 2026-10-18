@@ -401,9 +401,60 @@ fp_fig_write <- function(out, plots, nrow = 1, heights = NULL, width, height, re
 }
 
 #' Both figures, or a clear refusal
+#' Floodplain area per region, inside and across the group line (#53, #60, #138)
+#'
+#' Every published layer is split along its watershed group polygon (`in_wsg`). Under `in_wsg` the
+#' groups are disjoint -- group polygons tile BC -- so a region's total is a SUM, and that sum is the
+#' floodplain inside the region's own group polygons. Summing whole delineations instead counts the
+#' ground two neighbours share once for each, and a group's outside ground can lie in a group no
+#' region lists (PCEA's reaches PARA and FINA). Both are written so the difference is visible. Open
+#' water is from the composition table, by cell centre, inside the group (#108's rule: never from
+#' the any-touch patch flag). Written as a committed CSV that every render reads.
+fp_fig_region_totals <- function(out = fp_fig_path("region_totals.csv")) {
+  rows <- list()
+  for (f in sort(list.files("config/regions", pattern = "\\.yml$", full.names = TRUE))) {
+    r <- yaml::read_yaml(f)
+    for (g in tolower(unique(r$watershed_groups))) {
+      acfg <- yaml::read_yaml(file.path("config", g, "area.yml"))
+      scen <- acfg$primary_scenario
+      dd <- file.path("data", g)
+      fp <- sf::st_read(file.path(dd, "floodplain.gpkg"), layer = scen, quiet = TRUE)
+      if (!"in_wsg" %in% names(fp))
+        stop(g, "/", scen, " predates the group-line split -- run gpkg_backfill-split.R ", g, call. = FALSE)
+      a <- as.numeric(sf::st_area(fp)) / 1e6
+      yrs <- sort(if (is.null(acfg$change_interval)) c(2017L, 2023L) else acfg$change_interval)
+      comp <- sf::st_read(file.path(dd, "floodplain_landcover.gpkg"),
+                          layer = sprintf("composition_%s_%d_%d", scen, yrs[1], yrs[2]), quiet = TRUE)
+      if (!all(c("in_wsg", "in_open_water") %in% names(comp)))
+        stop(g, ": the composition has no in_wsg / in_open_water -- run gpkg_backfill-split.R ", g, call. = FALSE)
+      rows[[length(rows) + 1]] <- data.frame(
+        region = r$region, wsg = toupper(g), scenario = scen,
+        whole_km2 = sum(a), in_wsg_km2 = sum(a[fp$in_wsg]),
+        open_water_in_wsg_km2 = sum(comp$ha[comp$in_floodplain & comp$in_wsg & comp$in_open_water]) / 100)
+    }
+  }
+  d <- do.call(rbind, rows)
+  agg <- function(x) data.frame(region = x$region[1], groups = nrow(x),
+                                whole_km2 = sum(x$whole_km2), in_wsg_km2 = sum(x$in_wsg_km2),
+                                open_water_in_wsg_km2 = sum(x$open_water_in_wsg_km2))
+  t <- do.call(rbind, lapply(split(d, d$region), agg))
+  t <- t[order(t$region), , drop = FALSE]
+  for (c in grep("_km2$", names(t), value = TRUE)) t[[c]] <- round(t[[c]], 1)
+  utils::write.csv(t, out, row.names = FALSE)
+  invisible(t)
+}
+
+#' The committed region totals, for every render (no data needed)
+fp_readme_region_totals <- function(f = fp_fig_require("region_totals.csv")) {
+  t <- utils::read.csv(f)
+  t$shared_or_outside_km2 <- round(t$whole_km2 - t$in_wsg_km2, 1)
+  t[, c("region", "groups", "in_wsg_km2", "open_water_in_wsg_km2", "whole_km2", "shared_or_outside_km2")]
+}
+
 fp_fig_build <- function() {
   fp_fig_floodplain()
   fp_fig_attribution()
+  fp_fig_region_totals()
 }
 
 #' A committed figure the render needs, or a stop

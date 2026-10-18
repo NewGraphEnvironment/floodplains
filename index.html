@@ -1804,13 +1804,14 @@ attribute.</li>
 <li><strong>Parity fixture.</strong> <code>config/neexdzii/</code> must
 reproduce known-good numbers — coho-3 network <strong>673.5 km</strong>,
 floodplain <code>co_ff04</code> <strong>142.0 km²</strong>, tree loss
-<strong>773.4 ha</strong> — before any change is trusted. Re-baselined
-2026-10-13 under <code>flooded</code> 0.7.0, which fixes the DEM grid,
-so a re-run on the same software reproduces it byte for byte. An earlier
-contract (678.2 / 171.0 / 943.13) is <strong>dead, not
-superseded</strong>: it came from a bankfull regression fed hectares
-where Hall et al. specify km² and mm where they specify cm/yr. Record
-each as a fresh contract, never as a delta.</li>
+<strong>773.4 ha</strong> over the patches inside its sub-basins —
+before any change is trusted. Re-baselined 2026-10-13 under
+<code>flooded</code> 0.7.0, which fixes the DEM grid, so a re-run on the
+same software reproduces it byte for byte. An earlier contract (678.2 /
+171.0 / 943.13) is <strong>dead, not superseded</strong>: it came from a
+bankfull regression fed hectares where Hall et al. specify km² and mm
+where they specify cm/yr. Record each as a fresh contract, never as a
+delta.</li>
 <li><strong>Rebuilds are byte-reproducible.</strong> GDAL stamps every
 GeoPackage with the wall-clock time of the write, which would make each
 rebuild a new checksum regardless of content. The stamp is pinned to a
@@ -1862,6 +1863,79 @@ THOM, UFRA, UNTH, WILL</td>
 </tr>
 </tbody>
 </table>
+<div id="floodplain-area-by-region" class="section level3">
+<h3>Floodplain area by region</h3>
+<p>A floodplain runs past its own watershed group: onto the receiving
+river’s valley floor at the outlet, and across a lake two groups share.
+It is delineated whole and never cut at the line. Instead every
+published layer is <strong>split along the group polygon</strong>, and
+each piece carries <code>in_wsg</code> (TRUE inside the group, FALSE
+outside). Group polygons do not overlap, so summed over
+<code>in_wsg</code> the groups are disjoint. That sum is the floodplain
+inside the region’s own group polygons, which makes it a union, not a
+sum of overlapping polygons. Summing the whole delineations counts the
+shared ground once for each group, and it includes ground in groups no
+region lists. Open water is every FWA lake and manmade waterbody
+(<code>in_open_water</code>), counted by cell centre inside the group.
+It is reported beside the floodplain and never subtracted, because a
+reservoir surface is still mapped floodplain.</p>
+<table style="width:100%;">
+<colgroup>
+<col width="6%" />
+<col width="5%" />
+<col width="22%" />
+<col width="18%" />
+<col width="22%" />
+<col width="25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">region</th>
+<th align="right">groups</th>
+<th align="right">floodplain in its groups (km²)</th>
+<th align="right">of which open water (km²)</th>
+<th align="right">sum of whole delineations (km²)</th>
+<th align="right">shared or outside the groups (km²)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">columbia</td>
+<td align="right">4</td>
+<td align="right">1453.4</td>
+<td align="right">862.7</td>
+<td align="right">1469.4</td>
+<td align="right">16.0</td>
+</tr>
+<tr class="even">
+<td align="left">fraser</td>
+<td align="right">13</td>
+<td align="right">5674.1</td>
+<td align="right">1068.9</td>
+<td align="right">5786.7</td>
+<td align="right">112.6</td>
+</tr>
+<tr class="odd">
+<td align="left">peace</td>
+<td align="right">3</td>
+<td align="right">1523.5</td>
+<td align="right">404.6</td>
+<td align="right">1891.7</td>
+<td align="right">368.2</td>
+</tr>
+<tr class="even">
+<td align="left">skeena</td>
+<td align="right">3</td>
+<td align="right">1441.3</td>
+<td align="right">282.3</td>
+<td align="right">1463.7</td>
+<td align="right">22.4</td>
+</tr>
+</tbody>
+</table>
+<p>Read from <code>fig/region_totals.csv</code>, which
+<code>update_figs</code> rebuilds from each group’s primary
+scenario.</p>
 <p>Plus the <code>neexdzii</code> parity fixture, which is a reach
 inside BULK and is deliberately not part of any region. A whole-network
 region runs every group as the whole stream network at order 2 and up,
@@ -1875,6 +1949,7 @@ version — every published floodplain predates the DEM grid fix in
 species networks (#76); their whole networks are present and match the
 reference, but neither has run in whole mode yet. For what is actually
 available to download, ask the catalogue rather than this page.</p>
+</div>
 </div>
 <div id="running-it" class="section level2">
 <h2>Running it</h2>

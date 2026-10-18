@@ -1,0 +1,25 @@
+Spherical geometry (s2) switched off
+backfill-split: area=lnth wsg=LNTH species=all scenario=all_ff04
+  group polygon from subbasins.gpkg
+  all_ff02                                 split 1 -> 2 rows, 869.6 ha outside
+  all_ff04                                 split 1 -> 2 rows, 908.9 ha outside
+  all_ff04_by_blue_line_key                split 1558 -> 1629 rows, 1248.2 ha outside
+  all_ff06                                 split 1 -> 2 rows, 950.6 ha outside
+  classified_all_ff04_2017                 split 9 -> 17 rows, 966.0 ha outside
+  classified_all_ff04_2018                 split 8 -> 16 rows, 966.0 ha outside
+  classified_all_ff04_2019                 split 9 -> 18 rows, 966.0 ha outside
+  classified_all_ff04_2020                 split 9 -> 17 rows, 966.0 ha outside
+  classified_all_ff04_2021                 split 8 -> 16 rows, 966.0 ha outside
+  classified_all_ff04_2022                 split 8 -> 16 rows, 966.0 ha outside
+  classified_all_ff04_2023                 split 8 -> 16 rows, 966.0 ha outside
+  Tagged disturbance: fire, harvest; context: wetland, alr, open_water; lookback: fire_prior
+  new column(s) on the patches: in_open_water, open_water_poly_id
+  transition_all_ff04_2017_2023            4745 patches -> 4830 pieces (85 outside, 44.8 ha); inside 2504.8004 ha = published 2504.8004 ha
+  composition_all_ff04_2017_2023           rebuild
+  backup: data/backup/20261018_wsg_split/lnth
+  Layer: transition_all_ff04_2017_2023 (4830 change patch pieces, 85 outside LNTH)
+  Layer: patch_watercourse_all_ff04_2017_2023 (19481 pairs over 4824 patch pieces and 714 watercourses; union coverage 0.953, unbridged pieces 6)
+Provenance: landcover[all_ff04].composition -> provenance.json
+  Layer: composition_all_ff04_2017_2023 (817 rows; floodplain 38862.0 ha of a 41840.6 ha footprint; change 2549.6 ha; wsg 37952.9 ha, change in wsg 2504.8 ha; wetland 2523.8 ha, change in wetland 188.1 ha; alr 9038.0 ha, change in alr 1119.7 ha; open_water 8083.5 ha, change in open_water 101.7 ha)
+Provenance: landcover[all_ff04].outputs transition_patches 4745 -> 4830 (wsg_split)
+Done: lnth

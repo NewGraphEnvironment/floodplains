@@ -1,0 +1,21 @@
+Spherical geometry (s2) switched off
+backfill-split: area=pine wsg=PINE species=all scenario=all_ff04
+  group polygon from subbasins.gpkg
+  all_ff02                                 split 1 -> 2 rows, 948.5 ha outside
+  all_ff04                                 split 1 -> 2 rows, 986.9 ha outside
+  all_ff04_by_blue_line_key                split 3061 -> 3100 rows, 1169.4 ha outside
+  all_ff06                                 split 1 -> 2 rows, 1021.1 ha outside
+  classified_all_ff04_2017                 split 9 -> 16 rows, 1035.3 ha outside
+  classified_all_ff04_2020                 split 9 -> 15 rows, 1035.3 ha outside
+  classified_all_ff04_2023                 split 9 -> 15 rows, 1035.3 ha outside
+|---------|---------|---------|---------|=========================================                                          |---------|---------|---------|---------|=========================================                                          |---------|---------|---------|---------|=========================================                                          |---------|---------|---------|---------|=========================================                                          |---------|---------|---------|---------|=========================================                                          |---------|---------|---------|---------|=========================================                                            Tagged disturbance: fire, harvest; context: wetland, alr, open_water; lookback: fire_prior
+  new column(s) on the patches: in_open_water, open_water_poly_id
+  transition_all_ff04_2017_2023            9604 patches -> 9710 pieces (106 outside, 105.0 ha); inside 4107.4785 ha = published 4107.4785 ha
+  composition_all_ff04_2017_2023           rebuild
+  backup: data/backup/20261018_wsg_split/pine
+  Layer: transition_all_ff04_2017_2023 (9710 change patch pieces, 106 outside PINE)
+  Layer: patch_watercourse_all_ff04_2017_2023 (40378 pairs over 9698 patch pieces and 875 watercourses; union coverage 0.947, unbridged pieces 12)
+|---------|---------|---------|---------|=========================================                                          |---------|---------|---------|---------|=========================================                                          |---------|---------|---------|---------|=========================================                                          |---------|---------|---------|---------|=========================================                                          |---------|---------|---------|---------|=========================================                                          |---------|---------|---------|---------|=========================================                                          Provenance: landcover[all_ff04].composition -> provenance.json
+  Layer: composition_all_ff04_2017_2023 (807 rows; floodplain 48857.3 ha of a 52955.5 ha footprint; change 4212.4 ha; wsg 47870.8 ha, change in wsg 4107.5 ha; wetland 6096.5 ha, change in wetland 768.7 ha; alr 18989.8 ha, change in alr 2552.9 ha; open_water 1235.9 ha, change in open_water 104.3 ha)
+Provenance: landcover[all_ff04].outputs transition_patches 9604 -> 9710 (wsg_split)
+Done: pine

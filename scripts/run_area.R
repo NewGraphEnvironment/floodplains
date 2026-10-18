@@ -20,7 +20,9 @@
 #
 # Parity contract: `run_area.R neexdzii` must reproduce the known-good Neexdzii numbers
 # (coho-3 network 673.5 km | floodplain co_ff04 142.0 km² | floodplain tree loss 773.4 ha)
-# before any new area's numbers are trusted.
+# before any new area's numbers are trusted. Since #53 the patches are not clipped to the sub-basins:
+# the tree loss is read over the pieces that HAVE a sub-basin (name_basin not NA), which are step 3's
+# own bytes; 1.1 ha more lies outside every sub-basin (and outside BULK).
 #
 # RE-BASELINED 2026-10-13 under flooded 0.7.0, whose DEM grid is pinned (30 m, aligned to multiples
 # of 30, fixed datum step; #117, flooded#67). Two runs reproduced every floodplain and landcover

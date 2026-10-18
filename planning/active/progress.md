@@ -57,3 +57,22 @@
   the inside total is 1,278.7335 ha = published.
   Logs: `scripts/floodplain_lcc/logs/20261018_wsg_split_backfill/*_dry.log`.
 - The write sweep started ~20:47 UTC under caffeinate, with BACKUP=data/backup/20261018_wsg_split.
+- **Write sweep, 20:47-21:59 UTC: 24/24 rc=0**, each with one `Done:` and one `wsg_split` provenance
+  edit. A second DUNC run left all three files byte-identical.
+- **Region checks, 22:05-22:35 UTC.** composition-check passes in all 23 groups (it failed in all of
+  them before #53). wsg_split-check, provenance-check and disturbance's all_ff04 section pass
+  everywhere, and neexdzii passes all five. The FAILs that remain were all known before:
+  - NECR composition arm 5 (#140);
+  - the bridge union proxy on PCEA, LARL and SLOC (#139);
+  - the whole-file disturbance-check, on the retired species layers.
+- **Region totals** (fig/region_totals.csv): summed over in_wsg, then summed whole.
+  - columbia 1,453.4 vs 1,469.4 km2
+  - fraser 5,674.1 vs 5,786.7 km2
+  - peace 1,523.5 vs 1,891.7 km2
+  - skeena 1,441.3 vs 1,463.7 km2
+
+  The README renders them; its determinism and content checks pass.
+- **Forward step 3 on DUNC** was a drift cache hit, and it reproduced the backfill identically:
+  digests, both hashes, the composition digest and every landcover layer's WKB.
+- Filed stac_floodplains_bc#98 (schema, headline metrics over in_wsg, republish).
+- Log: `scripts/floodplain_lcc/logs/20261018_wsg_split_backfill.md`.
