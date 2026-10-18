@@ -79,25 +79,28 @@ What I found that shaped this:
 
 ## Phase 4: Records
 
-- [ ] `scripts/floodplain_lcc/logs/2026101x_whole_network_{fraser,peace,columbia}.md`, in the Skeena
+- [x] `scripts/floodplain_lcc/logs/2026101x_whole_network_{fraser,peace,columbia}.md`, in the Skeena
       log's shape: how it ran, wall time (RSS not sampled), results (pasted from the report script,
       which is named as their producer), checks table, the #53 inside/outside table, and the
       habitat-join match rates.
-- [ ] CLAUDE.md: replace "#125's per-region acceptance checks have not been run on it yet" (Fraser,
+- [x] CLAUDE.md: replace "#125's per-region acceptance checks have not been run on it yet" (Fraser,
       Peace and Columbia paragraphs) with the outcome and log pointers. Fix any other sentence that
       the results contradict, found by grepping for it.
-- [ ] File the visual-review issue: BULK `all_ff04` order-2 headwaters over imagery, plus the
+- [x] File the visual-review issue: BULK `all_ff04` order-2 headwaters over imagery, plus the
       flagged groups and the numbers that flagged them.
-- [ ] Edit #125's body: Status shows all four regions run and accepted, with "Left" reduced to the
+- [x] Edit #125's body: Status shows all four regions run and accepted, with "Left" reduced to the
       publish work in stac#75/#76 and the new review issue.
-- [ ] Close #58 (MCGR, PINE), #59 (its 13 areas), #73 (its 18 areas) and #76 (MCGR, PINE in whole
+- [x] Close #58 (MCGR, PINE), #59 (its 13 areas), #73 (its 18 areas) and #76 (MCGR, PINE in whole
       mode), each with a pointer to #125 and the region log covering its groups. Before each,
       confirm every area it lists has an `all_ff04` that passed Phase 1. For #59, note that the
       retraction is stac#76's, and that the catalogue serves the old items until that release.
+      Done as: every listed area verified against the 23 accepted groups (findings); they close
+      through the PR's Closes line, so they close when the evidence reaches main, each with a
+      pointer comment once the PR exists. stac_floodplains_bc#76 had closed 2026-10-15.
 
 ## Validation
 
-- [ ] Tests pass: `region_config-check.R`, `whole_network-check.R`, and the offline sections of the checks above
+- [x] Tests pass: `region_config-check.R`, `whole_network-check.R`, and the offline sections of the checks above
 - [x] `/code-check` clean (each commit, or once over the branch with `/code-check branch`)
 - [ ] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion

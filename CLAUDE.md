@@ -308,9 +308,9 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   (`FP_SPECIES_WHOLE`, `fp_region.R`) for the whole stream network at order ≥ `min_order` (2, the
   #110 floor) with **no access join**. It sits in the species slot so every species-keyed name
   carries it: `streams_all2`, `all_ff04`, `all_ff04_by_blue_line_key`, `network[all2]`, item key
-  species `all`. That holds in this repo only: `stac_floodplains_bc`'s provenance reader refuses a
-  scenario key not matching `^[a-z]{2}_ff[0-9]{2}$`, so `all_ff04` cannot publish until it changes
-  (stac_floodplains_bc#75). Ask `fp_whole_network(cfg)`, never compare the string. 01's read is
+  species `all`. `stac_floodplains_bc`'s provenance reader used to refuse a scenario key not
+  matching `^[a-z]{2}_ff[0-9]{2}$`. stac_floodplains_bc#75 (closed 2026-10-14) replaced that with a
+  check that each item finds its scenario, which admits `all_ff04`. Ask `fp_whole_network(cfg)`, never compare the string. 01's read is
   `fp_network_sql()`; its species branch is pinned **byte-identical** to the pre-lift SQL by
   `whole_network-check.R`. The whole branch drops the `streams_access` join, which is not merely a
   filter: groups link never ran its access model on (DUNC) are absent from that table.
@@ -810,13 +810,18 @@ except BULK's outside-polygon area: 1,317.5 ha by cell centre, against a hand-de
   it is +225%, from the reservoir spill below.
 - Two kinds of FAIL are new, each with its own issue:
   - NECR's composition check (5): the #93 accuracy module still resolves `area.yml`'s scenario, but
-    its design is on `ch_ff04` (#ACCURACY).
+    its design is on `ch_ff04` (#140).
   - `bridge-check.R`'s unweighted union proxy on PCEA, LARL and SLOC. The true union is 0.94–0.96
-    (#BRIDGE).
+    (#139).
 - The outlier screen flagged **PCEA**: 41.7% of its floodplain lies outside its polygon, and 83.6%
   is reservoir or large lake (Williston). Waterbody polygons enter the floodplain unclipped
-  (#WATERBODY). The retired `bt_ff04` was worse.
-- The order-2 headwater look over imagery is #VISUAL. The habitat join needs flooded > 0.7.2 (v0.1.14).
+  (#138). The retired `bt_ff04` was worse.
+- The order-2 headwater look over imagery is #141.
+- `habitat_join-query.R` ran on all 20 groups (2026-10-18, flooded 0.8.2): every floodplain cell is
+  attributed everywhere, and every habitat row matches in Fraser, Peace and DUNC. KOTL, LARL and SLOC
+  have 21 / 35 / 10 unmatched rows per species, because link 0.66.0 rebuilt `fresh_default` on 2026-10-17,
+  after step 1 wrote `habitat_link`. **The query joins a step-1 snapshot to the live schema's lines**, so
+  any rebuild of the schema shows up as unmatched rows. #123 plans cutting the lines from FWA by route measure instead.
 
 **Columbia region** (`columbia.yml`, **bull trout** until #125; DUNC joined then): KOTL 707.8 km², LARL 306.9, SLOC 129.6 at
 `bt_ff04`. ch/co/st/salmon are unmodelled here — verified empirically (`access_* = -9`, the "not

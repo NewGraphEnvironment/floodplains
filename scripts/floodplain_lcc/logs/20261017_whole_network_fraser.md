@@ -87,4 +87,26 @@ The failures, every one read from its `FAIL` line:
 - **`composition-check.R` NECR, second FAIL:** check (5), the accuracy module's wetland reference
   (12,809.04 vs 6,436.64 ha). That reference describes the species footprint, not `all_ff04`.
   NECR's #93 reference design is drawn on `ch_ff04`, while `fp_acc_area()` now resolves
-  `area.yml`'s `all_ff04`. Filed as #ACCURACY.
+  `area.yml`'s `all_ff04`. Filed as #140.
+
+## Habitat join (2026-10-18)
+
+`habitat_join-query.R <wsg>` for each group, on flooded 0.8.2 (`fl_valley_join()`), run sequentially from 2026-10-18 01:30 UTC. Each run wrote its own log, `scripts/floodplain_lcc/logs/20261018_habitat_join-query_<wsg>.md`, and this table is parsed from those. Habitat flags come from each group's `habitat_link` (model `link:fresh`), and segment geometry from the live schema, matched on (blue_line_key, downstream_route_measure). "Missing" and "extra" are floodplain cells the attribution layer lacks or adds; "unmatched" counts habitat rows with no segment at that position, per species (the same in every species).
+
+| wsg | floodplain cells | missing | extra | species | habitat rows | rows = segments = matched | unmatched | blue lines without segments |
+|---|---|---|---|---|---|---|---|---|
+| LCHL | 474236 | 0 | 0 | bt,ch,co | 21172 | yes | 0 | 0 |
+| LSAL | 323205 | 0 | 0 | ch | 11609 | yes | 0 | 0 |
+| WILL | 390272 | 0 | 0 | bt,ch,co | 26163 | yes | 0 | 0 |
+| TABR | 296879 | 0 | 0 | bt,ch | 14652 | yes | 0 | 0 |
+| UFRA | 335258 | 0 | 0 | bt,ch | 96299 | yes | 0 | 0 |
+| NECR | 843990 | 0 | 0 | bt,ch,co,sk | 29951 | yes | 0 | 0 |
+| MORK | 741156 | 0 | 0 | bt,ch | 110510 | yes | 0 | 0 |
+| FRAN | 1218121 | 0 | 0 | bt,ch,sk | 53358 | yes | 0 | 0 |
+| BOWR | 433322 | 0 | 0 | bt,ch,co,sk | 36726 | yes | 0 | 0 |
+| MCGR | 394812 | 0 | 0 | bt,ch | 49005 | yes | 0 | 0 |
+| THOM | 285602 | 0 | 0 | bt,ch,co,pk,sk,st | 62152 | yes | 0 | 0 |
+| LNTH | 431735 | 0 | 0 | bt,ch,co,pk,sk | 64332 | yes | 0 | 0 |
+| UNTH | 261036 | 0 | 0 | bt,ch,co | 72922 | yes | 0 | 0 |
+
+Every floodplain cell is attributed in all 13 groups, and every habitat row matches a `fresh.streams` segment.

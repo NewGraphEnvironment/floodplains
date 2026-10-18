@@ -53,4 +53,27 @@ A transition patch is one row of the transition layer: one 8-connected patch of 
 - **`disturbance-check.R`, FAIL(2) in KOTL, LARL and SLOC:** on the retired `bt_ff04` layers. DUNC has
   no species layer. The `all_ff04` section passes in all four.
 - **`bridge-check.R` LARL (0.8886) and SLOC (0.8944):** the unweighted union-coverage proxy. Their true
-  unions, area-weighted, are 0.9610 and 0.9363. Filed as #BRIDGE.
+  unions, area-weighted, are 0.9610 and 0.9363. Filed as #139.
+
+## Habitat join (2026-10-18)
+
+`habitat_join-query.R <wsg>` for each group, on flooded 0.8.2 (`fl_valley_join()`), run sequentially from 2026-10-18 01:30 UTC. Each run wrote its own log, `scripts/floodplain_lcc/logs/20261018_habitat_join-query_<wsg>.md`, and this table is parsed from those. Habitat flags come from each group's `habitat_link` (model `link:fresh_default`), and segment geometry from the live schema, matched on (blue_line_key, downstream_route_measure). "Missing" and "extra" are floodplain cells the attribution layer lacks or adds; "unmatched" counts habitat rows with no segment at that position, per species (the same in every species).
+
+| wsg | floodplain cells | missing | extra | species | habitat rows | rows = segments = matched | unmatched | blue lines without segments |
+|---|---|---|---|---|---|---|---|---|
+| KOTL | 837936 | 0 | 0 | bt,ko,rb,wct | 109951 | NO | 21 | 0 |
+| LARL | 417232 | 0 | 0 | bt,rb,wct | 91077 | NO | 35 | 0 |
+| SLOC | 171661 | 0 | 0 | bt,rb,wct | 55730 | NO | 10 | 0 |
+| DUNC | 205793 | 0 | 0 | bt,rb,wct | 63067 | yes | 0 | 0 |
+
+Every floodplain cell is attributed in all four groups. **KOTL, LARL and SLOC each have habitat rows the
+live schema no longer has (0.02-0.04% of rows), and the cause is a rebuild, not these runs.** link 0.66.0
+rebuilt `fresh_default` for all four groups on 2026-10-17 between 01:30 and 03:10 UTC (`fresh_default.log`,
+`run_uid` 20261017_004619-3f4c713b). Step 1 wrote their `habitat_link` on 2026-10-15 from the 2026-08-27
+build, and its provenance sibling records that build. The query reads segment geometry from the live
+schema, so re-segmented reaches stop matching: KOTL now has 109,950 segments against 109,951 habitat rows,
+LARL 91,090 against 91,077, SLOC 55,733 against 55,730. DUNC's segmentation did not move. #123 already plans
+cutting segment lines from FWA blue lines by route measure, which makes the join a function of
+`habitat_link` alone; this measurement is recorded there. DUNC's
+`20261015_habitat_join-query_dunc.md` predates its re-run on the pinned grid and is superseded by the
+20261018 log.

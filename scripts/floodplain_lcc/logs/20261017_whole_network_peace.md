@@ -47,7 +47,7 @@ were read) flagged PCEA at 41.7% of its floodplain outside the group polygon. Th
 - The land cover is not double-counted: change cells inside the polygon equal the patch total
   (754.4 ha).
 
-Filed as #WATERBODY. PCEA is on the visual-review list (#VISUAL).
+Filed as #138. PCEA is on the visual-review list (#141).
 
 ## Checks
 
@@ -63,10 +63,22 @@ Filed as #WATERBODY. PCEA is on the visual-review list (#VISUAL).
 - **`composition-check.R`, FAIL(1) in all three:** the 1% change-vs-patch bound. PARS and PINE breach
   it by the #53 edge effect, as Fraser and Skeena do. PCEA breaches it by +225.4% (2,454.6 ha of
   change cells against 754.4 ha of patches). 1,700.3 ha of the change lies outside its polygon, and
-  1,627.0 ha of that is on the network's waterbody polygons, by cell centre. That is the waterbody spill above (#WATERBODY), not the #53 edge. Inside the
+  1,627.0 ha of that is on the network's waterbody polygons, by cell centre. That is the waterbody spill above (#138), not the #53 edge. Inside the
   polygon, change and patches agree.
 - **`disturbance-check.R`, FAIL(2) in all three:** on the retired `bt_ff04` layers. The `all_ff04`
   section passes.
 - **`bridge-check.R` PCEA, FAIL(1):** `union coverage >= 0.90 mean`, 0.8980. This is the check's
   unweighted proxy. The true union, area-weighted, is 0.9405. Every other bridge assertion passes,
-  including apportioned tree loss reconciling to the ungrouped total. Filed as #BRIDGE.
+  including apportioned tree loss reconciling to the ungrouped total. Filed as #139.
+
+## Habitat join (2026-10-18)
+
+`habitat_join-query.R <wsg>` for each group, on flooded 0.8.2 (`fl_valley_join()`), run sequentially from 2026-10-18 01:30 UTC. Each run wrote its own log, `scripts/floodplain_lcc/logs/20261018_habitat_join-query_<wsg>.md`, and this table is parsed from those. Habitat flags come from each group's `habitat_link` (model `link:fresh`), and segment geometry from the live schema, matched on (blue_line_key, downstream_route_measure). "Missing" and "extra" are floodplain cells the attribution layer lacks or adds; "unmatched" counts habitat rows with no segment at that position, per species (the same in every species).
+
+| wsg | floodplain cells | missing | extra | species | habitat rows | rows = segments = matched | unmatched | blue lines without segments |
+|---|---|---|---|---|---|---|---|---|
+| PCEA | 937049 | 0 | 0 | bt | 106079 | yes | 0 | 0 |
+| PARS | 621602 | 0 | 0 | bt | 97534 | yes | 0 | 0 |
+| PINE | 543192 | 0 | 0 | bt | 113305 | yes | 0 | 0 |
+
+Every floodplain cell is attributed in all three groups, and every habitat row matches a `fresh.streams` segment.
