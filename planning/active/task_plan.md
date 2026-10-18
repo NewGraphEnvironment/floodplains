@@ -107,11 +107,11 @@ What exploration found, which shaped the phases:
   - the outside share as INFO.
 
 ## Phase 6: Provenance outputs edit
-- [ ] `fp_prov_set_outputs(cfg, "landcover", key, outputs, repair)`: edits `outputs` and
+- [x] `fp_prov_set_outputs(cfg, "landcover", key, outputs, repair)`: edits `outputs` and
   `outputs_hash` in place and appends to `run.repairs`, with `previous_datetime_utc` equal to the
   unchanged stamp. The file is verified on disk, and the original bytes are restored if anything
   else moved.
-- [ ] `provenance-check.R` offline arms, mirroring the restamp ones.
+- [x] `provenance-check.R` offline arms, mirroring the restamp ones.
 
 ## Phase 7: Backfill script
 - [ ] `scripts/floodplain_lcc/gpkg_backfill-split.R <area>` (`DRY=1` previews only, `FORCE=1`

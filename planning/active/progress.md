@@ -40,3 +40,9 @@
   bound is now two-sided |rel| < 1% on in_wsg cells against in_wsg patches, with a whole-footprint
   comparison beside it and the outside share as INFO. A layer that predates #53 keeps the old
   one-sided check. 4 new offline arms.
+- Phase 6: `fp_prov_set_outputs(cfg, key, update, repair)`. Only outputs, outputs_hash and
+  run.repairs move. The recorded outputs_hash must first re-derive from the round-tripped outputs
+  (true on DUNC's live record), an unknown field is refused, a no-op writes nothing, and a disk
+  comparison restores the original bytes on any other change. provenance-check.R §5g2 has 9 arms,
+  including a mutant that edits `inputs` and is caught with the file restored. The `wsg` signature
+  is (cfg, key, update, repair): landcover is the only section it repairs.

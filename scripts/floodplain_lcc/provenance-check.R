@@ -1777,6 +1777,66 @@ local({
   unlink(cfg$dir_out, recursive = TRUE)
 })
 
+# --- 5g2. An in-place repair of a landcover entry's outputs (#53) -------------------------------
+# gpkg_backfill-split.R adds the outside patch pieces, so outputs.transition_patches moves while the
+# rasters and every input stay the step-3 run's. fp_prov_set_outputs() moves outputs, outputs_hash
+# and run.repairs and nothing else, verified on disk.
+cat("\n5g2. Repairing a landcover entry's outputs in place (#53)\n")
+local({
+  cfg <- fixture_cfg()
+  g <- good_prov()
+  g$landcover$co_ff04$outputs <- list(transition_content_sha256 = "sha256:01", transition_patches = 10L,
+                                      transition_raster = "transition.tif")
+  g$landcover$co_ff04$outputs_hash <- fp_prov_hash(g$landcover$co_ff04$outputs)
+  g$landcover$co_ff04$run$datetime_utc <- "2026-09-01T00:00:00Z"
+  fp_prov_write(cfg, g)
+  read <- function() fp_prov_read(cfg)
+  md5 <- function() unname(tools::md5sum(fp_prov_path(cfg)))
+  sans <- function(p) { e <- p$landcover$co_ff04; e$outputs <- NULL; e$outputs_hash <- NULL
+                        e$run$repairs <- NULL; p$landcover$co_ff04 <- e; p }
+  p0 <- read()
+  rep <- list(kind = "wsg_split", issue = 53L)
+  suppressMessages(fp_prov_set_outputs(cfg, "co_ff04", list(transition_patches = 12L), rep))
+  p1 <- read(); e1 <- p1$landcover$co_ff04
+  check(identical(e1$outputs$transition_patches, 12L) &&
+          identical(e1$outputs_hash, fp_prov_hash(e1$outputs)) &&
+          !identical(e1$outputs_hash, p0$landcover$co_ff04$outputs_hash),
+        "the outputs field moves and outputs_hash is re-derived from the new outputs")
+  r <- e1$run$repairs
+  check(length(r) == 1 && identical(r[[1]]$kind, "wsg_split") &&
+          identical(r[[1]]$previous_outputs$transition_patches, 10L) &&
+          identical(r[[1]]$previous_datetime_utc, "2026-09-01T00:00:00Z") &&
+          identical(e1$run$datetime_utc, "2026-09-01T00:00:00Z"),
+        "the repair is recorded with the value it replaced; run$datetime_utc (the rasters' time) stays")
+  check(identical(sans(p0), sans(p1)),
+        "everything outside outputs, outputs_hash and run.repairs is unchanged (inputs_hash among it)")
+  m <- md5()
+  suppressMessages(fp_prov_set_outputs(cfg, "co_ff04", list(transition_patches = 12L), rep))
+  check(identical(m, md5()) && length(read()$landcover$co_ff04$run$repairs) == 1,
+        "an update that changes nothing writes nothing and records no repair (idempotent)")
+  refuses <- function(expr, why) {
+    m <- md5()
+    hit <- tryCatch({ suppressMessages(force(expr)); FALSE }, error = function(e) grepl(why, conditionMessage(e)))
+    isTRUE(hit) && identical(m, md5())
+  }
+  check(refuses(fp_prov_set_outputs(cfg, "co_ff04", list(transition_pieces = 1L), rep), "has no"),
+        "must-fail: a field outputs does not have is refused and nothing is written")
+  check(refuses(fp_prov_set_outputs(cfg, "ch_ff06", list(transition_patches = 1L), rep), "no landcover"),
+        "must-fail: a missing entry is refused")
+  bad <- read(); bad$landcover$co_ff04$outputs_hash <- "sha256:stale"; fp_prov_write(cfg, bad)
+  check(refuses(fp_prov_set_outputs(cfg, "co_ff04", list(transition_patches = 13L), rep), "re-derive"),
+        "must-fail: an outputs_hash that does not re-derive from its outputs is refused")
+  fp_prov_write(cfg, p1)
+  mutant <- fp_prov_set_outputs
+  src <- paste(deparse(body(mutant)), collapse = "\n")
+  check(grepl("fp_prov_write(cfg, upd)", src, fixed = TRUE), "premise: the mutation site exists in fp_prov_set_outputs()")
+  body(mutant) <- parse(text = sub("fp_prov_write(cfg, upd)",
+    "{ upd$landcover[[key]]$inputs$years <- list(1999L); fp_prov_write(cfg, upd) }", src, fixed = TRUE))[[1]]
+  check(refuses(mutant(cfg, "co_ff04", list(transition_patches = 14L), rep), "restored"),
+        "must-fail: a repair that also moves `inputs` IS caught on disk and the file restored")
+  unlink(cfg$dir_out, recursive = TRUE)
+})
+
 # fp_prov_reconcile_late(): what raster_strip-tags.R runs. Real rasters this time, because the
 # re-stamp is conditional on each late file re-deriving to its recorded content digest.
 if (requireNamespace("terra", quietly = TRUE)) local({
