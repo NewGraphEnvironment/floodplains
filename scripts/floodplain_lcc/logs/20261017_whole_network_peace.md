@@ -44,8 +44,9 @@ were read) flagged PCEA at 41.7% of its floodplain outside the group polygon. Th
 - 83.6% of PCEA's `all_ff04` lies on reservoir or large lakes (FWA manmade waterbodies plus lakes over
   1,000 ha, by cell centre). Its ff02 / ff04 / ff06 areas are nearly flat (840 / 843 / 847 km²),
   because a reservoir floods whatever the factor.
-- The outside share lies in PARA (Parsnip Arm) and FINA (Finlay Arm), the other arms of Williston,
-  which is a single FWA polygon. No region lists either group.
+- The outside share lies in PARA (Parsnip Arm) and FINA (Finlay Arm), the other arms of Williston.
+  FWA holds Williston in `fwa_lakes_poly` as three polygons, one per group, sharing one
+  `waterbody_key` (corrected 2026-10-18: this said one polygon). No region lists either group.
 - **This predates whole mode.** The retired `bt_ff04` was 92.1% reservoir and 58.4% outside.
 - The land cover is not double-counted: change cells inside the polygon equal the patch total
   (754.4 ha).
