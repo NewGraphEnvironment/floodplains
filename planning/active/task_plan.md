@@ -48,14 +48,14 @@ What exploration found, which shaped the phases:
   AOI's WKB, so each area's next step 3 run misses the cache once.
 
 ## Phase 1: Split helpers + offline check
-- [ ] `scripts/floodplain_lcc/fp_wsg.R` with three helpers:
+- [x] `scripts/floodplain_lcc/fp_wsg.R` with three helpers:
   - `fp_wsg_polygon(cfg, conn = NULL)`: a whole-WSG area reads `subbasins.gpkg` (one row, checked
     against `watershed_group`). A subset area reads `fp_wsg_subbasin()` from the DB.
   - `fp_wsg_split(x, wsg_poly)`: each row becomes `in_wsg` TRUE/FALSE pieces. Every column is kept,
     zero-area pieces are dropped, and polygons are extracted from GEOMETRYCOLLECTION.
   - `fp_zone_split(patches, zones, zone_col)`: drift's own intersection, plus the remainder with an
     NA zone.
-- [ ] `wsg_split-check.R` (offline, hand-built fixtures). Asserted, each with a must-fail arm:
+- [x] `wsg_split-check.R` (offline, hand-built fixtures). Asserted, each with a must-fail arm:
   - pieces conserve each row's area;
   - inside pieces are identical to `st_intersection`;
   - a straddling patch keeps one `patch_id` across two rows;
