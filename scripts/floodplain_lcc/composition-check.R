@@ -127,6 +127,19 @@ ok("summary: ALR = ALR cells inside the floodplain (3), change in ALR = 2 of 3 c
      isTRUE(all.equal(sm$change_in_alr_share, 2 / 3)))
 ok("summary: in_floodplain is the denominator, never itself a reported overlay",
    is.null(sm$floodplain_share) && is.null(sm$change_in_floodplain_ha))
+# in_wsg (#53): cells 1-8 are the item's own group, so the ring row (13-16) and cells 9-12 are outside.
+WSG <- 1:8
+compw <- fp_composition(grid(F), grid(T), grid(TR),
+                        c(list(floodplain = grid(ind(FPC)), wsg = grid(ind(WSG))), ov), classes)
+smw <- fp_composition_summary(compw)
+ok("summary: the floodplain inside the group is in_floodplain & in_wsg (8 cells), outside 4",
+   isTRUE(all.equal(smw$wsg_ha, 0.08)) && isTRUE(all.equal(smw$outside_wsg_ha, 0.04)))
+ok("summary: an overlay restricted to the group counts only cells in both (ALR 2, 3, 7 -> 3; wetland 3 -> 1)",
+   isTRUE(all.equal(smw$alr_in_wsg_ha, 0.03)) && isTRUE(all.equal(smw$wetland_in_wsg_ha, 0.01)))
+ok("summary: change in an overlay inside the group (ALR change cells 2, 7 are both in it)",
+   isTRUE(all.equal(smw$change_in_alr_in_wsg_ha, 0.02)))
+ok("must-fail arm: with no in_wsg column there are no *_in_wsg fields", is.null(sm$alr_in_wsg_ha) &&
+     is.null(sm$outside_wsg_ha))
 
 # digest
 d1 <- fp_composition_digest(comp)
@@ -165,18 +178,35 @@ if (is.na(a[1])) {
     ok("in_floodplain present (the population shares of the floodplain use)", "in_floodplain" %in% in_cols)
     fpc <- comp$in_floodplain %in% TRUE
 
-    # (1) change == the transition layer, an independent vectorisation of the same cells. ONE-SIDED:
-    # step 3 intersects the patches with the sub-basins and recomputes their area, so change cells the
-    # sub-basin boundary clips lose area on the patch side and never on this one. Measured 2026-10-02:
-    # NECR +0.37%, BULK +0.34% (one sub-basin each), neexdzii +0.29% (13 sub-basins).
+    # (1) change == the transition layer, an independent vectorisation of the same cells.
     tr <- sf::st_read(gpkg, tlyr, quiet = TRUE, promote_to_multi = FALSE)
     v_ha <- sum(tr$area_ha); c_ha <- sum(comp$ha[chg])
     rel <- (c_ha - v_ha) / v_ha
-    ok("change ha >= the transition layer's sum(area_ha), by under 1% (sub-basin clipping only)",
-       rel >= -1e-6 && rel < 0.01, sprintf("cells %.1f ha vs patches %.1f ha, %+.2f%%", c_ha, v_ha, 100 * rel))
+    if ("in_wsg" %in% in_cols && "in_wsg" %in% names(tr)) {
+      # Since #53 the patches are unclipped and split along the group line, as the table is, so both
+      # populations are compared on the item's own ground -- TWO-SIDED, because the two sides of the
+      # line differ only by the cell-centre rule (half a cell along the line), which can go either way.
+      # The bound used to be one-sided and fail on every whole-network group (+1.1% to +7.8%, PCEA
+      # +225%): the patches were clipped to the sub-basin, the cells were not.
+      w_c <- sum(comp$ha[chg & comp$in_wsg]); w_v <- sum(tr$area_ha[tr$in_wsg])
+      rw <- (w_c - w_v) / w_v
+      ok("in_wsg change ha agrees with the in_wsg patches within 1% (both split at the group line)",
+         abs(rw) < 0.01, sprintf("cells %.1f ha vs patches %.1f ha, %+.2f%%", w_c, w_v, 100 * rw))
+      ok("the whole footprint's change agrees with all the patches within 1% (nothing clipped)",
+         abs(rel) < 0.01, sprintf("cells %.1f ha vs patches %.1f ha, %+.2f%%", c_ha, v_ha, 100 * rel))
+      message(sprintf("  INFO  outside %s: %.1f ha of change cells (%.2f%%), %.1f ha of floodplain cells (%.2f%%)",
+                      acfg$watershed_group, c_ha - w_c, 100 * (c_ha - w_c) / c_ha,
+                      sum(comp$ha[fpc & !comp$in_wsg]), 100 * sum(comp$ha[fpc & !comp$in_wsg]) / sum(comp$ha[fpc])))
+    } else {
+      # Before #53 (forward-only): ONE-SIDED, because step 3 clipped the patches to the sub-basins and
+      # the table kept the cells. Measured 2026-10-02: NECR +0.37%, BULK +0.34%, neexdzii +0.29%.
+      message("  INFO  no in_wsg on the table or the patches -- predates #53; run gpkg_backfill-split.R")
+      ok("change ha >= the transition layer's sum(area_ha), by under 1% (sub-basin clipping only)",
+         rel >= -1e-6 && rel < 0.01, sprintf("cells %.1f ha vs patches %.1f ha, %+.2f%%", c_ha, v_ha, 100 * rel))
+    }
     # The vector floodplain against in_floodplain: the cell-centre rule, measured on the area itself.
     fp  <- sf::st_read(file.path(dir, "floodplain.gpkg"), layer = scen, quiet = TRUE)
-    fpv <- sum(as.numeric(sf::st_area(fp))) / 1e4
+    fpv <- sum(as.numeric(sf::st_area(fp))) / 1e4   # split pieces are disjoint, so a sum is the whole (#53)
     ok("in_floodplain ha agrees with the vector floodplain area within 1%",
        abs(sum(comp$ha[fpc]) - fpv) / fpv < 0.01, sprintf("cells %.1f ha vs vector %.1f ha", sum(comp$ha[fpc]), fpv))
 

@@ -34,3 +34,9 @@
   disturbance-check.R: 9 new arms. Three restored defects turn 2, 1 and 2 assertions red.
   Names `wsg`/`floodplain` are reserved. disturbance-check's live loop treats an empty in_open_water
   as legitimate, as it does in_alr, with the composition as the arbiter.
+- Phase 5: the composition carries `in_wsg` (cell centre in the group polygon). The sibling's
+  `inputs.wsg_polygon` records the polygon's source and its WKB sha256. The summary gains
+  `outside_wsg_ha` and `<overlay>_in_wsg_ha` / `change_in_<overlay>_in_wsg_ha`. composition-check.R's
+  bound is now two-sided |rel| < 1% on in_wsg cells against in_wsg patches, with a whole-footprint
+  comparison beside it and the outside share as INFO. A layer that predates #53 keeps the old
+  one-sided check. 4 new offline arms.

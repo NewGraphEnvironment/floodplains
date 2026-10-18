@@ -36,6 +36,8 @@
 #                       NECR's IO change. Kept as its own status so the table still sums to the
 #                       footprint and "change" still equals the transition layer.
 #               nodata  an endpoint is NA (IO had no label). Zero on NECR; kept so nothing is dropped.
+#   in_wsg      the cell CENTRE lies in the item's own watershed group polygon (#53); the vector layers
+#               are split along the same line, so in_wsg totals are the item's own ground.
 #   in_<name>   (context) the cell CENTRE lies in a `context:` polygon (fp_rast_cells, touches = FALSE), the
 #               accuracy module's rule. in_wetland is the FWA polygon; IO's Flooded Vegetation is
 #               visible through the class columns, so either wetland definition is a sum.
@@ -137,6 +139,17 @@ fp_composition_summary <- function(comp) {
     out[[paste0("change_in_", n, "_ha")]]    <- ha(chg & inn)
     out[[paste0("change_in_", n, "_share")]] <- ha(chg & inn) / out$change_ha
   }
+  # The item's own ground (#53). wsg_ha above is the floodplain inside the group; each other overlay
+  # restricted to it is what a regional total sums -- "floodplain area, and of which open water" (#138)
+  # -- because under in_wsg items are disjoint.
+  if ("in_wsg" %in% names(comp)) {
+    w <- comp$in_wsg
+    out$outside_wsg_ha <- ha(fpc & !w)
+    for (n in setdiff(sub("^in_", "", grep("^in_", names(comp), value = TRUE)), c("floodplain", "wsg"))) {
+      out[[paste0(n, "_in_wsg_ha")]]        <- ha(fpc & w & comp[[paste0("in_", n)]])
+      out[[paste0("change_in_", n, "_in_wsg_ha")]] <- ha(chg & w & comp[[paste0("in_", n)]])
+    }
+  }
   out
 }
 
@@ -170,7 +183,8 @@ fp_composition_digest <- function(comp) {
 #' every area that gained one.
 #'
 #' cfg needs dir_out, change_interval, watershed_group, species and context_overlays (the
-#' config/disturbance.yml `context:` list). A DB connection is opened only when context is configured.
+#' config/disturbance.yml `context:` list). A DB connection is opened only when context is configured,
+#' or when a subset area's group polygon has to be read (fp_wsg_polygon).
 fp_composition_build <- function(cfg, scenario_id, conn = NULL) {
   # EVERY refusal before any computation or write. A guard that fires after the st_write below leaves
   # a table nobody vouches for in a gpkg the publisher copies whole -- and on an area with no
@@ -232,6 +246,15 @@ fp_composition_build <- function(cfg, scenario_id, conn = NULL) {
   fp <- sf::st_read(file.path(cfg$dir_out, "floodplain.gpkg"), layer = scenario_id, quiet = TRUE)
   fp <- sf::st_transform(fp, terra::crs(fr$r))
   overlays <- list(floodplain = fp_rast_cells(fp, fr$r)); ov_rec <- list()
+  # in_wsg (#53): the cell CENTRE lies in the item's own watershed group, the same rule as every other
+  # overlay. The vector layers are split along the same polygon, so a total filtered to in_wsg means
+  # the same ground in both, and items are disjoint under it (group polygons tile BC).
+  wsg_poly <- fp_wsg_polygon(cfg, conn)
+  overlays$wsg <- fp_rast_cells(sf::st_transform(wsg_poly, sf::st_crs(fp)), fr$r)
+  wsg_g <- sf::st_geometry(sf::st_transform(wsg_poly, 3005))
+  wsg_rec <- list(source = if (isTRUE(attr(wsg_poly, "zones_are_wsg"))) "subbasins.gpkg" else
+                    "whse_basemapping.fwa_watershed_groups_poly",
+                  wkb_sha256 = digest::digest(sf::st_as_binary(wsg_g, endian = "little"), algo = "sha256"))
   if (length(ctx)) {
     if (is.null(conn)) {
       conn <- DBI::dbConnect(RPostgres::Postgres())
@@ -286,6 +309,7 @@ fp_composition_build <- function(cfg, scenario_id, conn = NULL) {
       transition_content_sha256 = tr_sha,
       membership                = "cell_centre",
       population                = "either_endpoint",
+      wsg_polygon               = wsg_rec,
       overlays                  = ov_rec),
     outputs = list(
       layer                 = lyr,

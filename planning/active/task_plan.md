@@ -95,11 +95,11 @@ What exploration found, which shaped the phases:
   - the alias does not collide with wetland's carry.
 
 ## Phase 5: Composition `in_wsg` + the bound
-- [ ] `fp_composition_build`: add an `in_wsg` overlay from `fp_wsg_polygon()` (cell centre). The
+- [x] `fp_composition_build`: add an `in_wsg` overlay from `fp_wsg_polygon()` (cell centre). The
   sibling `inputs` records the polygon source and a digest of its key.
-- [ ] `fp_composition_summary`: headline fields over `in_floodplain & in_wsg`: the floodplain area,
+- [x] `fp_composition_summary`: headline fields over `in_floodplain & in_wsg`: the floodplain area,
   and of which open water.
-- [ ] `composition-check.R`:
+- [x] `composition-check.R`:
   - an offline `in_wsg` fixture arm;
   - the live bound becomes two-sided |rel| < 1%, comparing `in_wsg` change cells with `in_wsg`
     patches;
