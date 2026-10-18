@@ -28,3 +28,9 @@
     a re-tag. disturbance-check.R's core-columns assertion already excludes only tag columns, so with
     in_wsg in FP_PATCH_CORE it passes on split layers and fails on unsplit ones, which is correct.
   - Entry names `wsg` and `floodplain` are reserved (their in_ columns belong to other writers).
+- Phase 4: `open_water` context overlay over fwa_lakes_poly + fwa_manmade_waterbodies_poly, carried as
+  `open_water_poly_id`. A context entry may list tables, and the query becomes a UNION ALL. A one-table
+  query is unchanged. Live fetch over PCEA's floodplain: 2,038 polygons, ids unique.
+  disturbance-check.R: 9 new arms. Three restored defects turn 2, 1 and 2 assertions red.
+  Names `wsg`/`floodplain` are reserved. disturbance-check's live loop treats an empty in_open_water
+  as legitimate, as it does in_alr, with the composition as the arbiter.

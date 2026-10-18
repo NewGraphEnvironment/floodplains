@@ -82,13 +82,13 @@ What exploration found, which shaped the phases:
 - [x] `fire_tag.R` keeps `in_wsg` through a re-tag.
 
 ## Phase 4: `in_open_water` context overlay (#138)
-- [ ] `fp_disturbance_validate()`: a `context:` entry's `table` may be a list of tables sharing
+- [x] `fp_disturbance_validate()`: a `context:` entry's `table` may be a list of tables sharing
   `geom_col` and the carry columns. A list given to `sources:` or `lookback:` is refused.
-- [ ] `.dst_query()` emits `UNION ALL` over the tables.
-- [ ] `fp_composition_build` records every table and each table's COMMENT.
-- [ ] `config/disturbance.yml`: add `open_water` over `fwa_lakes_poly` + `fwa_manmade_waterbodies_poly`,
+- [x] `.dst_query()` emits `UNION ALL` over the tables.
+- [x] `fp_composition_build` records every table and each table's COMMENT.
+- [x] `config/disturbance.yml`: add `open_water` over `fwa_lakes_poly` + `fwa_manmade_waterbodies_poly`,
   `carry: {waterbody_poly_id: open_water_poly_id}`, no size cut-off.
-- [ ] `disturbance-check.R` offline arms:
+- [x] `disturbance-check.R` offline arms:
   - the multi-table SQL;
   - an empty table list is refused;
   - a list under `sources:` is refused;

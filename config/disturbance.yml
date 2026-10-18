@@ -73,6 +73,19 @@ context:
     # Present-day boundary, so it says where change sat, never why it happened -- context, not a cause.
     # Key only: the ALR's own area must never reach a patch, and `in_alr` is ANY-TOUCH -- an area
     # "in the ALR" is read from the composition table (cell-level), never summed off this flag.
+  - name: open_water
+    table: [whse_basemapping.fwa_lakes_poly, whse_basemapping.fwa_manmade_waterbodies_poly]
+    geom_col: geom
+    carry: {waterbody_poly_id: open_water_poly_id}
+    # Open water (#138): every FWA lake and manmade waterbody polygon, NO size cut-off -- a small lake
+    # is no more a valley floor than Williston is. ONE flag, not lake/reservoir: FWA files a dammed
+    # lake as a lake (Williston is in fwa_lakes_poly; PCEA has no manmade polygons at all), so a
+    # reservoir flag would miss the reservoir #138 is about. Dam reservoirs are a lookup by id.
+    # The two tables do not overlap (0 ha over BULK, MORR, PCEA, KOTL, NECR, PARA, FINA, 2026-10-18),
+    # and FWA's waterbody polygons tile, so no cell is both open water and wetland.
+    # ALIASED: wetland already carries waterbody_poly_id, and two entries cannot write one column.
+    # Size is a query (join the id to its area); never carry `area_ha`, which the patch has.
+    # Rivers are NOT flagged: the channel is part of the floodplain in this model.
 
 lookback:
   - name: fire_prior

@@ -252,11 +252,19 @@ fp_composition_build <- function(cfg, scenario_id, conn = NULL) {
       overlays[[s$name]] <- fp_rast_cells(p, fr$r)
       # The table's COMMENT is how a frozen snapshot says which one it is (scripts/fwapg/alr_load.sh).
       # NA, not a guess, for a table nobody stamped (fwa_wetlands_poly).
-      cm <- DBI::dbGetQuery(conn, "SELECT obj_description(to_regclass($1), 'pg_class') AS c",
-                            params = list(s$table))$c
+      # One comment per table: an overlay may read several (#138's open water), and each is stamped
+      # (or not) on its own.
+      cm <- vapply(unlist(s$table), function(tb) {
+        x <- DBI::dbGetQuery(conn, "SELECT obj_description(to_regclass($1), 'pg_class') AS c",
+                             params = list(tb))$c
+        if (length(x) && !is.na(x)) x else NA_character_
+      }, character(1), USE.NAMES = FALSE)
       # The keys digest because only the ALR carries a snapshot comment: without it an FWA wetland
-      # reload could change this table and move no input.
-      ov_rec[[s$name]] <- list(table = s$table, snapshot = if (length(cm) && !is.na(cm)) cm else NA_character_,
+      # reload could change this table and move no input. A one-table overlay records scalars, as
+      # before; a several-table one records the lists in table order.
+      one <- length(cm) == 1L
+      ov_rec[[s$name]] <- list(table = if (one) s$table else I(unlist(s$table)),
+                               snapshot = if (one) cm else I(cm),
                                bbox_features = nrow(p0), keys_sha256 = kdig)
     }
   }
