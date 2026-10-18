@@ -25,9 +25,10 @@
 # silently -- FORCE=1 writes anyway, as fire_tag.R's does. Context and lookback columns may move
 # (in_open_water is new; a context table reloaded is reported).
 #
-# IDEMPOTENT BY STATE: a layer already carrying in_wsg is left alone, the composition is rebuilt only
-# when it lacks in_wsg or a configured context column, and the patch count is set from the layer on
-# disk -- so a run killed half way is finished by running it again.
+# IDEMPOTENT BY STATE: a layer already carrying in_wsg is left alone, the composition is rebuilt unless
+# it has every column and its record re-derives from it, and the patch count is set from the layer on
+# disk. A run killed half way is finished by running it again with the SAME BACKUP dir -- after one
+# read-write open of a gpkg it left a hot journal on (the refusal says how).
 #
 # DRY=1 runs every check and writes nothing. A write run needs BACKUP=<dir>: the three files are
 # copied to <dir>/<area>/ first (to .part, md5-checked, renamed), and an existing backup is never
@@ -104,19 +105,48 @@ plan <- list()   # name -> list(gpkg, layer, value) for the vector writes
 # source with a SQLite sidecar is refused: a byte copy of it is not a snapshot (code-check-spatial.md).
 # A DRY run makes no backup and reads the live files, which it does not change.
 sidecars <- function(f) f[file.exists(paste0(f, "-journal")) | file.exists(paste0(f, "-wal")) | file.exists(paste0(f, "-shm"))]
+# A killed write leaves a HOT journal. Deleting it corrupts the file; one read-write open rolls the
+# interrupted write back (code-check round 4), after which the layer is either its old self or absent,
+# and this script finishes the job.
 if (length(sc <- sidecars(c(fpg, lcg))))
   stop(paste(basename(sc), collapse = ", "), " has a SQLite sidecar (-journal/-wal/-shm): a write was ",
-       "interrupted or is in progress. Recover or close it before backfilling.", call. = FALSE)
+       "interrupted or is in progress. If nothing is writing it, roll it back with ONE read-write open -- ",
+       "`sqlite3 <file> 'pragma quick_check'` -- never by deleting the sidecar; then run this again.",
+       call. = FALSE)
+# The backup must be the PRE-SPLIT predecessor of the live files (code-check round 4): taken before any
+# layer here carried in_wsg, and from the same step-2 and step-3 runs as the live files. A copy taken
+# from a half-split live file (an interrupted run, re-run under a new BACKUP dir) would silently drop
+# the layer that run lost from the work list; a backup from before a step 2 or 3 re-run would put an
+# old layer back. Both are refused.
+split_any <- function(g) {
+  l <- grep(sprintf("^(%s_ff[0-9]+(_by_.+)?|classified_%s_[0-9]{4}|transition_%s_[0-9]{4}_[0-9]{4})$", sp, scen, scen),
+            sf::st_layers(g)$name, value = TRUE)
+  l[vapply(l, function(x) has_col(g, x, "in_wsg"), logical(1))]
+}
+same_runs <- function(bk_prov) {
+  a <- jsonlite::read_json(bk_prov, simplifyVector = FALSE); b <- jsonlite::read_json(prov_path, simplifyVector = FALSE)
+  identical(a[["floodplain"]], b[["floodplain"]]) &&
+    identical(a[["landcover"]][[scen]][["inputs"]], b[["landcover"]][[scen]][["inputs"]])
+}
+bk <- if (nzchar(bk_root)) file.path(bk_root, area) else NA_character_
 if (dry) {
-  src_fpg <- fpg; src_lcg <- lcg
+  # The SAME work list a write run would use: the backup when there is one, else the live files.
+  have_bk <- !is.na(bk) && all(file.exists(file.path(bk, basename(c(fpg, lcg, prov_path)))))
+  src_fpg <- if (have_bk) file.path(bk, "floodplain.gpkg") else fpg
+  src_lcg <- if (have_bk) file.path(bk, "floodplain_landcover.gpkg") else lcg
 } else {
-  bk <- file.path(bk_root, area); dir.create(bk, recursive = TRUE, showWarnings = FALSE)
+  dir.create(bk, recursive = TRUE, showWarnings = FALSE)
   for (f in c(fpg, lcg, prov_path)) {
     dest <- file.path(bk, basename(f))
     if (file.exists(dest)) { message("  backup kept: ", dest); next }
     part <- paste0(dest, ".part"); unlink(part)
     if (!file.copy(f, part, copy.date = TRUE)) stop("backup failed: ", part, call. = FALSE)
     if (!identical(unname(tools::md5sum(f)), unname(tools::md5sum(part)))) stop("backup differs: ", part, call. = FALSE)
+    if (grepl("\\.gpkg$", f) && length(sp_l <- split_any(part))) {
+      unlink(part)
+      stop(basename(f), " already has split layers (", paste(sp_l, collapse = ", "), "), so a backup of it ",
+           "now is not the pre-split one. Use the BACKUP dir the first run used.", call. = FALSE)
+    }
     if (!file.rename(part, dest)) stop("backup could not be moved into place: ", dest, call. = FALSE)
   }
   message("  backup: ", bk)
@@ -124,7 +154,19 @@ if (dry) {
   if (length(sc <- sidecars(c(src_fpg, src_lcg))))
     stop(paste(sc, collapse = ", "), " (the backup) has a SQLite sidecar; something opened it for writing", call. = FALSE)
 }
+if (!identical(src_fpg, fpg)) {
+  if (length(sp_l <- c(split_any(src_fpg), split_any(src_lcg))))
+    stop("the backup in ", bk, " already has split layers (", paste(sp_l, collapse = ", "), ") -- it is not ",
+         "the pre-split copy", call. = FALSE)
+  if (!same_runs(file.path(bk, "provenance.json")))
+    stop("the backup in ", bk, " is from different step-2 or step-3 runs than the live files (its ",
+         "floodplain section or landcover[", scen, "].inputs differ): a step re-ran since. Re-backfill ",
+         "with a fresh BACKUP dir.", call. = FALSE)
+}
 live_has <- function(g, l) l %in% sf::st_layers(g)$name
+# The input for a layer: the LIVE layer while it exists (it is what a step last wrote), the backup's
+# only when the live file has lost it -- which the checks above confine to an interrupted run of this.
+input_of <- function(live_g, src_g, l) if (live_has(live_g, l)) live_g else src_g
 
 # ---- 1. floodplain.gpkg + classified layers: split -------------------------------------------
 split_lyrs <- c(
@@ -135,7 +177,7 @@ for (gl in split_lyrs) {
   g <- file.path(dd, dirname(gl)); l <- basename(gl)
   if (live_has(g, l) && has_col(g, l, "in_wsg")) { message(sprintf("  %-40s already split", l)); next }
   if (!live_has(g, l)) message(sprintf("  %-40s MISSING from the live file -- re-split from the backup", l))
-  x <- sf::st_read(src_of(gl), layer = l, quiet = TRUE, promote_to_multi = FALSE)
+  x <- sf::st_read(input_of(g, src_of(gl), l), layer = l, quiet = TRUE, promote_to_multi = FALSE)
   if ("in_wsg" %in% names(x)) stop(l, ": the source copy is already split -- the backup is not the pre-split one", call. = FALSE)
   y <- fp_wsg_split(x, wsg_poly)
   rel <- abs(area_m2(y) - area_m2(x)) / area_m2(x)
@@ -151,7 +193,7 @@ do_trans <- trans_expected && !(live_has(lcg, tlyr) && has_col(lcg, tlyr, "in_ws
 if (do_trans) {
   if (!file.exists(ttif)) stop("no ", ttif, " to re-vectorise", call. = FALSE)
   if (!live_has(lcg, tlyr)) message(sprintf("  %-40s MISSING from the live file -- rebuilt against the backup", tlyr))
-  old <- sf::st_read(src_lcg, layer = tlyr, quiet = TRUE, promote_to_multi = FALSE)
+  old <- sf::st_read(input_of(lcg, src_lcg, tlyr), layer = tlyr, quiet = TRUE, promote_to_multi = FALSE)
   if ("in_wsg" %in% names(old)) stop(tlyr, ": the source copy is already split -- the backup is not the pre-split one", call. = FALSE)
   # The sub-basins exactly as step 3 read them -- transformed to 4326 first, then to the patch CRS --
   # because a different transform chain moves the intersection in the last digits.
@@ -228,8 +270,11 @@ message(sprintf("  %-40s %s", clyr, if (need_comp) "rebuild" else "current"))
 # and then the bridge, so a run killed between them leaves a split layer beside a pre-split bridge,
 # and deciding from the transition layer alone would never rebuild it.
 blyr <- sub("^transition_", "patch_watercourse_", tlyr)
-need_bridge <- !do_trans && !is.null(cfg$attribute_by) && trans_expected &&
-  (!live_has(lcg, blyr) || !has_col(lcg, blyr, "in_wsg"))
+# With attribute_by unset there is no bridge to build, but a pre-split one left by an interrupted run
+# must still go: fp_write_bridge() removes it (code-check round 4, enumeration row 5).
+need_bridge <- !do_trans && trans_expected &&
+  ((live_has(lcg, blyr) && !has_col(lcg, blyr, "in_wsg")) ||
+     (!is.null(cfg$attribute_by) && !live_has(lcg, blyr)))
 if (need_bridge) message(sprintf("  %-40s rebuild (the transition layer is split, the bridge is not)", blyr))
 
 # The premises of every later write, BEFORE the first one (#53 plan review O1; code-check round 1): the
