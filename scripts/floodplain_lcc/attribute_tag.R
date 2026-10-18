@@ -62,6 +62,18 @@ streams <- sf::st_read(net_gpkg, layer = streams_lyr, quiet = TRUE) |> sf::st_zm
 if (!key %in% setdiff(names(streams), attr(streams, "sf_column"))) {
   stop("attribute_by '", key, "' is not a column of ", streams_lyr, call. = FALSE)
 }
+# The transition layer the bridge will be built from, checked BEFORE the DEM fetch and the
+# attribution, and so before anything is written (code-check round 2): a layer from before the group-line split has no in_wsg to key on, and refusing
+# after the write would leave a rewritten attribution layer beside an unchanged bridge.
+t_lyr <- if (file.exists(lc_gpkg))
+  grep(paste0("^transition_", scenario, "_[0-9]{4}_[0-9]{4}$"),
+       sf::st_layers(lc_gpkg)$name, value = TRUE) else character(0)
+tp <- if (length(t_lyr)) sf::st_read(lc_gpkg, layer = t_lyr[1], quiet = TRUE, promote_to_multi = FALSE)
+if (!is.null(tp) && !"in_wsg" %in% names(tp))
+  stop(t_lyr[1], " predates the group-line split (#53). For the area's own species run ",
+       "gpkg_backfill-split.R ", area, " first; a retired species scenario is not split (#131).",
+       call. = FALSE)
+
 valleys <- terra::rast(tif)
 # The DEM fetched below comes from the installed flooded. A delineation written before flooded 0.7.0
 # sits on a grid GDAL chose (~30.4 m, not aligned), while 0.7.0 returns a 30 m grid aligned to
@@ -141,29 +153,12 @@ message("  Wrote ", attr_lyr, " (", nrow(attributed), " groups",
         if (!is.null(fb)) paste0("; ", fb, " fallback cells") else "", ")")
 
 # --- Bridge (#54), from the transition layer already on disk ---
-t_lyr <- if (file.exists(lc_gpkg))
-  grep(paste0("^transition_", scenario, "_[0-9]{4}_[0-9]{4}$"),
-       sf::st_layers(lc_gpkg)$name, value = TRUE) else character(0)
+# Written by step 3's own writer (fp_write_bridge), which also REMOVES a stale bridge when no pair
+# survives. Whether there is a usable transition layer is decided above, before anything is written.
 if (!length(t_lyr)) {
   message("  No transition layer for ", scenario, " -- bridge skipped (run step 3 to create it).")
 } else {
-  tp  <- sf::st_read(lc_gpkg, layer = t_lyr[1], quiet = TRUE)
-  if (!"in_wsg" %in% names(tp))
-    stop(t_lyr[1], " predates the group-line split (#53) -- run gpkg_backfill-split.R ", area, " first",
-         call. = FALSE)
-  # The same builder step 3 uses (fp_lulc_vectors.R), so the two bridges cannot drift apart again.
-  bridge <- fp_bridge_build(tp, attributed, key,
-                            list(wsg = cfg$watershed_group, species = sc$species, scenario = scenario))
-  b_lyr <- sub("^transition_", "patch_watercourse_", t_lyr[1])
-  if (is.null(bridge)) {
-    message("  No (patch, watercourse) pair survives the sliver filter -- bridge not written.")
-  } else {
-    u <- attr(bridge, "union_coverage")
-    attr(bridge, "union_coverage") <- NULL; attr(bridge, "unbridged") <- NULL
-    sf::st_write(bridge, lc_gpkg, layer = b_lyr,
-                 append = file.exists(lc_gpkg), delete_layer = TRUE, quiet = TRUE)
-    message("  Wrote ", b_lyr, " (", nrow(bridge), " pairs; union coverage ",
-            sprintf("%.3f", mean(u)), ")")
-  }
+  fp_write_bridge(tp, list(watershed_group = cfg$watershed_group, species = sc$species, attribute_by = key),
+                  scenario, t_lyr[1], lc_gpkg, fp_gpkg)
 }
 message("Done: ", area, "/", scenario, " -- delineation and transition layers untouched.")

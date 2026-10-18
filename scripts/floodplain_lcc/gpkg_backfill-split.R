@@ -167,11 +167,20 @@ if (do_trans) {
                   sum(new$area_ha[inb]), sum(old$area_ha)))
 } else message(sprintf("  %-40s %s", tlyr, if (tlyr %in% sf::st_layers(lcg)$name) "already split" else "absent"))
 
-need_comp <- clyr %in% sf::st_layers(lcg)$name || do_trans
-if (need_comp && clyr %in% sf::st_layers(lcg)$name) {
+# The composition is TWO writes -- the table, then its provenance sibling -- so "current" needs both
+# (code-check round 2): the columns this backfill adds, AND a sibling record whose digest and row count
+# re-derive from the table on disk. A run killed between the two leaves a complete table beside a stale
+# record, and reading the table alone would call it current forever.
+comp_current <- function() {
+  if (!clyr %in% sf::st_layers(lcg)$name) return(FALSE)
   want <- c("in_wsg", paste0("in_", vapply(cfg$context_overlays, function(s) s$name, character(1))))
-  need_comp <- do_trans || !all(vapply(want, function(c) has_col(lcg, clyr, c), logical(1)))
+  if (!all(vapply(want, function(c) has_col(lcg, clyr, c), logical(1)))) return(FALSE)
+  rec <- fp_prov_read(cfg)[["landcover"]][[scen]][["composition"]][["outputs"]]
+  tab <- sf::st_read(lcg, layer = clyr, quiet = TRUE)
+  !is.null(rec) && identical(rec[["table_content_sha256"]], fp_composition_digest(tab)) &&
+    identical(as.integer(rec[["rows"]]), nrow(tab))
 }
+need_comp <- do_trans || ((clyr %in% sf::st_layers(lcg)$name || tlyr %in% sf::st_layers(lcg)$name) && !comp_current())
 message(sprintf("  %-40s %s", clyr, if (need_comp) "rebuild" else "current"))
 
 # The bridge, decided from ITS OWN state (code-check round 1): fp_write_transition() writes the layer

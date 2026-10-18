@@ -93,11 +93,11 @@ fire_tag_main <- function(area, scenario = NA, force = FALSE) {
     own <- if ("in_wsg" %in% names(tagged)) tagged[tagged$in_wsg %in% TRUE, ] else tagged
     fp_disturbance_report(own, dst[["sources"]], area, lookback = dst[["lookback"]])
     for (s in dst[["context"]]) {
-      hit <- tagged[[paste0("in_", s[["name"]])]] %in% TRUE
+      hit <- own[[paste0("in_", s[["name"]])]] %in% TRUE
       # Patches TOUCHING the overlay, and their whole area. in_<name> is any-touch, so this is not
       # "ha in the ALR/wetland" -- that is the composition table's number (#108), counted per cell.
       cat(sprintf(" context in_%-10s: %d patches touching, %.1f ha of patch (any-touch, not an area share)\n",
-                  s[["name"]], sum(hit), sum(tagged[["area_ha"]][hit])))
+                  s[["name"]], sum(hit), sum(own[["area_ha"]][hit])))
     }
   }
   if (length(refused))

@@ -245,7 +245,8 @@ fp_disturbance_tag <- function(patches, sources, conn, window = c(2017, 2023), f
     lost <- setdiff(unlist(src[["carry"]]), names(poly))
     if (length(lost))
       .dst_refuse("`", src[["name"]], "` carries ", paste(lost, collapse = ", "), ", which ",
-                  src[["table"]], " did not return (Postgres returns lower-case names)")
+                  paste(unlist(src[["table"]]), collapse = " + "),
+                  " did not return (Postgres returns lower-case names)")
 
     patches[[in_col]] <- FALSE
     # Typed NA, taken from the fetched column (st_read keeps types on a zero-row result). A bare NA
