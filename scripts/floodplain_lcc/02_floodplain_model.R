@@ -27,7 +27,8 @@
 #   subbasins.gpkg                    (sub-basin polygons)
 #   dem_<sp><order>.tif + .json       (cached DEM and its key, #122)
 #   floodplain_<scenario_id>.tif      (raster, per scenario)
-#   floodplain.gpkg                   (one vector layer per scenario)
+#   floodplain.gpkg                   (one vector layer per scenario, split at the group line
+#                                      into in_wsg TRUE/FALSE pieces, #53)
 #
 # Called by scripts/run_area.R (step 2). cfg comes from fp_read_config().
 
@@ -84,6 +85,10 @@ fp_floodplain <- function(cfg, scenarios = "run") {
   sb_path <- file.path(out_dir, "subbasins.gpkg")
   sf::st_write(subbasins, sb_path, layer = "subbasins", delete_dsn = TRUE, quiet = TRUE)
   message("  ", nrow(subbasins), " sub-basins -> ", basename(sb_path))
+  # The group line (#53): every vector layer below is split along the watershed group polygon, each
+  # piece carrying in_wsg. A whole-WSG area's sub-basin IS that polygon, read back from the file just
+  # written; a subset area (neexdzii) reads it from fwapg on this connection.
+  wsg_poly <- fp_wsg_polygon(cfg, conn)
 
   DBI::dbDisconnect(conn)
 
@@ -266,6 +271,10 @@ fp_floodplain <- function(cfg, scenarios = "run") {
     valleys_poly$wsg      <- cfg$watershed_group
     valleys_poly$species  <- cfg$species
     valleys_poly$scenario <- sc$scenario_id
+    # Split, never clipped (#53): the delineation is whole and its parts are labelled, so a regional
+    # total filters to in_wsg and the overlap with a neighbour is a query (!in_wsg). The raster above
+    # is the whole delineation, unchanged, so outputs_hash does not move with the split.
+    valleys_poly <- fp_wsg_split(valleys_poly, wsg_poly)
     sf::st_write(valleys_poly, out_gpkg, layer = sc$scenario_id,
                  append = file.exists(out_gpkg), delete_layer = TRUE, quiet = TRUE)
     message("  Saved: ", basename(out_raster), " + layer ", sc$scenario_id, " in ", basename(out_gpkg))
@@ -371,6 +380,9 @@ fp_floodplain <- function(cfg, scenarios = "run") {
         }
       }
       attr_lyr <- paste0(sc$scenario_id, "_by_", cfg$attribute_by)
+      # Each watercourse's row becomes its inside and outside pieces (#53); a key can therefore hold
+      # two rows, which fl_valley_join() and the bridge both take (claims dedupe by cell).
+      attributed <- fp_wsg_split(attributed, wsg_poly)
       sf::st_write(attributed, out_gpkg, layer = attr_lyr,
                    append = file.exists(out_gpkg), delete_layer = TRUE, quiet = TRUE)
       # fallback_cells = valley cells no group reached within thresholds (morphological closing,

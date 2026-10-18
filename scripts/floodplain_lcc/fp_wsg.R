@@ -36,7 +36,10 @@ fp_wsg_polygon <- function(cfg, conn = NULL) {
   sb_path <- file.path(cfg$dir_out, "subbasins.gpkg")
   if (!file.exists(sb_path)) stop("no ", sb_path, " -- run step 2 first", call. = FALSE)
   sb <- sf::st_read(sb_path, quiet = TRUE)
-  whole <- nrow(sb) == 1L && "watershed_group_code" %in% names(sb) &&
+  # The schema fp_wsg_subbasin() writes, exactly, and this group's code: frs_watershed_split()'s
+  # sub-basins carry blk/drm/name_basin/..., so a one-row interior sub-basin cannot pass for the group.
+  whole <- nrow(sb) == 1L &&
+    setequal(names(sf::st_drop_geometry(sb)), c("name_basin", "watershed_group_code")) &&
     identical(as.character(sb$watershed_group_code), wsg)
   if (whole) {
     g <- sb["watershed_group_code"]

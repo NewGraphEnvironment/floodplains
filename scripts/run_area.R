@@ -187,6 +187,7 @@ fp_gpkg_pin_date()                                # #45: pin gpkg_contents.last_
 lcc_dir <- here::here("scripts", "floodplain_lcc")
 source(here::here("scripts", "publish_hint.R"))    # fp_publish_hint (advisory publish handoff)
 source(file.path(lcc_dir, "fp_region.R"))          # fp_wsg_subbasin (whole-WSG sub-basin)
+source(file.path(lcc_dir, "fp_wsg.R"))             # fp_wsg_split (the group line, #53)
 source(file.path(lcc_dir, "01_network_extract.R"))
 source(file.path(lcc_dir, "02_floodplain_model.R"))
 source(file.path(lcc_dir, "03_lulc_classify.R"))

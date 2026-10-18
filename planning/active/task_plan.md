@@ -63,9 +63,9 @@ What exploration found, which shaped the phases:
   - dropping the remainder fails conservation.
 
 ## Phase 2: Step 2 and attribute_tag.R split the floodplain layers
-- [ ] `02_floodplain_model.R`: split the `<scenario>` and `<scenario>_by_<key>` layers with
+- [x] `02_floodplain_model.R`: split the `<scenario>` and `<scenario>_by_<key>` layers with
   `in_wsg`. The raster is unchanged, so the floodplain `outputs_hash` does not move.
-- [ ] `attribute_tag.R`: the same split on the `_by_` layer it writes.
+- [x] `attribute_tag.R`: the same split on the `_by_` layer it writes.
 - [ ] Every reader of a scenario layer that expects one feature unions it first: 03's AOI, Pass 2,
   `fp_composition_build`, and the checks that read `floodplain.gpkg`.
 

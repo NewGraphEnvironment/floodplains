@@ -25,6 +25,8 @@ source(here::here("scripts", "fp_gpkg.R")); fp_gpkg_pin_date()   # #45: keep wri
 source(here::here("scripts", "fp_raster.R"))                       # fp_rast_write (the DEM cache's writer)
 source(here::here("scripts", "floodplain_lcc", "fp_provenance.R"))  # fp_raster_content_sha256, fp_toolchain
 source(here::here("scripts", "floodplain_lcc", "fp_dem.R"))         # fp_dem_cached (#122)
+source(here::here("scripts", "floodplain_lcc", "fp_region.R"))      # fp_wsg_subbasin (a subset area's group)
+source(here::here("scripts", "floodplain_lcc", "fp_wsg.R"))         # fp_wsg_split (the group line, #53)
 
 a    <- commandArgs(TRUE)
 area <- a[1]
@@ -128,6 +130,9 @@ if (!identical(key, label_col) && label_col %in% names(streams)) {
   }
 }
 attr_lyr <- paste0(scenario, "_by_", key)
+# Split at the group line, as step 2 splits it (#53): the same layer from either writer.
+attributed <- fp_wsg_split(attributed, fp_wsg_polygon(list(watershed_group = cfg$watershed_group,
+                                                           dir_out = out_dir)))
 sf::st_write(attributed, fp_gpkg, layer = attr_lyr,
              append = file.exists(fp_gpkg), delete_layer = TRUE, quiet = TRUE)
 fb <- attr(attributed, "fl_fallback_cells")
