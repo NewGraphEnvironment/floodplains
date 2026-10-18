@@ -48,8 +48,12 @@ suppressMessages({library(sf); library(dplyr)})
 # silently overwrite the patch's value -- fwa_wetlands_poly has an `area_ha`, and carrying it would
 # have replaced every wetland patch's area with the wetland's. disturbance-check.R's live section
 # asserts this set equals a real layer's non-tag columns, so it cannot drift from the writer.
-FP_PATCH_CORE <- c("patch_id", "transition", "area_ha", "name_basin", "from_class", "to_class",
+FP_PATCH_CORE <- c("patch_id", "transition", "area_ha", "name_basin", "in_wsg", "from_class", "to_class",
                    "wsg", "species", "scenario")
+# Entry names whose in_<name> another writer owns: in_wsg is the group-line split (#53, fp_wsg.R) and
+# in_floodplain the composition table's population (#108). An entry with either name would write a
+# second column of that name, or collide in fp_composition()'s overlay list.
+FP_DST_RESERVED_NAMES <- c("wsg", "floodplain")
 
 # Every key a `sources:`, `context:` or `lookback:` entry may carry. `confidence` is documentation
 # (a label). Which list may use `window` / `lookback` / `year_col` is fp_disturbance_validate()'s call.
@@ -147,6 +151,9 @@ fp_disturbance_validate <- function(dst) {
   # Case-folded, like the core clash: GeoPackage field names are case-insensitive, so `fire` and
   # `Fire` pass a case-sensitive check and abort st_write -- after the STAC fetch, not at load.
   nm <- vapply(entries, function(s) s[["name"]], character(1))
+  if (any(tolower(nm) %in% FP_DST_RESERVED_NAMES))
+    .dst_refuse("name(s) ", paste(nm[tolower(nm) %in% FP_DST_RESERVED_NAMES], collapse = ", "),
+                " are reserved: in_wsg is the group line (#53) and in_floodplain the composition's population")
   if (anyDuplicated(tolower(nm)))
     .dst_refuse("name(s) used twice: ", paste(unique(nm[duplicated(tolower(nm))]), collapse = ", "))
   carry <- unlist(lapply(entries, function(s) unlist(s[["carry"]])))

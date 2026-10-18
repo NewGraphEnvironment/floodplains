@@ -27,6 +27,7 @@ source(here::here("scripts", "floodplain_lcc", "fp_provenance.R"))  # fp_raster_
 source(here::here("scripts", "floodplain_lcc", "fp_dem.R"))         # fp_dem_cached (#122)
 source(here::here("scripts", "floodplain_lcc", "fp_region.R"))      # fp_wsg_subbasin (a subset area's group)
 source(here::here("scripts", "floodplain_lcc", "fp_wsg.R"))         # fp_wsg_split (the group line, #53)
+source(here::here("scripts", "floodplain_lcc", "fp_lulc_vectors.R")) # fp_bridge_build (shared with step 3)
 
 a    <- commandArgs(TRUE)
 area <- a[1]
@@ -147,28 +148,22 @@ if (!length(t_lyr)) {
   message("  No transition layer for ", scenario, " -- bridge skipped (run step 3 to create it).")
 } else {
   tp  <- sf::st_read(lc_gpkg, layer = t_lyr[1], quiet = TRUE)
-  # patch_id is per-SUB-BASIN, not global (see 03_lulc_classify.R). Key on the pair.
-  pat <- tp[, c("patch_id", "name_basin", "area_ha")]
-  wc  <- attributed[, key]
-  if (sf::st_crs(wc) != sf::st_crs(pat)) wc <- sf::st_transform(wc, sf::st_crs(pat))
-  inter <- suppressWarnings(sf::st_intersection(pat, wc))
-  ov <- as.numeric(sf::st_area(inter)) / 1e4
-  bridge <- data.frame(patch_id = inter$patch_id, name_basin = inter$name_basin, k = inter[[key]],
-                       overlap_ha = round(ov, 4),
-                       overlap_frac = round(pmin(1, ov / inter$area_ha), 4),
-                       wsg = cfg$watershed_group, species = sc$species, scenario = scenario,
-                       stringsAsFactors = FALSE)
-  names(bridge)[names(bridge) == "k"] <- key
-  bridge <- bridge[bridge$overlap_ha > 0, , drop = FALSE]
-  # Only apportion_weight is additive -- overlap_frac sums past 1 because the rows overlap (#54).
-  pk <- paste(bridge$name_basin, bridge$patch_id, sep = "\u00a6")
-  tot <- tapply(bridge$overlap_ha, pk, sum)
-  bridge$apportion_weight <- round(bridge$overlap_ha / tot[pk], 4)
+  if (!"in_wsg" %in% names(tp))
+    stop(t_lyr[1], " predates the group-line split (#53) -- run gpkg_backfill-split.R ", area, " first",
+         call. = FALSE)
+  # The same builder step 3 uses (fp_lulc_vectors.R), so the two bridges cannot drift apart again.
+  bridge <- fp_bridge_build(tp, attributed, key,
+                            list(wsg = cfg$watershed_group, species = sc$species, scenario = scenario))
   b_lyr <- sub("^transition_", "patch_watercourse_", t_lyr[1])
-  sf::st_write(bridge, lc_gpkg, layer = b_lyr,
-               append = file.exists(lc_gpkg), delete_layer = TRUE, quiet = TRUE)
-  u <- tapply(bridge$overlap_frac, pk, max)
-  message("  Wrote ", b_lyr, " (", nrow(bridge), " pairs; union coverage ",
-          sprintf("%.3f", mean(u)), ")")
+  if (is.null(bridge)) {
+    message("  No (patch, watercourse) pair survives the sliver filter -- bridge not written.")
+  } else {
+    u <- attr(bridge, "union_coverage")
+    attr(bridge, "union_coverage") <- NULL; attr(bridge, "unbridged") <- NULL
+    sf::st_write(bridge, lc_gpkg, layer = b_lyr,
+                 append = file.exists(lc_gpkg), delete_layer = TRUE, quiet = TRUE)
+    message("  Wrote ", b_lyr, " (", nrow(bridge), " pairs; union coverage ",
+            sprintf("%.3f", mean(u)), ")")
+  }
 }
 message("Done: ", area, "/", scenario, " -- delineation and transition layers untouched.")

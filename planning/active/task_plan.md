@@ -66,20 +66,20 @@ What exploration found, which shaped the phases:
 - [x] `02_floodplain_model.R`: split the `<scenario>` and `<scenario>_by_<key>` layers with
   `in_wsg`. The raster is unchanged, so the floodplain `outputs_hash` does not move.
 - [x] `attribute_tag.R`: the same split on the `_by_` layer it writes.
-- [ ] Every reader of a scenario layer that expects one feature unions it first: 03's AOI, Pass 2,
+- [x] Every reader of a scenario layer that expects one feature unions it first: 03's AOI, Pass 2,
   `fp_composition_build`, and the checks that read `floodplain.gpkg`.
 
 ## Phase 3: Step 3 stops clipping; one post-fetch path
-- [ ] Factor 03's post-fetch half into one function, `fp_lulc_vectors()`. It covers the classified
+- [x] Factor 03's post-fetch half into one function, `fp_lulc_vectors()`. It covers the classified
   layers, the transition patches, the tagging, the item key and the bridge. Step 3 and the backfill
   both call it.
-- [ ] Patches: `dft_transition_vectors()` with no zones, then `fp_zone_split` (name_basin), then
+- [x] Patches: `dft_transition_vectors()` with no zones, then `fp_zone_split` (name_basin), then
   `fp_wsg_split` (`in_wsg`).
-- [ ] Classified layers are split too.
-- [ ] Add `in_wsg` to `FP_PATCH_CORE`, so no carry can clobber it. Adjust `disturbance-check.R`'s
+- [x] Classified layers are split too.
+- [x] Add `in_wsg` to `FP_PATCH_CORE`, so no carry can clobber it. Adjust `disturbance-check.R`'s
   "core = the non-`in_` columns" live assertion.
-- [ ] The bridge key gains `in_wsg`, in both 03 and `attribute_tag.R`.
-- [ ] `fire_tag.R` keeps `in_wsg` through a re-tag.
+- [x] The bridge key gains `in_wsg`, in both 03 and `attribute_tag.R`.
+- [x] `fire_tag.R` keeps `in_wsg` through a re-tag.
 
 ## Phase 4: `in_open_water` context overlay (#138)
 - [ ] `fp_disturbance_validate()`: a `context:` entry's `table` may be a list of tables sharing

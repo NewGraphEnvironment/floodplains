@@ -191,6 +191,7 @@ source(file.path(lcc_dir, "fp_wsg.R"))             # fp_wsg_split (the group lin
 source(file.path(lcc_dir, "01_network_extract.R"))
 source(file.path(lcc_dir, "02_floodplain_model.R"))
 source(file.path(lcc_dir, "03_lulc_classify.R"))
+source(file.path(lcc_dir, "fp_lulc_vectors.R"))    # step 3's vector half, shared with the backfill (#53)
 source(file.path(lcc_dir, "fp_disturbance.R"))     # fp_disturbance_tag (config-driven attribution)
 source(file.path(lcc_dir, "fp_provenance.R"))      # fp_prov_set (per-area run provenance, #33)
 source(file.path(lcc_dir, "fp_dem.R"))             # fp_dem_cached (step-2 DEM cache, #122)

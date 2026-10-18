@@ -17,3 +17,14 @@
 - Readers of the scenario layer, surveyed: every one but 03's AOI sums areas, rasterises, or takes a
   bbox, so two rows change nothing there. habitat_join-query's fl_valley_join() dedupes claims by
   (cell, rank), so repeated keys are fine.
+- Phase 3: `fp_lulc_vectors.R` (fp_classified_layer, fp_transition_patches, fp_bridge_build,
+  fp_write_transition). Step 3 and attribute_tag.R share one bridge builder, keyed on
+  (name_basin, patch_id, in_wsg) and summing overlap per pair before it filters slivers.
+  03's AOI is `fp_floodplain_whole()`.
+  - **Measured on DUNC, from transition.tif on disk:** re-vectorising reproduces all 1,299 published
+    patches. patch_id, name_basin, transition and area_ha are all `identical()`, max area difference
+    0. That adds 147 outside pieces, 33.6 ha (715.0 ha inside), in 8.4 s.
+  - **No change needed** in two places. fire_tag.R builds from the layer it read, so in_wsg survives
+    a re-tag. disturbance-check.R's core-columns assertion already excludes only tag columns, so with
+    in_wsg in FP_PATCH_CORE it passes on split layers and fails on unsplit ones, which is correct.
+  - Entry names `wsg` and `floodplain` are reserved (their in_ columns belong to other writers).
