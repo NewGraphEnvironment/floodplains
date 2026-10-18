@@ -8,7 +8,10 @@ converted PCEA, PARS and PINE to `species: all` with six `all_*` rows each. The 
 and every network matched bcfp to the km (PINE 5,768 km: #76's species-network shortfall does not
 arise in whole mode). Every DEM was a cache miss and fetched in 30–42 s.
 
-The acceptance checks ran 2026-10-17 on the same toolchain. **Peak RSS was not sampled.** Wall times
+The acceptance checks ran 2026-10-17, 17:52 to 17:57 UTC, read-only on the run's outputs. They ran on
+flooded 0.8.2, installed at 11:00 UTC that day, not the run's 0.7.0. Of the five checks, only
+`dem_cache-check.R` reads the installed flooded, and it passed against 0.8.2's default; the others
+read the run's records. **Peak RSS was not sampled.** Wall times
 come from the log mtimes.
 
 

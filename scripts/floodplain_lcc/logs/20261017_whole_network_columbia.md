@@ -10,7 +10,10 @@ The region reads `fresh_default` with `network_guard` strict, and every network 
 km. #37's divergence was an access-predicate difference and does not arise without one. Every DEM was
 a cache miss and fetched in 22–52 s.
 
-The acceptance checks ran 2026-10-17 on the same toolchain. **Peak RSS was not sampled.** Wall times
+The acceptance checks ran 2026-10-17, 17:56 to 18:04 UTC, read-only on the run's outputs. They ran on
+flooded 0.8.2, installed at 11:00 UTC that day, not the run's 0.7.0. Of the five checks, only
+`dem_cache-check.R` reads the installed flooded, and it passed against 0.8.2's default; the others
+read the run's records. **Peak RSS was not sampled.** Wall times
 come from the log mtimes.
 
 
@@ -69,10 +72,12 @@ A transition patch is one row of the transition layer: one 8-connected patch of 
 Every floodplain cell is attributed in all four groups. **KOTL, LARL and SLOC each have habitat rows the
 live schema no longer has (0.02-0.04% of rows), and the cause is a rebuild, not these runs.** link 0.66.0
 rebuilt `fresh_default` for all four groups on 2026-10-17 between 01:30 and 03:10 UTC (`fresh_default.log`,
-`run_uid` 20261017_004619-3f4c713b). Step 1 wrote their `habitat_link` on 2026-10-15 from the 2026-08-27
-build, and its provenance sibling records that build. The query reads segment geometry from the live
+`run_uid` 20261017_004619-3f4c713b). Step 1 wrote their `habitat_link` on 2026-10-15: KOTL, LARL and SLOC
+from the 2026-08-27 build (link 0.45.1), DUNC from the 2026-10-12 build (link 0.63.1). Each group's
+`network[all2].link_log` records its build; `fresh_default.log` now holds only the 2026-10-17 run, so
+that record is the only place the older builds remain. The query reads segment geometry from the live
 schema, so re-segmented reaches stop matching: KOTL now has 109,950 segments against 109,951 habitat rows,
-LARL 91,090 against 91,077, SLOC 55,733 against 55,730. DUNC's segmentation did not move. #123 already plans
+LARL 91,090 against 91,077, SLOC 55,733 against 55,730. DUNC's segmentation did not move between its 2026-10-12 and 2026-10-17 builds. #123 already plans
 cutting segment lines from FWA blue lines by route measure, which makes the join a function of
 `habitat_link` alone; this measurement is recorded there. DUNC's
 `20261015_habitat_join-query_dunc.md` predates its re-run on the pinned grid and is superseded by the

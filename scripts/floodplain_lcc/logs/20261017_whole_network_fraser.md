@@ -9,7 +9,10 @@ and sf 1.1.2 (GDAL 3.8.5 / PROJ 9.5.1). Every group was `ok` with no error in it
 reads `fresh`, and every group's whole network matched bcfp to the km under the strict guard. Every DEM
 was a cache miss (`dem_all2.tif` is new) and fetched in 11–42 s.
 
-The acceptance checks ran 2026-10-17, read-only on the run's outputs and on the same toolchain.
+The acceptance checks ran 2026-10-17, 17:37 to 17:53 UTC, read-only on the run's outputs. They ran on
+flooded 0.8.2, installed at 11:00 UTC that day, not the run's 0.7.0. Of the five checks, only
+`dem_cache-check.R` reads the installed flooded, and it passed against 0.8.2's default; the others
+read the run's records.
 **Peak RSS was not sampled for this run.** Wall times are differences of the group log mtimes,
 starting from the run stamp.
 

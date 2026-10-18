@@ -324,7 +324,8 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
     habitat refuses cleanly. Join it on `(id_segment, watershed_group_code)`, never `id_segment`
     alone, which link numbers per group (1.96 M rows for DUNC's 26,827).
   - **Provenance: a `habitat` sibling** inside `network[all<order>]`, the #108 pattern. It records
-    `fwapg_sha` from link's log row when there is one (DUNC has none), plus `fwa_content_sha256`
+    `fwapg_sha` from link's log row when there is one (DUNC had none until its 2026-10-15 re-run
+    under `fresh_default`), plus `fwa_content_sha256`
     over the group's FWA segments, which a consumer can recompute. `provenance-check.R` refuses a
     habitat block anywhere but a whole-network entry, **and a whole-network entry without one**.
   - **Regions run it with `network: whole` (#125), and a SPECIES region still refuses `all` in both
@@ -817,10 +818,10 @@ except BULK's outside-polygon area: 1,317.5 ha by cell centre, against a hand-de
   is reservoir or large lake (Williston). Waterbody polygons enter the floodplain unclipped
   (#138). The retired `bt_ff04` was worse.
 - The order-2 headwater look over imagery is #141.
-- `habitat_join-query.R` ran on all 20 groups (2026-10-18, flooded 0.8.2): every floodplain cell is
+- `habitat_join-query.R` ran on the 20 Fraser, Peace and Columbia groups (2026-10-18, flooded 0.8.2): every floodplain cell is
   attributed everywhere, and every habitat row matches in Fraser, Peace and DUNC. KOTL, LARL and SLOC
   have 21 / 35 / 10 unmatched rows per species, because link 0.66.0 rebuilt `fresh_default` on 2026-10-17,
-  after step 1 wrote `habitat_link`. **The query joins a step-1 snapshot to the live schema's lines**, so
+  after step 1 wrote `habitat_link` (KOTL, LARL and SLOC from the 2026-08-27 build). **The query joins a step-1 snapshot to the live schema's lines**, so
   any rebuild of the schema shows up as unmatched rows. #123 plans cutting the lines from FWA by route measure instead.
 
 **Columbia region** (`columbia.yml`, **bull trout** until #125; DUNC joined then): KOTL 707.8 km², LARL 306.9, SLOC 129.6 at
