@@ -1,3 +1,21 @@
+# floodplains 0.1.15 (2026-10-18)
+
+* #125's acceptance checks ran on the Fraser (13 groups), Peace (3) and Columbia (4) whole-network
+  runs, read-only on their outputs. They ran after stac_floodplains_bc v2.0.0 had published the
+  items, so they checked live data and gated no release.
+  * `scripts/floodplain_lcc/region_checks-run.sh <region>` runs the per-group checks, and
+    `region_acceptance-report.R <region>|all` derives every table from disk. Both reproduced the
+    Skeena log first.
+  * Every group passes `provenance-check.R` and the `all_ff04` disturbance section. The new failures
+    each have an issue: PCEA's Williston Reservoir spill (#138), the bridge check's union proxy
+    (#139) and NECR's accuracy scenario (#140). The imagery look is #141.
+  * `habitat_join-query.R` attributes every floodplain cell in all 20 groups. KOTL, LARL and SLOC
+    have unmatched habitat rows from a 2026-10-17 `fresh_default` rebuild (#123).
+  * Logs: `scripts/floodplain_lcc/logs/20261017_whole_network_{fraser,peace,columbia}.md` and
+    `20261018_habitat_join-query_*.md`.
+* The Peace and Columbia region configs, as reconciled by their 2026-10-15 runs, are committed with
+  the run logs (`20261015_run_region_{peace,columbia}.log`).
+
 # floodplains 0.1.14 (2026-10-15)
 
 * The habitat join's position join now comes from `flooded::fl_valley_join()`
