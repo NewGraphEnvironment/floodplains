@@ -49,4 +49,4 @@ All 24 areas were measured on 2026-10-18. The outside area is `!in_wsg` on the p
 
 `scripts/floodplain_lcc/logs/20261018_wsg_split_backfill*`
 
-Closed by: PR (this branch, `53-floodplains-cross-watershed-group-bounda`)
+Closed by: PR #144
