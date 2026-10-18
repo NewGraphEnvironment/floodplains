@@ -88,7 +88,10 @@ fire_tag_main <- function(area, scenario = NA, force = FALSE) {
     sf::st_write(tagged, gpkg, layer = tlyr, append = TRUE, delete_layer = TRUE, quiet = TRUE)
     cat(sprintf("  wrote layer: %s (%d patches)\n", tlyr, nrow(tagged)))
 
-    fp_disturbance_report(tagged, dst[["sources"]], area, lookback = dst[["lookback"]])
+    # The item's own figure: since #53 the patches run past the group line (PCEA: 1,700 ha of its
+    # change is in PARA and FINA), and a group's attribution is reported over its in_wsg pieces.
+    own <- if ("in_wsg" %in% names(tagged)) tagged[tagged$in_wsg %in% TRUE, ] else tagged
+    fp_disturbance_report(own, dst[["sources"]], area, lookback = dst[["lookback"]])
     for (s in dst[["context"]]) {
       hit <- tagged[[paste0("in_", s[["name"]])]] %in% TRUE
       # Patches TOUCHING the overlay, and their whole area. in_<name> is any-touch, so this is not

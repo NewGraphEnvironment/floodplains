@@ -174,9 +174,19 @@ if (need_comp && clyr %in% sf::st_layers(lcg)$name) {
 }
 message(sprintf("  %-40s %s", clyr, if (need_comp) "rebuild" else "current"))
 
-# The composition's own premises, BEFORE the first write (#53 plan review, O1): fp_composition_build()
-# checks them too, but only after this script has rewritten the vector layers.
+# The bridge, decided from ITS OWN state (code-check round 1): fp_write_transition() writes the layer
+# and then the bridge, so a run killed between them leaves a split layer beside a pre-split bridge,
+# and deciding from the transition layer alone would never rebuild it.
+blyr <- sub("^transition_", "patch_watercourse_", tlyr)
+need_bridge <- !do_trans && !is.null(cfg$attribute_by) && tlyr %in% sf::st_layers(lcg)$name &&
+  has_col(lcg, tlyr, "in_wsg") && (!blyr %in% sf::st_layers(lcg)$name || !has_col(lcg, blyr, "in_wsg"))
+if (need_bridge) message(sprintf("  %-40s rebuild (the transition layer is split, the bridge is not)", blyr))
+
+# The premises of every later write, BEFORE the first one (#53 plan review O1; code-check round 1): the
+# composition's (fp_composition_build() checks them too, but only after the vector layers are
+# rewritten) and the provenance record's (fp_prov_set_outputs() runs last).
 if (need_comp) invisible(fp_composition_premise(cfg, scen))
+if (tlyr %in% sf::st_layers(lcg)$name) invisible(fp_prov_outputs_premise(cfg, scen, "transition_patches"))
 
 if (dry) { message("DRY: nothing written"); quit(status = 0) }
 
@@ -199,6 +209,8 @@ if (do_trans) {
   n <- fp_write_transition(new, cfg, scen, tlyr, lcg, fpg)
   if (nrow(sf::st_read(lcg, layer = tlyr, quiet = TRUE)) != n) stop("FEATURE COUNT CHANGED on write for ", tlyr, call. = FALSE)
 }
+if (need_bridge) fp_write_bridge(sf::st_read(lcg, layer = tlyr, quiet = TRUE, promote_to_multi = FALSE),
+                                 cfg, scen, tlyr, lcg, fpg)
 if (need_comp) invisible(fp_composition_build(cfg, scen, conn))
 
 # The patch count, from the layer ON DISK (state, not this run's memory), so a re-run after a crash

@@ -402,6 +402,25 @@ fp_prov_restamp <- function(cfg, key, datetime_utc, repair) {
 #
 # `update` names fields of `outputs` to change; a field outputs does not have is refused (this is a
 # repair of a count, not a schema change). An update that changes nothing writes nothing.
+# The refusals fp_prov_set_outputs() makes about the RECORD, as their own read-only check, so a caller
+# that writes layers first (gpkg_backfill-split.R) can run them before its first write rather than
+# discover them after, with the gpkg split and the record still describing the clipped layer.
+fp_prov_outputs_premise <- function(cfg, key, fields) {
+  ent <- fp_prov_read(cfg)[["landcover"]][[key]]
+  if (is.null(ent) || is.null(ent[["outputs"]]))
+    stop("provenance: no landcover[", key, "] outputs to repair", call. = FALSE)
+  unknown <- setdiff(fields, names(ent[["outputs"]]))
+  if (length(unknown))
+    stop("provenance: landcover[", key, "].outputs has no ", paste(unknown, collapse = ", "),
+         " -- this repairs recorded fields, it does not add them", call. = FALSE)
+  if (!identical(fp_prov_hash(ent[["outputs"]]), ent[["outputs_hash"]]))
+    stop("provenance: landcover[", key, "].outputs_hash does not re-derive from its round-tripped ",
+         "outputs, so a recomputed hash would move for that reason alone. Re-run step 3.", call. = FALSE)
+  if (is.na(fp_prov_ts(ent[["run"]][["datetime_utc"]] %||% NA_character_)))
+    stop("provenance: landcover[", key, "] has no parseable run$datetime_utc", call. = FALSE)
+  invisible(ent)
+}
+
 fp_prov_set_outputs <- function(cfg, key, update, repair) {
   stopifnot(is.character(key), length(key) == 1L, nzchar(key), is.list(update), length(update) > 0L,
             !is.null(names(update)), all(nzchar(names(update))), is.list(repair),
@@ -413,24 +432,14 @@ fp_prov_set_outputs <- function(cfg, key, update, repair) {
   orig_bytes <- readBin(path, "raw", file.size(path))
   raw_before <- jsonlite::read_json(path, simplifyVector = FALSE)
   prov <- fp_prov_read(cfg)
+  fp_prov_outputs_premise(cfg, key, names(update))
   ent <- prov[["landcover"]][[key]]
-  if (is.null(ent) || is.null(ent[["outputs"]]))
-    stop("provenance: no landcover[", key, "] outputs to repair", call. = FALSE)
-  unknown <- setdiff(names(update), names(ent[["outputs"]]))
-  if (length(unknown))
-    stop("provenance: landcover[", key, "].outputs has no ", paste(unknown, collapse = ", "),
-         " -- this repairs recorded fields, it does not add them", call. = FALSE)
-  if (!identical(fp_prov_hash(ent[["outputs"]]), ent[["outputs_hash"]]))
-    stop("provenance: landcover[", key, "].outputs_hash does not re-derive from its round-tripped ",
-         "outputs, so a recomputed hash would move for that reason alone. Re-run step 3.", call. = FALSE)
   new_out <- utils::modifyList(ent[["outputs"]], update)
   if (identical(new_out, ent[["outputs"]])) {
     message("Provenance: landcover[", key, "].outputs already as given -- nothing written")
     return(invisible(prov))
   }
   stamp <- ent[["run"]][["datetime_utc"]]
-  if (is.na(fp_prov_ts(stamp %||% NA_character_)))
-    stop("provenance: landcover[", key, "] has no parseable run$datetime_utc", call. = FALSE)
   repair$previous_datetime_utc <- stamp
   repair$datetime_utc <- stamp
   repair$repaired_utc <- format(Sys.time(), FP_PROV_TS_FMT, tz = "UTC")

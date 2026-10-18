@@ -143,7 +143,14 @@ fp_write_transition <- function(trans_polys, cfg, scenario_id, lyr, out_lc_gpkg,
                append = file.exists(out_lc_gpkg), delete_layer = TRUE, quiet = TRUE)
   message("  Layer: ", lyr, " (", nrow(trans_polys), " change patch pieces, ",
           sum(!trans_polys$in_wsg), " outside ", cfg$watershed_group, ")")
+  fp_write_bridge(trans_polys, cfg, scenario_id, lyr, out_lc_gpkg, fp_file)
+  nrow(trans_polys)
+}
 
+# The bridge for a transition layer: written, or -- when this run finds none -- a stale one removed.
+# Its own function so the backfill can rebuild it from the layer on disk when a run died between the
+# two writes (the transition layer split, the bridge not yet).
+fp_write_bridge <- function(trans_polys, cfg, scenario_id, lyr, out_lc_gpkg, fp_file) {
   attr_lyr <- if (!is.null(cfg$attribute_by))
     paste0(scenario_id, "_by_", cfg$attribute_by) else NA_character_
   # b_lyr and the flag live OUTSIDE the gate below. Three different things mean "no bridge this
@@ -182,5 +189,5 @@ fp_write_transition <- function(trans_polys, cfg, scenario_id, lyr, out_lc_gpkg,
               call. = FALSE, immediate. = TRUE)
     }
   }
-  nrow(trans_polys)
+  invisible(wrote_bridge)
 }

@@ -322,6 +322,8 @@ fp_fig_attribution <- function(out = fp_fig_path("attribution.png")) {
          paste(missing, collapse = ", "), " — re-run step 3, or the figure would report them ",
          "as unattributed", call. = FALSE)
   }
+  # The group's own tree loss: since #53 a layer split at the group line also holds the pieces past it.
+  if ("in_wsg" %in% names(tr)) tr <- tr[tr$in_wsg %in% TRUE, , drop = FALSE]
   tl <- tr[tr$from_class == "Trees", , drop = FALSE]
   if (!nrow(tl)) stop("no `Trees ->` transitions in the figure area", call. = FALSE)
   # First matching source wins for the plot; a patch can carry several tags (salvage after fire),
