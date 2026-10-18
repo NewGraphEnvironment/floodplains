@@ -45,4 +45,15 @@
   (true on DUNC's live record), an unknown field is refused, a no-op writes nothing, and a disk
   comparison restores the original bytes on any other change. provenance-check.R §5g2 has 9 arms,
   including a mutant that edits `inputs` and is caught with the file restored. The `wsg` signature
-  is (cfg, key, update, repair): landcover is the only section it repairs.
+  Signature (cfg, key, update, repair): landcover is the only section it repairs.
+- Plan review arrived at ~20:20 UTC (`review-plan.md`, with a disposition per finding). It was folded
+  in before any area was written. DUNC had been written once under the pre-review design; it was
+  restored from its byte backup (md5 matched) and is re-run in the sweep.
+- **Dry sweep, 24 areas, 20:24-20:47 UTC: every area rc=0.** Every published patch re-vectorises
+  exactly: WKB-identical in all 23 whole-WSG groups, and by key and area on neexdzii. No cause,
+  context or lookback column moves. Outside pieces range from 8 (UNTH) to 860 (PCEA).
+  PCEA has 1,700.3 ha of change outside its group, which equals #138's independent measurement.
+  neexdzii's sub-basins reach 3.94 ha past BULK; 10 pieces (3.4 ha) lie outside every sub-basin, and
+  the inside total is 1,278.7335 ha = published.
+  Logs: `scripts/floodplain_lcc/logs/20261018_wsg_split_backfill/*_dry.log`.
+- The write sweep started ~20:47 UTC under caffeinate, with BACKUP=data/backup/20261018_wsg_split.
