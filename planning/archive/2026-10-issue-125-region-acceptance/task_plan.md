@@ -102,8 +102,8 @@ What I found that shaped this:
 
 - [x] Tests pass: `region_config-check.R`, `whole_network-check.R`, and the offline sections of the checks above
 - [x] `/code-check` clean (each commit, or once over the branch with `/code-check branch`)
-- [ ] PWF checkboxes match landed work
-- [ ] `/planning-archive` on completion
+- [x] PWF checkboxes match landed work
+- [x] `/planning-archive` on completion
 
 ## Verification
 
