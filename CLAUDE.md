@@ -64,7 +64,7 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   point the region-owned keys at the wrong species. (KISP had `skeena_ch.yml` for exactly this; whole
   mode has no species to differ, so it folded into `skeena.yml` under #125.) `targets:` stays
   area-owned, but a whole region **refuses** an area whose `targets` names a non-`all` scenario: it
-  would keep publishing an item stac#76 retires. The publish layer derives its WSG→region roster
+  would republish a species item, and stac_floodplains_bc v2.0.0 retired those (2026-10-15, stac#76). The publish layer derives its WSG→region roster
   from these files (`region:` + `watershed_groups` only).
   **`DRY=1` writes nothing at all** — it prints the per-group reconciliation it would perform and
   exits. It used to write configs before the dry gate, so the preview was as destructive as a real
@@ -308,9 +308,9 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   (`FP_SPECIES_WHOLE`, `fp_region.R`) for the whole stream network at order ≥ `min_order` (2, the
   #110 floor) with **no access join**. It sits in the species slot so every species-keyed name
   carries it: `streams_all2`, `all_ff04`, `all_ff04_by_blue_line_key`, `network[all2]`, item key
-  species `all`. That holds in this repo only: `stac_floodplains_bc`'s provenance reader refuses a
-  scenario key not matching `^[a-z]{2}_ff[0-9]{2}$`, so `all_ff04` cannot publish until it changes
-  (stac_floodplains_bc#75). Ask `fp_whole_network(cfg)`, never compare the string. 01's read is
+  species `all`. `stac_floodplains_bc`'s provenance reader used to refuse a scenario key not
+  matching `^[a-z]{2}_ff[0-9]{2}$`. stac_floodplains_bc#75 (closed 2026-10-14) replaced that with a
+  check that each item finds its scenario, which admits `all_ff04`. Ask `fp_whole_network(cfg)`, never compare the string. 01's read is
   `fp_network_sql()`; its species branch is pinned **byte-identical** to the pre-lift SQL by
   `whole_network-check.R`. The whole branch drops the `streams_access` join, which is not merely a
   filter: groups link never ran its access model on (DUNC) are absent from that table.
@@ -324,7 +324,8 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
     habitat refuses cleanly. Join it on `(id_segment, watershed_group_code)`, never `id_segment`
     alone, which link numbers per group (1.96 M rows for DUNC's 26,827).
   - **Provenance: a `habitat` sibling** inside `network[all<order>]`, the #108 pattern. It records
-    `fwapg_sha` from link's log row when there is one (DUNC has none), plus `fwa_content_sha256`
+    `fwapg_sha` from link's log row when there is one (DUNC had none until its 2026-10-15 re-run
+    under `fresh_default`), plus `fwa_content_sha256`
     over the group's FWA segments, which a consumer can recompute. `provenance-check.R` refuses a
     habitat block anywhere but a whole-network entry, **and a whole-network entry without one**.
   - **Regions run it with `network: whole` (#125), and a SPECIES region still refuses `all` in both
@@ -333,7 +334,8 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
     species item. A whole region converting a species area in place is the legal direction:
     `config/<wsg>/` becomes the whole-network area, the `all_*` rows are appended to
     `flood_scenarios.csv`, and the species rows and `data/<wsg>/` species outputs stay (decided
-    2026-10-13: the README (#128) and stac staging read them until stac#76 retires the items).
+    2026-10-13, while the README (#128) and stac staging read them). stac_floodplains_bc v2.0.0
+    retired the species items on 2026-10-15; pruning the files left on disk is #131.
     `fp_region_plan` runs `fp_whole_network_validate` itself, so `DRY=1` reports what step 1 would
     refuse.
   - `habitat_join-query.R <area> [species]` is the consumer side. It joins `habitat_link` flags by
@@ -745,17 +747,18 @@ Coexistence is data-layer only (steps 01/02/03).
   also `readme_functions.R`'s `FIG_AREA`, so its transition layer must keep `in_fire`/`in_harvest`
   or the attribution figure builder **stops**.
 - `dunc` — Duncan Lake group (Lardeau River; #120), the **first whole-network area** (#104):
-  `species: all`, order ≥ 2, `attribute_by: blue_line_key`. In `columbia.yml` since #125, which sets
-  its `network_source` to `fresh_default` on the next region run (it was `fresh`). DUNC is
-  in `fresh.streams` and link's habitat tables but in neither `fresh.streams_access` nor `fresh.log`,
-  so its network record carries a null `link_log` and `fwapg_sha`. It is also absent from
-  `fresh_default` as first built; link#328 (closed) has since added it there, beside KOTL/LARL/SLOC.
-  Run 2026-10-12, on flooded 0.6.5's pre-pin DEM grid (#117), so these figures move on its next run;
-  `fp_region_cache_stale` makes the region run redo it rather than skip it:
-  `all_ff04` **185.0 km²**, 1,942 blue lines with floodplain, step 2 in 8.9 min. 1,282 change
-  patches and 119.5 ha of gross tree loss. `composition-check.R dunc` fails its 1% change-vs-patch
-  bound at +4.7%: 1.1% of the floodplain lies past the group polygon (#53).
-  Log: `scripts/floodplain_lcc/logs/20261012_whole_network_dunc.md`.
+  `species: all`, order ≥ 2, `attribute_by: blue_line_key`. In `columbia.yml` since #125, which moved
+  its `network_source` from `fresh` to `fresh_default`. DUNC was in `fresh.streams` and link's habitat
+  tables but in neither `fresh.streams_access` nor `fresh.log`, so its first network record carried a
+  null `link_log` and `fwapg_sha`. link#328 (closed) added it to `fresh_default`, and the record from
+  the 2026-10-15 Columbia run carries that schema's log row (`config_name: default`, `link_sha`
+  present).
+  First run 2026-10-12 on flooded 0.6.5's pre-pin grid: `all_ff04` 185.0 km², 1,942 blue lines with
+  floodplain, step 2 in 8.9 min. Log: `scripts/floodplain_lcc/logs/20261012_whole_network_dunc.md`.
+  The 2026-10-15 re-run on the pinned grid (`fp_region_cache_stale` forced it) gives **185.2 km²**,
+  1,948 blue lines, 1,299 change patches and 116.9 ha of gross tree loss.
+  `composition-check.R dunc` fails its 1% change-vs-patch bound at +4.70%; change cells inside the
+  group polygon equal the patch total (#53). Log: `scripts/floodplain_lcc/logs/20261017_whole_network_columbia.md`.
 
 Whole-WSG areas use the **FWA group polygon** as the single sub-basin (`fp_wsg_subbasin`; no
 `break_points.csv` needed). The earlier single-outlet break point does NOT generalize — delineating
@@ -764,12 +767,12 @@ MORR/UFRA happened to work). Interior sub-basin delineation is deferred. Pick sp
 `access_<species>` column the fwapg schema populates — the region pre-pass does this automatically.
 A whole-network area (`species: all`) needs no access column at all.
 
-**Every region file is `network: whole` since #125**, so the species figures below describe the
-items stac#76 retires; they stand until each group's whole-network run replaces them. Whole-network
+**Every region file is `network: whole` since #125**, so the species figures below describe
+items stac_floodplains_bc v2.0.0 retired on 2026-10-15, when it published every group's `all_ff04`. Whole-network
 km at order ≥ 2 equal `fresh.streams_vw_bcfp` to the km in all 23 region groups in their region's
 schema (measured 2026-10-13), and every group has `streams_habitat_<sp>` rows there. That includes
 **MCGR (2,833 km in `fresh.streams`) and PINE (5,768 km)**, the two groups #76 blocked on their
-species networks: neither block applies to the whole network, but neither has run in that mode yet.
+species networks: neither block applies to the whole network, and both ran in that mode on 2026-10-15.
 
 **Skeena ran whole-network 2026-10-14** (`run_region.R skeena`, flooded 0.7.0), and is the first
 region in that mode. `all_ff04` came out at BULK **660.0 km²**, MORR **479.3**, KISP **324.4**.
@@ -789,15 +792,40 @@ because it has not been recomputed**; recompute before quoting it. MCGR is exclu
 3,127: it is still on its 2026-07-12 pre-0.5.0 output (290 km², over-mapped), and its species network
 cannot be re-run (#76).
 **Fraser ran whole-network 2026-10-15** (`run_region.R fraser`, about 5 h): all 13 groups have
-`all_ff04`, MCGR among them at 355.3 km² (#76 does not block whole mode). Per-group figures are in the
-coverage CSV under `data/logs/region_fraser_20261015_*`. #125's per-region acceptance checks have
-not been run on it yet. Do not sum the groups: neighbouring floodplains overlap (#53).
+`all_ff04`, MCGR among them at 355.3 km² (#76 does not block whole mode). Do not sum the groups:
+neighbouring floodplains overlap (#53).
 
 **Peace and Columbia ran whole-network 2026-10-15** (chained, flooded 0.7.0), every group `ok`.
 `all_ff04`: PCEA 843.3 km², PARS 559.4, PINE 488.9 (PINE's #76 block does not apply in whole mode);
-KOTL 754.1, LARL 375.5, SLOC 154.5, DUNC 185.2 (DUNC's re-run on the pinned grid). Coverage CSVs are
-under `data/logs/region_{peace,columbia}_20261015_*`. #125's per-region acceptance checks have not been
-run on either yet, and the habitat join now needs flooded > 0.7.2 (v0.1.14).
+KOTL 754.1, LARL 375.5, SLOC 154.5, DUNC 185.2 (DUNC's re-run on the pinned grid).
+
+**#125's acceptance ran on all four regions 2026-10-17**, read-only on the runs' outputs. That was
+after stac_floodplains_bc v2.0.0 had published them (2026-10-15), so it checked live items and gated
+no release. Logs:
+`scripts/floodplain_lcc/logs/20261017_whole_network_{fraser,peace,columbia}.md`, beside Skeena's.
+`region_checks-run.sh <region>` runs the per-group checks, and `region_acceptance-report.R <region>|all`
+derives every table in those logs from disk. Both reproduced the Skeena log before being trusted,
+except BULK's outside-polygon area: 1,317.5 ha by cell centre, against a hand-derived 1,318.2.
+- `provenance-check.R` passes in all 23 groups, as does the `all_ff04` section of `disturbance-check.R`.
+  Inside-polygon change cells equal the patch totals within 0.12 ha everywhere, and classified
+  coverage of the floodplain is 0.9991–1.0001.
+- Expected failures: `composition-check.R`'s 1% bound, breached in every group, and the species layers'
+  context columns. The breach is +1.1% to +7.8% in the other 22 groups, which is the #53 edge. In PCEA
+  it is +225%, from the reservoir spill below.
+- Two kinds of FAIL are new, each with its own issue:
+  - NECR's composition check (5): the #93 accuracy module still resolves `area.yml`'s scenario, but
+    its design is on `ch_ff04` (#140).
+  - `bridge-check.R`'s unweighted union proxy on PCEA, LARL and SLOC. The true union is 0.94–0.96
+    (#139).
+- The outlier screen flagged **PCEA**: 41.7% of its floodplain lies outside its polygon, and 83.6%
+  is reservoir or large lake (Williston). Waterbody polygons enter the floodplain unclipped
+  (#138). The retired `bt_ff04` was worse.
+- The order-2 headwater look over imagery is #141.
+- `habitat_join-query.R` ran on the 20 Fraser, Peace and Columbia groups (2026-10-18, flooded 0.8.2): every floodplain cell is
+  attributed everywhere, and every habitat row matches in Fraser, Peace and DUNC. KOTL, LARL and SLOC
+  have 21 / 35 / 10 unmatched rows per species, because link 0.66.0 rebuilt `fresh_default` on 2026-10-17,
+  after step 1 wrote `habitat_link` (KOTL, LARL and SLOC from the 2026-08-27 build). **The query joins a step-1 snapshot to the live schema's lines**, so
+  any rebuild of the schema shows up as unmatched rows. #123 plans cutting the lines from FWA by route measure instead.
 
 **Columbia region** (`columbia.yml`, **bull trout** until #125; DUNC joined then): KOTL 707.8 km², LARL 306.9, SLOC 129.6 at
 `bt_ff04`. ch/co/st/salmon are unmodelled here — verified empirically (`access_* = -9`, the "not
