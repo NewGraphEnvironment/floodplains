@@ -67,13 +67,14 @@ What I found that shaped this:
 
 ## Phase 3: Habitat join (the #104 deliverable as a consumer uses it)
 
-- [ ] Install released flooded (0.8.2) via `scripts/packages.R`. Confirm `fl_valley_join` exists
+- [x] Install released flooded (0.8.2) via `scripts/packages.R`. (It was already installed, from
+      2026-10-17 11:00 UTC, before the Phase 1 checks ran; see findings.) Confirm `fl_valley_join` exists
       and `packageVersion("flooded") > "0.7.2"`, then re-run `dem_cache-check.R` (offline), which
       asserts `FP_DEM_SOURCE` still equals flooded's default.
-- [ ] Run `habitat_join-query.R <wsg>` for the 13 Fraser, 3 Peace and 4 Columbia groups (DUNC
+- [x] Run `habitat_join-query.R <wsg>` for the 13 Fraser, 3 Peace and 4 Columbia groups (DUNC
       included, see above), sequentially, `> log 2>&1`, checking each for an in-band error. Each run
       writes its own committed `logs/2026101x_habitat_join-query_<wsg>.md`.
-- [ ] Record per group: integrity (missing/extra = 0) and `habitat_rows_unmatched`. Any non-zero
+- [x] Record per group: integrity (missing/extra = 0) and `habitat_rows_unmatched`. Any non-zero
       value is a finding, not a footnote.
 
 ## Phase 4: Records

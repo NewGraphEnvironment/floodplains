@@ -88,6 +88,8 @@ Relates: #104, #117, #120, #122, #123, #128, #53, #76
 
 | Error | Resolution |
 |-------|------------|
+| GitHub unreachable from this machine 2026-10-17 ~18:25 to 2026-10-18 01:28 UTC (TLS handshake timeout; pak hung silently twice) | Background `until curl` waiter; everything needing GitHub deferred, offline work done first |
+| Checks believed to run on flooded 0.7.0, before the install | They did not: flooded 0.8.2 was installed 2026-10-17 11:00 UTC (`Packaged` stamp, library mtime), most likely by one of the pak runs I killed, and the checks ran 17:35-17:56 UTC. Verdicts unaffected: of the five checks only `dem_cache-check.R` reads the installed flooded (its log: "FP_DEM_SOURCE equals flooded 0.8.2's default"), and that is Phase 3's post-install check; `provenance-check.R` uses `fp_toolchain()` for its key set only. The region logs' "flooded 0.7.0" describes the runs (2026-10-14/15), read from provenance, which stands. |
 
 ## Skeena control (2026-10-17)
 
@@ -287,3 +289,11 @@ Real data: all 23 groups pass every tie, and every table is byte-identical to th
 **The loop ends on round 4's enumeration.** Its 49 rows cover every input, verdict branch and claim
 of both scripts. After F1–F3, each row is tied (by digest, record order or window) or documented as
 untied. Four reviewer rounds in all, inside the five-per-task bound.
+
+## GitHub-side work (2026-10-18 UTC)
+
+- Filed #138 (waterbody spill, PCEA), #139 (bridge union proxy), #140 (accuracy module scenario), #141 (visual review). Titles checked through `gh`. Placeholders replaced in CLAUDE.md and the three region logs.
+- #133: ask 2 is settled. DUNC's 2026-10-15 `network[all2]` carries fresh_default's log row (`link_sha` 8215d2d0). Ask 1 stands, measured over all 23 region groups: every `network[all2]` has `inputs$link$sha_source = unresolved_version_mismatch`, and every one has a `link_log$link_sha`. Body updated, left open.
+- #131: gating now says never to prune a species output a committed accuracy design names (NECR `ch_ff04`).
+- #73 acceptance verified on its 18 areas: `schema_version` 2 everywhere, `outputs` + `outputs_hash` on every entry, `inputs$link_config_name == link_log$config_name` on every `all2`. MORR carries `co3`, `ch3`, `all2`. #58, #59, #73, #76: every listed area is one of the 23 accepted groups. They close through the PR's Closes line, so they close when the evidence reaches main.
+- `region_config-check.R` and `whole_network-check.R`: exit 0.

@@ -17,3 +17,9 @@
   (cell centre against an unrecorded hand method). The outlier screen flagged PCEA (41.7% outside:
   the Williston Reservoir spill).
 - Commits: 9f76112 (scripts), this one (findings, stdout fix)
+
+## Session 2026-10-18 (UTC)
+
+- GitHub reachable again 01:28 UTC after ~7 h of TLS timeouts.
+- Phase 3: flooded 0.8.2 was already installed (11:00 UTC on 10-17), so the Phase 1 checks ran on it; verdicts unaffected (findings). `habitat_join-query.R` on all 20 groups, 01:30-02:24 UTC, all `ok`: every floodplain cell attributed; habitat rows all matched except KOTL/LARL/SLOC (21/35/10 per species), from link 0.66.0 rebuilding `fresh_default` on 2026-10-17. Recorded in #123.
+- `region_config-check.R`, `whole_network-check.R`: exit 0.
