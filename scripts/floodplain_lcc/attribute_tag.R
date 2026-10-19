@@ -25,6 +25,9 @@ source(here::here("scripts", "fp_gpkg.R")); fp_gpkg_pin_date()   # #45: keep wri
 source(here::here("scripts", "fp_raster.R"))                       # fp_rast_write (the DEM cache's writer)
 source(here::here("scripts", "floodplain_lcc", "fp_provenance.R"))  # fp_raster_content_sha256, fp_toolchain
 source(here::here("scripts", "floodplain_lcc", "fp_dem.R"))         # fp_dem_cached (#122)
+source(here::here("scripts", "floodplain_lcc", "fp_region.R"))      # fp_wsg_subbasin (a subset area's group)
+source(here::here("scripts", "floodplain_lcc", "fp_wsg.R"))         # fp_wsg_split (the group line, #53)
+source(here::here("scripts", "floodplain_lcc", "fp_lulc_vectors.R")) # fp_bridge_build (shared with step 3)
 
 a    <- commandArgs(TRUE)
 area <- a[1]
@@ -59,6 +62,18 @@ streams <- sf::st_read(net_gpkg, layer = streams_lyr, quiet = TRUE) |> sf::st_zm
 if (!key %in% setdiff(names(streams), attr(streams, "sf_column"))) {
   stop("attribute_by '", key, "' is not a column of ", streams_lyr, call. = FALSE)
 }
+# The transition layer the bridge will be built from, checked BEFORE the DEM fetch and the
+# attribution, and so before anything is written (code-check round 2): a layer from before the group-line split has no in_wsg to key on, and refusing
+# after the write would leave a rewritten attribution layer beside an unchanged bridge.
+t_lyr <- if (file.exists(lc_gpkg))
+  grep(paste0("^transition_", scenario, "_[0-9]{4}_[0-9]{4}$"),
+       sf::st_layers(lc_gpkg)$name, value = TRUE) else character(0)
+tp <- if (length(t_lyr)) sf::st_read(lc_gpkg, layer = t_lyr[1], quiet = TRUE, promote_to_multi = FALSE)
+if (!is.null(tp) && !"in_wsg" %in% names(tp))
+  stop(t_lyr[1], " predates the group-line split (#53). For the area's own species run ",
+       "gpkg_backfill-split.R ", area, " first; a retired species scenario is not split (#131).",
+       call. = FALSE)
+
 valleys <- terra::rast(tif)
 # The DEM fetched below comes from the installed flooded. A delineation written before flooded 0.7.0
 # sits on a grid GDAL chose (~30.4 m, not aligned), while 0.7.0 returns a 30 m grid aligned to
@@ -128,42 +143,22 @@ if (!identical(key, label_col) && label_col %in% names(streams)) {
   }
 }
 attr_lyr <- paste0(scenario, "_by_", key)
+# Split at the group line, as step 2 splits it (#53): the same layer from either writer.
+fb <- attr(attributed, "fl_fallback_cells")   # before the split: rbind() drops attributes
+attributed <- fp_wsg_split(attributed, fp_wsg_polygon(list(watershed_group = cfg$watershed_group,
+                                                           dir_out = out_dir)))
 sf::st_write(attributed, fp_gpkg, layer = attr_lyr,
              append = file.exists(fp_gpkg), delete_layer = TRUE, quiet = TRUE)
-fb <- attr(attributed, "fl_fallback_cells")
 message("  Wrote ", attr_lyr, " (", nrow(attributed), " groups",
         if (!is.null(fb)) paste0("; ", fb, " fallback cells") else "", ")")
 
 # --- Bridge (#54), from the transition layer already on disk ---
-t_lyr <- if (file.exists(lc_gpkg))
-  grep(paste0("^transition_", scenario, "_[0-9]{4}_[0-9]{4}$"),
-       sf::st_layers(lc_gpkg)$name, value = TRUE) else character(0)
+# Written by step 3's own writer (fp_write_bridge), which also REMOVES a stale bridge when no pair
+# survives. Whether there is a usable transition layer is decided above, before anything is written.
 if (!length(t_lyr)) {
   message("  No transition layer for ", scenario, " -- bridge skipped (run step 3 to create it).")
 } else {
-  tp  <- sf::st_read(lc_gpkg, layer = t_lyr[1], quiet = TRUE)
-  # patch_id is per-SUB-BASIN, not global (see 03_lulc_classify.R). Key on the pair.
-  pat <- tp[, c("patch_id", "name_basin", "area_ha")]
-  wc  <- attributed[, key]
-  if (sf::st_crs(wc) != sf::st_crs(pat)) wc <- sf::st_transform(wc, sf::st_crs(pat))
-  inter <- suppressWarnings(sf::st_intersection(pat, wc))
-  ov <- as.numeric(sf::st_area(inter)) / 1e4
-  bridge <- data.frame(patch_id = inter$patch_id, name_basin = inter$name_basin, k = inter[[key]],
-                       overlap_ha = round(ov, 4),
-                       overlap_frac = round(pmin(1, ov / inter$area_ha), 4),
-                       wsg = cfg$watershed_group, species = sc$species, scenario = scenario,
-                       stringsAsFactors = FALSE)
-  names(bridge)[names(bridge) == "k"] <- key
-  bridge <- bridge[bridge$overlap_ha > 0, , drop = FALSE]
-  # Only apportion_weight is additive -- overlap_frac sums past 1 because the rows overlap (#54).
-  pk <- paste(bridge$name_basin, bridge$patch_id, sep = "\u00a6")
-  tot <- tapply(bridge$overlap_ha, pk, sum)
-  bridge$apportion_weight <- round(bridge$overlap_ha / tot[pk], 4)
-  b_lyr <- sub("^transition_", "patch_watercourse_", t_lyr[1])
-  sf::st_write(bridge, lc_gpkg, layer = b_lyr,
-               append = file.exists(lc_gpkg), delete_layer = TRUE, quiet = TRUE)
-  u <- tapply(bridge$overlap_frac, pk, max)
-  message("  Wrote ", b_lyr, " (", nrow(bridge), " pairs; union coverage ",
-          sprintf("%.3f", mean(u)), ")")
+  fp_write_bridge(tp, list(watershed_group = cfg$watershed_group, species = sc$species, attribute_by = key),
+                  scenario, t_lyr[1], lc_gpkg, fp_gpkg)
 }
 message("Done: ", area, "/", scenario, " -- delineation and transition layers untouched.")

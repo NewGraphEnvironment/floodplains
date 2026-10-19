@@ -160,6 +160,7 @@ if (mode == "anchor") {
   fs::dir_create(replay_dir)
   file.copy(src_net, file.path(replay_dir, "aquatic_network.gpkg"))
   source(file.path(lcc, "fp_region.R"))              # fp_wsg_subbasin
+  source(file.path(lcc, "fp_wsg.R"))                 # fp_wsg_polygon, fp_wsg_split: step 2 splits at the group line (#53)
   source(file.path(lcc, "fp_dem.R"))                 # fp_dem_cached (#122); the replay dir is fresh, so a miss
   source(file.path(lcc, "02_floodplain_model.R"))    # fp_floodplain
   cfg2 <- list(name = cfg$name, watershed_group = wsg, species = species, min_order = min_order,

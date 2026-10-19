@@ -1,0 +1,21 @@
+Spherical geometry (s2) switched off
+backfill-split: area=unth wsg=UNTH species=all scenario=all_ff04
+  group polygon from subbasins.gpkg
+  all_ff02                                 split 1 -> 2 rows, 186.3 ha outside
+  all_ff04                                 split 1 -> 2 rows, 190.6 ha outside
+  all_ff04_by_blue_line_key                split 1753 -> 1781 rows, 251.9 ha outside
+  all_ff06                                 split 1 -> 2 rows, 194.7 ha outside
+  classified_all_ff04_2017                 split 9 -> 12 rows, 204.4 ha outside
+  classified_all_ff04_2020                 split 8 -> 12 rows, 204.4 ha outside
+  classified_all_ff04_2023                 split 8 -> 13 rows, 204.4 ha outside
+  Tagged disturbance: fire, harvest; context: wetland, alr, open_water; lookback: fire_prior
+  new column(s) on the patches: in_open_water, open_water_poly_id
+  transition_all_ff04_2017_2023            4544 patches -> 4552 pieces (8 outside, 23.0 ha); inside 1441.1046 ha = published 1441.1046 ha
+  composition_all_ff04_2017_2023           rebuild
+  backup: data/backup/20261018_wsg_split/unth
+  Layer: transition_all_ff04_2017_2023 (4552 change patch pieces, 8 outside UNTH)
+  Layer: patch_watercourse_all_ff04_2017_2023 (16169 pairs over 4546 patch pieces and 503 watercourses; union coverage 0.949, unbridged pieces 6)
+Provenance: landcover[all_ff04].composition -> provenance.json
+  Layer: composition_all_ff04_2017_2023 (557 rows; floodplain 23490.7 ha of a 26100.6 ha footprint; change 1464.1 ha; wsg 23300.1 ha, change in wsg 1441.1 ha; wetland 4291.7 ha, change in wetland 372.2 ha; alr 1796.4 ha, change in alr 217.0 ha; open_water 1728.4 ha, change in open_water 53.0 ha)
+Provenance: landcover[all_ff04].outputs transition_patches 4544 -> 4552 (wsg_split)
+Done: unth

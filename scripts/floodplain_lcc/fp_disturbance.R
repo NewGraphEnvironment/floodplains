@@ -9,7 +9,8 @@
 #
 # A source is a config entry (see config/disturbance.yml):
 #   name      short id -> in_<name>
-#   table     fwapg schema.table (loaded via bc2pg)
+#   table     fwapg schema.table (loaded via bc2pg); a context entry may list several, read as one
+#             overlay with a UNION ALL (#138's open water: lakes + manmade waterbodies)
 #   geom_col  geometry column
 #   year_col  temporal field used to window to the change interval
 #   carry     source columns copied onto the patch from the dominant overlapping feature: a list
@@ -48,8 +49,12 @@ suppressMessages({library(sf); library(dplyr)})
 # silently overwrite the patch's value -- fwa_wetlands_poly has an `area_ha`, and carrying it would
 # have replaced every wetland patch's area with the wetland's. disturbance-check.R's live section
 # asserts this set equals a real layer's non-tag columns, so it cannot drift from the writer.
-FP_PATCH_CORE <- c("patch_id", "transition", "area_ha", "name_basin", "from_class", "to_class",
+FP_PATCH_CORE <- c("patch_id", "transition", "area_ha", "name_basin", "in_wsg", "from_class", "to_class",
                    "wsg", "species", "scenario")
+# Entry names whose in_<name> another writer owns: in_wsg is the group-line split (#53, fp_wsg.R) and
+# in_floodplain the composition table's population (#108). An entry with either name would write a
+# second column of that name, or collide in fp_composition()'s overlay list.
+FP_DST_RESERVED_NAMES <- c("wsg", "floodplain")
 
 # Every key a `sources:`, `context:` or `lookback:` entry may carry. `confidence` is documentation
 # (a label). Which list may use `window` / `lookback` / `year_col` is fp_disturbance_validate()'s call.
@@ -114,11 +119,22 @@ fp_disturbance_validate <- function(dst) {
   entries <- unlist(lapply(FP_DST_LISTS, function(lst)
     lapply(dst[[lst]], function(s) c(s, list(.list = lst)))), recursive = FALSE)
   for (s in entries) {
-    for (f in c("name", "table", "geom_col")) {
+    for (f in c("name", "geom_col")) {
       v <- s[[f]]
       if (!is.character(v) || length(v) != 1 || !nzchar(v))
         .dst_refuse("a `", s[[".list"]], "` entry has no single `", f, "`")
     }
+    # `table` is one table, or -- for a CONTEXT entry only -- a list of tables read as one overlay
+    # (#138: open water is fwa_lakes_poly + fwa_manmade_waterbodies_poly, one flag, because FWA files
+    # a dammed lake as a lake). Every table must carry geom_col and the carried columns; the query is
+    # a UNION ALL. A cause or lookback stays one table: its year_col and window are one table's.
+    tb <- s[["table"]]
+    if (!is.character(tb) || !length(tb) || any(!nzchar(tb)) || anyDuplicated(tolower(tb)))
+      .dst_refuse("a `", s[[".list"]], "` entry `", s[["name"]], "` has no `table`, an empty one, or ",
+                  "one listed twice")
+    if (length(tb) > 1L && s[[".list"]] != "context")
+      .dst_refuse("`", s[["name"]], "` lists ", length(tb), " tables; only a `context:` entry may read ",
+                  "several (a dated entry's year_col and window belong to one table)")
     if (s[[".list"]] == "sources" && is.null(s[["year_col"]]))
       .dst_refuse("source `", s[["name"]], "` has no `year_col`; a cause must be windowed to the change ",
                   "interval (an undated overlay belongs under `context:`)")
@@ -147,6 +163,9 @@ fp_disturbance_validate <- function(dst) {
   # Case-folded, like the core clash: GeoPackage field names are case-insensitive, so `fire` and
   # `Fire` pass a case-sensitive check and abort st_write -- after the STAC fetch, not at load.
   nm <- vapply(entries, function(s) s[["name"]], character(1))
+  if (any(tolower(nm) %in% FP_DST_RESERVED_NAMES))
+    .dst_refuse("name(s) ", paste(nm[tolower(nm) %in% FP_DST_RESERVED_NAMES], collapse = ", "),
+                " are reserved: in_wsg is the group line (#53) and in_floodplain the composition's population")
   if (anyDuplicated(tolower(nm)))
     .dst_refuse("name(s) used twice: ", paste(unique(nm[duplicated(tolower(nm))]), collapse = ", "))
   carry <- unlist(lapply(entries, function(s) unlist(s[["carry"]])))
@@ -179,13 +198,16 @@ fp_disturbance_validate <- function(dst) {
   when  <- if (!is.null(src[["year_col"]]))
     sprintf("%s BETWEEN %d AND %d AND ", src[["year_col"]], as.integer(w[1]), as.integer(w[2])) else ""
   filt  <- if (!is.null(src[["filter"]]) && nzchar(src[["filter"]])) paste0(" AND (", src[["filter"]], ")") else ""
-  sprintf(
+  # One SELECT per table, UNION ALL'd (#138; only a context entry may list several). A one-table
+  # entry yields exactly the query it always did.
+  one <- function(tbl) sprintf(
     "SELECT %s
        FROM %s
       WHERE %sST_Intersects(%s, ST_Transform(ST_MakeEnvelope(%.8f,%.8f,%.8f,%.8f,4326), ST_SRID(%s)))%s",
-    carry, src[["table"]], when,
+    carry, tbl, when,
     src[["geom_col"]], bbox4326[["xmin"]], bbox4326[["ymin"]], bbox4326[["xmax"]], bbox4326[["ymax"]],
     src[["geom_col"]], filt)
+  paste(vapply(unlist(src[["table"]]), one, character(1), USE.NAMES = FALSE), collapse = "\n     UNION ALL\n")
 }
 
 # Fetch one entry's polygons intersecting the patches' AOI bbox (and, for a source, the window).
@@ -223,7 +245,8 @@ fp_disturbance_tag <- function(patches, sources, conn, window = c(2017, 2023), f
     lost <- setdiff(unlist(src[["carry"]]), names(poly))
     if (length(lost))
       .dst_refuse("`", src[["name"]], "` carries ", paste(lost, collapse = ", "), ", which ",
-                  src[["table"]], " did not return (Postgres returns lower-case names)")
+                  paste(unlist(src[["table"]]), collapse = " + "),
+                  " did not return (Postgres returns lower-case names)")
 
     patches[[in_col]] <- FALSE
     # Typed NA, taken from the fetched column (st_read keeps types on a zero-row result). A bare NA

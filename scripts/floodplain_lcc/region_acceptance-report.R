@@ -78,6 +78,10 @@ read_attrs <- function(f, lyr, cols) {
   q <- sprintf('SELECT %s FROM "%s"', paste(sprintf('"%s"', cols), collapse = ", "), lyr)
   suppressWarnings(sf::st_read(f, query = q, quiet = TRUE))
 }
+# Which of `cols` the layer has: a query naming an absent column is an error, and in_wsg (#53) exists
+# only on layers split at the group line.
+has_cols <- function(f, lyr, cols)
+  intersect(cols, names(suppressWarnings(sf::st_read(f, query = sprintf('SELECT * FROM "%s" LIMIT 0', lyr), quiet = TRUE))))
 km2 <- function(f, lyr) sum(as.numeric(sf::st_area(sf::st_read(f, layer = lyr, quiet = TRUE)))) / 1e6
 
 # The coverage CSV a region's timings come from: RUN_STAMP if given, else the newest. Never an older
@@ -173,7 +177,11 @@ group_report <- function(area) {
   causes <- vapply(dst$sources, function(s) paste0("in_", s$name), "")
   lbk    <- vapply(dst$lookback, function(s) paste0("in_", s$name), "")
   pat <- read_attrs(lc_gpkg, tr_lyr, c("patch_id", "name_basin", "area_ha", "from_class", "to_class",
-                                       causes, lbk))
+                                       causes, lbk, has_cols(lc_gpkg, tr_lyr, "in_wsg")))
+  # Since #53 the patches are not clipped to the group: a group's own figures are its in_wsg pieces,
+  # which are exactly the clipped patches #125's logs were derived from. Whole-footprint totals would
+  # count a neighbour's ground (PCEA's would triple).
+  if ("in_wsg" %in% names(pat)) pat <- pat[pat$in_wsg %in% TRUE, , drop = FALSE]
   utils::capture.output(loss <- fp_disturbance_report(pat, dst$sources, area, lookback = dst$lookback))
   loss_ha <- sum(loss$area_ha)
   share   <- function(sel) if (loss_ha > 0) 100 * sum(loss$area_ha[sel]) / loss_ha else NA_real_
@@ -181,7 +189,9 @@ group_report <- function(area) {
   cause_share <- vapply(causes, function(ic) share(loss[[ic]] %in% TRUE), numeric(1))
 
   br_lyr <- paste0("patch_watercourse_", prim, "_", span)
-  br <- if (br_lyr %in% lc_lyrs) read_attrs(lc_gpkg, br_lyr, c("patch_id", "name_basin", "overlap_frac")) else NULL
+  br <- if (br_lyr %in% lc_lyrs) read_attrs(lc_gpkg, br_lyr, c("patch_id", "name_basin", "overlap_frac",
+                                                              has_cols(lc_gpkg, br_lyr, "in_wsg"))) else NULL
+  if (!is.null(br) && "in_wsg" %in% names(br)) br <- br[br$in_wsg %in% TRUE, , drop = FALSE]
   pk_all <- paste(pat$name_basin, pat$patch_id, sep = "¦")
   if (!is.null(br)) {
     pk <- paste(br$name_basin, br$patch_id, sep = "¦")

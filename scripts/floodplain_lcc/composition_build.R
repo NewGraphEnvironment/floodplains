@@ -22,6 +22,8 @@ source(here::here("scripts", "fp_gpkg.R"))
 source(here::here("scripts", "fp_raster.R"))
 source(file.path(lcc, "fp_provenance.R"))
 source(file.path(lcc, "fp_disturbance.R"))
+source(file.path(lcc, "fp_region.R"))        # fp_wsg_subbasin (a subset area's group polygon)
+source(file.path(lcc, "fp_wsg.R"))           # fp_wsg_polygon (in_wsg, #53)
 source(file.path(lcc, "fp_composition.R"))
 fp_gpkg_pin_date()
 

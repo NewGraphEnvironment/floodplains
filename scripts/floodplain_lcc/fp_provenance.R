@@ -383,6 +383,101 @@ fp_prov_restamp <- function(cfg, key, datetime_utc, repair) {
   invisible(upd)
 }
 
+# --- An in-place repair of a landcover entry's OUTPUTS (#53) -----------------------------------
+# The group-line backfill (gpkg_backfill-split.R) re-vectorises transition.tif unclipped, so the
+# transition layer gains its outside pieces and `outputs.transition_patches` -- which
+# provenance-check.R 7c reconciles against the layer's rows -- has to move with it. Nothing else
+# does: the rasters, their digests and every `inputs` field are the step-3 run's, untouched.
+#
+# The fp_prov_restamp() shape, for the same reason: fp_prov_set() recomputes inputs_hash from a JSON
+# round trip, which MOVES it (#126). Only `outputs`, `outputs_hash` and `run.repairs` change, the
+# file is compared on disk before and after with everything else, and the original bytes come back
+# on any other difference. `run.datetime_utc` does NOT move -- it is when the rasters were written
+# (#126), and these are not rewritten -- so the repair's previous_datetime_utc equals it, and
+# repairs[[1]].previous_datetime_utc stays the step-3 time.
+#
+# The new outputs_hash is fp_prov_hash() over the round-tripped outputs, so the recorded hash must
+# first re-derive from the round-tripped CURRENT outputs: if it does not, this record's outputs do
+# not survive the round trip and a recomputed hash would move for that reason alone. Refused.
+#
+# `update` names fields of `outputs` to change; a field outputs does not have is refused (this is a
+# repair of a count, not a schema change). An update that changes nothing writes nothing.
+# The refusals fp_prov_set_outputs() makes about the RECORD, as their own read-only check, so a caller
+# that writes layers first (gpkg_backfill-split.R) can run them before its first write rather than
+# discover them after, with the gpkg split and the record still describing the clipped layer.
+fp_prov_outputs_premise <- function(cfg, key, fields) {
+  ent <- fp_prov_read(cfg)[["landcover"]][[key]]
+  if (is.null(ent) || is.null(ent[["outputs"]]))
+    stop("provenance: no landcover[", key, "] outputs to repair", call. = FALSE)
+  unknown <- setdiff(fields, names(ent[["outputs"]]))
+  if (length(unknown))
+    stop("provenance: landcover[", key, "].outputs has no ", paste(unknown, collapse = ", "),
+         " -- this repairs recorded fields, it does not add them", call. = FALSE)
+  if (!identical(fp_prov_hash(ent[["outputs"]]), ent[["outputs_hash"]]))
+    stop("provenance: landcover[", key, "].outputs_hash does not re-derive from its round-tripped ",
+         "outputs, so a recomputed hash would move for that reason alone. Re-run step 3.", call. = FALSE)
+  if (is.na(fp_prov_ts(ent[["run"]][["datetime_utc"]] %||% NA_character_)))
+    stop("provenance: landcover[", key, "] has no parseable run$datetime_utc", call. = FALSE)
+  invisible(ent)
+}
+
+fp_prov_set_outputs <- function(cfg, key, update, repair) {
+  stopifnot(is.character(key), length(key) == 1L, nzchar(key), is.list(update), length(update) > 0L,
+            !is.null(names(update)), all(nzchar(names(update))), is.list(repair),
+            !is.null(repair[["kind"]]))
+  path <- fp_prov_path(cfg)
+  if (!file.exists(path) || file.size(path) == 0)
+    stop("provenance: no ", path, " to repair", call. = FALSE)
+  before <- file.mtime(path)
+  orig_bytes <- readBin(path, "raw", file.size(path))
+  raw_before <- jsonlite::read_json(path, simplifyVector = FALSE)
+  prov <- fp_prov_read(cfg)
+  fp_prov_outputs_premise(cfg, key, names(update))
+  ent <- prov[["landcover"]][[key]]
+  new_out <- utils::modifyList(ent[["outputs"]], update)
+  if (identical(new_out, ent[["outputs"]])) {
+    message("Provenance: landcover[", key, "].outputs already as given -- nothing written")
+    return(invisible(prov))
+  }
+  stamp <- ent[["run"]][["datetime_utc"]]
+  repair$previous_datetime_utc <- stamp
+  repair$datetime_utc <- stamp
+  repair$repaired_utc <- format(Sys.time(), FP_PROV_TS_FMT, tz = "UTC")
+  repair$previous_outputs <- ent[["outputs"]][names(update)]
+  repair$previous_outputs_hash <- ent[["outputs_hash"]]
+  upd <- prov
+  upd[["landcover"]][[key]][["outputs"]] <- new_out
+  upd[["landcover"]][[key]][["outputs_hash"]] <- fp_prov_hash(new_out)
+  upd[["landcover"]][[key]][["run"]][["repairs"]] <- c(ent[["run"]][["repairs"]] %||% list(), list(repair))
+
+  if (!identical(file.mtime(path), before)) {
+    stop("provenance: ", basename(path), " changed while this run was writing it -- another ",
+         "process is writing the same area. Run areas/species SEQUENTIALLY.", call. = FALSE)
+  }
+  fp_prov_write(cfg, upd)
+
+  sans <- function(p) {
+    e <- p[["landcover"]][[key]]
+    e[["outputs"]] <- NULL; e[["outputs_hash"]] <- NULL; e[["run"]][["repairs"]] <- NULL
+    p[["landcover"]][[key]] <- e
+    fp_prov_sort(p)
+  }
+  raw_after <- jsonlite::read_json(path, simplifyVector = FALSE)
+  a_ent <- raw_after[["landcover"]][[key]]
+  if (!identical(sans(raw_before), sans(raw_after)) ||
+      !identical(fp_prov_hash(a_ent[["outputs"]]), a_ent[["outputs_hash"]]) ||
+      !identical(a_ent[["outputs"]][names(update)], lapply(update, function(v) v))) {
+    writeBin(orig_bytes, path)
+    stop("provenance: repairing landcover[", key, "].outputs changed more than its outputs and ",
+         "repairs on disk; the original ", basename(path), " has been restored", call. = FALSE)
+  }
+  message("Provenance: landcover[", key, "].outputs ",
+          paste(sprintf("%s %s -> %s", names(update), vapply(repair$previous_outputs, format, ""),
+                        vapply(update, format, "")), collapse = "; "),
+          " (", repair[["kind"]], ")")
+  invisible(upd)
+}
+
 # --- Reconcile a landcover entry's stamp with its rasters (#126) --------------------------------
 # The re-stamp is keyed on STATE, not on "this run repaired something": raster_strip-tags.R is
 # idempotent, so after PR #85 a second run finds nothing to strip and could never backfill a stamp

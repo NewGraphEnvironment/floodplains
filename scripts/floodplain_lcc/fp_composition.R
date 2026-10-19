@@ -36,6 +36,8 @@
 #                       NECR's IO change. Kept as its own status so the table still sums to the
 #                       footprint and "change" still equals the transition layer.
 #               nodata  an endpoint is NA (IO had no label). Zero on NECR; kept so nothing is dropped.
+#   in_wsg      the cell CENTRE lies in the item's own watershed group polygon (#53); the vector layers
+#               are split along the same line, so in_wsg totals are the item's own ground.
 #   in_<name>   (context) the cell CENTRE lies in a `context:` polygon (fp_rast_cells, touches = FALSE), the
 #               accuracy module's rule. in_wetland is the FWA polygon; IO's Flooded Vegetation is
 #               visible through the class columns, so either wetland definition is a sum.
@@ -137,6 +139,17 @@ fp_composition_summary <- function(comp) {
     out[[paste0("change_in_", n, "_ha")]]    <- ha(chg & inn)
     out[[paste0("change_in_", n, "_share")]] <- ha(chg & inn) / out$change_ha
   }
+  # The item's own ground (#53). wsg_ha above is the floodplain inside the group; each other overlay
+  # restricted to it is what a regional total sums -- "floodplain area, and of which open water" (#138)
+  # -- because under in_wsg items are disjoint.
+  if ("in_wsg" %in% names(comp)) {
+    w <- comp$in_wsg
+    out$outside_wsg_ha <- ha(fpc & !w)
+    for (n in setdiff(sub("^in_", "", grep("^in_", names(comp), value = TRUE)), c("floodplain", "wsg"))) {
+      out[[paste0(n, "_in_wsg_ha")]]        <- ha(fpc & w & comp[[paste0("in_", n)]])
+      out[[paste0("change_in_", n, "_in_wsg_ha")]] <- ha(chg & w & comp[[paste0("in_", n)]])
+    }
+  }
   out
 }
 
@@ -170,8 +183,14 @@ fp_composition_digest <- function(comp) {
 #' every area that gained one.
 #'
 #' cfg needs dir_out, change_interval, watershed_group, species and context_overlays (the
-#' config/disturbance.yml `context:` list). A DB connection is opened only when context is configured.
-fp_composition_build <- function(cfg, scenario_id, conn = NULL) {
+#' config/disturbance.yml `context:` list). A DB connection is opened only when context is configured,
+#' or when a subset area's group polygon has to be read (fp_wsg_polygon).
+# The composition's premises, every one checked before anything is computed or written: the record
+# that vouches for the rasters exists, the floodplain has not been re-run since, the span is the one
+# recorded, and the rasters on disk digest as recorded. Its own function so a caller that writes OTHER
+# layers first (gpkg_backfill-split.R) can run the same guards before its first write -- otherwise
+# they would fire after it, with the gpkg already changed (#53 plan review, O1).
+fp_composition_premise <- function(cfg, scenario_id) {
   # EVERY refusal before any computation or write. A guard that fires after the st_write below leaves
   # a table nobody vouches for in a gpkg the publisher copies whole -- and on an area with no
   # provenance.json at all (mcgr, pine) nothing downstream would ever report it.
@@ -216,6 +235,14 @@ fp_composition_build <- function(cfg, scenario_id, conn = NULL) {
                  "landcover[", scenario_id, "] records -- step 3 rewrote them and did not finish. Re-run step 3.")
   if (!identical(tr_sha, lc_rec[["outputs"]][["transition_content_sha256"]] %||% NA_character_))
     .comp_refuse("transition.tif is not the one landcover[", scenario_id, "] records -- re-run step 3.")
+  list(fp_out_hash = fp_out_hash, yrs = yrs, paths = paths, tr_path = tr_path, cls_sha = cls_sha,
+       tr_sha = tr_sha)
+}
+
+fp_composition_build <- function(cfg, scenario_id, conn = NULL) {
+  pr <- fp_composition_premise(cfg, scenario_id)
+  fp_out_hash <- pr$fp_out_hash; yrs <- pr$yrs; paths <- pr$paths; tr_path <- pr$tr_path
+  cls_sha <- pr$cls_sha; tr_sha <- pr$tr_sha
   fr <- .comp_read_class(paths[1]); to <- .comp_read_class(paths[2])
   # The rasters' own category tables first, drift's class table to fill: a year whose table omits a
   # class (NECR's carries no Clouds; BULK 2017 has 280 Clouds cells) must still decode.
@@ -232,6 +259,19 @@ fp_composition_build <- function(cfg, scenario_id, conn = NULL) {
   fp <- sf::st_read(file.path(cfg$dir_out, "floodplain.gpkg"), layer = scenario_id, quiet = TRUE)
   fp <- sf::st_transform(fp, terra::crs(fr$r))
   overlays <- list(floodplain = fp_rast_cells(fp, fr$r)); ov_rec <- list()
+  # in_wsg (#53): the cell CENTRE lies in the item's own watershed group, the same rule as every other
+  # overlay. The vector layers are split along the same polygon, so a total filtered to in_wsg means
+  # the same ground in both, and items are disjoint under it (group polygons tile BC).
+  wsg_poly <- fp_wsg_polygon(cfg, conn)
+  overlays$wsg <- fp_rast_cells(sf::st_transform(wsg_poly, sf::st_crs(fp)), fr$r)
+  # Recorded beside the context overlays, under `overlays` (whose members provenance-check.R does not
+  # key-check), never as a new `inputs` key: KEYS_COMPOSITION_INPUTS is a closed set checked both ways,
+  # so a new key would be UNDECLARED here and "missing" on every composition nobody rebuilds. The
+  # digest is of the polygon's WKB, so an FWA boundary change moves the input.
+  wsg_g <- sf::st_geometry(sf::st_transform(wsg_poly, 3005))
+  ov_rec$wsg <- list(table = "whse_basemapping.fwa_watershed_groups_poly",
+                     source = if (isTRUE(attr(wsg_poly, "zones_are_wsg"))) "subbasins.gpkg" else "fwapg",
+                     wkb_sha256 = digest::digest(sf::st_as_binary(wsg_g, endian = "little"), algo = "sha256"))
   if (length(ctx)) {
     if (is.null(conn)) {
       conn <- DBI::dbConnect(RPostgres::Postgres())
@@ -252,11 +292,19 @@ fp_composition_build <- function(cfg, scenario_id, conn = NULL) {
       overlays[[s$name]] <- fp_rast_cells(p, fr$r)
       # The table's COMMENT is how a frozen snapshot says which one it is (scripts/fwapg/alr_load.sh).
       # NA, not a guess, for a table nobody stamped (fwa_wetlands_poly).
-      cm <- DBI::dbGetQuery(conn, "SELECT obj_description(to_regclass($1), 'pg_class') AS c",
-                            params = list(s$table))$c
+      # One comment per table: an overlay may read several (#138's open water), and each is stamped
+      # (or not) on its own.
+      cm <- vapply(unlist(s$table), function(tb) {
+        x <- DBI::dbGetQuery(conn, "SELECT obj_description(to_regclass($1), 'pg_class') AS c",
+                             params = list(tb))$c
+        if (length(x) && !is.na(x)) x else NA_character_
+      }, character(1), USE.NAMES = FALSE)
       # The keys digest because only the ALR carries a snapshot comment: without it an FWA wetland
-      # reload could change this table and move no input.
-      ov_rec[[s$name]] <- list(table = s$table, snapshot = if (length(cm) && !is.na(cm)) cm else NA_character_,
+      # reload could change this table and move no input. A one-table overlay records scalars, as
+      # before; a several-table one records the lists in table order.
+      one <- length(cm) == 1L
+      ov_rec[[s$name]] <- list(table = if (one) s$table else I(unlist(s$table)),
+                               snapshot = if (one) cm else I(cm),
                                bbox_features = nrow(p0), keys_sha256 = kdig)
     }
   }

@@ -149,6 +149,33 @@ ok("an aliased carry is selected AS its patch name",
    grepl("SELECT fire_year AS fire_prior_year, geom AS geom", q_lb, fixed = TRUE))
 ok("a plain-list carry emits no alias", !grepl(" AS fire_year", q_src, fixed = TRUE) &&
      grepl("SELECT fire_year, geom AS geom", q_src, fixed = TRUE))
+# A context entry over several tables (#138's open water) reads them as one overlay.
+ow <- list(name = "open_water", table = c("s.lake", "s.manmade"), geom_col = "geom",
+           carry = list(waterbody_poly_id = "open_water_poly_id"))
+q_ow <- .dst_query(ow, bb, c(2017, 2023))
+ok("a several-table context query is one SELECT per table, UNION ALL'd, each aliased and bbox-limited",
+   lengths(regmatches(q_ow, gregexpr("UNION ALL", q_ow))) == 1 &&
+     all(vapply(c("FROM s.lake", "FROM s.manmade"), grepl, logical(1), x = q_ow, fixed = TRUE)) &&
+     lengths(regmatches(q_ow, gregexpr("waterbody_poly_id AS open_water_poly_id", q_ow))) == 2 &&
+     lengths(regmatches(q_ow, gregexpr("ST_Intersects", q_ow))) == 2)
+ok("a one-table entry's query is unchanged by the several-table form (no UNION)",
+   !grepl("UNION", q_ctx, fixed = TRUE) && !grepl("UNION", q_src, fixed = TRUE))
+ok("a several-table context entry beside wetland is accepted (its carry is aliased off wetland's)",
+   accepted(fp_disturbance_validate(list(sources = list(fire), context = list(wetland, ow)))))
+ow_dup <- ow; ow_dup$carry <- list("waterbody_poly_id")
+ok("must-fail arm: the same entry carrying wetland's waterbody_poly_id unaliased is refused",
+   refused(fp_disturbance_validate(list(sources = list(fire), context = list(wetland, ow_dup)))))
+ok("a several-table SOURCE is refused (its year window is one table's)",
+   refused(fp_disturbance_validate(list(sources = list(modifyList(fire, list(table = c("s.fire", "s.fire2"))))))))
+ok("a several-table LOOKBACK is refused",
+   refused(fp_disturbance_validate(c(dst_ok, list(lookback = list(modifyList(fire_prior, list(table = c("a.b", "c.d")))))))))
+ok("an empty table list is refused", refused(fp_disturbance_validate(list(sources = list(fire),
+   context = list(modifyList(ow, list(table = character(0))))))))
+ok("a table listed twice is refused", refused(fp_disturbance_validate(list(sources = list(fire),
+   context = list(modifyList(ow, list(table = c("s.lake", "S.LAKE"))))))))
+for (rn in c("wsg", "floodplain"))
+  ok(sprintf("a context entry named `%s` is refused (in_%s belongs to another writer)", rn, rn),
+     refused(fp_disturbance_validate(list(sources = list(fire), context = list(modifyList(wetland, list(name = rn)))))))
 
 # ---------------------------------------------------------------------------------------------
 message("\ntagging: context columns land, cause columns and the residual do not move")
@@ -316,7 +343,9 @@ read_layer <- function(gpkg, lyr) {
   # promote_to_multi = FALSE, or both sides of the comparison are promoted the same way and a re-tag
   # that turned every POLYGON into a MULTIPOLYGON compares byte-identical -- it did, on necr and bulk.
   x <- sf::st_read(gpkg, lyr, quiet = TRUE, promote_to_multi = FALSE)
-  o <- order(x[["name_basin"]], x[["patch_id"]])   # the key; patch_id alone repeats across basins
+  # The key; patch_id alone repeats across basins, and since #53 across the group line too.
+  o <- if ("in_wsg" %in% names(x)) order(x[["name_basin"]], x[["patch_id"]], x[["in_wsg"]]) else
+    order(x[["name_basin"]], x[["patch_id"]])
   list(schema = read_schema(gpkg, lyr),
        attrs = sf::st_drop_geometry(x)[o, , drop = FALSE],
        wkb   = vapply(sf::st_as_binary(sf::st_geometry(x)[o]), function(r) paste(r, collapse = ""),
@@ -365,7 +394,8 @@ if (is.na(a[1])) {
       # a headwater group may hold no reserve land at all. Whether an empty in_alr is a fact or a
       # failed fetch is decided by composition-check.R, against the cell-level composition table --
       # any change cell inside the ALR forces at least one any-touch patch.
-      if (s$name %in% c(lb_names, "alr")) {
+      # Open water too (#138): a group whose change touches no lake or manmade waterbody is a fact.
+      if (s$name %in% c(lb_names, "alr", "open_water")) {
         message(sprintf("  INFO  in_%s: %d patches (zero is legitimate here)", s$name,
                         sum(in_c %in% TRUE)))
       } else {

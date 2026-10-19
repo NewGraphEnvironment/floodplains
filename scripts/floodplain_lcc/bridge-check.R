@@ -30,7 +30,7 @@ if (!b_lyr %in% lyrs)     stop("no bridge layer ", b_lyr, " -- run step 3 with a
 
 tp <- sf::st_read(lc, layer = t_lyr, quiet = TRUE)
 br <- sf::st_read(lc, layer = b_lyr, quiet = TRUE)
-key <- setdiff(names(br), c("patch_id","name_basin","overlap_ha","overlap_frac","apportion_weight",
+key <- setdiff(names(br), c("patch_id","name_basin","in_wsg","overlap_ha","overlap_frac","apportion_weight",
                             "wsg","species","scenario"))
 # patch_id is per-sub-basin. Join on the PAIR or a multi-sub-basin area silently mis-reconciles:
 # match() takes the first row sharing an id, so a patch in basin A is credited basin B's area.
@@ -38,9 +38,12 @@ key <- setdiff(names(br), c("patch_id","name_basin","overlap_ha","overlap_frac",
 # Decide the scheme ONCE, from the bridge (the older artifact), and apply it to both sides. Deciding
 # per object is the bug it looks like a fix for: the transition layer always carries name_basin while
 # a pre-fix bridge does not, so the two sides key differently and match nothing.
+# Since #53 a patch the group line divides is two rows sharing (name_basin, patch_id), so a bridge
+# carrying in_wsg keys on the piece -- the same key fp_patch_key() writes.
 use_basin <- "name_basin" %in% names(br)
-pk_of <- function(x) if (use_basin)
-  paste(x$name_basin, x$patch_id, sep = "\u00a6") else as.character(x$patch_id)
+use_wsg   <- "in_wsg" %in% names(br)
+pk_of <- function(x) if (use_wsg) paste(x$name_basin, x$patch_id, x$in_wsg, sep = "\u00a6") else
+  if (use_basin) paste(x$name_basin, x$patch_id, sep = "\u00a6") else as.character(x$patch_id)
 tp_pk <- NULL; br_pk <- NULL
 message("Area: ", area, " | ", t_lyr, " (", nrow(tp), " patches) | ", b_lyr, " (", nrow(br),
         " pairs, key = ", key, ")")

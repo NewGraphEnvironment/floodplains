@@ -20,7 +20,9 @@
 #
 # Parity contract: `run_area.R neexdzii` must reproduce the known-good Neexdzii numbers
 # (coho-3 network 673.5 km | floodplain co_ff04 142.0 km² | floodplain tree loss 773.4 ha)
-# before any new area's numbers are trusted.
+# before any new area's numbers are trusted. Since #53 the patches are not clipped to the sub-basins:
+# the tree loss is read over the pieces that HAVE a sub-basin (name_basin not NA), which are step 3's
+# own bytes; 1.1 ha more lies outside every sub-basin (and outside BULK).
 #
 # RE-BASELINED 2026-10-13 under flooded 0.7.0, whose DEM grid is pinned (30 m, aligned to multiples
 # of 30, fixed datum step; #117, flooded#67). Two runs reproduced every floodplain and landcover
@@ -187,9 +189,11 @@ fp_gpkg_pin_date()                                # #45: pin gpkg_contents.last_
 lcc_dir <- here::here("scripts", "floodplain_lcc")
 source(here::here("scripts", "publish_hint.R"))    # fp_publish_hint (advisory publish handoff)
 source(file.path(lcc_dir, "fp_region.R"))          # fp_wsg_subbasin (whole-WSG sub-basin)
+source(file.path(lcc_dir, "fp_wsg.R"))             # fp_wsg_split (the group line, #53)
 source(file.path(lcc_dir, "01_network_extract.R"))
 source(file.path(lcc_dir, "02_floodplain_model.R"))
 source(file.path(lcc_dir, "03_lulc_classify.R"))
+source(file.path(lcc_dir, "fp_lulc_vectors.R"))    # step 3's vector half, shared with the backfill (#53)
 source(file.path(lcc_dir, "fp_disturbance.R"))     # fp_disturbance_tag (config-driven attribution)
 source(file.path(lcc_dir, "fp_provenance.R"))      # fp_prov_set (per-area run provenance, #33)
 source(file.path(lcc_dir, "fp_dem.R"))             # fp_dem_cached (step-2 DEM cache, #122)

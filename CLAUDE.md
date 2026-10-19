@@ -195,6 +195,61 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
     them from a full step 3, which reproduced parity (770.0 ha, 2,032 patches, the transition
     `outputs_hash` byte-identical to the record before it); it has since been re-baselined on flooded 0.7.0's grid
     (#117: 773.4 ha, 2,018 patches). Every other area gains them on its next step 3. `composition-check.R [area]` asserts it all.
+- **The group line: `in_wsg` and `in_open_water` (#53, #138; decided 2026-10-18).** A floodplain
+  runs past its watershed group, and the delineation is kept whole: tag, don't cut.
+  - **Every vector layer is split along the group polygon** (`fp_wsg.R`), each piece carrying
+    `in_wsg`:
+    - the scenario layer becomes two rows;
+    - `_by_<key>` becomes one row per (key, side);
+    - `classified_*` becomes one row per (class, side).
+
+    Under `in_wsg` groups are disjoint, so a regional total is a sum (README's region table, built
+    by `fp_fig_region_totals()`). Not `wsg`, which is the item key. The floodplain raster is
+    unchanged, so the floodplain `outputs_hash` does not move. The group polygon comes from
+    `subbasins.gpkg` when it has exactly fp_wsg_subbasin()'s schema, and from fwapg otherwise
+    (neexdzii).
+  - **Step 3 no longer clips change patches.** drift's `zones=` intersected last, so the clipped
+    patches disagreed with the composition's cells, and composition-check failed on every
+    whole-network group (#125). `fp_split_patches()` reproduces drift's intersection exactly and
+    keeps the remainder, `name_basin` NA. The inside rows are WKB-identical to the old clipped layer,
+    provided the sub-basins go through EPSG:4326 first, as 03 reads them. A row is now a **piece**:
+    `transition_patches` counts rows, and the patch key is `(name_basin, patch_id, in_wsg)`
+    (`fp_patch_key`, the bridge, bridge-check).
+  - **A subset area (neexdzii)** splits a sub-basin piece only where it crosses the line by at least
+    1 m2 (`FP_WSG_CROSS_M2`). Its sub-basins reach 3.94 ha past BULK, because they are drawn
+    separately from the group polygon. So its pieces with a sub-basin are step 3's own bytes, and
+    the parity tree loss is read over them.
+  - **Step 3's vector half is `fp_lulc_vectors.R`.** `gpkg_backfill-split.R` calls the same
+    functions, and `attribute_tag.R` shares the bridge builder.
+  - **Step 3's AOI is `fl_valley_poly()` of the floodplain raster**, which is WKB-identical to the
+    pre-split layer. A union of the pieces would move drift's AOI-keyed cache.
+  - **`in_open_water`** is a `context:` overlay over `fwa_lakes_poly` + `fwa_manmade_waterbodies_poly`.
+    A context entry may list tables, and the query becomes a UNION ALL. It has no size cut-off and a
+    single flag, because FWA files a dammed lake as a lake. It is carried as `open_water_poly_id`,
+    because wetland already writes `waterbody_poly_id`.
+  - **The composition carries both columns, by cell centre.** The group polygon is recorded under
+    `inputs.overlays.wsg`, never as a new `inputs` key: `KEYS_COMPOSITION_INPUTS` is closed.
+    `composition-check.R` compares in_wsg change cells with in_wsg patches within 0.5 ha (or 0.1%),
+    the whole footprint exactly (1e-6), and in_wsg cells with the vector in_wsg pieces within 1%.
+    The old one-sided 1% bound is gone; it stays only for layers that predate #53.
+  - **Backfill, not re-run.** `gpkg_backfill-split.R <area>` (`DRY=1` previews,
+    `BACKUP=<dir>` is required to write, `FORCE=1` overrides a moved cause column only) does all of
+    this with no VCA run and no STAC fetch:
+    - splits the layers;
+    - re-vectorises `transition.tif`;
+    - refuses unless the inside rows are the published ones byte for byte (whole-WSG) or by key and
+      area (subset);
+    - re-tags, then rebuilds the bridge and the composition;
+    - moves `outputs.transition_patches` with `fp_prov_set_outputs()`. That edits outputs in place,
+      the #126 `fp_prov_restamp` pattern, and leaves `run.datetime_utc` alone, because no raster
+      moves.
+
+    It is state-keyed, so a second run is a no-op. **Only the area's own species is touched**: the
+    retired species layers stay clipped and untagged until #131 prunes them, and disturbance-check's
+    core-columns arm fails on them by design.
+  - **Readers of patch totals must filter to `in_wsg`** for an item's own figure. The publish layer's
+    handoff is stac_floodplains_bc#98. Measured over all 24 areas:
+    `logs/20261018_wsg_split_backfill.md`.
 - **IO LULC accuracy (#93): `scripts/landcover_accuracy/` + `reference/<area>/`.** Measures the
   error of the land cover under every number here with a stratified reference sample (Olofsson
   2014). drift owns the sampler and estimators (`dft_accuracy_*`, drift ≥ 0.19.0); this module
@@ -757,8 +812,10 @@ Coexistence is data-layer only (steps 01/02/03).
   floodplain, step 2 in 8.9 min. Log: `scripts/floodplain_lcc/logs/20261012_whole_network_dunc.md`.
   The 2026-10-15 re-run on the pinned grid (`fp_region_cache_stale` forced it) gives **185.2 km²**,
   1,948 blue lines, 1,299 change patches and 116.9 ha of gross tree loss.
-  `composition-check.R dunc` fails its 1% change-vs-patch bound at +4.70%; change cells inside the
-  group polygon equal the patch total (#53). Log: `scripts/floodplain_lcc/logs/20261017_whole_network_columbia.md`.
+  `composition-check.R dunc` failed its old 1% change-vs-patch bound at +4.70%: change cells inside
+  the group polygon equal the patch total (#53). Since #53's split (2026-10-18) the bound compares
+  in_wsg cells with in_wsg patches, and DUNC passes at -0.03 ha. Its patch layer is 1,446 pieces:
+  the 1,299 patches plus 147 outside the group. A forward step 3 reproduced the backfill byte for byte. Log: `scripts/floodplain_lcc/logs/20261017_whole_network_columbia.md`.
 
 Whole-WSG areas use the **FWA group polygon** as the single sub-basin (`fp_wsg_subbasin`; no
 `break_points.csv` needed). The earlier single-outlet break point does NOT generalize — delineating
@@ -777,9 +834,9 @@ species networks: neither block applies to the whole network, and both ran in th
 **Skeena ran whole-network 2026-10-14** (`run_region.R skeena`, flooded 0.7.0), and is the first
 region in that mode. `all_ff04` came out at BULK **660.0 km²**, MORR **479.3**, KISP **324.4**.
 Gross tree loss 2017→2023 was 2,793.4 / 659.5 / 350.5 ha. Wall time was 59.0 / 15.7 / 24.0 min,
-with about 16.5 GiB peak. `composition-check.R` fails its 1% change-vs-patch bound in all three
+with about 16.5 GiB peak. `composition-check.R` failed its old 1% change-vs-patch bound in all three
 (+1.47 / +4.40 / +1.27%). That is the #53 edge effect: change cells inside the group polygon equal
-the patch totals exactly. The species layers stay beside these and fail `disturbance-check.R`'s
+the patch totals exactly. Since #53's split (2026-10-18), all three pass. The species layers stay beside these and fail `disturbance-check.R`'s
 context-column arms, which are forward-only. Log: `scripts/floodplain_lcc/logs/20261014_whole_network_skeena.md`.
 
 **Fraser region** (`sern_fraser_2024`, chinook until #125): LCHL, LSAL, WILL, TABR, UFRA, NECR, MORK, FRAN,
@@ -809,7 +866,8 @@ except BULK's outside-polygon area: 1,317.5 ha by cell centre, against a hand-de
 - `provenance-check.R` passes in all 23 groups, as does the `all_ff04` section of `disturbance-check.R`.
   Inside-polygon change cells equal the patch totals within 0.12 ha everywhere, and classified
   coverage of the floodplain is 0.9991–1.0001.
-- Expected failures: `composition-check.R`'s 1% bound, breached in every group, and the species layers'
+- Expected failures: `composition-check.R`'s 1% bound, breached in every group (replaced under #53,
+  after which all 23 pass; `logs/20261018_wsg_split_backfill.md`), and the species layers'
   context columns. The breach is +1.1% to +7.8% in the other 22 groups, which is the #53 edge. In PCEA
   it is +225%, from the reservoir spill below.
 - Two kinds of FAIL are new, each with its own issue:

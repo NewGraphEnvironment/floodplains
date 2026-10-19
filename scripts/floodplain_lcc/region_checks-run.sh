@@ -6,6 +6,8 @@
 #   composition-check.R <wsg> all_ff04
 #   bridge-check.R <wsg> all_ff04
 #   disturbance-check.R <wsg>
+#   wsg_split-check.R <wsg> all_ff04   (the group-line split, #53; FP_SPLIT_BACKUP=<dir> is passed
+#                                       through as <dir>/<wsg> when set, for the before/after totals)
 # plus dem_cache-check.R once (offline; it is not per area). Each check's full output goes to
 # data/logs/region_checks_<region>_<stamp>/<wsg>_<check>.log (gitignored).
 #
@@ -74,14 +76,19 @@ echo
 dem=$(run dem_cache "$chk/dem_cache-check.R")
 echo "dem_cache-check.R (offline): $dem"
 echo
-printf '%-6s %-12s %-12s %-12s %-12s %-14s\n' wsg provenance composition bridge disturbance "dist:$scen"
+printf '%-6s %-12s %-12s %-12s %-12s %-14s %-12s\n' wsg provenance composition bridge disturbance "dist:$scen" wsg_split
 for g in $groups; do
   p=$(run "${g}_provenance"  "$chk/provenance-check.R"  "$g")
   c=$(run "${g}_composition" "$chk/composition-check.R" "$g" "$scen")
   b=$(run "${g}_bridge"      "$chk/bridge-check.R"      "$g" "$scen")
   d=$(run "${g}_disturbance" "$chk/disturbance-check.R" "$g")
   ds=$(dst_section "$g")
-  printf '%-6s %-12s %-12s %-12s %-12s %-14s\n' "$g" "$p" "$c" "$b" "$d" "$ds"
+  if [ -n "${FP_SPLIT_BACKUP:-}" ]; then
+    w=$(FP_SPLIT_BACKUP="$FP_SPLIT_BACKUP/$g" run "${g}_wsg_split" "$chk/wsg_split-check.R" "$g" "$scen")
+  else
+    w=$(run "${g}_wsg_split" "$chk/wsg_split-check.R" "$g" "$scen")
+  fi
+  printf '%-6s %-12s %-12s %-12s %-12s %-14s %-12s\n' "$g" "$p" "$c" "$b" "$d" "$ds" "$w"
 done
 
 echo
