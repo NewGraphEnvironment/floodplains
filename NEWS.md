@@ -1,3 +1,27 @@
+# floodplains 0.1.16 (2026-10-19)
+
+* Every floodplain layer is split at the watershed group line, and each piece carries `in_wsg`
+  (#53). The delineation and the floodplain raster are unchanged: the scenario layer becomes two
+  rows, `_by_<key>` one row per (key, side), and `classified_*` one row per (class, side). Under
+  `in_wsg` groups are disjoint, so a regional total is a sum.
+  * Step 3 no longer clips change patches to the group. `fp_split_patches()` reproduces drift's
+    intersection and keeps the remainder with `name_basin` NA, so the inside rows are byte-identical
+    to the published ones. The patch key is now `(name_basin, patch_id, in_wsg)`.
+  * Step 3's vector half moved to `fp_lulc_vectors.R`, which the backfill and `attribute_tag.R`
+    share.
+* Change patches carry `in_open_water` and `open_water_poly_id`, a context overlay over FWA lakes
+  and manmade waterbodies with no size cut-off (#138). A `context:` entry may now list several
+  tables. `CLAUDE.md` records why PCEA's floodplain takes all three of Williston's lake polygons.
+* The composition table carries `in_wsg` and `in_open_water` by cell centre, and
+  `composition-check.R` compares in_wsg change cells with in_wsg patches. It passes in all 23 region
+  groups, where it failed in every one before.
+* `gpkg_backfill-split.R <area>` applied all of this to the 24 areas on disk with no VCA run and no
+  STAC fetch. Inside change and tree loss equal the published totals; outside the group is a median
+  1.6% of the floodplain, and 41.7% in PCEA. neexdzii parity holds at 773.4 ha
+  (`scripts/floodplain_lcc/logs/20261018_wsg_split_backfill.md`).
+* The README's region totals are the floodplain inside each region's groups, with open water and the
+  overlapping sum beside them (#60).
+
 # floodplains 0.1.15 (2026-10-18)
 
 * #125's acceptance checks ran on the Fraser (13 groups), Peace (3) and Columbia (4) whole-network
