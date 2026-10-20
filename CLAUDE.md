@@ -299,7 +299,7 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
     stay in unattributed loss), and `accuracy_estimate.R` refuses a config whose lookback differs
     from the design's.
   - **The orthophoto endpoint is private and this repo is public.** It is read from
-    `FP_ORTHO_STAC` (`~/.Renviron`) and never written into a committed file. The catalogue's
+    the `FP_ORTHO_STAC` environment variable and never written into a committed file. The catalogue's
     collection is discovered, not named. `imagery.csv` carries a year and a resolution, never an
     href or an item id, and the VRTs that do hold hrefs live in the gitignored review project.
   - `accuracy-check.R` asserts all of this offline, with must-fail arms.
@@ -786,7 +786,7 @@ Coexistence is data-layer only (steps 01/02/03).
   accessible networks are the same 4,877 segments, so species differs only in which scenario is
   primary.
 - `ufra` — Upper Fraser (**chinook** — coho is unmodelled up there; `access_ch` exists). Run:
-  floodplain ch_ff04 188.2 km², tree loss 544.5 ha. Burned to `sern_fraser_2024` Mergin.
+  floodplain ch_ff04 188.2 km², tree loss 544.5 ha. Burned to the Fraser region's Mergin project.
 - `bulk` — whole Bulkley watershed group (coho, `network_source: fresh`, `attribute_by:
   blue_line_key`). **The whole group neexdzii is a subset of**, which makes the pair the cheapest
   standing test in the repo: same WSG, species and min_order, one subset and one not, so a
@@ -839,7 +839,7 @@ with about 16.5 GiB peak. `composition-check.R` failed its old 1% change-vs-patc
 the patch totals exactly. Since #53's split (2026-10-18), all three pass. The species layers stay beside these and fail `disturbance-check.R`'s
 context-column arms, which are forward-only. Log: `scripts/floodplain_lcc/logs/20261014_whole_network_skeena.md`.
 
-**Fraser region** (`sern_fraser_2024`, chinook until #125): LCHL, LSAL, WILL, TABR, UFRA, NECR, MORK, FRAN,
+**Fraser region** (chinook until #125): LCHL, LSAL, WILL, TABR, UFRA, NECR, MORK, FRAN,
 BOWR, MCGR plus THOM, LNTH, UNTH (the Thompson groups, added 2026-09-03) — **13 groups**.
 `ch_ff04` totals **3,127 km²** across the 12 that have been re-run on `flooded` >= 0.5.0.
 The former figure (3,366 km² over 10 groups) is **dead, not merely superseded** — it was produced
@@ -951,22 +951,22 @@ report it (#81). `fp_lulc` asserts the floor.
 
 ### The database is a Docker container — check the right transport before declaring it down
 
-`fwapg` runs as the **`fresh-db` container** (postgis), published on `0.0.0.0:5432`. Two ways to
+`fwapg` runs as a **Docker container** (postgis), published on a TCP port. Two ways to
 conclude wrongly that it is down, both hit on 2026-09-01:
 
 - **`pg_isready` with no `-h` tests the unix socket** at `/tmp`, which a containerised server does
   not create. It answers `/tmp:5432 - no response` while `pg_isready -h localhost` answers
   `accepting connections`.
-- **The `PG*` variables live in `~/.Renviron`,** which R reads and **bash does not**. So a `psql`
+- **The `PG*` variables are set in R's environment file,** which R reads and **bash does not**. So a `psql`
   probe from an agent shell has no host, port, or database and falls back to the same socket —
   while the R pipeline, three lines away, connects fine.
 
 Both failures are about the probe, not the server, and both look identical to a real outage. Check
 `docker ps` and `pg_isready -h localhost` before concluding anything; to use `psql` from bash,
-export the vars first:
+export the same `PG*` values in the shell first:
 
 ```bash
-eval "$(grep -E '^PG(HOST|PORT|DATABASE|USER|PASSWORD)=' ~/.Renviron | sed 's/^/export /')"
+export PGHOST=<host> PGPORT=<port> PGDATABASE=<db> PGUSER=<user> PGPASSWORD=<password>
 ```
 
 The cost of getting this wrong is not just a wasted check. It sent a genuine step-1 bug — a
