@@ -69,3 +69,4 @@ Candidates for a follow-up on the form; changing it now would change the pre-reg
 | `[clamp] cannot clamp a raster with no values` in the renderer | `terra::rast(x)` on a SpatRaster is an empty template (code-check-spatial); use `x[[1:3]] * 1` |
 | `[crop] extents do not overlap` | the air photo VRT does not cover every point; test `terra::relate(..., "intersects")` first |
 | S2 panels near-black and smoothed | fixed square-root stretch on 0–0.25; `plotRGB(smooth = FALSE)` |
+| Byte binding of transcript image to sheet failed on 26 of 40 sheets | the Read tool passes a small PNG through but re-encodes a large one (>~500 KB here) to JPEG; compare decoded pixels instead (own 0.0031–0.0040 mean abs diff, other sheets ≥ 0.038; tol 0.01) |

@@ -497,7 +497,7 @@ i_est  <- grep("res <- fp_acc_estimate(", est_src, fixed = TRUE)[1]
 ok("accuracy_estimate.R gates BEFORE it estimates (nothing is printed or saved from failing labels)",
    !is.na(i_gate) && !is.na(i_est) && i_gate < i_est)
 ok("accuracy_estimate.R: synthetic labels bypass the gate, any model reviewer triggers it",
-   any(grepl("!synthetic && any(startsWith(as.character(lab$reviewer), FP_ACC_MODEL_PREFIX)", est_src, fixed = TRUE)))
+   any(grepl("if (!synthetic && (file.exists(fmsha) || any(startsWith(as.character(lab$reviewer), FP_ACC_MODEL_PREFIX)", est_src, fixed = TRUE)))
 
 ok("accuracy_estimate.R: a blank reviewer (NA) does not abort the gate trigger",
    any(grepl("FP_ACC_MODEL_PREFIX) %in% TRUE))", est_src, fixed = TRUE)))
@@ -517,6 +517,39 @@ ren_src <- readLines(here::here("scripts", "landcover_accuracy", "review_render-
 ok("a re-render removes the old sheet map before drawing the first sheet",
    isTRUE(grep('unlink(file.path(dir_model, c("sheet_map.csv"', ren_src, fixed = TRUE)[1] <
           grep("for (i in seq_len(", ren_src, fixed = TRUE)[1]))
+
+fz <- tempfile()
+ok("freeze writes when absent and passes on the same hash", isTRUE(fp_acc_freeze(fz, "abc", "x")) &&
+   isFALSE(fp_acc_freeze(fz, "abc", "x")))
+ok("freeze refuses a different hash (a re-run cannot re-freeze an edited file)", refused(fp_acc_freeze(fz, "def", "x")))
+unlink(fz)
+pngf <- tempfile(fileext = ".png"); grDevices::png(pngf, 40, 40); par(mar = c(0, 0, 0, 0)); plot.new(); grDevices::dev.off()
+ok("the image hash from a transcript's base64 equals the file's own hash",
+   identical(fp_acc_b64_sha256(jsonlite::base64_enc(readBin(pngf, "raw", file.size(pngf)))),
+             digest::digest(file = pngf, algo = "sha256")))
+src_of <- function(f, mt) list(media_type = mt, data = jsonlite::base64_enc(readBin(f, "raw", file.size(f))))
+pa <- tempfile(fileext = ".png"); pb <- tempfile(fileext = ".png"); jf <- tempfile(fileext = ".jpg")
+grDevices::png(pa, 200, 120); par(mar = c(0, 0, 0, 0)); image(matrix(1:12, 3), col = hcl.colors(12)); grDevices::dev.off()
+grDevices::png(pb, 200, 120); par(mar = c(0, 0, 0, 0)); image(matrix(12:1, 3), col = hcl.colors(12)); grDevices::dev.off()
+jpeg::writeJPEG(png::readPNG(pa)[, , 1:3], jf, quality = 0.9)
+ok("a PNG passed through unchanged matches its sheet", fp_acc_image_matches(src_of(pa, "image/png"), pa))
+ok("a JPEG re-encode of the sheet (what the Read tool returns for a large PNG) matches it",
+   fp_acc_image_matches(src_of(jf, "image/jpeg"), pa))
+ok("a different image does not match", !fp_acc_image_matches(src_of(pb, "image/png"), pa))
+ok("must-fail arm: byte equality alone would refuse the re-encoded sheet",
+   !identical(fp_acc_b64_sha256(src_of(jf, "image/jpeg")$data), digest::digest(file = pa, algo = "sha256")))
+unlink(c(pa, pb, jf, pngf))
+ok("the estimate recognises model labels by the committed hash and checks labels.csv against it",
+   any(grepl("labels_model.sha256", est_src, fixed = TRUE)) && any(grepl("file.exists(fmsha) ||", est_src, fixed = TRUE)))
+ok("extract binds each sheet to the image bytes the agent saw, and refuses to overwrite an accepted batch",
+   any(grepl("are not the images the agent saw", imp_src, fixed = TRUE)) && any(grepl("is already extracted", imp_src, fixed = TRUE)))
+ok("import verifies each batch's csv, key and sheets against its audit",
+   any(grepl("is not the csv its audit recorded", imp_src, fixed = TRUE)) &&
+   any(grepl("sheets on disk are not the ones it labelled", imp_src, fixed = TRUE)))
+ok("publish freezes B through fp_acc_freeze and requires the hash committed before B",
+   any(grepl("fp_acc_freeze(", imp_src, fixed = TRUE)) && any(grepl("--is-ancestor", imp_src, fixed = TRUE)))
+ok("a render refuses while transcripts or raw labels exist",
+   any(grepl('c("raw", "transcripts")', ren_src, fixed = TRUE)))
 
 # the reply, the audit and the working copy
 rep_txt <- paste("Quoting the contract first:", "```csv", "sheet,ref_from,ref_to,label_status,confidence,imagery,note",

@@ -91,10 +91,15 @@ if (mode == "prompt") {
   # each call's result, from the user turns: a call counts as done only if a result came back without error
   res <- unlist(lapply(Filter(function(r) identical(r$type, "user") && is.list(r$message$content), lapply(lines, function(l)
     tryCatch(jsonlite::fromJSON(l, simplifyVector = FALSE), error = function(e) NULL))), function(r)
-    lapply(Filter(function(x) identical(x$type, "tool_result"), r$message$content), function(x)
-      c(id = x$tool_use_id %||% NA_character_, err = isTRUE(x$is_error)))), recursive = FALSE)
-  res <- if (length(res)) as.data.frame(do.call(rbind, res), stringsAsFactors = FALSE) else data.frame(id = character(0), err = character(0))
-  calls$ok <- calls$id %in% res$id[res$err == "FALSE"]
+    lapply(Filter(function(x) identical(x$type, "tool_result"), r$message$content), function(x) {
+      img <- Filter(function(y) is.list(y) && identical(y$type, "image"), if (is.list(x$content)) x$content else list())
+      list(id = x$tool_use_id %||% NA_character_, err = isTRUE(x$is_error),
+           src = if (length(img)) img[[1]]$source else NULL)
+    })), recursive = FALSE)
+  res_id  <- vapply(res, function(x) x$id, "")
+  res_err <- vapply(res, function(x) x$err, TRUE)
+  calls$ok <- calls$id %in% res_id[!res_err]
+  img_of   <- function(id) { k <- match(id, res_id); if (is.na(k)) NULL else res[[k]]$src }
   # The reply: the handback message when the agent ends through one, else its last text block. The
   # handback itself is how the reply is delivered, not a tool the agent used on the files.
   hand  <- calls$name == "SubagentHandback"
@@ -109,10 +114,29 @@ if (mode == "prompt") {
   rows <- fp_acc_model_csv(reply)
   want <- sheet_map$sheet[sheet_map$batch == b]
   unread <- fp_acc_unread(calls[!hand, , drop = FALSE], batch_dir(b), key_md, want)
+  # The key the agents read must be the pre-registered one, and each sheet must be the very image the agent
+  # was shown: its bytes in the transcript against the file on disk. Names repeat across renders; bytes do not.
+  if (!identical(readLines(key_md, warn = FALSE), fp_acc_labelling_key()))
+    stop(key_md, " is not the labelling key in research/landcover_accuracy.md", call. = FALSE)
+  rd <- calls[calls$name == "Read" & calls$ok & !is.na(calls$path) &
+              dirname(normalizePath(calls$path, mustWork = FALSE)) == normalizePath(batch_dir(b)), ]
+  disk  <- vapply(want, function(x) sha256(file.path(batch_dir(b), x)), "")
+  saw   <- vapply(want, function(x) {
+    ids <- rd$id[basename(rd$path) == x]
+    any(vapply(ids, function(i) fp_acc_image_matches(img_of(i), file.path(batch_dir(b), x)), TRUE))
+  }, TRUE)
+  moved <- want[!saw]
+  if (length(moved)) stop(length(moved), " sheet(s) of batch ", b, " on disk are not the images the agent saw (",
+                          paste(utils::head(moved, 3), collapse = ", "), "): a re-render since the batch was labelled",
+                          call. = FALSE)
+  f_csv <- file.path(dir_raw, sprintf("batch_%02d.csv", b))
+  if (file.exists(f_csv) && !identical(Sys.getenv("FORCE"), "1"))
+    stop(f_csv, " is already extracted; FORCE=1 only to replace an accepted batch deliberately", call. = FALSE)
   dir.create(dir_raw, showWarnings = FALSE, recursive = TRUE)
   audit <- list(batch = b, model = models, transcript_sha256 = sha256(tr), n_rows = nrow(rows),
                 n_reads = sum(calls$name == "Read" & !hand), violations = nrow(viol), unread = length(unread),
                 missing = length(setdiff(want, rows$sheet)), extra = length(setdiff(rows$sheet, want)),
+                key_sha256 = sha256(key_md), sheet_sha256 = as.list(disk),
                 extracted_utc = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))
   if (nrow(viol) || length(unread) || audit$missing || audit$extra || anyDuplicated(rows$sheet)) {
     rej <- file.path(dir_raw, "rejected"); dir.create(rej, showWarnings = FALSE)
@@ -121,7 +145,8 @@ if (mode == "prompt") {
     stop(sprintf("batch %d refused: %d tool call(s) outside its sheets and the key, %d file(s) never read, %d sheet(s) missing, %d extra -- label it again",
                  b, nrow(viol), length(unread), audit$missing, audit$extra), call. = FALSE)
   }
-  utils::write.csv(rows, file.path(dir_raw, sprintf("batch_%02d.csv", b)), row.names = FALSE, na = "")
+  utils::write.csv(rows, f_csv, row.names = FALSE, na = "")
+  audit$csv_sha256 <- sha256(f_csv)
   jsonlite::write_json(audit, file.path(dir_raw, sprintf("batch_%02d.audit.json", b)), auto_unbox = TRUE, pretty = TRUE)
   message(sprintf("batch %d: %d rows, %d reads, model %s", b, nrow(rows), audit$n_reads, models))
 
@@ -131,6 +156,16 @@ if (mode == "prompt") {
   au <- lapply(sub("[.]csv$", ".audit.json", fb), jsonlite::read_json)
   models <- unique(vapply(au, function(x) x$model, ""))
   if (length(models) != 1) stop("batches were labelled by different models: ", paste(models, collapse = ", "), call. = FALSE)
+  # each batch as extracted, on the sheets now on disk, read under the key now on disk
+  for (k in seq_along(fb)) {
+    x <- au[[k]]
+    if (is.null(x$csv_sha256) || !identical(sha256(fb[k]), x$csv_sha256))
+      stop(fb[k], " is not the csv its audit recorded: extract it again", call. = FALSE)
+    if (!identical(x$key_sha256, sha256(key_md))) stop("batch ", x$batch, " was read under another key.md", call. = FALSE)
+    now <- vapply(names(x$sheet_sha256), function(s) sha256(file.path(batch_dir(x$batch), s)), "")
+    if (!identical(unname(now), unname(unlist(x$sheet_sha256))))
+      stop("batch ", x$batch, "'s sheets on disk are not the ones it labelled: the render moved under it", call. = FALSE)
+  }
   rows <- do.call(rbind, lapply(fb, utils::read.csv, colClasses = "character", na.strings = ""))
   day  <- max(as.Date(substr(vapply(au, function(x) x$extracted_utc, ""), 1, 10)))
   wc   <- fp_acc_model_wc(rows, sheet_map, paste0(FP_ACC_MODEL_PREFIX, models), format(day))
@@ -162,13 +197,22 @@ if (mode == "prompt") {
     clean   <- system2("git", c("-C", shQuote(here::here()), "diff", "--quiet", "HEAD", "--", shQuote(g)), stdout = FALSE, stderr = FALSE) == 0
     if (!tracked || !clean) stop(g, " is not committed as it stands: commit it before publishing", call. = FALSE)
   }
+  # ...and the model's hash was committed BEFORE B's labels first were: its last commit is an ancestor of the
+  # commit that added labels_b.csv, so a re-import or re-commit after B had seen anything is refused
+  git1 <- function(...) system2("git", c("-C", shQuote(here::here()), ...), stdout = TRUE)
+  c_hash <- git1("log", "-1", "--format=%H", "--", shQuote(sha_file))
+  c_b    <- utils::tail(git1("log", "--diff-filter=A", "--format=%H", "--", shQuote(fb)), 1)
+  before <- length(c_hash) == 1 && length(c_b) == 1 && c_hash != c_b &&
+    system2("git", c("-C", shQuote(here::here()), "merge-base", "--is-ancestor", c_hash, c_b), stdout = FALSE, stderr = FALSE) == 0
+  if (!before) stop(basename(sha_file), "'s last commit does not precede the commit that added labels_b.csv", call. = FALSE)
   want <- strsplit(readLines(sha_file, n = 1), "  ", fixed = TRUE)[[1]][1]
   if (!identical(sha256(out_csv), want)) stop(out_csv, " does not match the committed hash ", want, call. = FALSE)
   f <- file.path(cfg$dir_ref, "labels.csv")
   if (file.exists(f) && !identical(sha256(f), want)) stop(f, " exists and differs from the model's labels", call. = FALSE)
   if (!isTRUE(file.copy(out_csv, f, overwrite = TRUE)) || !identical(sha256(f), want))
     stop("copying the model's labels to ", f, " failed", call. = FALSE)
-  # B is frozen from here: the gate in accuracy_estimate.R refuses a labels_b.csv that differs from this
-  writeLines(sprintf("%s  labels_b.csv", sha256(fb)), file.path(cfg$dir_ref, "labels_b.sha256"))
+  # B is frozen from here: the gate in accuracy_estimate.R refuses a labels_b.csv that differs from this,
+  # and a second publish refuses rather than re-freezing an edited B
+  fp_acc_freeze(file.path(cfg$dir_ref, "labels_b.sha256"), sha256(fb), "labels_b.csv")
   message(f, ": the model's labels, matching ", basename(sha_file), "; labels_b.csv frozen in labels_b.sha256")
 }

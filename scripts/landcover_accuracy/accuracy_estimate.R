@@ -69,7 +69,14 @@ lb <- if (!synthetic && file.exists(fb)) {
   fp_acc_design_check(x, smp, fb)   # B's labels describe the cells of THIS design, or agreement is meaningless
   x
 }
-if (!synthetic && any(startsWith(as.character(lab$reviewer), FP_ACC_MODEL_PREFIX) %in% TRUE)) {   # a blank reviewer is NA
+# Model labels are recognised by the committed hash, not by the file's own reviewer column, and the labels
+# must be the hashed ones: a rewritten reviewer or a dropped row would otherwise skip or bias the gate.
+fmsha <- file.path(cfg$dir_ref, "labels_model.sha256")
+if (!synthetic && file.exists(fmsha) &&
+    !identical(digest::digest(file = file.path(cfg$dir_ref, "labels.csv"), algo = "sha256"),
+               strsplit(readLines(fmsha, n = 1), "  ", fixed = TRUE)[[1]][1]))
+  stop("labels.csv is not the model's labels as hashed in ", basename(fmsha), call. = FALSE)
+if (!synthetic && (file.exists(fmsha) || any(startsWith(as.character(lab$reviewer), FP_ACC_MODEL_PREFIX) %in% TRUE))) {
   if (is.null(lb)) stop("labels.csv holds model labels and there is no ", fb, ": the pre-registered gate ",
                         "needs the person's labels before any estimate", call. = FALSE)
   fp_acc_b_complete(lb, fp_acc_review_key_read(file.path(cfg$dir_ref, "review_key.csv")))

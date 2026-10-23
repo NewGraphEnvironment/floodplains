@@ -1044,3 +1044,34 @@ fp_acc_model_wc <- function(rows, sheet_map, reviewer, labelled_on) {
              confidence = rows$confidence, imagery = rows$imagery, note = rows$note,
              reviewer = reviewer, labelled_on = labelled_on, stringsAsFactors = FALSE)
 }
+
+# Freeze a fact by hash: write `<sha>  <name>` when the file is absent, pass when it already holds this sha,
+# and refuse when it holds another. A freeze that a re-run can overwrite freezes nothing (#145 code-check).
+fp_acc_freeze <- function(path, sha, name) {
+  if (file.exists(path)) {
+    have <- strsplit(readLines(path, n = 1), "  ", fixed = TRUE)[[1]][1]
+    if (!identical(have, sha)) stop(path, " already freezes ", name, " at ", substr(have, 1, 12), "; it now reads ",
+                                    substr(sha, 1, 12), ". Refusing to re-freeze an edited file.", call. = FALSE)
+    return(invisible(FALSE))
+  }
+  writeLines(sprintf("%s  %s", sha, name), path)
+  invisible(TRUE)
+}
+
+# Is the image a Read returned (a transcript's `source`: media_type + base64) the sheet on disk? It binds a
+# label to the picture the agent saw, not to a file name every render reuses. The Read tool passes a small
+# PNG through byte for byte and re-encodes a large one to JPEG, so: identical bytes, or the same size with a
+# mean absolute RGB difference within `tol`. Measured on NECR batch 1: a re-encoded sheet sits 0.0031-0.0040
+# from its own PNG and 0.038-0.139 from any other sheet, so 0.01 separates them about tenfold.
+FP_ACC_IMAGE_TOL <- 0.01
+fp_acc_b64_sha256 <- function(b64) digest::digest(jsonlite::base64_dec(b64), algo = "sha256", serialize = FALSE)
+fp_acc_image_matches <- function(src, png_path, tol = FP_ACC_IMAGE_TOL) {
+  if (is.null(src$data) || is.null(src$media_type)) return(FALSE)
+  raw <- jsonlite::base64_dec(src$data)
+  if (identical(digest::digest(raw, algo = "sha256", serialize = FALSE), digest::digest(file = png_path, algo = "sha256")))
+    return(TRUE)
+  seen <- switch(src$media_type, "image/png" = png::readPNG(raw), "image/jpeg" = jpeg::readJPEG(raw), NULL)
+  disk <- png::readPNG(png_path)
+  if (is.null(seen) || length(dim(seen)) != 3 || !identical(dim(seen)[1:2], dim(disk)[1:2])) return(FALSE)
+  mean(abs(seen[, , 1:3] - disk[, , 1:3])) <= tol
+}

@@ -14,6 +14,7 @@ pkgs_cran <- c(
   "DBI", "RPostgres",              # fwapg
   "here", "fs", "yaml", "jsonlite", "digest",  # utils + config (jsonlite/digest: provenance, #33)
   "curl",                          # HEAD of the DEM source for the step-2 DEM cache key (#122)
+  "png", "jpeg",                   # model labeller: compare the image an agent saw with its sheet (#145)
   "dplyr", "readr", "stringr"
 )
 

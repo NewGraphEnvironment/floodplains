@@ -38,9 +38,10 @@ cfg     <- fp_acc_area(area)
 dir_proj  <- fp_acc_review_dir(cfg)
 n_only    <- as.integer(Sys.getenv("SHEETS_ONLY", NA))
 dir_model <- file.path(cfg$dir_acc, if (is.na(n_only)) "model" else "model_test")
-if (length(list.files(file.path(dir_model, "raw"))))
-  stop(dir_model, "/raw holds model labels: a re-render reshuffles the sheets, so they would point at ",
-       "other points. Move raw/ aside deliberately first.", call. = FALSE)
+if (length(list.files(file.path(dir_model, c("raw", "transcripts")))))
+  stop(dir_model, " holds model labels or transcripts: a re-render reshuffles the sheets, so they would point ",
+       "at other points. (extract and import also refuse sheets that are not the images the agent saw.)",
+       call. = FALSE)
 
 key   <- fp_acc_review_key_read(file.path(cfg$dir_ref, "review_key.csv"))
 if (is.null(key)) stop("no review_key.csv for ", area, call. = FALSE)
