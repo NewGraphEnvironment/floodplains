@@ -42,14 +42,14 @@ go through `fp_acc_area()`, so fixing the resolver fixes them all.
 - [x] `accuracy-check.R`: offline arms on a temp reference dir — design wins over area.yml; explicit mismatch refused; malformed `transition_layer` refused; grid mismatch refused, with must-fail arms (the pre-fix resolver returns area.yml's scenario; a grid guard with the dims check removed passes the wrong grid).
 
 ## Phase 2: wetland_composition.csv records its scenario
-- [ ] `reference_composition-wetland.R` writes a `scenario` column.
-- [ ] `composition-check.R` (5): compare only when the csv's scenario equals the scenario under check; a csv without the column is an INFO skip ("predates #140; re-run reference_composition-wetland.R"); drop the `identical(scen, acfg$primary_scenario ...)` gate.
-- [ ] Re-run `reference_composition-wetland.R necr` (needs fwapg; check `docker ps` + `pg_isready -h localhost` first). Expect fwa_wetland 2017 total 6,436.64 ha unchanged, now tagged `ch_ff04`.
+- [x] `reference_composition-wetland.R` writes a `scenario` column.
+- [x] `composition-check.R` (5): compare only when the csv's scenario equals the scenario under check; a csv without the column is an INFO skip ("predates #140; re-run reference_composition-wetland.R"); drop the `identical(scen, acfg$primary_scenario ...)` gate.
+- [x] Re-run `reference_composition-wetland.R necr` (needs fwapg; check `docker ps` + `pg_isready -h localhost` first). Expect fwa_wetland 2017 total 6,436.64 ha unchanged, now tagged `ch_ff04`.
 
 ## Phase 3: Repair what ran on the wrong scenario, docs, #131
-- [ ] Re-run `REVIEWER=b review_build-qgis.R necr`; confirm `patches.gpkg` has 5,692 features and `labels.gpkg` is unchanged (cmp before/after).
-- [ ] CLAUDE.md #93 bullet: the module's scenario comes from the design; `area.yml` only before a first draw.
-- [ ] Edit #131's body to name `fp_acc_design_scenario()` as the check the prune must call.
+- [x] Re-run `REVIEWER=b review_build-qgis.R necr`; confirm `patches.gpkg` has 5,692 features and `labels.gpkg` is unchanged (cmp before/after).
+- [x] CLAUDE.md #93 bullet: the module's scenario comes from the design; `area.yml` only before a first draw.
+- [x] Edit #131's body to name `fp_acc_design_scenario()` as the check the prune must call.
 
 ## Validation
 

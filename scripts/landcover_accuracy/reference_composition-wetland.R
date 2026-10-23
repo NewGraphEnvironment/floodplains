@@ -10,7 +10,7 @@
 # per cell centre, the same rule the strata use.
 #
 # usage: Rscript scripts/landcover_accuracy/reference_composition-wetland.R [area]
-# Output: data/<area>/accuracy/wetland_composition.csv (year x zone x class: ha, share)
+# Output: data/<area>/accuracy/wetland_composition.csv (scenario, year x zone x class: ha, share)
 
 suppressMessages({library(sf); library(terra); library(DBI); library(RPostgres); library(yaml)})
 sf::sf_use_s2(FALSE)
@@ -52,6 +52,8 @@ for (y in names(g$cls)) {
 }
 out <- do.call(rbind, rows)
 out$ha <- round(out$ha, 2); out$share <- round(out$share, 4)
+# The grid it was counted on (#140): composition-check.R (5) compares it only with the same scenario's table.
+out <- cbind(scenario = cfg$primary_scenario, out)
 
 dir.create(cfg$dir_acc, showWarnings = FALSE, recursive = TRUE)
 utils::write.csv(out, file.path(cfg$dir_acc, "wetland_composition.csv"), row.names = FALSE, na = "")
