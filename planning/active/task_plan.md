@@ -91,7 +91,7 @@ Measured in exploration (2026-10-23):
 - [x] Research, Model labeller subsection: a dated amendment note recording the redraw, the discarded first-draw hash (4072a24) and why, written before the new hash is committed (review item 3)
 - [ ] Research, other ch_ff04 numbers: the wetland composition table, the dated-imagery table, the windows sentence, the Wayback shares, the Status line, the "NECR run" line. Pre-registered rationale (sieve 18%, prior fire 27%, 48/39/86%) stays as dated rationale (review items 4, 6)
 - [x] CLAUDE.md, the other stale lines: "all_ff04 under a ch_ff04 sample", "windows do not yet (#148)", "sieve removes 18%", the expected-failure note on NECR (5), and review_key "append-only" (a forced redraw starts a new key) (review item 5)
-- [ ] Curated windows copy under `scripts/landcover_accuracy/logs/`
+- [x] Curated windows copy under `scripts/landcover_accuracy/logs/`
 - [x] Edit #131's body: the must-fail arm protects whatever scenario `fp_acc_design_scenario()` names (now `all_ff04`); `ch_ff04` is no longer protected by the design
 
 ## Validation
