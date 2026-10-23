@@ -622,9 +622,15 @@ ok("a stash of the staged freeze does not count as a second commit of it", lengt
 ok("must-fail arm: without --exclude=refs/stash the stash's index commit is counted",
    length(fp_acc_git(gr4, "log", "--all", "--format=%H", "--", shQuote(f4))) >= 2)
 rm(gr4, g4, f4)
-writeLines("model, re-imported", l3); writeLines("h2  labels_model.csv", h3); g3("add", "."); g3("commit", "-qm", "reimport")
-ok("labels.csv and the hash re-committed together after B are refused (round 6 finding 1)",
-   refused(fp_acc_model_published(gr3, h3, b3, l3)))
+# each guard alone: labels.csv re-committed with the hash untouched...
+g3("branch", "-q", "published")
+writeLines("model, edited", l3); g3("add", "."); g3("commit", "-qm", "relabel")
+ok("labels.csv committed a second time is refused (hash untouched)", refused(fp_acc_model_published(gr3, h3, b3, l3)))
+# ...and the hash re-committed after B with labels.csv committed once (a fresh branch from before the relabel)
+g3("checkout", "-q", "published"); g3("branch", "-q", "-D", "master"); g3("branch", "-q", "-D", "main")
+writeLines("h2  labels_model.csv", h3); g3("add", "."); g3("commit", "-qm", "rehash")
+ok("a model hash re-committed after B is refused (labels.csv committed once)",
+   length(fp_acc_git_commits(gr3, l3)) == 1 && refused(fp_acc_model_published(gr3, h3, b3, l3)))
 rm(gr3, g3, h3, b3, f3, l3)
 rm(lf, bf, ff, hf, gr, g, gr2, g2, bf2, ff2, lf2)   # names later sections use for their own fixtures
 unlink(td, recursive = TRUE)
