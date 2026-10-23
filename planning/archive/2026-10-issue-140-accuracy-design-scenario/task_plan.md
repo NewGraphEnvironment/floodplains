@@ -60,7 +60,7 @@ go through `fp_acc_area()`, so fixing the resolver fixes them all.
 - [x] Tests pass
 - [x] `/code-check` clean (once over the branch with `/code-check branch`)
 - [x] PWF checkboxes match landed work
-- [ ] `/planning-archive` on completion
+- [x] `/planning-archive` on completion
 
 Verification:
 - `Rscript scripts/landcover_accuracy/accuracy-check.R` → ALL PASS, new arms included; each must-fail arm shown red against the pre-fix form (in a copy).
