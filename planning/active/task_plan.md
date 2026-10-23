@@ -35,11 +35,11 @@ go through `fp_acc_area()`, so fixing the resolver fixes them all.
 - design.json is not rewritten (never hand-edited); the scenario is parsed from `transition_layer`.
 
 ## Phase 1: Resolve the scenario from the design
-- [ ] `fp_acc_design_scenario(path)`: parse `transition_layer` (`^transition_(.+)_([0-9]{4})_([0-9]{4})$`) into scenario + interval; refuse a malformed or missing value. Also usable by #131.
-- [ ] `fp_acc_area(area, scenario = NULL)`: with a design, take scenario, species (scenario prefix) and interval from it, record `cfg$scenario_source = "design"`, refuse an explicit `scenario` that differs; message when area.yml names another. Without a design, today's behaviour, `scenario_source = "area.yml"`.
-- [ ] `fp_acc_grid()`: when a design exists, refuse a transition grid whose dims, extent or CRS differ from `design.json`'s (the guard that catches the wrong grid whatever the scenario string says).
-- [ ] `sample_draw-pilot.R`: takes an optional `[scenario]` argument; a scenario other than the design's is refused unless `FORCE=1` (a redraw on a new grid orphans every label anyway).
-- [ ] `accuracy-check.R`: offline arms on a temp reference dir — design wins over area.yml; explicit mismatch refused; malformed `transition_layer` refused; grid mismatch refused, with must-fail arms (the pre-fix resolver returns area.yml's scenario; a grid guard with the dims check removed passes the wrong grid).
+- [x] `fp_acc_design_scenario(path)`: parse `transition_layer` (`^transition_(.+)_([0-9]{4})_([0-9]{4})$`) into scenario + interval; refuse a malformed or missing value. Also usable by #131.
+- [x] `fp_acc_area(area, scenario = NULL)`: with a design, take scenario and interval from it, species and min_order from its `flood_scenarios.csv` row (plan review #1), record `cfg$scenario_source = "design"`, refuse an explicit `scenario` that differs; message when area.yml names another. Without a design, today's behaviour, `scenario_source = "area.yml"`.
+- [x] `fp_acc_grid()`: when a design exists, refuse a transition grid whose dims, extent or CRS differ from `design.json`'s (the guard that catches the wrong grid whatever the scenario string says).
+- [x] `sample_draw-pilot.R`: takes an optional `[scenario]` argument; a scenario other than the design's is refused unless `FORCE=1` (a redraw on a new grid orphans every label anyway).
+- [x] `accuracy-check.R`: offline arms on a temp reference dir — design wins over area.yml; explicit mismatch refused; malformed `transition_layer` refused; grid mismatch refused, with must-fail arms (the pre-fix resolver returns area.yml's scenario; a grid guard with the dims check removed passes the wrong grid).
 
 ## Phase 2: wetland_composition.csv records its scenario
 - [ ] `reference_composition-wetland.R` writes a `scenario` column.

@@ -22,7 +22,11 @@
 #   reference/<area>/strata.csv    per stratum: cells, area, weight, points drawn (dft_accuracy_estimate's `strata`)
 #   reference/<area>/design.json   seed, RNG kinds, allocation, grid -- enough to redraw it
 #
-# usage: Rscript scripts/landcover_accuracy/sample_draw-pilot.R [area]
+# usage: Rscript scripts/landcover_accuracy/sample_draw-pilot.R [area] [scenario]
+#
+# The scenario is the existing design's (design.json `transition_layer`, #140), else area.yml's. A
+# scenario argument that differs from the design's is a new design on a new grid, refused unless
+# FORCE=1, which already redraws over labels.
 
 suppressMessages({library(sf); library(terra); library(DBI); library(RPostgres); library(yaml)})
 sf::sf_use_s2(FALSE)
@@ -37,9 +41,10 @@ if (utils::packageVersion("drift") < "0.19.0")
 SEED <- 930093L   # fixed for the life of the sample; changing it discards every label
 N    <- 30L       # pilot, per stratum (plan gate 2026-09-29)
 
-area <- commandArgs(trailingOnly = TRUE)[1]
-if (is.na(area)) area <- "necr"
-cfg  <- fp_acc_area(area)
+args <- commandArgs(trailingOnly = TRUE)
+area <- if (length(args) >= 1) args[1] else "necr"
+cfg  <- fp_acc_area(area, scenario = if (length(args) >= 2) args[2],
+                    redesign = identical(Sys.getenv("FORCE"), "1"))
 g    <- fp_acc_grid(cfg)
 
 dst    <- fp_disturbance_validate(yaml::read_yaml(here::here("config", "disturbance.yml")))

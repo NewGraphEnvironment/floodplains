@@ -41,3 +41,9 @@ Relates #93, #125, #131.
 
 | Error | Resolution |
 |-------|------------|
+
+## compareGeom tolerance (measured 2026-10-23, terra 1.9.50)
+WKT-with-USAGE vs `EPSG:32610` vs `+proj=utm +zone=10 +datum=WGS84`: equal. Extent shifted 1e-7 m or 0.5 m (0.05 cell): equal. One-cell shift, EPSG:32609: not equal. So the design-grid guard is CRS-semantic and sub-cell tolerant.
+
+## min_order moved with #125
+`config/necr/area.yml` is `species: all, min_order: 2`; the design's network is `ch` order 3 (`flood_scenarios.csv` ch_ff04 row). `aquatic_network.gpkg` holds `streams_ch3`, `streams_co3`, `streams_all2`.
