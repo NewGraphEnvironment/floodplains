@@ -1500,11 +1500,35 @@ unpublished.
 
 *4 lines of evidence for this rule are in `conventions/agent-operations.md`.*
 
-### An upstream PR is short, carries no session link, and needs no issue of its own
+### Upstream, we are guests: fork first, offer an issue, disclose AI
 
-Write it for a maintainer who knows the code (about 200 words: bug, repro, change, test table), and keep "Generated with Claude Code" but drop the session link and the commits' `Claude-Session:` trailers, which outsiders cannot open. File no upstream issue beside it: when we have the fix, the PR is the upstream report, and our own issue links it. Leave out the SRED cross-reference too. Posting it still needs the user's word (above).
+We build on other people's work: gratitude and humility in every step that touches it.
+Maintainers may read anything we write about their code, so describe what we saw rather than
+diagnose their design, offer rather than propose, and leave them every road to lead.
 
-*5 lines of evidence for this rule are in `conventions/agent-operations.md`.*
+- **Fix on our fork the same day,** one concern per branch from upstream's default branch,
+  no planning files and no `#N` in its commits, the draft in a fork issue labelled
+  `upstream-draft`. Pin our packages
+  to the fork's integration branch until upstream holds every fix on it, their way.
+- **Upstream gets a short issue that offers:** thanks, a reprex, the options as we see them,
+  and a pull request if it helps. Send one when asked, or first only where the history shows
+  outside pull requests merged routinely. One open item per maintainer, timed around their load.
+- **About 200 words, no session link, no SRED line.** A design change goes in as a question.
+- **Say plainly that Claude Code helped.** Commits keep `Co-Authored-By` and drop
+  `Claude-Session:`, and the pull request offers an `Assisted-by` reword. Where AI-assisted
+  contributions are unwelcome, send no code.
+- **Never ping by accident:** backtick upstream references in issues and pull requests in our repos,
+  and keep them out of commit messages. In a fork checkout `gh` targets upstream, so a write
+  meant for our fork passes `--repo`.
+- **Homework before, notes after:** who contributes, stated policy, AI use, current load,
+  response pace. Keep it in soul's `research/upstream-projects.md`, revised after every reply,
+  merge or silence; steps and wording are in the reference file.
+- Raise upstream only what would help their other users. If a maintainer would rather not
+  hear from us, keep the fork or move on.
+
+Posting still needs the user's word on the exact text (above).
+
+*22 lines of evidence for this rule are in `conventions/agent-operations.md`.*
 
 ### Auto mode refuses a production write whatever the chat says
 
@@ -1555,7 +1579,7 @@ click: `[repo#12](https://github.com/<owner>/<repo>/issues/12)`,
 - Before sending a report with many numbers, spot-check two or three through `gh`: the ones
   typed from memory or whose type you inferred.
 - Scope is messages to the user, and PR and issue bodies read from outside the repo; commit
-  messages autolink already.
+  messages autolink already. An upstream item in our repos' GitHub text is backticked, never linked.
 
 *7 lines of evidence for this rule are in `conventions/agent-operations.md`.*
 
@@ -1568,7 +1592,7 @@ every other consumer. Same instinct as `newgraph.md`'s "install missing packages
 workaround", applied to a *broken* dependency.
 
 **How to apply:** reproduce it minimally, file an issue in the owning repo with the
-repro and the exact lines, report it, and carry on if it is not blocking. The rule is
+repro and the exact lines (a third party's: a fork issue first, above), report it, and carry on if it is not blocking. The rule is
 *do not hide it*, not *do not continue*.
 
 *10 lines of evidence for this rule are in `conventions/agent-operations.md`.*
