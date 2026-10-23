@@ -27,14 +27,14 @@ Because no label exists yet, the protocol can still change without invalidating 
 - **Fail path is not built now.** If agreement falls short, `accuracy_estimate.R` refuses, and handing strata back to a person becomes its own issue with the disagreement table attached.
 
 ## Phase 1 — Pre-register the protocol (committed alone, before any label)
-- [ ] `research/landcover_accuracy.md` gets a new subsection, "Model labeller (pre-registered 2026-10-23, before any label)", under Review setup. It sets out:
+- [x] `research/landcover_accuracy.md` gets a new subsection, "Model labeller (pre-registered 2026-10-23, before any label)", under Review setup. It sets out:
   - the roles and the threshold above, and what happens when the threshold fails;
   - the change-agreement definition;
   - what the model sees (the contact sheets, below) and never sees;
   - that `reviewer` records the model id.
-- [ ] Amend the "Second labeller" bullet: agreement now **gates** the estimate when A is a model. It still never enters the estimate's numbers.
-- [ ] Rule 5: ±1 → ±2 years (#113 decision 1). Review setup: the growth policy (#113 decision 2).
-- [ ] Commit only this file. The timestamp is the pre-registration.
+- [x] Amend the "Second labeller" bullet: agreement now **gates** the estimate when A is a model. It still never enters the estimate's numbers.
+- [x] Rule 5: ±1 → ±2 years (#113 decision 1). Review setup: the growth policy (#113 decision 2).
+- [x] Commit only this file. The timestamp is the pre-registration.
 
 ## Phase 2 — Contact sheets the model can read
 - [ ] `scripts/landcover_accuracy/review_render-sheets.R <area>`. For each point it writes one PNG of panels around the 10 m cell (about 150 m window, cell outlined):

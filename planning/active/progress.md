@@ -7,3 +7,4 @@
 - Created branch `145-check-bulk-s-change-against-dated-imager` off main
 - Scaffolded PWF baseline from issue #145 with approved phases
 - Next: start Phase 1
+- Phase 1: pre-registered the model labeller (roles, what the model sees and never sees, threshold, fail path) and folded #113's two decisions (rule 5 ±2 years; growth blinding accepted and reported) into `research/landcover_accuracy.md`, committed before any label. Plan review spawned in the background at 05:59Z.
