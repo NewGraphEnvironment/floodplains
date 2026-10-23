@@ -12,3 +12,4 @@
 - Phase 3: B review project rebuilt (REVIEWER=b) 18:37 UTC: patches.gpkg 11,469 -> 5,692; labels.gpkg byte-identical (75 points, 0 labelled). Local only, no Mergin sync. CLAUDE.md rule added. #131 and #140 bodies edited.
 - Verification: `reference_omission-disturbance.R necr` (reads `fp_acc_grid`) rewrote `omission_disturbance.csv` at 18:45 UTC byte-identical to the pre-#140 copy (criterion 4: omission_io 0.255 over 92.0 ha). The stage reads ch_ff04 again.
 - `/code-check branch` round 1 (spawned 18:38 UTC): Clean (`review-round1.md`). Round 2 spawned 18:43 UTC.
+- Round 2 (`review-round2.md`): 1 fragile: every stage now needs the design scenario's `flood_scenarios.csv` row, and #131 may drop species rows. Accepted as loud-by-design; #131 body now says keep that row. Also fixed three comments the change made stale. Not inside a previous fix (round 1 made none).

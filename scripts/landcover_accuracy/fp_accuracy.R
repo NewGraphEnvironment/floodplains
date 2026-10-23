@@ -93,7 +93,7 @@ fp_acc_epsg <- function(path) {
 
 FP_ACC_TREES <- 2L   # IO LULC class code for Trees
 
-# The classified series + transition for an area's primary scenario, on one grid, checked.
+# The classified series + transition for the area's accuracy scenario (fp_acc_scenario), on one grid, checked.
 # The transition is what step 3 published (1 ha sieve applied); the classified rasters are IO's own
 # labels. Both are read from disk, and they must agree: a partial re-run of step 3 can rewrite one
 # without the other, and every stratum and omission number assumes they describe the same map.
