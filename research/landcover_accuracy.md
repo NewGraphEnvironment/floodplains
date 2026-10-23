@@ -315,7 +315,8 @@ usage, so a disagreement measures IO's error rather than a mismatch of definitio
     the `cell`, the dated imagery covering the point, and the label fields. It carries no `point_id`,
     stratum, IO class or cause flag.
   - `reference/<area>/review_key.csv` (committed, never shipped in the project) maps `review_id` back.
-    It is append-only and drawn from a seed stream of the design seed.
+    It is append-only and drawn from a seed stream of the design seed. A forced redraw starts a new
+    one, because the old key maps ids to points that moved (#148).
   - The export unblinds through the key and checks every cell against it.
   - IO's change patches and the FWA wetlands (a stratifier) appear only in the `9 After labelling`
     theme, and are unchecked in the layer tree.
@@ -508,7 +509,8 @@ sample point is listed, so a stale index can be detected and not just a disagree
     skipped, while `suppressWarnings()` hid fly's warning naming the cause.
   - It was filed as a fly defect. Code review traced it back, and the issue was corrected and
     withdrawn.
-  - Passing the year's full frame set georeferences 250 of 250 frames.
+  - Passing the year's full frame set georeferenced 250 of 250 frames on the first draw, and 305 of
+    305 on the `all_ff04` draw.
 - **Dated imagery does not change `windows.csv`.** Only a change of scenario re-measures it, since
   the windows are counted over the floodplain and their readers refuse another scenario (#148).
   - The windows come from a pre-registered rule over clear-day counts (Composite windows).
@@ -569,8 +571,10 @@ as it stood on each of 197 release dates (2014-02-20 to 2026-09-24).
   `Location`, which QGIS requests as a bare path. GDAL follows it, so the chips are fetched with GDAL
   into local rasters, and labelling needs no network.
 - **Each pixel belongs to its nearest point.** 119 of the 480 points have a neighbour within 300 m
-  (176 on the first draw),
-  so the +/-150 m chips overlap, and neighbours are usually different captures. Each chip is clipped
+  (176 on the first draw), so the +/-150 m chips overlap. Neighbours usually share one capture: of
+  the 86 pairs within 300 m, the picked capture date differs in 0 at 2017 and 2 at 2023 (3 and 4 of
+  140 on the first draw). Where it differs, or the release or zoom does, an unclipped chip would
+  cover its neighbour's point with the wrong date, so each chip is clipped
   to its point's Voronoi cell.
   - A VRT ignores a source's **mask** band when it composites but honours its **nodata** (measured:
     with JPEG + mask chips, the chip listed last overwrote its neighbour at the neighbour's own
@@ -579,7 +583,8 @@ as it stood on each of 197 release dates (2014-02-20 to 2026-09-24).
     point back from the mosaic and refuses unless it is that point's own chip.
 - **Built for NECR: 960 chips (480 points x 2 endpoints), 766 MB** in `dated/wayback_*` (on the
   `all_ff04` draw, 2026-10-23: 0 failed, 14.5 min cold). A cold build takes 15–21 min and a re-run seconds: tiles are cached, and a chip is kept while its release, zoom and
-  clip are unchanged. Log: `scripts/landcover_accuracy/logs/20261008_wayback_necr.md`.
+  clip are unchanged. Logs: `scripts/landcover_accuracy/logs/20261023_imagery-wayback_necr.md` (this
+  draw) and `20261008_wayback_necr.md` (the first: 711 MB, 21.2 min, 4 failed then fetched).
   - **A flat cell is not a failure.** The first build refused three cells as possible placeholder
     tiles. All three were open lake, so the check was removed.
   - **160 of 480 points have the same capture at both endpoints** (115 on the first draw), because one capture is all they have
