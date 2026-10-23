@@ -69,9 +69,10 @@ lb <- if (!synthetic && file.exists(fb)) {
   fp_acc_design_check(x, smp, fb)   # B's labels describe the cells of THIS design, or agreement is meaningless
   x
 }
-if (!synthetic && any(startsWith(as.character(lab$reviewer), FP_ACC_MODEL_PREFIX))) {
+if (!synthetic && any(startsWith(as.character(lab$reviewer), FP_ACC_MODEL_PREFIX) %in% TRUE)) {   # a blank reviewer is NA
   if (is.null(lb)) stop("labels.csv holds model labels and there is no ", fb, ": the pre-registered gate ",
                         "needs the person's labels before any estimate", call. = FALSE)
+  fp_acc_b_complete(lb, fp_acc_review_key_read(file.path(cfg$dir_ref, "review_key.csv")))
   gate <- fp_acc_model_gate(lab, lb)
   cat("Model-labeller gate (kappa >= ", FP_ACC_MODEL_KAPPA, " both endpoints, change >= ", FP_ACC_MODEL_CHANGE,
       ", abstention <= ", FP_ACC_MODEL_ABSTAIN, "):\n", sep = "")

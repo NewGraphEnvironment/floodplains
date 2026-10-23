@@ -816,6 +816,18 @@ fp_acc_agreement <- function(a, b) {
 # and A abstained (cannot_label) on at most FP_ACC_MODEL_ABSTAIN of the points B labelled. Point
 # estimates; the intervals ride along in `agreement`.
 FP_ACC_MODEL_ABSTAIN <- 0.10
+# B's labels must be the WHOLE second-labeller subset (labelled or cannot_label): an export taken midway
+# through labelling holds only the rows done so far, and agreement on any subset can pass the gate.
+fp_acc_b_complete <- function(b, key) {
+  want <- key$point_id[key$second %in% TRUE]
+  if (!length(want)) stop("review_key.csv names no second-labeller subset", call. = FALSE)
+  if (!setequal(b$point_id, want) || anyDuplicated(b$point_id))
+    stop("labels_b.csv holds ", length(unique(b$point_id)), " of the ", length(want), " second-labeller points (",
+         length(setdiff(want, b$point_id)), " missing, ", length(setdiff(b$point_id, want)), " not in the subset): ",
+         "finish labelling and export again", call. = FALSE)
+  invisible(TRUE)
+}
+
 fp_acc_model_gate <- function(a, b) {
   ag <- fp_acc_agreement(a, b)
   b_lab <- b$point_id[b$label_status == "labelled"]
@@ -993,6 +1005,16 @@ fp_acc_transcript_audit <- function(calls, batch_dir, key_path) {
   calls[!(calls$name == "Read" & ok_path(calls$path)), , drop = FALSE]
 }
 
+# What the agent did NOT read: the key, and each sheet of its batch. A reply can label a sheet the agent
+# never opened (it skipped it, or ran out of context), and the audit above only sees reads it should not
+# have made, never reads it failed to make.
+fp_acc_unread <- function(calls, batch_dir, key_path, want) {
+  rd <- calls$path[calls$name == "Read" & !is.na(calls$path)]
+  rd <- normalizePath(rd, mustWork = FALSE)
+  in_batch <- basename(rd)[dirname(rd) == normalizePath(batch_dir, mustWork = FALSE)]
+  c(if (!normalizePath(key_path, mustWork = FALSE) %in% rd) "key.md", setdiff(want, in_batch))
+}
+
 # All batches' rows + the frozen sheet map -> the working-copy frame labels_export uses (review_id, cell,
 # label fields). Every sheet exactly once, no sheet the map does not hold.
 fp_acc_model_wc <- function(rows, sheet_map, reviewer, labelled_on) {
@@ -1007,7 +1029,10 @@ fp_acc_model_wc <- function(rows, sheet_map, reviewer, labelled_on) {
                          call. = FALSE)
   if (!startsWith(reviewer, FP_ACC_MODEL_PREFIX)) stop("a model reviewer reads ", FP_ACC_MODEL_PREFIX, "<id>", call. = FALSE)
   m <- match(rows$sheet, sheet_map$sheet)
-  num <- function(v) { v <- trimws(v); out <- suppressWarnings(as.integer(v)); out[is.na(v) | !nzchar(v)] <- NA; out }
+  # as.integer("2.5") is 2 with no warning, so a fractional code would pass as a valid class: read as a
+  # number and refuse anything that is not a whole one
+  num <- function(v) { v <- trimws(v); x <- suppressWarnings(as.numeric(v)); x[is.na(v) | !nzchar(v)] <- NA
+                       x[!is.na(x) & x != round(x)] <- NaN; out <- as.integer(x); out[is.nan(x)] <- NA; out }
   bad <- !is.na(rows$ref_from) & is.na(num(rows$ref_from)) | !is.na(rows$ref_to) & is.na(num(rows$ref_to))
   if (any(bad)) stop(sum(bad), " row(s) with a class that is not an integer code: ",
                      paste(utils::head(rows$sheet[bad], 3), collapse = ", "), call. = FALSE)

@@ -121,6 +121,10 @@ if (length(s2_years) > 4 || n_hi > 4) stop("a sheet holds 4 panels per row: ", l
 seed <- as.integer(Sys.getenv("RENDER_SEED", as.integer(Sys.time()) %% 2147483647L))
 plan <- fp_acc_sheet_plan(key$review_id, n_batch, seed)
 plan$cell <- as.numeric(cells$cell[match(plan$review_id, cells$review_id)])   # the project's, checked against the key above
+# The map, key and render record of any earlier render go BEFORE the first sheet is drawn: sheet names and
+# batches depend only on the counter, so an aborted re-render would leave the old map beside new sheets
+# and every check by name would still pass.
+unlink(file.path(dir_model, c("sheet_map.csv", "render.json", "key.md")))
 unlink(list.files(dir_model, pattern = "^batch_[0-9]{2}$", full.names = TRUE), recursive = TRUE)
 dir.create(dir_model, recursive = TRUE, showWarnings = FALSE)
 for (b in unique(plan$batch)) dir.create(file.path(dir_model, sprintf("batch_%02d", b)))

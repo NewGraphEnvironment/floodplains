@@ -497,7 +497,26 @@ i_est  <- grep("res <- fp_acc_estimate(", est_src, fixed = TRUE)[1]
 ok("accuracy_estimate.R gates BEFORE it estimates (nothing is printed or saved from failing labels)",
    !is.na(i_gate) && !is.na(i_est) && i_gate < i_est)
 ok("accuracy_estimate.R: synthetic labels bypass the gate, any model reviewer triggers it",
-   any(grepl("!synthetic && any(startsWith(as.character(lab$reviewer), FP_ACC_MODEL_PREFIX))", est_src, fixed = TRUE)))
+   any(grepl("!synthetic && any(startsWith(as.character(lab$reviewer), FP_ACC_MODEL_PREFIX)", est_src, fixed = TRUE)))
+
+ok("accuracy_estimate.R: a blank reviewer (NA) does not abort the gate trigger",
+   any(grepl("FP_ACC_MODEL_PREFIX) %in% TRUE))", est_src, fixed = TRUE)))
+ok("must-fail arm: any(startsWith()) over a blank reviewer is NA, which `if` cannot take",
+   is.na(any(startsWith(c("a person", NA), FP_ACC_MODEL_PREFIX))))
+kb <- data.frame(point_id = sprintf("p%02d", 1:6), second = c(TRUE, TRUE, TRUE, FALSE, FALSE, FALSE))
+ok("B's labels must be the whole second-labeller subset", !refused(fp_acc_b_complete(data.frame(point_id = c("p01", "p02", "p03")), kb)))
+ok("a partial labels_b.csv (an export midway through labelling) is refused",
+   refused(fp_acc_b_complete(data.frame(point_id = c("p01", "p02")), kb)))
+ok("a labels_b.csv holding a point outside the subset is refused",
+   refused(fp_acc_b_complete(data.frame(point_id = c("p01", "p02", "p03", "p04")), kb)))
+i_b <- grep("fp_acc_b_complete(", est_src, fixed = TRUE)[1]
+ok("accuracy_estimate.R checks B is complete before the gate", !is.na(i_b) && i_b < i_gate)
+imp_src <- readLines(here::here("scripts", "landcover_accuracy", "labels_import-model.R"))
+ok("publish refuses an incomplete labels_b.csv", any(grepl("fp_acc_b_complete(", imp_src, fixed = TRUE)))
+ren_src <- readLines(here::here("scripts", "landcover_accuracy", "review_render-sheets.R"))
+ok("a re-render removes the old sheet map before drawing the first sheet",
+   isTRUE(grep('unlink(file.path(dir_model, c("sheet_map.csv"', ren_src, fixed = TRUE)[1] <
+          grep("for (i in seq_len(", ren_src, fixed = TRUE)[1]))
 
 # the reply, the audit and the working copy
 rep_txt <- paste("Quoting the contract first:", "```csv", "sheet,ref_from,ref_to,label_status,confidence,imagery,note",
@@ -518,6 +537,11 @@ calls <- data.frame(name = c("Read", "Read", "Read", "Read", "Bash", "Read"),
 v <- fp_acc_transcript_audit(calls, bd, kp)
 ok("audit allows only its own sheets and the key; flags the map, another batch, a command and CLAUDE.md",
    nrow(v) == 4 && !any(v$path %in% c(file.path(bd, "sheet_001.png"), kp), na.rm = TRUE))
+rd <- data.frame(name = "Read", path = c(kp, file.path(bd, "sheet_001.png")), stringsAsFactors = FALSE)
+ok("a sheet labelled but never read is caught", identical(fp_acc_unread(rd, bd, kp, c("sheet_001.png", "sheet_002.png")),
+                                                          "sheet_002.png"))
+ok("a batch that never read the key is caught", identical(fp_acc_unread(rd[2, ], bd, kp, "sheet_001.png"), "key.md"))
+ok("a batch that read the key and every sheet is complete", !length(fp_acc_unread(rd, bd, kp, "sheet_001.png")))
 smap <- data.frame(sheet = c("sheet_001.png", "sheet_002.png"), review_id = c(7L, 3L), cell = c(101, 102), batch = 1L)
 wcm <- fp_acc_model_wc(rr, smap, "model:test-model", "2026-10-23")
 ok("model rows map through the sheet map to review_id and cell", identical(wcm$review_id, c(7L, 3L)) &&
@@ -528,6 +552,10 @@ rx <- rr; rx$sheet[2] <- "sheet_003.png"
 ok("a sheet the map does not hold is refused", refused(fp_acc_model_wc(rx, smap, "model:x", "2026-10-23")))
 rx <- rr; rx$ref_to[1] <- "Trees"
 ok("a class that is not an integer code is refused", refused(fp_acc_model_wc(rx, smap, "model:x", "2026-10-23")))
+rx <- rr; rx$ref_to[1] <- "2.5"
+ok("a fractional class code is refused, never truncated to a valid one",
+   refused(fp_acc_model_wc(rx, smap, "model:x", "2026-10-23")))
+ok("must-fail arm: as.integer('2.5') is 2, a valid IO code", identical(as.integer("2.5"), 2L))
 ok("a reviewer without the model: prefix is refused", refused(fp_acc_model_wc(rr, smap, "claude", "2026-10-23")))
 
 # the sheets: names, titles, PNG metadata, the directory

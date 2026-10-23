@@ -99,17 +99,18 @@ if (mode == "prompt") {
   viol <- fp_acc_transcript_audit(calls[!hand, , drop = FALSE], batch_dir(b), key_md)
   rows <- fp_acc_model_csv(reply)
   want <- sheet_map$sheet[sheet_map$batch == b]
+  unread <- fp_acc_unread(calls[!hand, , drop = FALSE], batch_dir(b), key_md, want)
   dir.create(dir_raw, showWarnings = FALSE, recursive = TRUE)
   audit <- list(batch = b, model = models, transcript_sha256 = sha256(tr), n_rows = nrow(rows),
-                n_reads = sum(calls$name == "Read" & !hand), violations = nrow(viol),
+                n_reads = sum(calls$name == "Read" & !hand), violations = nrow(viol), unread = length(unread),
                 missing = length(setdiff(want, rows$sheet)), extra = length(setdiff(rows$sheet, want)),
                 extracted_utc = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))
-  if (nrow(viol) || audit$missing || audit$extra || anyDuplicated(rows$sheet)) {
+  if (nrow(viol) || length(unread) || audit$missing || audit$extra || anyDuplicated(rows$sheet)) {
     rej <- file.path(dir_raw, "rejected"); dir.create(rej, showWarnings = FALSE)
-    jsonlite::write_json(c(audit, list(violation_calls = viol)), file.path(rej, sprintf("batch_%02d_%s.json", b,
+    jsonlite::write_json(c(audit, list(violation_calls = viol, unread_files = unread)), file.path(rej, sprintf("batch_%02d_%s.json", b,
                          format(Sys.time(), "%Y%m%dT%H%M%S", tz = "UTC"))), auto_unbox = TRUE, pretty = TRUE)
-    stop(sprintf("batch %d refused: %d tool call(s) outside its sheets and the key, %d sheet(s) missing, %d extra -- label it again",
-                 b, nrow(viol), audit$missing, audit$extra), call. = FALSE)
+    stop(sprintf("batch %d refused: %d tool call(s) outside its sheets and the key, %d file(s) never read, %d sheet(s) missing, %d extra -- label it again",
+                 b, nrow(viol), length(unread), audit$missing, audit$extra), call. = FALSE)
   }
   utils::write.csv(rows, file.path(dir_raw, sprintf("batch_%02d.csv", b)), row.names = FALSE, na = "")
   jsonlite::write_json(audit, file.path(dir_raw, sprintf("batch_%02d.audit.json", b)), auto_unbox = TRUE, pretty = TRUE)
@@ -141,6 +142,9 @@ if (mode == "prompt") {
   fb <- file.path(cfg$dir_ref, "labels_b.csv")
   if (!file.exists(fb)) stop("no ", fb, ": the model's labels stay out of the repository until the person's ",
                              "labels are committed", call. = FALSE)
+  # complete, not merely present: an export midway through labelling would unblind the rest
+  fp_acc_b_complete(utils::read.csv(fb, colClasses = c(point_id = "character")),
+                    fp_acc_review_key_read(file.path(cfg$dir_ref, "review_key.csv")))
   if (!file.exists(sha_file) || !file.exists(out_csv)) stop("run import first", call. = FALSE)
   want <- strsplit(readLines(sha_file, n = 1), "  ", fixed = TRUE)[[1]][1]
   if (!identical(sha256(out_csv), want)) stop(out_csv, " does not match the committed hash ", want, call. = FALSE)
