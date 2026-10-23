@@ -737,5 +737,88 @@ ok("the growth is idempotent (a re-run of the build draws nothing new)",
 ok("the growth has its own seed stream",
    fp_acc_seed(930093, "second_labeller_stable") != fp_acc_seed(930093, "second_labeller"))
 
+# --- The design's scenario, not area.yml's (#140) ---------------------------------------------
+message("\nscenario resolution (#140)")
+sc_dir <- tempfile("acc_scen_"); dir.create(sc_dir)
+sc_grid <- terra::rast(nrows = 4, ncols = 4, xmin = 0, xmax = 40, ymin = 0, ymax = 40, crs = "EPSG:32610")
+sc_design <- function(lyr, grid = sc_grid) {
+  p <- tempfile("design_", tmpdir = sc_dir, fileext = ".json")
+  e <- as.vector(terra::ext(grid))
+  jsonlite::write_json(list(dims = dim(grid)[1:2], extent = unname(e), crs = terra::crs(grid),
+                            transition_layer = lyr), p, auto_unbox = TRUE, digits = NA)
+  p
+}
+yml <- list(area = "toy", species = "all", min_order = 2L, primary_scenario = "all_ff04",
+            change_interval = c(2017L, 2023L))
+sc <- data.frame(scenario_id = c("ch_ff04", "all_ff04", "co_ff04"), species = c("ch", "all", "co"),
+                 min_order = c(3L, 2L, 3L))
+des <- fp_acc_design_scenario(sc_design("transition_ch_ff04_2017_2023"))
+ok("transition_layer parses into scenario and interval",
+   identical(des$scenario, "ch_ff04") && identical(des$change_interval, c(2017L, 2023L)))
+ok("no design.json is no design (NULL), not an error", is.null(fp_acc_design_scenario(file.path(sc_dir, "absent.json"))))
+for (lyr in list("transition_ch_ff04", "ch_ff04", NULL, c("transition_ch_ff04_2017_2023", "x")))
+  ok(sprintf("a transition_layer of %s is refused", if (is.null(lyr)) "NULL" else paste(lyr, collapse = "+")),
+     inherits(tryCatch(fp_acc_design_scenario(sc_design(lyr)), error = identity), "error"))
+r <- suppressMessages(fp_acc_scenario(yml, des, sc))
+ok("a committed design wins over area.yml: scenario and source",
+   identical(r$primary_scenario, "ch_ff04") && identical(r$scenario_source, "design"))
+ok("species AND min_order follow the design's scenario row, not area.yml (streams_ch3, not streams_ch2)",
+   identical(r$species, "ch") && identical(r$min_order, 3L))
+ok("must-fail arm: with no design the resolver returns area.yml's scenario (the pre-#140 rule)",
+   identical(fp_acc_scenario(yml, NULL, sc)$primary_scenario, "all_ff04"))
+ok("a scenario with no flood_scenarios.csv row is refused",
+   inherits(tryCatch(suppressMessages(fp_acc_scenario(yml, des, sc[sc$scenario_id != "ch_ff04", ])),
+                     error = identity), "error"))
+ok("the design's interval wins too",
+   identical(suppressMessages(fp_acc_scenario(modifyList(yml, list(change_interval = c(2018L, 2023L))), des, sc))$change_interval,
+             c(2017L, 2023L)))
+ok("area.yml naming another scenario is said, not hidden",
+   inherits(tryCatch(fp_acc_scenario(yml, des, sc), message = identity), "message"))
+ok("an explicit scenario other than the design's is refused",
+   inherits(tryCatch(fp_acc_scenario(yml, des, sc, scenario = "all_ff04"), error = identity), "error"))
+ok("an explicit scenario equal to the design's is accepted",
+   identical(suppressMessages(fp_acc_scenario(yml, des, sc, scenario = "ch_ff04"))$scenario_source, "design"))
+rd <- fp_acc_scenario(yml, des, sc, scenario = "co_ff04", redesign = TRUE)
+ok("a redesign takes the new scenario, its species, and drops the old design's grid",
+   identical(rd$primary_scenario, "co_ff04") && identical(rd$species, "co") && is.null(rd$design) &&
+     identical(rd$scenario_source, "argument"))
+rs <- fp_acc_scenario(yml, des, sc, redesign = TRUE)
+ok("a redesign with no scenario stays on the design's scenario but drops its grid (FORCE=1 redraw of a moved grid)",
+   identical(rs$primary_scenario, "ch_ff04") && is.null(rs$design) && identical(rs$change_interval, c(2017L, 2023L)))
+
+# the grid guard: the design's grid passes, any other is refused -- one fixture per way to differ, so
+# no single check can be dropped with every fixture still refused
+sc_rast <- function(dir, grid) {
+  dir.create(dir, recursive = TRUE)
+  f <- terra::setValues(grid, 2); t <- terra::setValues(grid, 11)
+  terra::writeRaster(f, file.path(dir, "classified_2017.tif"))
+  terra::writeRaster(t, file.path(dir, "classified_2023.tif"))
+  terra::writeRaster(f * 1000 + t, file.path(dir, "transition.tif"))
+}
+sc_g <- function(nr = 4, nc = 4, x0 = 0, crs = "EPSG:32610")
+  terra::rast(nrows = nr, ncols = nc, xmin = x0, xmax = x0 + 40, ymin = 0, ymax = 40, crs = crs)
+sc_rast(file.path(sc_dir, "same"),    sc_grid)
+sc_rast(file.path(sc_dir, "dims"),    sc_g(nr = 8, nc = 8))        # same extent, other rows/cols
+sc_rast(file.path(sc_dir, "shifted"), sc_g(x0 = 10))               # same dims, origin one cell east
+sc_rast(file.path(sc_dir, "zone"),    sc_g(crs = "EPSG:32609"))    # same numbers, another UTM zone
+sc_cfg <- function(sub, design = r$design) modifyList(r, list(dir_rast = file.path(sc_dir, sub), design = design))
+grid_refused <- function(cfg) inherits(tryCatch(fp_acc_grid(cfg, years = c(2017L, 2023L)), error = identity), "error")
+ok("the design's own grid passes fp_acc_grid", !grid_refused(sc_cfg("same")))
+for (k in c("dims", "shifted", "zone"))
+  ok(sprintf("a transition grid differing from the design's by %s is refused", k), grid_refused(sc_cfg(k)))
+ok("must-fail arm: with no design on the cfg (the pre-#140 form) a wrong grid passes",
+   !grid_refused(modifyList(sc_cfg("shifted"), list(design = NULL))))
+# criterion 4's omission file names its scenario too
+om <- data.frame(source = c("harvest", "harvest"), year = c("all", "2018"), omission_io = c(0.25, 0.24))
+om_f <- file.path(sc_dir, "omission.csv")
+utils::write.csv(cbind(scenario = "ch_ff04", om), om_f, row.names = FALSE)
+ok("an omission file on the design's scenario is read", identical(fp_acc_omission_read(om_f, "ch_ff04"), 0.25))
+ok("an omission file on another scenario is refused",
+   inherits(tryCatch(fp_acc_omission_read(om_f, "all_ff04"), error = identity), "error"))
+utils::write.csv(om, om_f, row.names = FALSE)
+ok("an omission file with no scenario (pre-#140) is refused",
+   inherits(tryCatch(fp_acc_omission_read(om_f, "ch_ff04"), error = identity), "error"))
+unlink(sc_dir, recursive = TRUE)
+
 message(if (fails) sprintf("\n%d FAIL", fails) else "\nALL PASS")
 quit(status = if (fails) 1L else 0L)

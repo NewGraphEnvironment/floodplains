@@ -301,6 +301,13 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   - **A `point_id` is not an identity.** drift names points `<stratum>_<k>`, so a redraw moves
     points under the same ids. Every stage checks stratum, cell and map class against the design,
     and `sample_draw-pilot.R` refuses to redraw over labels.
+  - **The scenario is the design's, not `area.yml`'s (#140).** `fp_acc_area()` reads it from
+    `design.json`'s `transition_layer`, and species and `min_order` from that scenario's
+    `flood_scenarios.csv` row. `area.yml` answers only before a first draw. #125 moved NECR to
+    `all_ff04` under a `ch_ff04` sample, and every stage followed it. `fp_acc_grid()` refuses a
+    transition grid other than the design's. Only `sample_draw-pilot.R` under `FORCE=1` may move the
+    scenario. `wetland_composition.csv` and `omission_disturbance.csv` name theirs, and their readers
+    compare only the same scenario. The composite windows do not yet (#148).
   - **The population is the classified footprint, not `transition.tif`.** The 1 ha sieve removes
     18% of NECR's IO change; it gets its own stratum, whose map claim is "no change".
   - **Wetland is decided per cell** (FWA polygon or Flooded Vegetation), never from the any-touch

@@ -5,9 +5,9 @@
 # endpoint and where another dated source (Sentinel-2, an orthophoto or air photo) must. Metadata only: no
 # tile is fetched.
 #
-# A seeded random point sample over the primary scenario's floodplain stands in for its area: a point gets
-# the one capture drawn on top there (drift::dft_wayback_captures), which is the unit the accuracy sample
-# uses too, and equal-probability points make each share an estimate of the share of floodplain AREA.
+# A seeded random point sample over the accuracy scenario's floodplain (fp_acc_area, #140) stands in
+# for its area: a point gets the one capture drawn on top there (drift::dft_wayback_captures), which
+# is the unit the accuracy sample uses too, and equal-probability points make each share an estimate of the share of floodplain AREA.
 # Per point and endpoint, the capture nearest mid-season of that year (dft_wayback_pick), banded by whole
 # years as labelling-key rule 5 is (+/-2 years supports high or medium confidence).
 #

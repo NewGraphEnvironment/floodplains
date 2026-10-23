@@ -8,19 +8,80 @@
 `%||%` <- function(a, b) if (is.null(a)) b else a
 source(here::here("scripts", "fp_raster.R"))   # fp_rast_cells; defines functions only
 
-# area name -> the few facts the accuracy scripts need, with the same defaults run_area.R applies
-fp_acc_area <- function(area) {
+# area name -> the few facts the accuracy scripts need, with the same defaults run_area.R applies.
+# The scenario and change interval are the DESIGN's once one is committed (#140): see fp_acc_scenario().
+fp_acc_area <- function(area, scenario = NULL, redesign = FALSE) {
   cfg_dir <- here::here("config", area)
   if (!dir.exists(cfg_dir)) stop("no config for area '", area, "' at ", cfg_dir, call. = FALSE)
   cfg <- yaml::read_yaml(file.path(cfg_dir, "area.yml"))
-  cfg$area             <- area
-  cfg$dir_out          <- here::here("data", area)
-  cfg$primary_scenario <- cfg$primary_scenario %||% paste0(cfg$species, "_ff04")
-  cfg$change_interval  <- cfg$change_interval %||% c(2017L, 2023L)
-  cfg$dir_rast         <- file.path(cfg$dir_out, "rasters", cfg$primary_scenario)
-  cfg$dir_acc          <- file.path(cfg$dir_out, "accuracy")
-  cfg$dir_ref          <- here::here("reference", area)
+  cfg$area    <- area
+  cfg$dir_out <- here::here("data", area)
+  cfg$dir_acc <- file.path(cfg$dir_out, "accuracy")
+  cfg$dir_ref <- here::here("reference", area)
+  sc  <- utils::read.csv(file.path(cfg_dir, "flood_scenarios.csv"), stringsAsFactors = FALSE)
+  cfg <- fp_acc_scenario(cfg, fp_acc_design_scenario(file.path(cfg$dir_ref, "design.json")), sc,
+                         scenario = scenario, redesign = redesign)
+  cfg$dir_rast <- file.path(cfg$dir_out, "rasters", cfg$primary_scenario)
   cfg
+}
+
+# The population a committed design was drawn from (#140), parsed from design.json's
+# `transition_layer` (`transition_<scenario>_<from>_<to>`), the one field the draw wrote it into.
+# NULL when there is no design yet. design.json is never hand-edited, so it is parsed, not extended.
+fp_acc_design_scenario <- function(path) {
+  if (!file.exists(path)) return(NULL)
+  d   <- jsonlite::read_json(path, simplifyVector = TRUE)
+  lyr <- d$transition_layer
+  m   <- if (is.character(lyr) && length(lyr) == 1)
+    regmatches(lyr, regexec("^transition_([a-z]+_ff[0-9]+)_([0-9]{4})_([0-9]{4})$", lyr))[[1]]
+  if (length(m) != 4)
+    stop(path, ": transition_layer `", if (is.null(lyr)) "absent" else paste(lyr, collapse = ","),
+         "` does not name a scenario and interval (transition_<sp>_ffNN_<from>_<to>)", call. = FALSE)
+  list(scenario = m[2], change_interval = as.integer(m[3:4]), design = d)
+}
+
+# cfg (area.yml) + the design's scenario -> the scenario every accuracy stage reads (#140).
+# A committed design wins: its sample, strata and labels describe one grid, and area.yml moves with
+# the pipeline (#125 moved NECR to all_ff04 under a ch_ff04 sample, and every stage followed it).
+# area.yml answers only before a first draw. An explicit `scenario` that differs from the design's is
+# refused unless `redesign` (sample_draw-pilot.R under FORCE=1, which orphans every label anyway); a
+# redesign also drops the design's grid, since a forced redraw is how a moved grid gets a new design.
+# Species and min_order come from the scenario's row in flood_scenarios.csv (`scenarios`), as
+# run_area.R resolves them, never from area.yml: #125 moved NECR to `all` at order 2, and the design's
+# network is ch at order 3. cfg$design carries the design's grid for fp_acc_grid() to hold rasters to.
+fp_acc_scenario <- function(cfg, des = NULL, scenarios, scenario = NULL, redesign = FALSE) {
+  yml_scen <- cfg$primary_scenario %||% paste0(cfg$species, "_ff04")
+  yml_int  <- cfg$change_interval %||% c(2017L, 2023L)
+  if (is.null(des) || redesign) {
+    cfg$primary_scenario <- scenario %||% des$scenario %||% yml_scen
+    cfg$change_interval  <- if (identical(cfg$primary_scenario, des$scenario)) des$change_interval else yml_int
+    cfg$scenario_source  <- if (!is.null(scenario)) "argument" else if (!is.null(des)) "design" else "area.yml"
+    cfg$design           <- NULL
+  } else {
+    if (!is.null(scenario) && !identical(scenario, des$scenario))
+      stop("scenario `", scenario, "` differs from the design's `", des$scenario, "` (reference/",
+           cfg$area, "/design.json); only a redraw (sample_draw-pilot.R, FORCE=1) may move it", call. = FALSE)
+    if (!identical(yml_scen, des$scenario) || !identical(as.integer(yml_int), des$change_interval))
+      message("NOTE: area.yml names ", yml_scen, " ", paste(yml_int, collapse = "-"), "; the accuracy ",
+              "design is on ", des$scenario, " ", paste(des$change_interval, collapse = "-"), ", which is read")
+    cfg$primary_scenario <- des$scenario
+    cfg$change_interval  <- des$change_interval
+    cfg$scenario_source  <- "design"
+    cfg$design           <- des$design
+  }
+  row <- scenarios[scenarios$scenario_id == cfg$primary_scenario, , drop = FALSE]
+  if (nrow(row) != 1)
+    stop("scenario `", cfg$primary_scenario, "` has ", nrow(row), " rows in config/", cfg$area,
+         "/flood_scenarios.csv; its species and min_order cannot be resolved", call. = FALSE)
+  cfg$species   <- row$species
+  cfg$min_order <- as.integer(row$min_order)
+  cfg
+}
+
+# The grid a design was drawn on, rebuilt from design.json (as review_build-qgis.R does for its cells)
+fp_acc_design_grid <- function(d) {
+  terra::rast(nrows = d$dims[[1]], ncols = d$dims[[2]], xmin = d$extent[[1]], xmax = d$extent[[2]],
+              ymin = d$extent[[3]], ymax = d$extent[[4]], crs = d$crs)
 }
 
 # "EPSG:<code>" of a raster, for handing a grid's CRS to drift
@@ -32,7 +93,7 @@ fp_acc_epsg <- function(path) {
 
 FP_ACC_TREES <- 2L   # IO LULC class code for Trees
 
-# The classified series + transition for an area's primary scenario, on one grid, checked.
+# The classified series + transition for the area's accuracy scenario (fp_acc_scenario), on one grid, checked.
 # The transition is what step 3 published (1 ha sieve applied); the classified rasters are IO's own
 # labels. Both are read from disk, and they must agree: a partial re-run of step 3 can rewrite one
 # without the other, and every stratum and omission number assumes they describe the same map.
@@ -41,6 +102,12 @@ fp_acc_grid <- function(cfg, years = NULL) {
   cls  <- lapply(yrs, function(y) terra::rast(file.path(cfg$dir_rast, sprintf("classified_%d.tif", y))))
   names(cls) <- yrs
   tr   <- terra::rast(file.path(cfg$dir_rast, "transition.tif"))
+  # The sample's cells are numbered on the design grid, so any other grid puts every point on another
+  # cell, whatever the scenario string says (#140).
+  if (!is.null(cfg$design) && !terra::compareGeom(tr, fp_acc_design_grid(cfg$design), stopOnError = FALSE))
+    stop(cfg$primary_scenario, "/transition.tif (", paste(dim(tr)[1:2], collapse = " x "), ") is not the grid ",
+         "reference/", cfg$area, "/design.json was drawn on (", paste(cfg$design$dims, collapse = " x "),
+         "); step 3 has moved the design's scenario", call. = FALSE)
   for (y in names(cls)) {
     if (!terra::compareGeom(cls[[y]], tr, stopOnError = FALSE))
       stop("classified_", y, ".tif is not on the transition grid", call. = FALSE)
@@ -79,6 +146,20 @@ fp_acc_omission <- function(from, to, trans, inpoly) {
   data.frame(denom_ha = d * ha, io_loss_ha = io * ha, published_loss_ha = pub * ha,
              omission_io = if (d) 1 - io / d else NA_real_,
              omission_published = if (d) 1 - pub / d else NA_real_)
+}
+
+# Criterion 4's input: harvest omission over the whole window, from reference_omission-disturbance.R.
+# Refused unless it names the scenario the estimate is on (#140): a file from before a redraw, or from
+# the #125 window when the module followed area.yml, would score the criterion on another floodplain.
+fp_acc_omission_read <- function(path, scenario) {
+  o <- utils::read.csv(path, stringsAsFactors = FALSE)
+  if (!"scenario" %in% names(o) || !all(o$scenario == scenario))
+    stop(path, " is on ", if ("scenario" %in% names(o)) paste(unique(o$scenario), collapse = ", ") else
+           "an unrecorded scenario (predates #140)", ", not ", scenario,
+         "; re-run reference_omission-disturbance.R", call. = FALSE)
+  v <- o$omission_io[o$source == "harvest" & o$year == "all"]
+  if (length(v) != 1) stop(path, " has ", length(v), " harvest/all rows", call. = FALSE)
+  v
 }
 
 # --- Strata (phase 5) -------------------------------------------------------------------------

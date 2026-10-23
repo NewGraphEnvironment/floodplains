@@ -1,7 +1,7 @@
 # channel_probe-migration.R — does channel migration separate in IO's Water change? (#106)
 #
-# Applies rule v2, pre-registered in research/channel_migration.md, to one area's primary scenario
-# on two patch sets:
+# Applies rule v2, pre-registered in research/channel_migration.md, to one area's scenario (the
+# accuracy design's where one is committed, else area.yml's; fp_acc_area, #140) on two patch sets:
 #   unsieved  2017 -> 2023 re-derived from the on-disk endpoint rasters (patch_area_min = NULL)
 #   sieved    the published transition.tif (1 ha sieve, step 3)
 # Cells with exactly one Water endpoint get a role (erosion / deposition / other) and patches are

@@ -276,13 +276,22 @@ if (is.na(a[1])) {
     # (5) an independent reference where one exists: the accuracy module's FWA-wetland composition
     # (reference_composition-wetland.R: terra::freq over a mask, same fetch, same centre rule) counts
     # wetland cells over the WHOLE footprint, so it must equal the table's footprint in_wetland exactly.
+    # The reference names the scenario it was counted on (#140), which is the accuracy design's, not
+    # necessarily area.yml's: compared only against the same scenario's table, never bound to this one.
     wref <- file.path(dir, "accuracy", "wetland_composition.csv")
-    if (file.exists(wref) && "in_wetland" %in% in_cols && identical(scen, acfg$primary_scenario %||% scen)) {
+    if (file.exists(wref) && "in_wetland" %in% in_cols) {
       w <- utils::read.csv(wref)
-      w <- sum(w$ha[w$zone == "fwa_wetland" & w$year == yrs[1]])
-      cw <- sum(comp$ha[comp$in_wetland & !is.na(comp$from_code)])
-      ok("footprint in_wetland matches the accuracy module's FWA-wetland count (to 0.1 ha)",
-         abs(cw - w) < 0.1, sprintf("%.2f vs %.2f ha", cw, w))
+      if (!"scenario" %in% names(w)) {
+        message("  INFO  ", wref, " records no scenario (predates #140); re-run reference_composition-wetland.R")
+      } else if (!scen %in% w$scenario) {
+        message("  INFO  the accuracy module's FWA-wetland count is on ", paste(unique(w$scenario), collapse = ", "),
+                ", not ", scen, " -- not compared")
+      } else {
+        w <- sum(w$ha[w$scenario == scen & w$zone == "fwa_wetland" & w$year == yrs[1]])
+        cw <- sum(comp$ha[comp$in_wetland & !is.na(comp$from_code)])
+        ok("footprint in_wetland matches the accuracy module's FWA-wetland count (to 0.1 ha)",
+           abs(cw - w) < 0.1, sprintf("%.2f vs %.2f ha", cw, w))
+      }
     }
 
     # the #108 numbers, derived here and stated nowhere in prose (#77)
