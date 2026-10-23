@@ -42,9 +42,11 @@ sha256    <- function(f) digest::digest(file = f, algo = "sha256")
 if (!file.exists(map_csv)) stop("no ", map_csv, " -- run review_render-sheets.R ", area, call. = FALSE)
 sheet_map <- utils::read.csv(map_csv, stringsAsFactors = FALSE)
 
-if (mode == "prompt") {
-  b <- as.integer(a[3]); d <- batch_dir(b)
-  if (is.na(b) || !dir.exists(d)) stop("no batch ", a[3], " under ", dir_model, call. = FALSE)
+# The batch prompt: model_labeller-prompt.md below its `---`, filled in. One definition, used to print it
+# and to check that what the agent was actually sent is exactly this.
+batch_prompt <- function(b) {
+  d <- batch_dir(b)
+  if (is.na(b) || !dir.exists(d)) stop("no batch ", b, " under ", dir_model, call. = FALSE)
   fp_acc_sheet_dir_check(dir_model)
   sheets <- sort(list.files(d, pattern = FP_ACC_SHEET_RE))
   if (!setequal(sheets, sheet_map$sheet[sheet_map$batch == b]))
@@ -57,13 +59,23 @@ if (mode == "prompt") {
   txt <- gsub("{n}", length(sheets), txt, fixed = TRUE)
   txt <- gsub("{sheets}", paste(sheets, collapse = ", "), txt, fixed = TRUE)
   if (grepl("\\{[a-z_]+\\}", txt)) stop("an unfilled placeholder is left in the prompt", call. = FALSE)
-  cat(trimws(txt), "\n", sep = "")
+  trimws(txt)
+}
+
+if (mode == "prompt") {
+  cat(batch_prompt(as.integer(a[3])), "\n", sep = "")
 
 } else if (mode == "extract") {
   b <- as.integer(a[3]); tr <- a[4]
   if (is.na(b) || is.na(tr) || !file.exists(tr)) stop("extract needs <batch> and an existing <transcript>", call. = FALSE)
   lines <- readLines(tr, warn = FALSE)
   recs  <- lapply(lines, function(l) tryCatch(jsonlite::fromJSON(l, simplifyVector = FALSE), error = function(e) NULL))
+  # What the agent was sent: its first user turn, which must be the batch prompt exactly
+  first <- Filter(function(r) identical(r$type, "user"), recs)[[1]]$message$content
+  sent  <- if (is.character(first)) first else
+    paste(vapply(Filter(function(x) identical(x$type, "text"), first), function(x) x$text, ""), collapse = "\n")
+  if (!identical(trimws(sent), batch_prompt(b)))
+    stop("the agent for batch ", b, " was not sent the pre-registered prompt exactly", call. = FALSE)
   recs  <- Filter(function(r) identical(r$type, "assistant") && is.list(r$message$content), recs)
   if (!length(recs)) stop(tr, " holds no assistant turn", call. = FALSE)
   models <- unique(vapply(recs, function(r) r$message$model %||% NA_character_, ""))
