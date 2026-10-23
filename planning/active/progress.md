@@ -24,3 +24,13 @@
 - Round 5 (`review-round5.md`): walked 40 + 13 places; 1 Medium **inside round 4's freeze fix**: "first publish" decided from files on disk, which a clean or second checkout removes; the estimate accepted a re-made freeze. Fixed by anchoring in git history: `publish` split into `freeze` (writes `labels_b.sha256` only if neither it nor `labels.csv` was ever in history) and `publish` (only once the freeze is committed exactly once and matches B); the estimate requires the freeze committed once, matching B, and committed before `labels.csv`. Wiring arm now reads the parse tree (note A). Stated limit in the research note: deliberate history rewrites and an unpushed freeze on another machine. 213 checks pass.
 - Round 5 mutation table: 4 of 4 history guards go red (committed exactly once, freeze before labels.csv, never in history, history read).
 - Round 6 (`review-round6.md`): 53 + 11 places walked; round 5's finding closed under every ordinary workflow tried (re-runs, clean, stash, second checkout, git rm, branches, merges, worktrees, subdirectories, path case/symlinks). Two Low: the estimate did not hold the model hash and `labels.csv` to history (fixed: `fp_acc_model_published` — hash committed before B, `labels.csv` committed once); the commit count over-refused a stash's index commit and a squash-merge (fixed: `--exclude=refs/stash`, the refusal names the commits, and research + publish say merge with a merge commit, never squash). 217 checks pass.
+- `/code-check branch` ended on round 6's enumeration (64 places, its 2 unsound entries fixed, both guards red under mutation once each had its own arm). Six rounds; rounds 2, 4 and 5 each found a defect inside the previous round's fix, all in the one mechanism keeping B blind. 217 checks pass; `SYNTHETIC=1 accuracy_estimate.R necr` runs.
+
+| Round | Findings | Fixed | Accepted | Inside previous fix? |
+|---|---|---|---|---|
+| 1 | 5 | 5 | 0 | — |
+| 2 | 4 | 4 | 0 | y (Read counted on error) |
+| 3 | 6 | 6 | 0 | n (enumeration of 28) |
+| 4 | 4 | 4 | 0 | y (freeze absent read as unset) |
+| 5 | 1 + note | 2 | 0 | y (freeze decided by disk) |
+| 6 | 2 + 3 notes | 2 | 3 notes | y (count over-refused stash/squash) |

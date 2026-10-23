@@ -56,7 +56,7 @@ Gate answers to the review's three forks (user, 2026-10-23): leave the orthophot
   Every panel title is source and date only.
 - [x] **Blind by construction.** Sheets are written as `sheet_<k>.png` under a fresh random order. A gitignored `sheet_map.csv` maps them back to `review_id`. No stratum, map class, patch, wetland or `review_id` appears on a sheet. A guard checks the PNG text metadata and file names against `fp_acc_blind_leaks()`.
 - [x] Output goes to `data/necr/accuracy/model/` (gitignored). The sheets are never committed: they contain the private orthophoto.
-- [ ] I look at about 5 sheets myself for legibility at the size an agent reads them. That is a render check, not labelling.
+- [x] I look at about 5 sheets myself for legibility at the size an agent reads them. That is a render check, not labelling.
 
 ## Phase 3 — Label with blind agents
 - [x] Canary: one Plan and one Explore agent, with no tools, asked whether their context mentions `stratum`, `in_harvest` or `floodplains`. Use whichever type is clean.
@@ -92,9 +92,9 @@ Not run in this PR; see Owed at the end.
 - [ ] After `labels_b.csv` lands: write `labels.csv` from the hashed model file, check the hash, commit, run the estimate.
 
 ## Validation
-- [ ] `accuracy-check.R` passes, and every new arm has been seen red.
-- [ ] `SYNTHETIC=1 accuracy_estimate.R necr` still runs.
-- [ ] `/code-check branch`, at least 3 rounds.
+- [x] `accuracy-check.R` passes, and every new arm has been seen red.
+- [x] `SYNTHETIC=1 accuracy_estimate.R necr` still runs.
+- [x] `/code-check branch`, at least 3 rounds.
 - [ ] PWF checkboxes match the landed work, then `/planning-archive` and `/gh-pr-push`.
 
 Verification of the model labels themselves is the owed agreement step. Nothing in this PR claims they are accurate.
