@@ -16,18 +16,22 @@
 #                                        its SHA-256 to reference/<area>/labels_model.sha256. The labels stay
 #                                        out of the repository until the person's labels_b.csv is committed,
 #                                        so labeller B is blind to the model.
-#   publish <area>                       once labels_b.csv is committed: copy labels_model.csv to
-#                                        reference/<area>/labels.csv after checking it against the committed
-#                                        hash. Refuses while labels_b.csv is absent.
+#   freeze  <area>                       once labels_b.csv is complete and committed, after the model hash:
+#                                        write reference/<area>/labels_b.sha256 and stop. Commit it.
+#   publish <area>                       once the freeze is committed (exactly once, matching B): copy
+#                                        labels_model.csv to reference/<area>/labels.csv, checked against the
+#                                        committed hash. Commit it.
+# Two steps because a freeze written beside labels.csv in one run can be lost with it (a clean, a second
+# checkout) and re-made after B could see the model's labels: "first" is decided by history, never by disk.
 #
-# usage: Rscript scripts/landcover_accuracy/labels_import-model.R <prompt|extract|import|publish> <area> [...]
+# usage: Rscript scripts/landcover_accuracy/labels_import-model.R <prompt|extract|import|freeze|publish> <area> [...]
 
 source(here::here("scripts", "landcover_accuracy", "fp_accuracy.R"))
 
 a    <- commandArgs(trailingOnly = TRUE)
 mode <- a[1]
-if (is.na(mode) || !mode %in% c("prompt", "extract", "import", "publish"))
-  stop("usage: labels_import-model.R <prompt|extract|import|publish> <area> [...]", call. = FALSE)
+if (is.na(mode) || !mode %in% c("prompt", "extract", "import", "freeze", "publish"))
+  stop("usage: labels_import-model.R <prompt|extract|import|freeze|publish> <area> [...]", call. = FALSE)
 area <- if (!is.na(a[2])) a[2] else "necr"
 cfg  <- fp_acc_area(area)
 dir_model <- file.path(cfg$dir_acc, "model")
@@ -187,31 +191,36 @@ if (mode == "prompt") {
                   sum(out$label_status == "labelled"), sum(out$label_status == "cannot_label"), models, sha_file))
 
 } else {
-  fb <- file.path(cfg$dir_ref, "labels_b.csv")
+  repo  <- here::here()
+  fb    <- file.path(cfg$dir_ref, "labels_b.csv")
+  f     <- file.path(cfg$dir_ref, "labels.csv")
+  fz    <- file.path(cfg$dir_ref, "labels_b.sha256")
   if (!file.exists(fb)) stop("no ", fb, ": the model's labels stay out of the repository until the person's ",
                              "labels are committed", call. = FALSE)
   # complete, not merely present: an export midway through labelling would unblind the rest
   fp_acc_b_complete(utils::read.csv(fb, colClasses = c(point_id = "character")),
                     fp_acc_review_key_read(file.path(cfg$dir_ref, "review_key.csv")))
   if (!file.exists(sha_file) || !file.exists(out_csv)) stop("run import first", call. = FALSE)
-  # COMMITTED, not merely on disk: the hash is what the model's labels are held to, and B's labels must be
-  # fixed in history before the model's are put where B could read them
-  for (g in c(fb, sha_file)) if (!fp_acc_git_committed(here::here(), g))
-    stop(g, " is not committed as it stands: commit it before publishing", call. = FALSE)
-  # ...and the model's hash was committed BEFORE B's labels first were, so a re-import or re-commit after B
-  # had seen anything is refused
-  if (!fp_acc_git_committed_before(here::here(), sha_file, fb))
+  # COMMITTED, not merely on disk, and the model's hash before B's labels
+  for (g in c(fb, sha_file)) if (!fp_acc_git_committed(repo, g))
+    stop(g, " is not committed as it stands: commit it before going on", call. = FALSE)
+  if (!fp_acc_git_committed_before(repo, sha_file, fb))
     stop(basename(sha_file), "'s last commit does not precede the commit that added labels_b.csv", call. = FALSE)
-  want <- strsplit(readLines(sha_file, n = 1), "  ", fixed = TRUE)[[1]][1]
+  want <- fp_acc_sha_file(sha_file)
   if (!identical(sha256(out_csv), want)) stop(out_csv, " does not match the committed hash ", want, call. = FALSE)
-  f <- file.path(cfg$dir_ref, "labels.csv")
-  fp_acc_publish_first(f, file.path(cfg$dir_ref, "labels_b.sha256"))
-  if (file.exists(f) && !identical(sha256(f), want)) stop(f, " exists and differs from the model's labels", call. = FALSE)
-  if (!isTRUE(file.copy(out_csv, f, overwrite = TRUE)) || !identical(sha256(f), want))
-    stop("copying the model's labels to ", f, " failed", call. = FALSE)
-  # B is frozen from here: the gate in accuracy_estimate.R refuses a labels_b.csv that differs from this,
-  # and a second publish refuses rather than re-freezing an edited B
-  fp_acc_freeze(file.path(cfg$dir_ref, "labels_b.sha256"), sha256(fb), "labels_b.csv")
-  message(f, ": the model's labels, matching ", basename(sha_file), "; labels_b.csv frozen in labels_b.sha256. ",
-          "Commit labels.csv and labels_b.sha256 together: the estimate refuses an uncommitted freeze.")
+
+  if (mode == "freeze") {
+    fp_acc_git_never(repo, c(fz, f))                 # a first freeze, by history: neither ever committed
+    if (file.exists(fz) || file.exists(f)) stop(fz, " or ", f, " is on disk but in no commit: remove it deliberately ",
+                                                "and freeze again", call. = FALSE)
+    fp_acc_freeze(fz, sha256(fb), "labels_b.csv")
+    message(fz, ": B frozen. Commit it, then run publish.")
+  } else {
+    fp_acc_b_frozen(repo, fb, fz)                    # committed exactly once, matching B
+    fp_acc_git_never(repo, f)                        # labels.csv never committed before the freeze
+    if (file.exists(f) && !identical(sha256(f), want)) stop(f, " exists and differs from the model's labels", call. = FALSE)
+    if (!isTRUE(file.copy(out_csv, f, overwrite = TRUE)) || !identical(sha256(f), want))
+      stop("copying the model's labels to ", f, " failed", call. = FALSE)
+    message(f, ": the model's labels, matching ", basename(sha_file), ". Commit it; the estimate reads it from a commit.")
+  }
 }

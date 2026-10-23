@@ -1108,21 +1108,36 @@ fp_acc_labels_hashed <- function(labels_csv, sha_file) {
     stop(labels_csv, " is not the model's labels as hashed in ", basename(sha_file), call. = FALSE)
   TRUE
 }
-# B as frozen at publish: the freeze must be committed (absent reads as "never frozen") and must match.
-fp_acc_b_frozen <- function(repo, labels_b, freeze) {
+# Every commit, on any local branch, that ever touched `path`.
+fp_acc_git_commits <- function(repo, path) fp_acc_git(repo, "log", "--all", "--format=%H", "--", shQuote(path))
+
+# B as frozen, decided by HISTORY, never by what is on disk (rounds 3-5 each defeated a disk-based freeze: a
+# re-run rewrote it, its absence read as "not frozen yet", a clean made a re-run look like a first one):
+#   - the freeze is committed, and exactly ONE commit has ever touched its path, so it was never re-frozen;
+#   - it matches labels_b.csv as it stands;
+#   - when labels.csv is given, that one commit is an ancestor of the commit that first added labels.csv,
+#     so B was fixed in history before the model's labels were in the tree to be seen.
+# Out of reach of any local check, and stated as such in research/landcover_accuracy.md: history rewritten
+# on purpose, and a freeze made on another machine and never pushed.
+fp_acc_b_frozen <- function(repo, labels_b, freeze, labels_csv = NULL) {
   if (!file.exists(freeze) || !fp_acc_git_committed(repo, freeze))
     stop(freeze, " is missing or not committed: B's labels are not frozen", call. = FALSE)
+  n <- length(fp_acc_git_commits(repo, freeze))
+  if (n != 1) stop(freeze, " has been committed ", n, " times: B was re-frozen, so the freeze proves nothing", call. = FALSE)
   if (!identical(digest::digest(file = labels_b, algo = "sha256"), fp_acc_sha_file(freeze)))
     stop(labels_b, " is not the one frozen when the model's labels were published", call. = FALSE)
+  if (!is.null(labels_csv) && !fp_acc_git_committed_before(repo, freeze, labels_csv))
+    stop(basename(freeze), " was not committed before labels.csv was", call. = FALSE)
   invisible(TRUE)
 }
-# A publish that finds labels.csv already in place but no freeze is not a first publish: the freeze went
-# missing, and re-freezing now would freeze whatever B holds after the person could see the model's labels.
-fp_acc_publish_first <- function(labels_csv, freeze) {
-  if (file.exists(labels_csv) && !file.exists(freeze))
-    stop(labels_csv, " already exists but ", basename(freeze), " does not: refusing to re-freeze B", call. = FALSE)
+# A path history has never seen, on any branch: what makes a freeze or a publish a FIRST one.
+fp_acc_git_never <- function(repo, paths) {
+  seen <- paths[vapply(paths, function(p) length(fp_acc_git_commits(repo, p)) > 0, TRUE)]
+  if (length(seen)) stop(paste(basename(seen), collapse = " and "), " already in history: not a first freeze or publish",
+                         call. = FALSE)
   invisible(TRUE)
 }
+
 # An extracted batch against its audit: the csv as written, the key it was read under, the sheets it saw.
 fp_acc_batch_verify <- function(audit, csv, key_md, batch_dir) {
   sha <- function(f) digest::digest(file = f, algo = "sha256")

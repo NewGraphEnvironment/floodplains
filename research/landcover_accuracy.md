@@ -348,6 +348,21 @@ subsection to fit agreement already measured.
   (gitignored `data/<area>/accuracy/model/`) until `labels_b.csv` is committed. Until then, only
   their SHA-256 is committed (`reference/<area>/labels_model.sha256`). `labels.csv` is written from
   that same file afterwards, and is checked against the hash.
+  - *(Mechanism amended 2026-10-23, after labelling and before any agreement was computed, by the
+    code review; the rule above is unchanged.)* B is frozen in two committed steps, decided by git
+    history and never by files on disk:
+    1. `labels_import-model.R freeze` writes `labels_b.sha256` once B is complete and committed.
+    2. That freeze is committed.
+    3. `publish` then writes `labels.csv`, which is committed in turn.
+
+    The estimate requires all of this:
+    - the freeze committed exactly once;
+    - the freeze matching B;
+    - the freeze committed before `labels.csv` was.
+
+    A freeze that a re-run, a clean or a second checkout could re-make was defeated three ways in
+    review. Out of reach of any local check: history rewritten on purpose, and a freeze made on
+    another machine and never pushed.
 - **What the model sees.** One contact sheet per point. Sheets are named `sheet_<k>` over a shuffle
   drawn at render time, which is not the `review_id` order. The map from sheet to point is frozen
   once any label exists. A sheet shows the outlined 10 m cell in:

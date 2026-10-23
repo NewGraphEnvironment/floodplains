@@ -550,9 +550,6 @@ writeLines("a,b,dropped-row-or-reviewer-edited", lab_f)
 ok("labels.csv that differs from the model hash is refused (a dropped row or a rewritten reviewer)",
    refused(fp_acc_labels_hashed(lab_f, msha)))
 ok("no model hash: the labels are not the model's", isFALSE(fp_acc_labels_hashed(lab_f, file.path(td, "none"))))
-ok("publish refuses when labels.csv exists but B's freeze is gone (not a first publish)",
-   refused(fp_acc_publish_first(lab_f, file.path(td, "labels_b.sha256"))))
-ok("a first publish (no labels.csv, no freeze) passes", !refused(fp_acc_publish_first(file.path(td, "nolab"), file.path(td, "nofreeze"))))
 # a batch against its audit
 bdir <- file.path(td, "batch_01"); dir.create(bdir); sh <- file.path(bdir, "sheet_001.png"); writeLines("img", sh)
 km <- wr("key.md", "key"); cv <- wr("batch_01.csv", "sheet,ref_from")
@@ -578,17 +575,46 @@ writeLines("h2  labels_model.csv", hf); g("add", "."); g("commit", "-qm", "reimp
 ok("a model hash re-committed after labels_b.csv is refused", !fp_acc_git_committed_before(gr, hf, bf))
 writeLines(paste0(shaf(bf), "  labels_b.csv"), ff)
 ok("an uncommitted B freeze is refused by the estimate", refused(fp_acc_b_frozen(gr, bf, ff)))
+ok("a first freeze: its path and labels.csv never in history", !refused(fp_acc_git_never(gr, c(ff, file.path(gr, "labels.csv")))))
 g("add", "."); g("commit", "-qm", "freeze")
-ok("a committed B freeze matching B passes", !refused(fp_acc_b_frozen(gr, bf, ff)))
+ok("a freeze committed once and matching B passes", !refused(fp_acc_git_never(gr, file.path(gr, "labels.csv"))) &&
+   !refused(fp_acc_b_frozen(gr, bf, ff)))
+ok("a second freeze is refused by history (whatever is on disk)", refused(fp_acc_git_never(gr, ff)))
+lf <- file.path(gr, "labels.csv"); writeLines("model", lf); g("add", "."); g("commit", "-qm", "publish")
+ok("labels.csv committed after the freeze passes the estimate's check", !refused(fp_acc_b_frozen(gr, bf, ff, lf)))
 writeLines("point_id,edited", bf)
 ok("a B edited after the freeze is refused", refused(fp_acc_b_frozen(gr, bf, ff)))
+writeLines("point_id", bf)
+g("rm", "-q", "labels_b.sha256", "labels.csv"); g("commit", "-qm", "removed")
+ok("after a git rm the freeze path is still in history, so a re-freeze is refused (round 5 variant B)",
+   refused(fp_acc_git_never(gr, c(ff, lf))))
+writeLines(paste0(shaf(bf), "  labels_b.csv"), ff); g("add", "."); g("commit", "-qm", "refreeze")
+ok("a freeze committed more than once is refused, even when it matches B", refused(fp_acc_b_frozen(gr, bf, ff)))
+gr2 <- file.path(td, "repo2"); dir.create(gr2)
+g2 <- function(...) fp_acc_git(gr2, ...)
+g2("init", "-q"); g2("config", "user.email", "check@example.org"); g2("config", "user.name", "check")
+bf2 <- file.path(gr2, "labels_b.csv"); ff2 <- file.path(gr2, "labels_b.sha256"); lf2 <- file.path(gr2, "labels.csv")
+writeLines("point_id", bf2); writeLines("model", lf2); g2("add", "."); g2("commit", "-qm", "labels")
+writeLines(paste0(shaf(bf2), "  labels_b.csv"), ff2); g2("add", "."); g2("commit", "-qm", "freeze")
+ok("a freeze committed AFTER labels.csv is refused (B could have seen the model's labels)",
+   refused(fp_acc_b_frozen(gr2, bf2, ff2, lf2)))
 unlink(ff)
 ok("a missing B freeze is refused, never read as 'not frozen yet'", refused(fp_acc_b_frozen(gr, bf, ff)))
+rm(lf, bf, ff, hf, gr, g, gr2, g2, bf2, ff2, lf2)   # names later sections use for their own fixtures
 unlink(td, recursive = TRUE)
-ok("the scripts call these guards (the arms above test the functions; this pins the wiring)",
-   any(grepl("fp_acc_labels_hashed(", est_src, fixed = TRUE)) && any(grepl("fp_acc_b_frozen(", est_src, fixed = TRUE)) &&
-   any(grepl("fp_acc_batch_verify(", imp_src, fixed = TRUE)) && any(grepl("fp_acc_git_committed_before(", imp_src, fixed = TRUE)) &&
-   any(grepl("fp_acc_publish_first(", imp_src, fixed = TRUE)) && any(grepl("fp_acc_freeze(", imp_src, fixed = TRUE)))
+# the wiring, from the PARSE TREE: a call commented out is gone from it, where a text grep still finds it
+calls_in <- function(f) { pd <- utils::getParseData(parse(f, keep.source = TRUE))
+                          unique(pd$text[pd$token == "SYMBOL_FUNCTION_CALL"]) }
+est_calls <- calls_in(here::here("scripts", "landcover_accuracy", "accuracy_estimate.R"))
+imp_calls <- calls_in(here::here("scripts", "landcover_accuracy", "labels_import-model.R"))
+ok("the estimate calls its guards (parse tree)", all(c("fp_acc_labels_hashed", "fp_acc_b_frozen", "fp_acc_b_complete",
+   "fp_acc_git_committed", "fp_acc_model_gate") %in% est_calls))
+ok("the importer calls its guards (parse tree)", all(c("fp_acc_batch_verify", "fp_acc_git_committed_before", "fp_acc_git_never",
+   "fp_acc_b_frozen", "fp_acc_freeze", "fp_acc_unread", "fp_acc_transcript_audit", "fp_acc_image_matches",
+   "fp_acc_read_text", "fp_acc_b_complete") %in% imp_calls))
+tmpf <- tempfile(fileext = ".R"); writeLines(c("f <- function() {", "  # fp_acc_b_frozen(x)", "}"), tmpf)
+ok("must-fail arm: a commented-out call is not in the parse tree", !"fp_acc_b_frozen" %in% calls_in(tmpf))
+unlink(tmpf)
 ok("a render refuses while transcripts or raw labels exist",
    any(grepl('c("raw", "transcripts")', ren_src, fixed = TRUE)))
 

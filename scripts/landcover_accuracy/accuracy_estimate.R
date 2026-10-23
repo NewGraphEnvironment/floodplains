@@ -78,7 +78,9 @@ if (!synthetic && (hashed || any(startsWith(as.character(lab$reviewer), FP_ACC_M
                         "needs the person's labels before any estimate", call. = FALSE)
   fp_acc_b_complete(lb, fp_acc_review_key_read(file.path(cfg$dir_ref, "review_key.csv")))
   # B as it was when the model's labels were published (labels_import-model.R publish), not as edited since
-  fp_acc_b_frozen(here::here(), fb, file.path(cfg$dir_ref, "labels_b.sha256"))
+  fp_acc_b_frozen(here::here(), fb, file.path(cfg$dir_ref, "labels_b.sha256"), file.path(cfg$dir_ref, "labels.csv"))
+  if (!fp_acc_git_committed(here::here(), file.path(cfg$dir_ref, "labels.csv")))
+    stop("labels.csv is not committed as it stands", call. = FALSE)
   gate <- fp_acc_model_gate(lab, lb)
   cat("Model-labeller gate (kappa >= ", FP_ACC_MODEL_KAPPA, " both endpoints, change >= ", FP_ACC_MODEL_CHANGE,
       ", abstention <= ", FP_ACC_MODEL_ABSTAIN, "):\n", sep = "")
