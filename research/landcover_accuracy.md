@@ -361,8 +361,11 @@ subsection to fit agreement already measured.
     - the freeze committed before `labels.csv` was.
 
     A freeze that a re-run, a clean or a second checkout could re-make was defeated three ways in
-    review. Out of reach of any local check: history rewritten on purpose, and a freeze made on
-    another machine and never pushed.
+    review. The model's hash and `labels.csv` are held to history the same way: the hash committed
+    before B, and `labels.csv` committed once. **This work merges with a merge commit, never a
+    squash**, because a squash re-commits the freeze and `labels.csv` in one commit and the estimate
+    then refuses. Out of reach of any local check: history rewritten on purpose, and a freeze made
+    on another machine and never pushed.
 - **What the model sees.** One contact sheet per point. Sheets are named `sheet_<k>` over a shuffle
   drawn at render time, which is not the `review_id` order. The map from sheet to point is frozen
   once any label exists. A sheet shows the outlined 10 m cell in:

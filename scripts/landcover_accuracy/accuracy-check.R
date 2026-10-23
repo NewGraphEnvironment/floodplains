@@ -600,6 +600,32 @@ ok("a freeze committed AFTER labels.csv is refused (B could have seen the model'
    refused(fp_acc_b_frozen(gr2, bf2, ff2, lf2)))
 unlink(ff)
 ok("a missing B freeze is refused, never read as 'not frozen yet'", refused(fp_acc_b_frozen(gr, bf, ff)))
+# the model's labels as published (round 6): hash before B, labels.csv committed once
+gr3 <- file.path(td, "repo3"); dir.create(gr3)
+g3 <- function(...) fp_acc_git(gr3, ...)
+g3("init", "-q"); g3("config", "user.email", "check@example.org"); g3("config", "user.name", "check")
+h3 <- file.path(gr3, "labels_model.sha256"); b3 <- file.path(gr3, "labels_b.csv"); f3 <- file.path(gr3, "labels_b.sha256")
+l3 <- file.path(gr3, "labels.csv")
+writeLines("h1  labels_model.csv", h3); g3("add", "."); g3("commit", "-qm", "hash")
+writeLines("point_id", b3); g3("add", "."); g3("commit", "-qm", "B")
+writeLines(paste0(shaf(b3), "  labels_b.csv"), f3); g3("add", "."); g3("commit", "-qm", "freeze")
+writeLines("model", l3); g3("add", "."); g3("commit", "-qm", "publish")
+ok("the model's labels published in order pass", !refused(fp_acc_model_published(gr3, h3, b3, l3)))
+# the reviewer's sequence: the freeze staged, stashed, applied, then committed once
+gr4 <- file.path(td, "repo4"); dir.create(gr4)
+g4 <- function(...) fp_acc_git(gr4, ...)
+g4("init", "-q"); g4("config", "user.email", "check@example.org"); g4("config", "user.name", "check")
+writeLines("x", file.path(gr4, "seed")); g4("add", "."); g4("commit", "-qm", "seed")
+f4 <- file.path(gr4, "labels_b.sha256"); writeLines("abc  labels_b.csv", f4)
+g4("add", "labels_b.sha256"); g4("stash", "-q"); g4("stash", "apply", "-q"); g4("add", "labels_b.sha256"); g4("commit", "-qm", "freeze")
+ok("a stash of the staged freeze does not count as a second commit of it", length(fp_acc_git_commits(gr4, f4)) == 1)
+ok("must-fail arm: without --exclude=refs/stash the stash's index commit is counted",
+   length(fp_acc_git(gr4, "log", "--all", "--format=%H", "--", shQuote(f4))) >= 2)
+rm(gr4, g4, f4)
+writeLines("model, re-imported", l3); writeLines("h2  labels_model.csv", h3); g3("add", "."); g3("commit", "-qm", "reimport")
+ok("labels.csv and the hash re-committed together after B are refused (round 6 finding 1)",
+   refused(fp_acc_model_published(gr3, h3, b3, l3)))
+rm(gr3, g3, h3, b3, f3, l3)
 rm(lf, bf, ff, hf, gr, g, gr2, g2, bf2, ff2, lf2)   # names later sections use for their own fixtures
 unlink(td, recursive = TRUE)
 # the wiring, from the PARSE TREE: a call commented out is gone from it, where a text grep still finds it
@@ -608,7 +634,7 @@ calls_in <- function(f) { pd <- utils::getParseData(parse(f, keep.source = TRUE)
 est_calls <- calls_in(here::here("scripts", "landcover_accuracy", "accuracy_estimate.R"))
 imp_calls <- calls_in(here::here("scripts", "landcover_accuracy", "labels_import-model.R"))
 ok("the estimate calls its guards (parse tree)", all(c("fp_acc_labels_hashed", "fp_acc_b_frozen", "fp_acc_b_complete",
-   "fp_acc_git_committed", "fp_acc_model_gate") %in% est_calls))
+   "fp_acc_git_committed", "fp_acc_model_gate", "fp_acc_model_published") %in% est_calls))
 ok("the importer calls its guards (parse tree)", all(c("fp_acc_batch_verify", "fp_acc_git_committed_before", "fp_acc_git_never",
    "fp_acc_b_frozen", "fp_acc_freeze", "fp_acc_unread", "fp_acc_transcript_audit", "fp_acc_image_matches",
    "fp_acc_read_text", "fp_acc_b_complete") %in% imp_calls))

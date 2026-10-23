@@ -221,6 +221,7 @@ if (mode == "prompt") {
     if (file.exists(f) && !identical(sha256(f), want)) stop(f, " exists and differs from the model's labels", call. = FALSE)
     if (!isTRUE(file.copy(out_csv, f, overwrite = TRUE)) || !identical(sha256(f), want))
       stop("copying the model's labels to ", f, " failed", call. = FALSE)
-    message(f, ": the model's labels, matching ", basename(sha_file), ". Commit it; the estimate reads it from a commit.")
+    message(f, ": the model's labels, matching ", basename(sha_file), ". Commit it; the estimate reads it from a ",
+            "commit. Merge this work with a merge commit, never a squash: the estimate counts these commits.")
   }
 }

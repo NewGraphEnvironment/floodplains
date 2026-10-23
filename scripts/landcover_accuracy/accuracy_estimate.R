@@ -81,6 +81,7 @@ if (!synthetic && (hashed || any(startsWith(as.character(lab$reviewer), FP_ACC_M
   fp_acc_b_frozen(here::here(), fb, file.path(cfg$dir_ref, "labels_b.sha256"), file.path(cfg$dir_ref, "labels.csv"))
   if (!fp_acc_git_committed(here::here(), file.path(cfg$dir_ref, "labels.csv")))
     stop("labels.csv is not committed as it stands", call. = FALSE)
+  fp_acc_model_published(here::here(), fmsha, fb, file.path(cfg$dir_ref, "labels.csv"))
   gate <- fp_acc_model_gate(lab, lb)
   cat("Model-labeller gate (kappa >= ", FP_ACC_MODEL_KAPPA, " both endpoints, change >= ", FP_ACC_MODEL_CHANGE,
       ", abstention <= ", FP_ACC_MODEL_ABSTAIN, "):\n", sep = "")

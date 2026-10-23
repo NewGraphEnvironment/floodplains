@@ -1109,7 +1109,12 @@ fp_acc_labels_hashed <- function(labels_csv, sha_file) {
   TRUE
 }
 # Every commit, on any local branch, that ever touched `path`.
-fp_acc_git_commits <- function(repo, path) fp_acc_git(repo, "log", "--all", "--format=%H", "--", shQuote(path))
+# A stash's index commit is not history anyone committed, so stashes are excluded (`--exclude` must precede
+# `--all`): staging the freeze, stashing and applying it would otherwise count it twice.
+fp_acc_git_commits <- function(repo, path)
+  fp_acc_git(repo, "log", "--exclude=refs/stash", "--all", "--format=%H", "--", shQuote(path))
+fp_acc_git_commit_refs <- function(repo, path)
+  paste(fp_acc_git(repo, "log", "--exclude=refs/stash", "--all", "--format=%h%d", "--", shQuote(path)), collapse = "; ")
 
 # B as frozen, decided by HISTORY, never by what is on disk (rounds 3-5 each defeated a disk-based freeze: a
 # re-run rewrote it, its absence read as "not frozen yet", a clean made a re-run look like a first one):
@@ -1123,11 +1128,25 @@ fp_acc_b_frozen <- function(repo, labels_b, freeze, labels_csv = NULL) {
   if (!file.exists(freeze) || !fp_acc_git_committed(repo, freeze))
     stop(freeze, " is missing or not committed: B's labels are not frozen", call. = FALSE)
   n <- length(fp_acc_git_commits(repo, freeze))
-  if (n != 1) stop(freeze, " has been committed ", n, " times: B was re-frozen, so the freeze proves nothing", call. = FALSE)
+  if (n != 1) stop(freeze, " has been committed ", n, " times (", fp_acc_git_commit_refs(repo, freeze), "). Either B was ",
+                   "re-frozen, so the freeze proves nothing, or the branch was squash-merged while the original still ",
+                   "exists: this work merges with a merge commit, never a squash.", call. = FALSE)
   if (!identical(digest::digest(file = labels_b, algo = "sha256"), fp_acc_sha_file(freeze)))
     stop(labels_b, " is not the one frozen when the model's labels were published", call. = FALSE)
   if (!is.null(labels_csv) && !fp_acc_git_committed_before(repo, freeze, labels_csv))
     stop(basename(freeze), " was not committed before labels.csv was", call. = FALSE)
+  invisible(TRUE)
+}
+# The model's labels as published, decided by history like B's freeze: the hash committed and last touched
+# before B's labels were first added, and labels.csv committed exactly once (a re-import with FORCE=1 and a
+# hand copy, committed later, would otherwise pass: the estimate compared labels.csv with the hash on disk).
+fp_acc_model_published <- function(repo, sha_file, labels_b, labels_csv) {
+  if (!fp_acc_git_committed(repo, sha_file)) stop(sha_file, " is not committed as it stands", call. = FALSE)
+  if (!fp_acc_git_committed_before(repo, sha_file, labels_b))
+    stop(basename(sha_file), "'s last commit does not precede the commit that added ", basename(labels_b), call. = FALSE)
+  n <- length(fp_acc_git_commits(repo, labels_csv))
+  if (n != 1) stop(labels_csv, " has been committed ", n, " times (", fp_acc_git_commit_refs(repo, labels_csv),
+                   "): the model's labels were published once", call. = FALSE)
   invisible(TRUE)
 }
 # A path history has never seen, on any branch: what makes a freeze or a publish a FIRST one.
