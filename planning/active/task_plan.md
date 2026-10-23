@@ -51,11 +51,15 @@ go through `fp_acc_area()`, so fixing the resolver fixes them all.
 - [x] CLAUDE.md #93 bullet: the module's scenario comes from the design; `area.yml` only before a first draw.
 - [x] Edit #131's body to name `fp_acc_design_scenario()` as the check the prune must call.
 
+## Follow-up filed
+
+- #148: composite windows record no scenario (round 4; user chose a follow-up, 2026-10-23).
+
 ## Validation
 
-- [ ] Tests pass
-- [ ] `/code-check` clean (once over the branch with `/code-check branch`)
-- [ ] PWF checkboxes match landed work
+- [x] Tests pass
+- [x] `/code-check` clean (once over the branch with `/code-check branch`)
+- [x] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion
 
 Verification:
