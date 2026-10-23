@@ -140,6 +140,8 @@ key_csv <- file.path(cfg$dir_ref, "review_key.csv")
 key <- fp_acc_review_key(sf::st_drop_geometry(smp), design$seed, unlist(design$rng_kind),
                          fp_acc_review_key_read(key_csv))
 key <- fp_acc_second_subset(key, design$seed, unlist(design$rng_kind))
+key <- fp_acc_second_stable(key, design$seed, unlist(design$rng_kind),   # #145: the one growth, stable strata
+                            utils::read.csv(file.path(cfg$dir_ref, "strata.csv")))
 utils::write.csv(key, key_csv, row.names = FALSE)
 smp_design <- sf::st_drop_geometry(smp)   # the whole sample, for design checks, before any B subset
 if (reviewer == "b") {

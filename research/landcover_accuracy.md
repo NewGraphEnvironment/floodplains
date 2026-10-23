@@ -313,7 +313,9 @@ usage, so a disagreement measures IO's error rather than a mismatch of definitio
   only.
 - **Second labeller (pre-registered 2026-10-06, before any label).**
   - A fixed subset of 3 points per stratum (48 for NECR) is drawn once from its own seed stream and
-    recorded in the key's `second` column. It never grows with the sample.
+    recorded in the key's `second` column. It never grows with the sample. *(Amended 2026-10-23, before
+    any label, #145: it grew once, by 9 more points in each stable stratum, as "Model labeller" sets
+    out. It still never grows with the sample.)*
   - Labeller B works in a separate project holding only that subset (`REVIEWER=b review_build-qgis.R`),
     blind to the map and to A's labels. The export writes B's copy to `labels_b.csv`, deciding from what
     the copy holds rather than from a flag.
@@ -333,32 +335,61 @@ labels at the time (480 and 48 rows), and no `reference/necr/labels*.csv` existe
 subsection to fit agreement already measured.
 
 - **Roles.** A blind model agent is labeller A and labels every sample point, which makes
-  `reference/<area>/labels.csv`. A person is labeller B and labels the existing second-labeller
-  subset (3 per stratum, 48 for NECR), which makes `labels_b.csv`. Both are blind to the map, and the
-  person is also blind to the model's labels. `reviewer` in `labels.csv` reads `model:<model id>`.
-- **What the model sees.** One contact sheet per point, named `sheet_<k>` in an order that is
-  shuffled again for every render and is not the `review_id` order. A sheet shows the outlined 10 m
-  cell in every dated image of that point the review project holds:
-  - the Sentinel-2 same-season composites;
-  - the Wayback captures nearest each endpoint, titled with the capture date;
-  - the air photo and orthophoto epochs where `imagery.csv` covers the point.
+  `reference/<area>/labels.csv`. A person is labeller B and labels the second-labeller subset, which
+  makes `labels_b.csv`. Both are blind to the map. `reviewer` in A's labels reads
+  `model:<model id>`, with the id taken from the agent's own transcript.
+- **The audit subset grows once, now, toward the stable strata** (decided at #145's gate, after the
+  plan review). The 48 points put 39 in change strata, while the 3 stable strata hold 86% of NECR's
+  area, so the audit could not see a model that invents change in stable land. So 9 more points are
+  drawn in **each stable stratum**, from their own seed stream (`second_labeller_stable`), among
+  points not already in the subset. That makes 75 points, 36 of them stable. B's working copy is
+  rebuilt so that the new points take their place in `review_id` order, not appended at the end.
+- **The person is blind to the model's labels.** The model's labels stay out of the repository
+  (gitignored `data/<area>/accuracy/model/`) until `labels_b.csv` is committed. Until then, only
+  their SHA-256 is committed (`reference/<area>/labels_model.sha256`). `labels.csv` is written from
+  that same file afterwards, and is checked against the hash.
+- **What the model sees.** One contact sheet per point. Sheets are named `sheet_<k>` over a shuffle
+  drawn at render time, which is not the `review_id` order. The map from sheet to point is frozen
+  once any label exists. A sheet shows the outlined 10 m cell in:
+  - the Sentinel-2 same-season composites, 310 m around the cell;
+  - the Wayback capture nearest each endpoint, 120 m around the cell, titled with its capture date.
+    It is fetched unclipped. The review project's chips are clipped to Voronoi cells, which would
+    show where neighbouring sample points lie;
+  - the air photo epochs the review project themes (`dated/airphoto_<year>.vrt`), where they cover
+    the point.
 
-  Each panel is titled with its source and date only. The model also reads the Labelling key above,
-  as extracted by `fp_acc_labelling_key()`.
+  Each panel is titled with its source and date only. **The orthophoto is left out:** it comes from a
+  private endpoint and is not sent to the model's API. The model also reads the Labelling key above,
+  as extracted by `fp_acc_labelling_key()`, and the batch prompt committed as
+  `scripts/landcover_accuracy/model_labeller-prompt.md` before the first batch.
 - **What the model never sees:** `point_id`, `review_id`, the stratum, the batch, any IO class, the
-  change patches, cause or wetland flags, the undated Esri/Google/Bing basemaps, or another
-  labeller's labels. Its labels come from a reply, which is extracted by script. A batch whose agent
-  read anything beyond its own sheets and the key is discarded and labelled again.
-- **Threshold.** The model's labels feed `accuracy_estimate.R` only if, over the points **both**
-  labellers labelled (the "Second labeller" rules above for `cannot_label`), all three of these hold:
-  - Cohen's κ ≥ **0.7** on `ref_from`;
-  - Cohen's κ ≥ **0.7** on `ref_to`;
-  - agreement on **change** ≥ **0.85**, where a point's change call is `ref_from != ref_to`.
+  change patches, cause or wetland flags, the undated Esri/Google/Bing basemaps, the orthophoto, or
+  another labeller's labels. Its labels come from its reply, which is extracted by script.
+  - **Transcript audit.** An agent may only `Read` its own batch's sheets and `key.md`. Any other
+    tool call, or a read of any other path, discards that batch, and the batch is labelled again
+    from the same frozen sheets.
+- **The two labellers do not see the same inputs, by design.** B works in the QGIS project, with the
+  orthophoto, free zoom and the undated basemaps for orientation (rule 5 caps those at `low`). The
+  model has the sheets only. Agreement therefore measures the model on sheets against a person with
+  the full project, which is the substitution being decided, and the comparison is conservative
+  toward the model.
+- **Threshold.** The model's labels feed `accuracy_estimate.R` only if all four of these hold:
+  - Cohen's κ ≥ **0.7** on `ref_from`, over the points **both** labellers labelled (the "Second
+    labeller" rules above for `cannot_label`);
+  - Cohen's κ ≥ **0.7** on `ref_to`, over the same points;
+  - agreement on **change** ≥ **0.85** over the same points, where a point's change call is
+    `ref_from != ref_to`;
+  - **abstention ≤ 10%:** of the points B labelled, the model called at most 10% `cannot_label`.
+    Kappa counts only points both labelled, so a model that abstains on the hard cells would
+    otherwise look better.
 
-  These are point estimates, so their intervals are reported beside them and do not gate.
-- **When the threshold fails,** the estimate refuses and prints agreement per stratum. Strata where
-  the labellers disagree go to a person in a follow-up issue. The model's labels are then used only
-  in strata where agreement held.
+  These are point estimates. Their 95% intervals are printed beside them and do not gate. The subset
+  is not weighted by stratum area, so agreement describes the labellers on these points, not on the
+  map's area.
+- **When the threshold fails,** the estimate refuses and prints agreement per stratum. A follow-up
+  issue decides from that table which strata a person relabels; with 3 audit points in a change
+  stratum, one disagreement reads as 0.67, so no per-stratum rule is fixed here. None of the model's
+  labels are used until that issue is settled.
 - **Measured, not assumed.** Nothing about the model's accuracy is claimed before B's labels exist.
 
 - **Project.** `review_build-qgis.R` builds an rfp restoration-template project, which needs QGIS

@@ -36,6 +36,17 @@ Because no label exists yet, the protocol can still change without invalidating 
 - [x] Rule 5: ±1 → ±2 years (#113 decision 1). Review setup: the growth policy (#113 decision 2).
 - [x] Commit only this file. The timestamp is the pre-registration.
 
+## Corrections after the plan review (2026-10-23; `review-plan.md`)
+
+Gate answers to the review's three forks (user, 2026-10-23): leave the orthophoto out of what the model sees; grow the audit by 9 points in each stable stratum (48 → 75, 36 stable); abstention ceiling ≤ 10%.
+
+- [x] Phase 1b — amend the pre-registration before any label: the audit growth, model labels kept out of the repo (SHA-256 only) until `labels_b.csv` lands, unclipped Wayback, no orthophoto, the batch prompt committed (`model_labeller-prompt.md`), the transcript-audit rule, the inputs differ by design, the abstention ceiling, intervals printed. The per-stratum fallback rule is deferred to a follow-up issue (3 points per change stratum cannot carry it).
+- [x] `fp_acc_second_stable()` + seed purpose `second_labeller_stable`, wired into `review_build-qgis.R`; B's working copy (0 labels) is rebuilt so the new points sit in `review_id` order.
+- [ ] Push the branch before the first agent spawn, so the pre-registration has a public timestamp.
+- **Phase 5 moved out of this PR** to Owed: drift 0.20.0 is installed and does not export `dft_wayback_captures` (checked), and BULK work waits on NECR anyway.
+- Phase 3 details: `sheet_map.csv` records `cell` at render; the importer requires role "a" via `fp_acc_working_copy_role()`; the reviewer id comes from the transcript's `model` field; the canary passes on design terms only (the working directory names the repo); a coverage check asserts every sheet labelled exactly once.
+- Phase 4 details: the gate runs **before** `fp_acc_estimate()`, `SYNTHETIC=1` bypasses it, it triggers on any `model:` reviewer, and `accuracy-check.R`'s `identical(ag$n, c(3L, 3L))` arm is updated for the new `change` row.
+
 ## Phase 2 — Contact sheets the model can read
 - [ ] `scripts/landcover_accuracy/review_render-sheets.R <area>`. For each point it writes one PNG of panels around the 10 m cell (about 150 m window, cell outlined):
   - Sentinel-2 same-season composites for 2017, 2018, 2020 and 2023 (`chips_manifest.csv`);
@@ -69,14 +80,16 @@ Because no label exists yet, the protocol can still change without invalidating 
 
   Restore each defect and watch the arm go red.
 
-## Phase 5 — BULK imagery coverage (#145 step 1, metadata only)
-- [ ] Run `drift::dft_wayback_captures()` over `bulk_all_ff04` at zooms 17–19, using `dft_wayback_pick()` toward the 2017 and 2023 mid-seasons. Record the share of floodplain with a capture within ±1 and ±2 years of each endpoint, and the newest capture.
-- [ ] Log it at `scripts/landcover_accuracy/logs/20261023_wayback_coverage_bulk.md`, plus a short note in the research file. No chips are built and no design is drawn.
+## Phase 5 — BULK imagery coverage (MOVED to Owed: needs drift ≥ 0.24 for `dft_wayback_captures`)
+
+Not run in this PR; see Owed at the end.
 
 ## Owed at the end (reported, done after merge)
 - [ ] You label the 48 points in `necr_lulc_review_b`, then run `labels_export.R necr` with `REVIEWER=b`.
 - [ ] `accuracy_estimate.R necr` gives agreement, then either the estimate or the refusal. The verdict is recorded in the research file, #93 and #145.
 - [ ] BULK design, chips and labelling (#145 steps 2–6), sized from NECR's result.
+- [ ] BULK Wayback coverage (old Phase 5), after drift is upgraded past 0.20.0.
+- [ ] After `labels_b.csv` lands: write `labels.csv` from the hashed model file, check the hash, commit, run the estimate.
 
 ## Validation
 - [ ] `accuracy-check.R` passes, and every new arm has been seen red.

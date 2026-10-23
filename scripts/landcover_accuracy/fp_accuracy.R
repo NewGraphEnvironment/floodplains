@@ -221,7 +221,7 @@ fp_acc_imagery_themes <- function(imagery, n_points) {
 # point was imaged (rtj research/esri_wayback.md). wayback_index-capture.R reads each release's capture
 # polygons and hands every (point, release) capture here; this picks, per point and endpoint, the
 # capture nearest the endpoint. Ranked by whole years from the endpoint first, because the
-# pre-registered labelling key sets confidence by +/-1 year; then by days from 1 July of the endpoint
+# pre-registered labelling key sets confidence by whole years (+/-2 since #145); then by days from 1 July of the endpoint
 # year (mid growing season); then finer resolution; then the later release, then the larger release id
 # (a release serving the same capture as an earlier one redirects to its tiles, so either fetches it).
 # Every point gets a row at every endpoint; one with no capture has an empty release.
@@ -643,7 +643,7 @@ fp_acc_blind_leaks <- function(nm) nm[nm %in% c("point_id", "stratum", "stratum_
 # subset are reproducible from design.json alone. Hashed from a purpose string, drift's idiom
 # (digest2int over "<namespace>:<seed>:<code>"): an arithmetic offset let two streams collide (the review
 # order's append batch at n0 = 111 equalled the second-labeller seed).
-FP_ACC_SEED_PURPOSES <- c("review_order", "second_labeller")
+FP_ACC_SEED_PURPOSES <- c("review_order", "second_labeller", "second_labeller_stable")
 fp_acc_seed <- function(design_seed, purpose, n0 = 0L) {
   if (!purpose %in% FP_ACC_SEED_PURPOSES) stop("unknown seed purpose ", purpose, call. = FALSE)
   digest::digest2int(sprintf("floodplains-accuracy-review:%s:%s:%d", format(design_seed, scientific = FALSE),
@@ -753,6 +753,29 @@ fp_acc_second_subset <- function(key, design_seed, rng_kind, n_per = 3L) {
   key
 }
 
+# The one growth of the second-labeller subset (#145, pre-registered before any label): n_add more points
+# in each STABLE stratum, which hold most of the area and had 3 audit points each, so the audit can see a
+# labeller inventing change in stable land. Drawn from its own seed stream among points not already in
+# the subset. Idempotent by count: a stable stratum already holding n_per + n_add is left alone, so a
+# re-run of the build never draws again.
+fp_acc_second_stable <- function(key, design_seed, rng_kind, strata, n_per = 3L, n_add = 9L) {
+  if (!"second" %in% names(key)) stop("the key has no second-labeller subset to grow", call. = FALSE)
+  key$second <- key$second %in% TRUE
+  stable <- sort(strata$stratum[strata$kind == "stable"])
+  if (!length(stable)) stop("strata.csv names no stable stratum", call. = FALSE)
+  k <- key[order(key$point_id, method = "radix"), ]
+  pick <- fp_acc_with_seed(fp_acc_seed(design_seed, "second_labeller_stable"), rng_kind, {
+    unlist(lapply(stable, function(st) {
+      have <- sum(k$second & k$stratum == st)
+      want <- min(n_per + n_add, sum(k$stratum == st)) - have
+      ids  <- k$point_id[k$stratum == st & !k$second]
+      if (want <= 0 || !length(ids)) character(0) else ids[sample.int(length(ids), min(want, length(ids)))]
+    }))
+  })
+  key$second <- key$second | key$point_id %in% pick
+  key
+}
+
 # Agreement between the two labellers, by the rules pre-registered in research/landcover_accuracy.md
 # ("Second labeller"): class agreement and Cohen's kappa per endpoint over the points BOTH labelled, and
 # the cannot_label disagreements counted apart (one labeller could read the cell, the other could not).
@@ -836,4 +859,71 @@ fp_acc_working_copy_role <- function(ids, key) {
     return("b")
   stop("the working copy holds ", length(unique(ids)), " point(s): neither the whole keyed sample (",
        nrow(key), ") nor the second-labeller subset (", sum(key$second %in% TRUE), ")", call. = FALSE)
+}
+
+# --- Model labeller (#145) --------------------------------------------------------------------------
+# A blind model agent labels every point from one PNG contact sheet per point (review_render-sheets.R);
+# a person labels the second-labeller subset; agreement gates the estimate. Pre-registered in
+# research/landcover_accuracy.md, "Model labeller", before any label existed -- these constants are
+# that text and move only with it.
+FP_ACC_MODEL_KAPPA  <- 0.7    # Cohen's kappa on ref_from AND on ref_to
+FP_ACC_MODEL_CHANGE <- 0.85   # agreement on change vs no change (ref_from != ref_to)
+FP_ACC_MODEL_PREFIX <- "model:"
+
+# The shipped name of a sheet. A plain counter over a fresh shuffle: never the review_id, which is
+# drawn in review order and so would carry the batch hint (#113), and never anything of the design.
+fp_acc_sheet_name <- function(k) sprintf("sheet_%03d.png", as.integer(k))
+FP_ACC_SHEET_RE <- "^sheet_[0-9]{3}[.]png$"
+
+# review_ids -> data.frame(sheet, review_id, batch): a shuffle drawn from `seed`, cut into batches of
+# n_batch sheets in shuffled order. The map stays outside the batch directories.
+fp_acc_sheet_plan <- function(review_ids, n_batch = 40L, seed) {
+  if (anyDuplicated(review_ids)) stop("duplicate review_id handed to the sheet plan", call. = FALSE)
+  o <- fp_acc_with_seed(seed, c("Mersenne-Twister", "Inversion", "Rejection"), sample.int(length(review_ids)))
+  k <- seq_along(review_ids)
+  data.frame(sheet = fp_acc_sheet_name(k), review_id = as.integer(review_ids[o]),
+             batch = as.integer((k - 1L) %/% n_batch + 1L), stringsAsFactors = FALSE)
+}
+
+# A panel title may say what the image is and when it was taken, and nothing else: a fixed vocabulary
+# of sources, dates, months and resolutions. Anything outside it is refused before it is drawn.
+fp_acc_sheet_title_ok <- function(x) grepl(paste0(
+  "^(Sentinel-2 [0-9]{4} (Aug|Aug-Sep) composite, 10 m|",
+  "Esri Wayback captured [0-9]{4}-[0-9]{2}-[0-9]{2}, [0-9.]+ m|Esri Wayback: no capture|",
+  "Orthophoto [0-9]{4}|Air photo [0-9]{4}|",
+  "Label the outlined 10 m cell in 2017 and in 2023)$"), x)
+
+# PNG text chunks (tEXt, zTXt, iTXt) in a file: a sheet carries none, so nothing rides in metadata.
+fp_acc_png_text_chunks <- function(path) {
+  b <- readBin(path, "raw", file.size(path))
+  if (!identical(b[1:8], as.raw(c(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a))))
+    stop(path, " is not a PNG", call. = FALSE)
+  i <- 9L; out <- character(0)
+  while (i + 7L <= length(b)) {
+    len  <- sum(as.numeric(b[i:(i + 3L)]) * 256^(3:0))
+    type <- rawToChar(b[(i + 4L):(i + 7L)])
+    if (type %in% c("tEXt", "zTXt", "iTXt")) out <- c(out, type)
+    if (type == "IEND") break
+    i <- i + 12L + as.integer(len)
+  }
+  out
+}
+
+# What an agent is handed: batch_<NN>/ holding sheets only, and key.md beside them. Refuses any other
+# file, any sheet name outside the counter, and any PNG carrying text.
+fp_acc_sheet_dir_check <- function(dir_model) {
+  b <- list.dirs(dir_model, recursive = FALSE)
+  b <- b[grepl("^batch_[0-9]{2}$", basename(b))]
+  if (!length(b)) stop("no batch_<NN> directory under ", dir_model, call. = FALSE)
+  for (d in b) {
+    f <- list.files(d, all.files = TRUE, no.. = TRUE)
+    bad <- f[!grepl(FP_ACC_SHEET_RE, f)]
+    if (length(bad)) stop(d, " holds file(s) other than sheets: ", paste(utils::head(bad, 3), collapse = ", "),
+                          call. = FALSE)
+    for (x in f) {
+      t <- fp_acc_png_text_chunks(file.path(d, x))
+      if (length(t)) stop(file.path(d, x), " carries PNG text chunk(s) ", paste(t, collapse = ", "), call. = FALSE)
+    }
+  }
+  invisible(length(b))
 }
