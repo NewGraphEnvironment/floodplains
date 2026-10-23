@@ -132,7 +132,7 @@ nothing in the criterion.
 | source | polygons | IO Trees 2017 inside (ha) | IO omission | published omission |
 |---|---:|---:|---:|---:|
 | harvest (clearcut ≥ 90%, RESULTS/VRI, 2018–2022) | 223 | 481.5 | **0.148** | 0.234 |
-| fire (2018–2022) | 5 | 1,481.6 | 0.333 | 0.351 |
+| fire (2018–2022) | 5 | 1,481.6 | 0.332 | 0.351 |
 
 - **Criterion 4 does not hold.** IO labels 85.2% of qualifying harvest area as tree loss by 2023,
   so it misses 14.8%, under the 30% bar. The annual rows range 0.12–0.18, over 84–113 ha each.
@@ -146,7 +146,8 @@ nothing in the criterion.
   property of our product, not of IO, and it is the reason the stratified sample carries a
   sieved-change stratum.
 - The denominator is larger than on `ch_ff04` but still a census of a modest population: 481 ha of
-  qualifying clearcut that IO saw as Trees in 2017. Nearly all of the fire row is the 2018 fires.
+  qualifying clearcut that IO saw as Trees in 2017. The 2018 fires are 90% of the fire row's area
+  (99.95% on `ch_ff04`); the 2021 fire adds 145 ha.
 - Caveats, as defined: riparian reserves inside cutblock polygons inflate apparent omission;
   start year is not removal date; regrowth to Trees by 2023 reads as missed.
 
@@ -173,7 +174,7 @@ Inside FWA wetlands, per cell centre: 2,646 polygons touch the `all_ff04` floodp
   0.611 in 2020), with nothing on the ground known to move it. Across the whole floodplain, Trees
   moves 3.5 points (0.510–0.545). That year-to-year flicker, 2× stronger in wetlands, is
   what a change map built from two single years inherits. (`ch_ff04`: 0.508–0.583 in wetlands,
-  0.411–0.445 overall.)
+  0.410–0.445 overall.)
 
 ## Reference sample (NECR pilot)
 
@@ -220,7 +221,7 @@ has the per-stratum detail.
 - **Cell-level causes are not the published attribution, and for harvest the gap is large.** 1 of
   the 30 fire-stratum points lies outside every fire polygon at cell level, but **17 of the 30
   harvest-stratum points** lie outside every cutblock (on `ch_ff04`: 3 and 17). Measured over the
-  whole `ch_ff04` grid (2026-10-02), only 48.9% of NECR's harvest-attributed tree loss (287.8 of
+  whole `ch_ff04` grid (2026-09-29), only 48.9% of NECR's harvest-attributed tree loss (287.8 of
   588.9 ha) lies inside a qualifying cutblock, and for fire 94.2%; not re-measured on `all_ff04`. Step 3 tags a patch with a cause if it touches the polygon anywhere, so half of the
   "harvest" credit is change beside a block. Filed as #100. Criterion 2 scores the reference
   against cell-level polygons for exactly this reason.
@@ -508,7 +509,8 @@ sample point is listed, so a stale index can be detected and not just a disagree
   - It was filed as a fly defect. Code review traced it back, and the issue was corrected and
     withdrawn.
   - Passing the year's full frame set georeferences 250 of 250 frames.
-- **Dated imagery does not change `windows.csv`.** Only a redraw re-measures it (#148).
+- **Dated imagery does not change `windows.csv`.** Only a change of scenario re-measures it, since
+  the windows are counted over the floodplain and their readers refuse another scenario (#148).
   - The windows come from a pre-registered rule over clear-day counts (Composite windows).
   - No orthophoto or air photo epoch falls on an endpoint: the orthophoto is 2021, and the latest
     themed air photo is 2012. The Esri Wayback captures (next section) are what reaches the
@@ -529,7 +531,7 @@ sample point is listed, so a stale index can be detected and not just a disagree
 
 ## Esri Wayback captures nearest each endpoint (#115)
 
-**Verified:** 2026-10-08 · **Produced by:** `scripts/landcover_accuracy/wayback_index-capture.R`
+**Verified:** 2026-10-23, on the `all_ff04` draw (#148; first 2026-10-08) · **Produced by:** `scripts/landcover_accuracy/wayback_index-capture.R`
 (writes `reference/necr/wayback.csv`), `wayback_build-chips.R`, `review_build-qgis.R` · **Issues:**
 #115, rtj#377 (the Mergin project), rfp#398, qgis/QGIS#54161. Run record:
 `planning/archive/*-issue-115-*/`.
@@ -538,9 +540,9 @@ Esri's World Imagery is sub-metre over most of NECR, and its archive, Wayback, p
 as it stood on each of 197 release dates (2014-02-20 to 2026-09-24).
 
 - **A release date is not a capture date** (rtj `research/esri_wayback.md`). A release mosaics
-  captures of many years, so no single release is "the 2017 layer". At NECR point 1 (`17_00009`),
-  the 2017-11-16 release serves a 2013-05-06 capture, and the 2017-06-11 capture first appears in the
-  2020-04-29 release.
+  captures of many years, so no single release is "the 2017 layer". At a NECR point of the first
+  draw (`17_00009`, 2026-10-08), the 2017-11-16 release served a 2013-05-06 capture, and the
+  2017-06-11 capture first appeared in the 2020-04-29 release.
 - **So the capture is chosen per point, from metadata.**
   - Each release's metadata MapServer has one layer per scale band; layer `L` describes tile zoom
     `23 - L`. Layers 4-6 (zoom 19-17) are queried once per release over the sample's bbox and joined
@@ -549,23 +551,25 @@ as it stood on each of 197 release dates (2014-02-20 to 2026-09-24).
   - Per point and endpoint, the capture nearest the endpoint wins (`fp_acc_wayback_pick`): whole
     years first, as rule 5 of the labelling key does, then days from 1 July, then finer resolution,
     then the later release.
-- **NECR, 480 points** (90,538 point-release captures, 52 distinct capture dates; no point without
-  one):
+- **NECR, 480 points of the `all_ff04` draw** (89,814 point-release captures, 55 distinct capture
+  dates; no point without one):
 
   | endpoint | same year | +/-1 year | +/-2 years | further |
   |---|---:|---:|---:|---:|
-  | 2017 | 6 | 237 | 106 | 131 |
-  | 2023 | 148 | 115 | 102 | 115 |
+  | 2017 | 34 | 287 | 64 | 95 |
+  | 2023 | 136 | 100 | 76 | 168 |
 
-  So 243 points (51%) have a capture within +/-1 year of 2017, where before there was no sharp
-  imagery nearer than the 2012 air photo thumbnails. 2023 has 263 (55%).
-  - Captures are 0.31-0.5 m (639 of the 960 picks at 0.5 m). 211 picks are served at zoom 17 (tiles
-    ~0.70 m on the ground at 54 N) and 749 at zoom 18 (~0.35 m).
+  So 321 points (67%) have a capture within +/-1 year of 2017, where before there was no sharp
+  imagery nearer than the 2012 air photo thumbnails. 2023 has 236 (49%). On the first (`ch_ff04`)
+  draw the shares were 243 (51%) and 263 (55%), so the better-covered endpoint changed.
+  - Captures are 0.31-0.5 m (596 of the 960 picks at 0.5 m). 209 picks are served at zoom 17 (tiles
+    ~0.70 m on the ground at 54 N) and 751 at zoom 18 (~0.35 m).
 - **QGIS cannot draw Wayback** (qgis/QGIS#54161, open since 2023-08, not fixed in 4.2.3 or the 3.44
   LTR). A tile unchanged in a release 301-redirects to the release holding it, with a relative
   `Location`, which QGIS requests as a bare path. GDAL follows it, so the chips are fetched with GDAL
   into local rasters, and labelling needs no network.
-- **Each pixel belongs to its nearest point.** 176 of the 480 points have a neighbour within 300 m,
+- **Each pixel belongs to its nearest point.** 119 of the 480 points have a neighbour within 300 m
+  (176 on the first draw),
   so the +/-150 m chips overlap, and neighbours are usually different captures. Each chip is clipped
   to its point's Voronoi cell.
   - A VRT ignores a source's **mask** band when it composites but honours its **nodata** (measured:
@@ -591,7 +595,7 @@ as it stood on each of 197 release dates (2014-02-20 to 2026-09-24).
   double BULK's (80% and 65% on the `all_ff04` draw; 73% and 76% on the first), its both-endpoint share
   3.2 times (49.8%), and its neither share a ninth (4.6%). Only Wayback was measured: BULK's orthophoto and air photo coverage is not indexed yet. Log:
   `scripts/landcover_accuracy/logs/20261023_wayback_coverage_bulk.md`.
-- **The reviewer sees the capture.** `cells.gpkg` carries `capture_<year>` ("2017-06-11, 0.31 m"),
+- **The reviewer sees the capture.** `cells.gpkg` carries `capture_<year>` (for example "2017-06-11, 0.31 m"),
   which the cell layer labels outside the cell as "Esri 2017: …", taken from the chips actually built.
 
 ## Accuracy labels and training labels never mix
