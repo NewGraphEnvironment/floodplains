@@ -36,3 +36,5 @@ IO class share inside FWA wetlands, by year:
 ```
 
 `composition-check.R necr`: ALL PASS; check (5) `footprint in_wetland matches the accuracy module's FWA-wetland count (to 0.1 ha)` at 12809.04 vs 12809.04 ha.
+
+**Correction (code review, 2026-10-23):** the criterion line above prints `0.147`, a second rounding of the stored 0.1475 (7,103 of 48,146 cells = 0.14753). The value is **0.148** to three places; the script now prints the stored four-place value.

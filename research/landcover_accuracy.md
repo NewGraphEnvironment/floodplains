@@ -131,11 +131,11 @@ nothing in the criterion.
 
 | source | polygons | IO Trees 2017 inside (ha) | IO omission | published omission |
 |---|---:|---:|---:|---:|
-| harvest (clearcut ≥ 90%, RESULTS/VRI, 2018–2022) | 223 | 481.5 | **0.147** | 0.234 |
+| harvest (clearcut ≥ 90%, RESULTS/VRI, 2018–2022) | 223 | 481.5 | **0.148** | 0.234 |
 | fire (2018–2022) | 5 | 1,481.6 | 0.333 | 0.351 |
 
-- **Criterion 4 does not hold.** IO labels 85.3% of qualifying harvest area as tree loss by 2023,
-  so it misses 14.7%, under the 30% bar. The annual rows range 0.12–0.18, over 84–113 ha each.
+- **Criterion 4 does not hold.** IO labels 85.2% of qualifying harvest area as tree loss by 2023,
+  so it misses 14.8%, under the 30% bar. The annual rows range 0.12–0.18, over 84–113 ha each.
 - **The population moved, and the verdict did not** (#148). On `ch_ff04`, the population the sample
   was first drawn on, criterion 4 read **0.255** over 92.1 ha (79 polygons; published omission 0.411).
   The sample moved to the published `all_ff04` floodplain for a catalogue reason, decided before

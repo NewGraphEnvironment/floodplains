@@ -55,7 +55,7 @@ Criterion 4 (free reference: IO's omission of qualifying harvest) was scored on 
 - Redraw byte-identical twice (`sample.gpkg`, `strata.csv`, `design.json` cmp-equal). `fp_acc_area("necr")` gives all_ff04 / all / 2 / design, no NOTE. `fp_acc_grid()` refuses the ch_ff04 grid.
 - Windows (validate 2021-07 floodplain-wide 2.3 min; run ~70 min; derive): August in every year but 2017, 2017 widened to Aug-Sep (direct count 0.999). The same windows as on ch_ff04, now stamped `all_ff04`.
 - Wetland reference: FWA wetland cells 12,809.04 ha of the 80,782.9 ha footprint; `composition-check.R necr` (5) PASS at 12,809.04 vs 12,809.04, ALL PASS. Outside the group polygon: 190.1 ha of change, 1,014.8 ha of floodplain.
-- Criterion 4 on all_ff04: omission_io **0.1475** over 481.46 ha (223 qualifying cutblocks); does not hold. ch_ff04 was 0.2549 over 92.0 ha. Same verdict.
+- Criterion 4 on all_ff04: omission_io **0.1475** (0.148; the script's 3 dp print read 0.147) over 481.46 ha (223 qualifying cutblocks); does not hold. ch_ff04 was 0.2549 over 92.0 ha. Same verdict.
 - imagery.csv: themed epochs unchanged in kind, air photo 2012 (480 of 480) and orthophoto 2021 (136 of 480, 28.3%; was 204, 42.5%).
 - wayback.csv: 960 rows; 160 of 480 points have the same capture at both endpoints (was 115).
 - Review project A built (480 cells, patches from transition_all_ff04, 24 columns); review_key.csv 480 rows, 75 in B's subset.
