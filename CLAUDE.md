@@ -306,7 +306,8 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
     `flood_scenarios.csv` row. `area.yml` answers only before a first draw. #125 moved NECR to
     `all_ff04` under a `ch_ff04` sample, and every stage followed it. `fp_acc_grid()` refuses a
     transition grid other than the design's. Only `sample_draw-pilot.R` under `FORCE=1` may move the
-    scenario. `wetland_composition.csv` names its scenario.
+    scenario. `wetland_composition.csv` and `omission_disturbance.csv` name theirs, and their readers
+    compare only the same scenario. The composite windows do not yet (#148).
   - **The population is the classified footprint, not `transition.tif`.** The 1 ha sieve removes
     18% of NECR's IO change; it gets its own stratum, whose map claim is "no change".
   - **Wetland is decided per cell** (FWA polygon or Flooded Vegetation), never from the any-touch
