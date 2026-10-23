@@ -62,18 +62,22 @@ Measured in exploration (2026-10-23):
 - [x] `derive`: refuse a `windows_clear_obs.csv` with a missing or different scenario; write `scenario` into `windows.csv`
 - [x] `fp_acc_windows_read(path, scenario)` in `fp_accuracy.R`, the shape of `fp_acc_omission_read()`: refuse a missing column or a different scenario, and keep the existing column, duplicate and character-`months` checks
 - [x] Use it in `chip_build-composite.R` (the `WINDOWS=` override is checked too), `review_build-qgis.R` and `review_render-sheets.R`
+- [x] Sheet titles accept any measured window (`fp_acc_sheet_title_ok()` named only Aug and Aug-Sep; plan review Blocker 1), with an arm
 - [x] `accuracy-check.R` arms: no column refused, another scenario refused, right scenario passes, `derive`'s input guard; each shown red against a copy with the guard removed
 
 ## Phase 2: Redraw NECR on all_ff04
-- [ ] Move aside, without reading: the four `data/necr/accuracy/review/necr_lulc_review*` directories and `data/necr/accuracy/model/`, into `data/necr/accuracy/_aside_<UTC date>/`
+- [ ] Hold the commit of the new `sample.gpkg`/`strata.csv`/`design.json` until `windows.csv`, `imagery.csv` and `wayback.csv` are regenerated (accuracy-check's live wayback arm; review item 11)
+- [ ] Move aside, without reading: the three `data/necr/accuracy/review/necr_lulc_review*` directories and `data/necr/accuracy/model/`, into `data/necr/accuracy/_aside_<UTC date>/`
 - [ ] `git rm` `reference/necr/review_key.csv` and `reference/necr/labels_model.sha256` (they describe the old draw)
 - [ ] `FORCE=1 Rscript sample_draw-pilot.R necr all_ff04`, logged; run it again and `cmp` `sample.gpkg`, `strata.csv` and `design.json` (byte-identical redraw)
 - [ ] Check: strata partition the footprint; `design.json` `transition_layer = transition_all_ff04_2017_2023`; `fp_acc_area("necr")` resolves `all_ff04` with no NOTE
 
 ## Phase 3: Regenerate the reference inputs on the new draw
-- [ ] `window_count-clear.R necr validate`, then `run`, then `derive`, each `> log 2>&1`, with `grep -c repoprted` = 0 on every cache-filling log; `windows.csv` carries `all_ff04`
+- [ ] `window_count-clear.R necr validate`, then `run`, then `derive`, each `> log 2>&1`, with `grep -c repoprted` = 0 on every cache-filling log; `windows.csv` carries `all_ff04`. **If `derive` refuses (no window clear everywhere outside 2017), stop and ask: the pre-registered rule is not tuned** (review item 2)
+- [ ] Before the omission run: record in findings.md that the all_ff04 value of criterion 4 is the one that counts, decided for catalogue reasons, with the ch_ff04 value (0.2549) kept visible (review item 7)
 - [ ] `reference_composition-wetland.R necr` and `reference_omission-disturbance.R necr` (both stamped `all_ff04`); `composition-check.R necr` (5) PASS; report criterion 4's new value
 - [ ] `imagery_index-dated.R necr` produces `imagery.csv`; `wayback_index-capture.R necr` produces `wayback.csv`
+- [ ] Air-photo thumbnails: reuse the aside project's `dated/airphoto_*` if they are keyed by frame, not point (review item 9)
 - [ ] `review_build-qgis.R necr` (A) creates the project and `review_key.csv`; then `imagery_build-dated.R`, `wayback_build-chips.R` and `caffeinate -s chip_build-composite.R necr` (about 17 h, backgrounded, gated on its own log and manifest, not its exit)
 - [ ] Rebuild A, then `REVIEWER=b` B (75 points), so both carry the chips and the dated themes; 0 labels in each
 
@@ -84,6 +88,10 @@ Measured in exploration (2026-10-23):
 - [ ] `research/landcover_accuracy.md`: rewrite "Reference sample (NECR pilot)" (drawn on `all_ff04`, the new strata table, the reason, and that the first draw's model labels were discarded unread); update the chip and Wayback counts, the windows, criterion 4 and the Verified line
 - [ ] Logs under `scripts/landcover_accuracy/logs/2026*_<stage>_necr.md` for each stage
 - [ ] CLAUDE.md #93 bullet: windows name their scenario; NECR's sample is on `all_ff04` since #148
+- [ ] Research, Model labeller subsection: a dated amendment note recording the redraw, the discarded first-draw hash (4072a24) and why, written before the new hash is committed (review item 3)
+- [ ] Research, other ch_ff04 numbers: the wetland composition table, the dated-imagery table, the windows sentence, the Wayback shares, the Status line, the "NECR run" line. Pre-registered rationale (sieve 18%, prior fire 27%, 48/39/86%) stays as dated rationale (review items 4, 6)
+- [ ] CLAUDE.md, the other stale lines: "all_ff04 under a ch_ff04 sample", "windows do not yet (#148)", "sieve removes 18%", the expected-failure note on NECR (5), and review_key "append-only" (a forced redraw starts a new key) (review item 5)
+- [ ] Curated windows copy under `scripts/landcover_accuracy/logs/`
 - [ ] Edit #131's body: the must-fail arm protects whatever scenario `fp_acc_design_scenario()` names (now `all_ff04`); `ch_ff04` is no longer protected by the design
 
 ## Validation
@@ -100,4 +108,6 @@ Verification:
 - Chips: manifest complete, 0 missing, no `repoprted` in the logs. Wayback: every point reads its own chip.
 - Both projects rebuilt with 0 labels; B holds 75 points; `review_key.csv` consistent with `sample.gpkg`.
 - `labels_model.sha256` committed, with no file from `model/` in git.
+- `SYNTHETIC=1 accuracy_estimate.R necr` exits 0; `composition-check.R necr` prints an `ok` line for (5), not INFO.
+- `chips_manifest.csv`'s point set equals `sample.gpkg`'s, 4 windows each; B's count equals 3 per stratum + 9 per stable stratum from the new `strata.csv`.
 

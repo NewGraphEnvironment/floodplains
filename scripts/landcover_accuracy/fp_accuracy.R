@@ -1048,9 +1048,11 @@ fp_acc_sheet_plan <- function(review_ids, n_batch = 40L, seed) {
 }
 
 # A panel title may say what the image is and when it was taken, and nothing else: a fixed vocabulary
-# of sources, dates, months and resolutions. Anything outside it is refused before it is drawn.
+# of sources, dates, months and resolutions. Anything outside it is refused before it is drawn. The
+# composite's months are any measured window (one month or a span), not only NECR's first (#148).
 fp_acc_sheet_title_ok <- function(x) grepl(paste0(
-  "^(Sentinel-2 [0-9]{4} (Aug|Aug-Sep) composite, 10 m|",
+  "^(Sentinel-2 [0-9]{4} ", "(", paste(month.abb, collapse = "|"), ")(-(", paste(month.abb, collapse = "|"),
+  "))? composite, 10 m|",
   "Esri Wayback captured [0-9]{4}-[0-9]{2}-[0-9]{2}, [0-9.]+ m|Esri Wayback: no capture|",
   "Orthophoto [0-9]{4}|Air photo [0-9]{4}|",
   "Label the outlined 10 m cell in 2017 and in 2023)$"), x)

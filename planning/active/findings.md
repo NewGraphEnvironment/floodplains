@@ -32,3 +32,15 @@ Relates #140, #93, #145, #131.
 
 | Error | Resolution |
 |-------|------------|
+
+## Plan review (2026-10-23)
+
+`review-plan.md` holds the findings and their disposition. Three blockers: a sheet-title regex that knew only NECR's first windows (fixed), a `derive` refusal with no branch (now a stop-and-ask gate), and the model-labeller subsection needing a dated amendment for the second hash (Phase 5).
+
+## The first redraw (2026-10-23T20:47Z)
+
+`FORCE=1 sample_draw-pilot.R necr all_ff04`: 7.0 min. Strata partition the footprint, 8,078,287 cells (80,782.9 ha, the touches ring; 75,909 ha by cell centre in the floodplain). 16 strata, 3 of them stable, 30 points each = 480. So B's subset is 3 x 16 + 9 x 3 = 75, and the model labeller runs 12 batches of 40, as before.
+
+## Accepted residual risk: the windows guard compares names
+
+A re-run of step 2 or 3 under the same scenario name (`all_ff04`) between `run` and `derive`, or before the chips, passes the guard. Same class as #140's design guard, which the grid comparison closes there; for windows it is accepted, because the windows are re-measured whenever the sample is redrawn.

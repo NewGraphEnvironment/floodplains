@@ -707,6 +707,9 @@ ok("titles: source and date pass", all(fp_acc_sheet_title_ok(c("Sentinel-2 2017 
    "Esri Wayback captured 2016-09-30, 0.5 m", "Esri Wayback: no capture", "Air photo 2012"))))
 ok("titles: anything of the design is refused", !any(fp_acc_sheet_title_ok(c("17_00009", "Trees -> Rangeland",
    "Sentinel-2 2017 Aug composite, 10 m stratum 4", "review 12", "Orthophoto 2021 in_harvest"))))
+ok("titles: any measured window passes, not only Aug and Aug-Sep (#148)",
+   all(fp_acc_sheet_title_ok(c("Sentinel-2 2018 Jul composite, 10 m", "Sentinel-2 2017 Jul-Sep composite, 10 m"))) &&
+   !any(fp_acc_sheet_title_ok(c("Sentinel-2 2018 July composite, 10 m", "Sentinel-2 2017 Jul-Sep-Oct composite, 10 m"))))
 md <- file.path(tempdir(), "model_chk"); dir.create(file.path(md, "batch_01"), recursive = TRUE)
 grDevices::png(file.path(md, "batch_01", "sheet_001.png"), 60, 60); par(mar = c(0, 0, 0, 0)); plot.new(); grDevices::dev.off()
 ok("a clean sheet directory passes, and R's png() writes no text chunk",
