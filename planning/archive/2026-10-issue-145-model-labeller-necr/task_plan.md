@@ -95,7 +95,7 @@ Not run in this PR; see Owed at the end.
 - [x] `accuracy-check.R` passes, and every new arm has been seen red.
 - [x] `SYNTHETIC=1 accuracy_estimate.R necr` still runs.
 - [x] `/code-check branch`, at least 3 rounds.
-- [ ] PWF checkboxes match the landed work, then `/planning-archive` and `/gh-pr-push`.
+- [x] PWF checkboxes match the landed work, then `/planning-archive` and `/gh-pr-push`.
 
 Verification of the model labels themselves is the owed agreement step. Nothing in this PR claims they are accurate.
 
