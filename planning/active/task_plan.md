@@ -48,14 +48,14 @@ Gate answers to the review's three forks (user, 2026-10-23): leave the orthophot
 - Phase 4 details: the gate runs **before** `fp_acc_estimate()`, `SYNTHETIC=1` bypasses it, it triggers on any `model:` reviewer, and `accuracy-check.R`'s `identical(ag$n, c(3L, 3L))` arm is updated for the new `change` row.
 
 ## Phase 2 — Contact sheets the model can read
-- [ ] `scripts/landcover_accuracy/review_render-sheets.R <area>`. For each point it writes one PNG of panels around the 10 m cell (about 150 m window, cell outlined):
+- [x] `scripts/landcover_accuracy/review_render-sheets.R <area>`. For each point it writes one PNG of panels around the 10 m cell (about 150 m window, cell outlined):
   - Sentinel-2 same-season composites for 2017, 2018, 2020 and 2023 (`chips_manifest.csv`);
   - Wayback for 2017 and 2023 (`dated/wayback_<yr>/<review_id>.tif`), each headed with its **capture** date and resolution from `wayback.csv`;
   - the air photo and orthophoto where `imagery.csv` covers the point.
 
   Every panel title is source and date only.
-- [ ] **Blind by construction.** Sheets are written as `sheet_<k>.png` under a fresh random order. A gitignored `sheet_map.csv` maps them back to `review_id`. No stratum, map class, patch, wetland or `review_id` appears on a sheet. A guard checks the PNG text metadata and file names against `fp_acc_blind_leaks()`.
-- [ ] Output goes to `data/necr/accuracy/model/` (gitignored). The sheets are never committed: they contain the private orthophoto.
+- [x] **Blind by construction.** Sheets are written as `sheet_<k>.png` under a fresh random order. A gitignored `sheet_map.csv` maps them back to `review_id`. No stratum, map class, patch, wetland or `review_id` appears on a sheet. A guard checks the PNG text metadata and file names against `fp_acc_blind_leaks()`.
+- [x] Output goes to `data/necr/accuracy/model/` (gitignored). The sheets are never committed: they contain the private orthophoto.
 - [ ] I look at about 5 sheets myself for legibility at the size an agent reads them. That is a render check, not labelling.
 
 ## Phase 3 — Label with blind agents
@@ -71,9 +71,9 @@ Gate answers to the review's three forks (user, 2026-10-23): leave the orthophot
 - [ ] Commit `labels.csv` and the extraction/audit log under `scripts/landcover_accuracy/logs/20261023_model_labels_necr.md`, which records the counts per status and per confidence. It shows no accuracy, because nothing exists to compare against yet.
 
 ## Phase 4 — The gate in the estimate
-- [ ] `fp_acc_agreement()` gains a `change` row (agreement on `ref_from != ref_to`).
-- [ ] `accuracy_estimate.R`: when `labels.csv`'s `reviewer` starts with `model:`, it requires `labels_b.csv`. It then computes agreement and **refuses** to estimate unless the pre-registered threshold holds, printing the per-stratum disagreement table. The threshold constants live in `fp_accuracy.R`, with a comment naming the research section.
-- [ ] `accuracy-check.R` adds offline arms, each with a must-fail case:
+- [x] `fp_acc_agreement()` gains a `change` row (agreement on `ref_from != ref_to`).
+- [x] `accuracy_estimate.R`: when `labels.csv`'s `reviewer` starts with `model:`, it requires `labels_b.csv`. It then computes agreement and **refuses** to estimate unless the pre-registered threshold holds, printing the per-stratum disagreement table. The threshold constants live in `fp_accuracy.R`, with a comment naming the research section.
+- [x] `accuracy-check.R` adds offline arms, each with a must-fail case:
   - the importer refuses an unknown sheet, a missing sheet, an out-of-vocab code and a duplicate;
   - the sheet renderer's blind guard fires when a leak column is planted;
   - the gate refuses when B is absent, when κ is below 0.7 and when change agreement is below 0.85, and passes at the threshold.

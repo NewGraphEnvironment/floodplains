@@ -273,8 +273,8 @@ la <- data.frame(point_id = c("p1", "p2", "p3", "p4"), label_status = "labelled"
                  ref_from = c(2L, 2L, 11L, 11L), ref_to = c(11L, 2L, 11L, 5L))
 lb <- la; lb$ref_to[4] <- 11L; lb$label_status[3] <- "cannot_label"
 ag <- fp_acc_agreement(la, lb)
-ok("agreement uses only points both labelled (3 of 4)", identical(ag$n, c(3L, 3L)))
-ok("agreement per endpoint: first 3/3, last 2/3", isTRUE(all.equal(ag$agree, c(1, 2 / 3))))
+ok("agreement uses only points both labelled (3 of 4)", identical(ag$n, c(3L, 3L, 3L)))
+ok("agreement per endpoint: first 3/3, last 2/3", isTRUE(all.equal(ag$agree[1:2], c(1, 2 / 3))))
 ok("kappa is 1 on perfect agreement", isTRUE(all.equal(ag$kappa[1], 1)))
 ok("cannot_label disagreements are counted apart (A labelled, B could not: 1)",
    identical(attr(ag, "cannot_label")[["b_only_cannot"]], 1L))
@@ -459,6 +459,117 @@ ok("a source rewritten in A (new inode) is relinked in B",
 unlink(lt, recursive = TRUE)
 ok("`esri_dated` is a form value apart from the undated `esri` (labelling key rule 5)",
    all(c("esri_dated", "esri") %in% FP_ACC_IMAGERY))
+
+
+# --- Model labeller (#145) ---------------------------------------------------------------------
+message("model labeller (#145)")
+ok("agreement carries a change row (ref_from != ref_to)", identical(ag$endpoint[3], "change (ref_from != ref_to)") &&
+   isTRUE(all.equal(ag$agree[3], 2 / 3)))
+ok("agreement prints intervals beside the point estimates",
+   all(c("agree_lo", "agree_hi", "kappa_lo", "kappa_hi") %in% names(ag)) && all(ag$agree_lo <= ag$agree))
+
+# the gate: 20 points; A and B agree except where a case changes them
+gate_pts <- function() {
+  data.frame(point_id = sprintf("p%02d", 1:20), label_status = "labelled",
+             ref_from = rep(c(2L, 11L, 5L, 2L), 5), ref_to = rep(c(2L, 11L, 5L, 11L), 5), stringsAsFactors = FALSE)
+}
+gb <- gate_pts()
+ok("gate passes when the labellers agree", fp_acc_model_gate(gate_pts(), gb)$pass)
+ga <- gate_pts(); ga$ref_from[1:6] <- 8L          # first-year class disagreements: kappa_from drops below 0.7
+g <- fp_acc_model_gate(ga, gb)
+ok("gate fails on kappa(ref_from) below 0.7", !g$pass && !g$checks[["kappa_from"]], sprintf("kappa %.2f", g$agreement$kappa[1]))
+ga <- gate_pts(); ga$ref_to[c(4, 8, 12, 16)] <- ga$ref_from[c(4, 8, 12, 16)]   # 4 of 20 change calls flipped
+g <- fp_acc_model_gate(ga, gb)
+ok("gate fails on change agreement below 0.85", !g$pass && !g$checks[["change"]], sprintf("change %.2f", g$agreement$agree[3]))
+ga <- gate_pts(); ga$ref_to[4] <- 2L                 # 1 of 20 flipped: 0.95 change agreement
+ok("gate passes at change agreement 0.95", fp_acc_model_gate(ga, gb)$checks[["change"]])
+ga <- gate_pts(); ga$label_status[1:3] <- "cannot_label"; ga$ref_from[1:3] <- NA; ga$ref_to[1:3] <- NA
+g <- fp_acc_model_gate(ga, gb)
+ok("gate fails when the model abstains on more than 10% of B's points, whatever kappa says",
+   !g$pass && !g$checks[["abstain"]] && g$checks[["kappa_from"]], sprintf("abstain %.2f", g$abstain))
+ok("must-fail arm: kappa alone (points both labelled) cannot see that abstention",
+   isTRUE(all.equal(g$agreement$kappa[1], 1)))
+ga <- gate_pts(); ga$label_status[1:2] <- "cannot_label"; ga$ref_from[1:2] <- NA; ga$ref_to[1:2] <- NA
+ok("gate passes at exactly 10% abstention", fp_acc_model_gate(ga, gb)$checks[["abstain"]])
+est_src <- readLines(here::here("scripts", "landcover_accuracy", "accuracy_estimate.R"))
+i_gate <- grep("fp_acc_model_gate(", est_src, fixed = TRUE)[1]
+i_est  <- grep("res <- fp_acc_estimate(", est_src, fixed = TRUE)[1]
+ok("accuracy_estimate.R gates BEFORE it estimates (nothing is printed or saved from failing labels)",
+   !is.na(i_gate) && !is.na(i_est) && i_gate < i_est)
+ok("accuracy_estimate.R: synthetic labels bypass the gate, any model reviewer triggers it",
+   any(grepl("!synthetic && any(startsWith(as.character(lab$reviewer), FP_ACC_MODEL_PREFIX))", est_src, fixed = TRUE)))
+
+# the reply, the audit and the working copy
+rep_txt <- paste("Quoting the contract first:", "```csv", "sheet,ref_from,ref_to,label_status,confidence,imagery,note",
+                 "sheet_999.png,1,1,labelled,low,esri,example", "```", "Answer:", "```csv",
+                 "sheet,ref_from,ref_to,label_status,confidence,imagery,note",
+                 "sheet_001.png,2,11,labelled,medium,esri_dated,crown gone",
+                 "sheet_002.png,,,cannot_label,,,cloud", "```", sep = "\n")
+rr <- fp_acc_model_csv(rep_txt)
+ok("the LAST csv block of a reply is the answer", identical(rr$sheet, c("sheet_001.png", "sheet_002.png")))
+ok("a reply with no csv block is refused", refused(fp_acc_model_csv("no table here")))
+ok("a reply with other columns is refused",
+   refused(fp_acc_model_csv(paste("```csv", "sheet,class", "sheet_001.png,2", "```", sep = "\n"))))
+bd <- file.path(tempdir(), "model", "batch_01"); kp <- file.path(tempdir(), "model", "key.md")
+calls <- data.frame(name = c("Read", "Read", "Read", "Read", "Bash", "Read"),
+                    path = c(file.path(bd, "sheet_001.png"), kp, file.path(dirname(bd), "sheet_map.csv"),
+                             file.path(dirname(bd), "batch_02", "sheet_041.png"), NA, here::here("CLAUDE.md")),
+                    stringsAsFactors = FALSE)
+v <- fp_acc_transcript_audit(calls, bd, kp)
+ok("audit allows only its own sheets and the key; flags the map, another batch, a command and CLAUDE.md",
+   nrow(v) == 4 && !any(v$path %in% c(file.path(bd, "sheet_001.png"), kp), na.rm = TRUE))
+smap <- data.frame(sheet = c("sheet_001.png", "sheet_002.png"), review_id = c(7L, 3L), cell = c(101, 102), batch = 1L)
+wcm <- fp_acc_model_wc(rr, smap, "model:test-model", "2026-10-23")
+ok("model rows map through the sheet map to review_id and cell", identical(wcm$review_id, c(7L, 3L)) &&
+   identical(wcm$cell, c(101, 102)) && identical(wcm$ref_from, c(2L, NA)))
+ok("a sheet labelled twice is refused", refused(fp_acc_model_wc(rbind(rr, rr[1, ]), smap, "model:x", "2026-10-23")))
+ok("a sheet with no label is refused", refused(fp_acc_model_wc(rr[1, ], smap, "model:x", "2026-10-23")))
+rx <- rr; rx$sheet[2] <- "sheet_003.png"
+ok("a sheet the map does not hold is refused", refused(fp_acc_model_wc(rx, smap, "model:x", "2026-10-23")))
+rx <- rr; rx$ref_to[1] <- "Trees"
+ok("a class that is not an integer code is refused", refused(fp_acc_model_wc(rx, smap, "model:x", "2026-10-23")))
+ok("a reviewer without the model: prefix is refused", refused(fp_acc_model_wc(rr, smap, "claude", "2026-10-23")))
+
+# the sheets: names, titles, PNG metadata, the directory
+pl <- fp_acc_sheet_plan(101:180, 40L, 11L)
+ok("sheet plan: every review_id once, named by counter, in batches of 40",
+   setequal(pl$review_id, 101:180) && all(grepl(FP_ACC_SHEET_RE, pl$sheet)) && identical(as.vector(table(pl$batch)), c(40L, 40L)))
+ok("sheet plan: the order is shuffled, not review order", !identical(pl$review_id, 101:180))
+ok("sheet names never carry a review_id or a point_id", !any(grepl("_[0-9]+_|[0-9]{3,}_[0-9]{5}", pl$sheet)) &&
+   !any(fp_acc_point_id_like(pl$sheet)))
+ok("titles: source and date pass", all(fp_acc_sheet_title_ok(c("Sentinel-2 2017 Aug-Sep composite, 10 m",
+   "Esri Wayback captured 2016-09-30, 0.5 m", "Esri Wayback: no capture", "Air photo 2012"))))
+ok("titles: anything of the design is refused", !any(fp_acc_sheet_title_ok(c("17_00009", "Trees -> Rangeland",
+   "Sentinel-2 2017 Aug composite, 10 m stratum 4", "review 12", "Orthophoto 2021 in_harvest"))))
+md <- file.path(tempdir(), "model_chk"); dir.create(file.path(md, "batch_01"), recursive = TRUE)
+grDevices::png(file.path(md, "batch_01", "sheet_001.png"), 60, 60); par(mar = c(0, 0, 0, 0)); plot.new(); grDevices::dev.off()
+ok("a clean sheet directory passes, and R's png() writes no text chunk",
+   !refused(fp_acc_sheet_dir_check(md)) && !length(fp_acc_png_text_chunks(file.path(md, "batch_01", "sheet_001.png"))))
+pb <- readBin(file.path(md, "batch_01", "sheet_001.png"), "raw", 1e6)
+txt <- charToRaw("Commentstratum 4")
+chunk <- c(as.raw(c(0, 0, 0, length(txt))), charToRaw("tEXt"), txt, as.raw(c(0, 0, 0, 0)))
+writeBin(c(pb[1:33], chunk, pb[34:length(pb)]), file.path(md, "batch_01", "sheet_002.png"))
+ok("a sheet carrying a PNG text chunk is refused", refused(fp_acc_sheet_dir_check(md)))
+unlink(file.path(md, "batch_01", "sheet_002.png"))
+file.copy(file.path(md, "batch_01", "sheet_001.png"), file.path(md, "batch_01", "17_00009.png"))
+ok("a file named other than sheet_<k>.png in a batch is refused", refused(fp_acc_sheet_dir_check(md)))
+unlink(file.path(md, "batch_01", "17_00009.png")); writeLines("x", file.path(md, "batch_01", "sheet_map.csv"))
+ok("the sheet map inside a batch is refused", refused(fp_acc_sheet_dir_check(md)))
+unlink(md, recursive = TRUE)
+
+# the one growth of the second-labeller subset
+ks <- data.frame(review_id = 1:60, point_id = sprintf("%d_%05d", rep(1:3, each = 20), rep(1:20, 3)),
+                 cell = 1:60, stratum = rep(1:3, each = 20), map_class = 1L, stringsAsFactors = FALSE)
+ks <- fp_acc_second_subset(ks, 930093, c("Mersenne-Twister", "Inversion", "Rejection"))
+st <- data.frame(stratum = 1:3, kind = c("change", "stable", "stable"))
+ks2 <- fp_acc_second_stable(ks, 930093, c("Mersenne-Twister", "Inversion", "Rejection"), st)
+ok("stable strata grow from 3 to 12 audit points; change strata stay at 3",
+   identical(as.vector(tapply(ks2$second, ks2$stratum, sum)), c(3L, 12L, 12L)))
+ok("the growth never drops a point already in the subset", all(ks$second <= ks2$second))
+ok("the growth is idempotent (a re-run of the build draws nothing new)",
+   identical(fp_acc_second_stable(ks2, 930093, c("Mersenne-Twister", "Inversion", "Rejection"), st), ks2))
+ok("the growth has its own seed stream",
+   fp_acc_seed(930093, "second_labeller_stable") != fp_acc_seed(930093, "second_labeller"))
 
 message(if (fails) sprintf("\n%d FAIL", fails) else "\nALL PASS")
 quit(status = if (fails) 1L else 0L)

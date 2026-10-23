@@ -792,11 +792,50 @@ fp_acc_agreement <- function(a, b) {
     po <- sum(diag(t)); pe <- sum(rowSums(t) * colSums(t))
     if (isTRUE(all.equal(pe, 1))) NA_real_ else (po - pe) / (1 - pe)
   }
-  out <- data.frame(endpoint = c("first year (ref_from)", "last year (ref_to)"), n = nrow(m),
-                    agree = c(mean(m$ref_from.x == m$ref_from.y), mean(m$ref_to.x == m$ref_to.y)),
-                    kappa = c(kappa(m$ref_from.x, m$ref_from.y), kappa(m$ref_to.x, m$ref_to.y)))
+  # #145: the change call (ref_from != ref_to) is a third row; for a model labeller it gates the estimate
+  chg_a <- m$ref_from.x != m$ref_to.x; chg_b <- m$ref_from.y != m$ref_to.y
+  out <- data.frame(endpoint = c("first year (ref_from)", "last year (ref_to)", "change (ref_from != ref_to)"),
+                    n = nrow(m),
+                    agree = c(mean(m$ref_from.x == m$ref_from.y), mean(m$ref_to.x == m$ref_to.y), mean(chg_a == chg_b)),
+                    kappa = c(kappa(m$ref_from.x, m$ref_from.y), kappa(m$ref_to.x, m$ref_to.y), kappa(chg_a, chg_b)))
+  # 95% intervals, printed and never gating (pre-registered): Wald for agreement, and for kappa the
+  # large-sample SE sqrt(po (1 - po) / (n (1 - pe)^2)) from the observed and chance agreement
+  pe <- function(x, y) { lv <- sort(unique(c(x, y))); t <- table(factor(x, lv), factor(y, lv)) / length(x)
+                         sum(rowSums(t) * colSums(t)) }
+  pes <- c(pe(m$ref_from.x, m$ref_from.y), pe(m$ref_to.x, m$ref_to.y), pe(chg_a, chg_b))
+  se_a <- sqrt(out$agree * (1 - out$agree) / pmax(out$n, 1))
+  se_k <- sqrt(out$agree * (1 - out$agree) / (pmax(out$n, 1) * (1 - pes)^2))
+  out$agree_lo <- pmax(0, out$agree - 1.96 * se_a); out$agree_hi <- pmin(1, out$agree + 1.96 * se_a)
+  out$kappa_lo <- out$kappa - 1.96 * se_k; out$kappa_hi <- pmin(1, out$kappa + 1.96 * se_k)
   attr(out, "cannot_label") <- cant
   out
+}
+
+# The model-labeller gate (#145, research/landcover_accuracy.md "Model labeller"): A's labels feed the
+# estimate only if kappa >= FP_ACC_MODEL_KAPPA on both endpoints, change agreement >= FP_ACC_MODEL_CHANGE,
+# and A abstained (cannot_label) on at most FP_ACC_MODEL_ABSTAIN of the points B labelled. Point
+# estimates; the intervals ride along in `agreement`.
+FP_ACC_MODEL_ABSTAIN <- 0.10
+fp_acc_model_gate <- function(a, b) {
+  ag <- fp_acc_agreement(a, b)
+  b_lab <- b$point_id[b$label_status == "labelled"]
+  abstain <- mean(a$label_status[match(b_lab, a$point_id)] %in% "cannot_label")
+  checks <- c(kappa_from = isTRUE(ag$kappa[1] >= FP_ACC_MODEL_KAPPA),
+              kappa_to   = isTRUE(ag$kappa[2] >= FP_ACC_MODEL_KAPPA),
+              change     = isTRUE(ag$agree[3] >= FP_ACC_MODEL_CHANGE),
+              abstain    = length(b_lab) > 0 && abstain <= FP_ACC_MODEL_ABSTAIN)
+  list(pass = all(checks), checks = checks, abstain = abstain, agreement = ag)
+}
+
+# Agreement per stratum, for the refusal message (never a rule: 3 points per change stratum, see research)
+fp_acc_agreement_by_stratum <- function(a, b, smp) {
+  m <- merge(a[a$label_status == "labelled", c("point_id", "ref_from", "ref_to")],
+             b[b$label_status == "labelled", c("point_id", "ref_from", "ref_to")], by = "point_id")
+  m$stratum <- smp$stratum[match(m$point_id, smp$point_id)]
+  do.call(rbind, lapply(split(m, m$stratum), function(d) data.frame(
+    stratum = d$stratum[1], n = nrow(d), agree_from = mean(d$ref_from.x == d$ref_from.y),
+    agree_to = mean(d$ref_to.x == d$ref_to.y),
+    agree_change = mean((d$ref_from.x != d$ref_to.x) == (d$ref_from.y != d$ref_to.y)))))
 }
 
 # Hard-link every file under `from` into `to` (same filesystem: no extra disk, and the links are real
@@ -926,4 +965,54 @@ fp_acc_sheet_dir_check <- function(dir_model) {
     }
   }
   invisible(length(b))
+}
+
+# The CSV block of a model batch reply -> a character data.frame. The LAST ```csv fence in the reply:
+# a reply quoting the contract before answering must not be read as the answer.
+FP_ACC_MODEL_COLS <- c("sheet", "ref_from", "ref_to", "label_status", "confidence", "imagery", "note")
+fp_acc_model_csv <- function(reply) {
+  x <- strsplit(reply, "\n", fixed = TRUE)[[1]]
+  open <- which(trimws(x) == "```csv"); close <- which(trimws(x) == "```")
+  if (!length(open)) stop("the reply holds no ```csv block", call. = FALSE)
+  i <- max(open); j <- close[close > i][1]
+  if (is.na(j)) stop("the reply's ```csv block is not closed", call. = FALSE)
+  d <- utils::read.csv(text = paste(x[(i + 1L):(j - 1L)], collapse = "\n"), colClasses = "character",
+                       na.strings = "", strip.white = TRUE)
+  if (!identical(names(d), FP_ACC_MODEL_COLS))
+    stop("the reply's columns are ", paste(names(d), collapse = ","), ", not ",
+         paste(FP_ACC_MODEL_COLS, collapse = ","), call. = FALSE)
+  d
+}
+
+# An agent's tool calls (data.frame: name, path) against what it may touch: Read of its own batch's
+# sheets and of the key. Returns the violations; any one discards the batch.
+fp_acc_transcript_audit <- function(calls, batch_dir, key_path) {
+  ok_path <- function(p) !is.na(p) & (normalizePath(p, mustWork = FALSE) == normalizePath(key_path, mustWork = FALSE) |
+    (dirname(normalizePath(p, mustWork = FALSE)) == normalizePath(batch_dir, mustWork = FALSE) &
+       grepl(FP_ACC_SHEET_RE, basename(p))))
+  calls[!(calls$name == "Read" & ok_path(calls$path)), , drop = FALSE]
+}
+
+# All batches' rows + the frozen sheet map -> the working-copy frame labels_export uses (review_id, cell,
+# label fields). Every sheet exactly once, no sheet the map does not hold.
+fp_acc_model_wc <- function(rows, sheet_map, reviewer, labelled_on) {
+  dup <- rows$sheet[duplicated(rows$sheet)]
+  if (length(dup)) stop(length(dup), " sheet(s) labelled more than once: ", paste(utils::head(dup, 3), collapse = ", "),
+                        call. = FALSE)
+  unk <- setdiff(rows$sheet, sheet_map$sheet)
+  if (length(unk)) stop(length(unk), " labelled sheet(s) not in sheet_map.csv: ", paste(utils::head(unk, 3), collapse = ", "),
+                        call. = FALSE)
+  miss <- setdiff(sheet_map$sheet, rows$sheet)
+  if (length(miss)) stop(length(miss), " sheet(s) have no label: ", paste(utils::head(miss, 3), collapse = ", "),
+                         call. = FALSE)
+  if (!startsWith(reviewer, FP_ACC_MODEL_PREFIX)) stop("a model reviewer reads ", FP_ACC_MODEL_PREFIX, "<id>", call. = FALSE)
+  m <- match(rows$sheet, sheet_map$sheet)
+  num <- function(v) { v <- trimws(v); out <- suppressWarnings(as.integer(v)); out[is.na(v) | !nzchar(v)] <- NA; out }
+  bad <- !is.na(rows$ref_from) & is.na(num(rows$ref_from)) | !is.na(rows$ref_to) & is.na(num(rows$ref_to))
+  if (any(bad)) stop(sum(bad), " row(s) with a class that is not an integer code: ",
+                     paste(utils::head(rows$sheet[bad], 3), collapse = ", "), call. = FALSE)
+  data.frame(review_id = as.integer(sheet_map$review_id[m]), cell = as.numeric(sheet_map$cell[m]),
+             ref_from = num(rows$ref_from), ref_to = num(rows$ref_to), label_status = rows$label_status,
+             confidence = rows$confidence, imagery = rows$imagery, note = rows$note,
+             reviewer = reviewer, labelled_on = labelled_on, stringsAsFactors = FALSE)
 }

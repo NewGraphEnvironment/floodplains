@@ -60,6 +60,31 @@ lab <- if (synthetic) {
   utils::read.csv(f, stringsAsFactors = FALSE, na.strings = "")
 }
 
+# The model-labeller gate (#145), BEFORE any estimate is computed or written: when any label in labels.csv
+# was made by a model, the person's labels_b.csv must exist and the pre-registered agreement must hold.
+# Synthetic labels have no labeller and bypass it.
+fb <- file.path(cfg$dir_ref, "labels_b.csv")
+lb <- if (!synthetic && file.exists(fb)) {
+  x <- utils::read.csv(fb, stringsAsFactors = FALSE, na.strings = "", colClasses = c(point_id = "character"))
+  fp_acc_design_check(x, smp, fb)   # B's labels describe the cells of THIS design, or agreement is meaningless
+  x
+}
+if (!synthetic && any(startsWith(as.character(lab$reviewer), FP_ACC_MODEL_PREFIX))) {
+  if (is.null(lb)) stop("labels.csv holds model labels and there is no ", fb, ": the pre-registered gate ",
+                        "needs the person's labels before any estimate", call. = FALSE)
+  gate <- fp_acc_model_gate(lab, lb)
+  cat("Model-labeller gate (kappa >= ", FP_ACC_MODEL_KAPPA, " both endpoints, change >= ", FP_ACC_MODEL_CHANGE,
+      ", abstention <= ", FP_ACC_MODEL_ABSTAIN, "):\n", sep = "")
+  print(gate$agreement, row.names = FALSE)
+  cat(sprintf("model abstained on %.1f%% of the points the person labelled\n", 100 * gate$abstain))
+  if (!gate$pass) {
+    print(fp_acc_agreement_by_stratum(lab, lb, smp), row.names = FALSE)
+    stop("the model-labeller gate fails (", paste(names(gate$checks)[!gate$checks], collapse = ", "),
+         "): no estimate from these labels. Per research/landcover_accuracy.md, a follow-up issue decides ",
+         "which strata a person relabels.", call. = FALSE)
+  }
+}
+
 om_f <- file.path(cfg$dir_acc, "omission_disturbance.csv")
 omission <- if (file.exists(om_f)) {
   o <- utils::read.csv(om_f); o$omission_io[o$source == "harvest" & o$year == "all"]
@@ -77,10 +102,7 @@ cat(sprintf("\n%sCriteria holding: %d of %d evaluable -> %s\n", tag, sum(res$cri
             sum(!is.na(res$criteria$holds)), res$verdict))
 # Second labeller (#111): how often two people agree on the same cells. Information about the
 # reference only -- it never enters the estimates above.
-fb <- file.path(cfg$dir_ref, "labels_b.csv")
-if (!synthetic && file.exists(fb)) {
-  lb <- utils::read.csv(fb, stringsAsFactors = FALSE, na.strings = "", colClasses = c(point_id = "character"))
-  fp_acc_design_check(lb, smp, fb)   # B's labels describe the cells of THIS design, or agreement is meaningless
+if (!is.null(lb)) {
   ag <- fp_acc_agreement(lab, lb)
   cat("\nInter-labeller agreement (second-labeller subset; information, not an input):\n")
   print(ag, row.names = FALSE)

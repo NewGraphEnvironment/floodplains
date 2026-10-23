@@ -58,3 +58,6 @@ Relates #93, #103, #111, #134, #140, #141, drift#108.
 
 | Error | Resolution |
 |-------|------------|
+| `[clamp] cannot clamp a raster with no values` in the renderer | `terra::rast(x)` on a SpatRaster is an empty template (code-check-spatial); use `x[[1:3]] * 1` |
+| `[crop] extents do not overlap` | the air photo VRT does not cover every point; test `terra::relate(..., "intersects")` first |
+| S2 panels near-black and smoothed | fixed square-root stretch on 0–0.25; `plotRGB(smooth = FALSE)` |
