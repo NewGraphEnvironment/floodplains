@@ -85,11 +85,11 @@ Gate answers to the review's three forks (user, 2026-10-23): leave the orthophot
 Not run in this PR; see Owed at the end.
 
 ## Owed at the end (reported, done after merge)
-- [ ] You label the 48 points in `necr_lulc_review_b`, then run `labels_export.R necr` with `REVIEWER=b`.
+- [ ] You label the 75 audit points in `necr_lulc_review_b` (re-sync Mergin first if you label there), then run `REVIEWER=b labels_export.R necr` and commit `labels_b.csv`.
 - [ ] `accuracy_estimate.R necr` gives agreement, then either the estimate or the refusal. The verdict is recorded in the research file, #93 and #145.
 - [ ] BULK design, chips and labelling (#145 steps 2–6), sized from NECR's result.
 - [ ] BULK Wayback coverage (old Phase 5), after drift is upgraded past 0.20.0.
-- [ ] After `labels_b.csv` lands: write `labels.csv` from the hashed model file, check the hash, commit, run the estimate.
+- [ ] After `labels_b.csv` is committed: `labels_import-model.R freeze necr` → commit `labels_b.sha256` → `labels_import-model.R publish necr` → commit `labels.csv` → `accuracy_estimate.R necr`.
 
 ## Validation
 - [x] `accuracy-check.R` passes, and every new arm has been seen red.
