@@ -44,3 +44,7 @@ Relates #140, #93, #145, #131.
 ## Accepted residual risk: the windows guard compares names
 
 A re-run of step 2 or 3 under the same scenario name (`all_ff04`) between `run` and `derive`, or before the chips, passes the guard. Same class as #140's design guard, which the grid comparison closes there; for windows it is accepted, because the windows are re-measured whenever the sample is redrawn.
+
+## Criterion 4 moves with the population (recorded 2026-10-23, before the all_ff04 value is computed)
+
+Criterion 4 (free reference: IO's omission of qualifying harvest) was scored on `ch_ff04`: omission_io **0.2549** over 92.0 ha, so it did not hold. The sample moves to `all_ff04` for a catalogue reason (the species items were retired 2026-10-15; the published NECR floodplain is `all_ff04`), decided by the user before any `all_ff04` accuracy number existed. The **`all_ff04` value is the one that counts** for the verdict, whatever it is, and the `ch_ff04` value stays stated beside it in the research file, so a move across the threshold cannot read as choosing the population for the result.
