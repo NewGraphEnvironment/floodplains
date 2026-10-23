@@ -808,6 +808,16 @@ for (k in c("dims", "shifted", "zone"))
   ok(sprintf("a transition grid differing from the design's by %s is refused", k), grid_refused(sc_cfg(k)))
 ok("must-fail arm: with no design on the cfg (the pre-#140 form) a wrong grid passes",
    !grid_refused(modifyList(sc_cfg("shifted"), list(design = NULL))))
+# criterion 4's omission file names its scenario too
+om <- data.frame(source = c("harvest", "harvest"), year = c("all", "2018"), omission_io = c(0.25, 0.24))
+om_f <- file.path(sc_dir, "omission.csv")
+utils::write.csv(cbind(scenario = "ch_ff04", om), om_f, row.names = FALSE)
+ok("an omission file on the design's scenario is read", identical(fp_acc_omission_read(om_f, "ch_ff04"), 0.25))
+ok("an omission file on another scenario is refused",
+   inherits(tryCatch(fp_acc_omission_read(om_f, "all_ff04"), error = identity), "error"))
+utils::write.csv(om, om_f, row.names = FALSE)
+ok("an omission file with no scenario (pre-#140) is refused",
+   inherits(tryCatch(fp_acc_omission_read(om_f, "ch_ff04"), error = identity), "error"))
 unlink(sc_dir, recursive = TRUE)
 
 message(if (fails) sprintf("\n%d FAIL", fails) else "\nALL PASS")

@@ -148,6 +148,20 @@ fp_acc_omission <- function(from, to, trans, inpoly) {
              omission_published = if (d) 1 - pub / d else NA_real_)
 }
 
+# Criterion 4's input: harvest omission over the whole window, from reference_omission-disturbance.R.
+# Refused unless it names the scenario the estimate is on (#140): a file from before a redraw, or from
+# the #125 window when the module followed area.yml, would score the criterion on another floodplain.
+fp_acc_omission_read <- function(path, scenario) {
+  o <- utils::read.csv(path, stringsAsFactors = FALSE)
+  if (!"scenario" %in% names(o) || !all(o$scenario == scenario))
+    stop(path, " is on ", if ("scenario" %in% names(o)) paste(unique(o$scenario), collapse = ", ") else
+           "an unrecorded scenario (predates #140)", ", not ", scenario,
+         "; re-run reference_omission-disturbance.R", call. = FALSE)
+  v <- o$omission_io[o$source == "harvest" & o$year == "all"]
+  if (length(v) != 1) stop(path, " has ", length(v), " harvest/all rows", call. = FALSE)
+  v
+}
+
 # --- Strata (phase 5) -------------------------------------------------------------------------
 # One stratum per footprint cell, FIRST MATCH WINS in the order below (research/landcover_accuracy.md,
 # "Strata"). Cause strata come first and are numbered 1..k in `sources:` order; the rest are fixed.
