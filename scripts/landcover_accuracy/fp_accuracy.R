@@ -1075,3 +1075,70 @@ fp_acc_image_matches <- function(src, png_path, tol = FP_ACC_IMAGE_TOL) {
   if (is.null(seen) || length(dim(seen)) != 3 || !identical(dim(seen)[1:2], dim(disk)[1:2])) return(FALSE)
   mean(abs(seen[, , 1:3] - disk[, , 1:3])) <= tol
 }
+
+# --- Model-labeller guards as functions (#145 code-check round 4) ------------------------------------------
+# Each refusal the scripts rely on lives here, so accuracy-check.R can exercise it and go red when it is removed.
+
+# the sha in a `<sha>  <name>` file
+fp_acc_sha_file <- function(path) strsplit(readLines(path, n = 1, warn = FALSE), "  ", fixed = TRUE)[[1]][1]
+
+# git, from R, on one repository; NULL output on failure
+fp_acc_git <- function(repo, ..., status = FALSE) {
+  if (status) return(system2("git", c("-C", shQuote(repo), ...), stdout = FALSE, stderr = FALSE) == 0)
+  suppressWarnings(system2("git", c("-C", shQuote(repo), ...), stdout = TRUE, stderr = FALSE))
+}
+# Tracked and identical to HEAD: what a freeze or a hash must be before anything relies on it. A file that
+# is merely on disk can be deleted by a clean or missing on another checkout, and then reads as "never set".
+fp_acc_git_committed <- function(repo, path)
+  fp_acc_git(repo, "ls-files", "--error-unmatch", shQuote(path), status = TRUE) &&
+  fp_acc_git(repo, "diff", "--quiet", "HEAD", "--", shQuote(path), status = TRUE)
+# The last commit touching `first` is a strict ancestor of the commit that first added `then`.
+fp_acc_git_committed_before <- function(repo, first, then) {
+  c1 <- fp_acc_git(repo, "log", "-1", "--format=%H", "--", shQuote(first))
+  c2 <- utils::tail(fp_acc_git(repo, "log", "--diff-filter=A", "--format=%H", "--", shQuote(then)), 1)
+  length(c1) == 1 && length(c2) == 1 && c1 != c2 &&
+    fp_acc_git(repo, "merge-base", "--is-ancestor", c1, c2, status = TRUE)
+}
+
+# labels.csv must be the model's labels as hashed, wherever a committed model hash exists. TRUE when the
+# labels are the model's (so the gate applies), FALSE when there is no model hash at all.
+fp_acc_labels_hashed <- function(labels_csv, sha_file) {
+  if (!file.exists(sha_file)) return(FALSE)
+  if (!identical(digest::digest(file = labels_csv, algo = "sha256"), fp_acc_sha_file(sha_file)))
+    stop(labels_csv, " is not the model's labels as hashed in ", basename(sha_file), call. = FALSE)
+  TRUE
+}
+# B as frozen at publish: the freeze must be committed (absent reads as "never frozen") and must match.
+fp_acc_b_frozen <- function(repo, labels_b, freeze) {
+  if (!file.exists(freeze) || !fp_acc_git_committed(repo, freeze))
+    stop(freeze, " is missing or not committed: B's labels are not frozen", call. = FALSE)
+  if (!identical(digest::digest(file = labels_b, algo = "sha256"), fp_acc_sha_file(freeze)))
+    stop(labels_b, " is not the one frozen when the model's labels were published", call. = FALSE)
+  invisible(TRUE)
+}
+# A publish that finds labels.csv already in place but no freeze is not a first publish: the freeze went
+# missing, and re-freezing now would freeze whatever B holds after the person could see the model's labels.
+fp_acc_publish_first <- function(labels_csv, freeze) {
+  if (file.exists(labels_csv) && !file.exists(freeze))
+    stop(labels_csv, " already exists but ", basename(freeze), " does not: refusing to re-freeze B", call. = FALSE)
+  invisible(TRUE)
+}
+# An extracted batch against its audit: the csv as written, the key it was read under, the sheets it saw.
+fp_acc_batch_verify <- function(audit, csv, key_md, batch_dir) {
+  sha <- function(f) digest::digest(file = f, algo = "sha256")
+  if (is.null(audit$csv_sha256) || !identical(sha(csv), audit$csv_sha256))
+    stop(csv, " is not the csv its audit recorded: extract it again", call. = FALSE)
+  if (!identical(audit$key_sha256, sha(key_md))) stop("batch ", audit$batch, " was read under another key.md", call. = FALSE)
+  now <- vapply(names(audit$sheet_sha256), function(s) sha(file.path(batch_dir, s)), "")
+  if (!identical(unname(now), unname(unlist(audit$sheet_sha256))))
+    stop("batch ", audit$batch, "'s sheets on disk are not the ones it labelled: the render moved under it", call. = FALSE)
+  invisible(TRUE)
+}
+# The key text a Read returned (`N<TAB>line` per line) -> the lines the agent read, for comparison with
+# fp_acc_labelling_key(): the transcript says what the agent saw, key.md only what is on disk now.
+fp_acc_read_text <- function(txt) {
+  x <- strsplit(txt, "\n", fixed = FALSE)[[1]]
+  x <- sub("^[0-9]+\t", "", x)
+  while (length(x) && !nzchar(x[length(x)])) x <- x[-length(x)]
+  x
+}

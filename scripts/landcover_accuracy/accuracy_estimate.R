@@ -72,19 +72,13 @@ lb <- if (!synthetic && file.exists(fb)) {
 # Model labels are recognised by the committed hash, not by the file's own reviewer column, and the labels
 # must be the hashed ones: a rewritten reviewer or a dropped row would otherwise skip or bias the gate.
 fmsha <- file.path(cfg$dir_ref, "labels_model.sha256")
-if (!synthetic && file.exists(fmsha) &&
-    !identical(digest::digest(file = file.path(cfg$dir_ref, "labels.csv"), algo = "sha256"),
-               strsplit(readLines(fmsha, n = 1), "  ", fixed = TRUE)[[1]][1]))
-  stop("labels.csv is not the model's labels as hashed in ", basename(fmsha), call. = FALSE)
-if (!synthetic && (file.exists(fmsha) || any(startsWith(as.character(lab$reviewer), FP_ACC_MODEL_PREFIX) %in% TRUE))) {
+hashed <- !synthetic && fp_acc_labels_hashed(file.path(cfg$dir_ref, "labels.csv"), fmsha)
+if (!synthetic && (hashed || any(startsWith(as.character(lab$reviewer), FP_ACC_MODEL_PREFIX) %in% TRUE))) {
   if (is.null(lb)) stop("labels.csv holds model labels and there is no ", fb, ": the pre-registered gate ",
                         "needs the person's labels before any estimate", call. = FALSE)
   fp_acc_b_complete(lb, fp_acc_review_key_read(file.path(cfg$dir_ref, "review_key.csv")))
   # B as it was when the model's labels were published (labels_import-model.R publish), not as edited since
-  fsha <- file.path(cfg$dir_ref, "labels_b.sha256")
-  if (!file.exists(fsha) || !identical(digest::digest(file = fb, algo = "sha256"),
-                                       strsplit(readLines(fsha, n = 1), "  ", fixed = TRUE)[[1]][1]))
-    stop(fb, " is not the one frozen when the model's labels were published (", basename(fsha), ")", call. = FALSE)
+  fp_acc_b_frozen(here::here(), fb, file.path(cfg$dir_ref, "labels_b.sha256"))
   gate <- fp_acc_model_gate(lab, lb)
   cat("Model-labeller gate (kappa >= ", FP_ACC_MODEL_KAPPA, " both endpoints, change >= ", FP_ACC_MODEL_CHANGE,
       ", abstention <= ", FP_ACC_MODEL_ABSTAIN, "):\n", sep = "")

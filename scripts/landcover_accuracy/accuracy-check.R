@@ -496,8 +496,8 @@ i_gate <- grep("fp_acc_model_gate(", est_src, fixed = TRUE)[1]
 i_est  <- grep("res <- fp_acc_estimate(", est_src, fixed = TRUE)[1]
 ok("accuracy_estimate.R gates BEFORE it estimates (nothing is printed or saved from failing labels)",
    !is.na(i_gate) && !is.na(i_est) && i_gate < i_est)
-ok("accuracy_estimate.R: synthetic labels bypass the gate, any model reviewer triggers it",
-   any(grepl("if (!synthetic && (file.exists(fmsha) || any(startsWith(as.character(lab$reviewer), FP_ACC_MODEL_PREFIX)", est_src, fixed = TRUE)))
+ok("accuracy_estimate.R: synthetic labels bypass the gate, the model hash or any model reviewer triggers it",
+   any(grepl("if (!synthetic && (hashed || any(startsWith(as.character(lab$reviewer), FP_ACC_MODEL_PREFIX)", est_src, fixed = TRUE)))
 
 ok("accuracy_estimate.R: a blank reviewer (NA) does not abort the gate trigger",
    any(grepl("FP_ACC_MODEL_PREFIX) %in% TRUE))", est_src, fixed = TRUE)))
@@ -539,15 +539,56 @@ ok("a different image does not match", !fp_acc_image_matches(src_of(pb, "image/p
 ok("must-fail arm: byte equality alone would refuse the re-encoded sheet",
    !identical(fp_acc_b64_sha256(src_of(jf, "image/jpeg")$data), digest::digest(file = pa, algo = "sha256")))
 unlink(c(pa, pb, jf, pngf))
-ok("the estimate recognises model labels by the committed hash and checks labels.csv against it",
-   any(grepl("labels_model.sha256", est_src, fixed = TRUE)) && any(grepl("file.exists(fmsha) ||", est_src, fixed = TRUE)))
-ok("extract binds each sheet to the image bytes the agent saw, and refuses to overwrite an accepted batch",
-   any(grepl("are not the images the agent saw", imp_src, fixed = TRUE)) && any(grepl("is already extracted", imp_src, fixed = TRUE)))
-ok("import verifies each batch's csv, key and sheets against its audit",
-   any(grepl("is not the csv its audit recorded", imp_src, fixed = TRUE)) &&
-   any(grepl("sheets on disk are not the ones it labelled", imp_src, fixed = TRUE)))
-ok("publish freezes B through fp_acc_freeze and requires the hash committed before B",
-   any(grepl("fp_acc_freeze(", imp_src, fixed = TRUE)) && any(grepl("--is-ancestor", imp_src, fixed = TRUE)))
+# behavioural arms for each guard the scripts call (round 4: a grep arm stayed green with its guard deleted)
+td <- tempfile("gates"); dir.create(td)
+wr <- function(f, x) { writeLines(x, file.path(td, f)); file.path(td, f) }
+shaf <- function(f) digest::digest(file = f, algo = "sha256")
+lab_f <- wr("labels.csv", "a,b"); msha <- wr("labels_model.sha256", paste0(shaf(lab_f), "  labels_model.csv"))
+ok("labels.csv equal to the committed model hash is recognised as the model's (the gate applies)",
+   isTRUE(fp_acc_labels_hashed(lab_f, msha)))
+writeLines("a,b,dropped-row-or-reviewer-edited", lab_f)
+ok("labels.csv that differs from the model hash is refused (a dropped row or a rewritten reviewer)",
+   refused(fp_acc_labels_hashed(lab_f, msha)))
+ok("no model hash: the labels are not the model's", isFALSE(fp_acc_labels_hashed(lab_f, file.path(td, "none"))))
+ok("publish refuses when labels.csv exists but B's freeze is gone (not a first publish)",
+   refused(fp_acc_publish_first(lab_f, file.path(td, "labels_b.sha256"))))
+ok("a first publish (no labels.csv, no freeze) passes", !refused(fp_acc_publish_first(file.path(td, "nolab"), file.path(td, "nofreeze"))))
+# a batch against its audit
+bdir <- file.path(td, "batch_01"); dir.create(bdir); sh <- file.path(bdir, "sheet_001.png"); writeLines("img", sh)
+km <- wr("key.md", "key"); cv <- wr("batch_01.csv", "sheet,ref_from")
+au1 <- list(batch = 1, csv_sha256 = shaf(cv), key_sha256 = shaf(km), sheet_sha256 = list(sheet_001.png = shaf(sh)))
+ok("a batch matching its audit verifies", !refused(fp_acc_batch_verify(au1, cv, km, bdir)))
+writeLines("sheet,ref_from,edited", cv)
+ok("a raw csv edited after extract is refused", refused(fp_acc_batch_verify(au1, cv, km, bdir)))
+writeLines("sheet,ref_from", cv); au1$csv_sha256 <- shaf(cv); writeLines("img2", sh)
+ok("a sheet re-rendered after extract is refused", refused(fp_acc_batch_verify(au1, cv, km, bdir)))
+writeLines("img", sh); writeLines("key2", km)
+ok("a key changed after extract is refused", refused(fp_acc_batch_verify(au1, cv, km, bdir)))
+ok("the key text a Read returned is recovered line for line",
+   identical(fp_acc_read_text("1\t## Labelling key\n2\t\n3\tRule one\n4\t"), c("## Labelling key", "", "Rule one")))
+# commit order and committed freezes, in a throwaway repository
+gr <- file.path(td, "repo"); dir.create(gr)
+g <- function(...) fp_acc_git(gr, ...)
+g("init", "-q"); g("config", "user.email", "check@example.org"); g("config", "user.name", "check")
+hf <- file.path(gr, "labels_model.sha256"); bf <- file.path(gr, "labels_b.csv"); ff <- file.path(gr, "labels_b.sha256")
+writeLines("h1  labels_model.csv", hf); g("add", "."); g("commit", "-qm", "hash")
+writeLines("point_id", bf); g("add", "."); g("commit", "-qm", "B")
+ok("the model hash committed before labels_b.csv passes", fp_acc_git_committed_before(gr, hf, bf))
+writeLines("h2  labels_model.csv", hf); g("add", "."); g("commit", "-qm", "reimport")
+ok("a model hash re-committed after labels_b.csv is refused", !fp_acc_git_committed_before(gr, hf, bf))
+writeLines(paste0(shaf(bf), "  labels_b.csv"), ff)
+ok("an uncommitted B freeze is refused by the estimate", refused(fp_acc_b_frozen(gr, bf, ff)))
+g("add", "."); g("commit", "-qm", "freeze")
+ok("a committed B freeze matching B passes", !refused(fp_acc_b_frozen(gr, bf, ff)))
+writeLines("point_id,edited", bf)
+ok("a B edited after the freeze is refused", refused(fp_acc_b_frozen(gr, bf, ff)))
+unlink(ff)
+ok("a missing B freeze is refused, never read as 'not frozen yet'", refused(fp_acc_b_frozen(gr, bf, ff)))
+unlink(td, recursive = TRUE)
+ok("the scripts call these guards (the arms above test the functions; this pins the wiring)",
+   any(grepl("fp_acc_labels_hashed(", est_src, fixed = TRUE)) && any(grepl("fp_acc_b_frozen(", est_src, fixed = TRUE)) &&
+   any(grepl("fp_acc_batch_verify(", imp_src, fixed = TRUE)) && any(grepl("fp_acc_git_committed_before(", imp_src, fixed = TRUE)) &&
+   any(grepl("fp_acc_publish_first(", imp_src, fixed = TRUE)) && any(grepl("fp_acc_freeze(", imp_src, fixed = TRUE)))
 ok("a render refuses while transcripts or raw labels exist",
    any(grepl('c("raw", "transcripts")', ren_src, fixed = TRUE)))
 
@@ -578,13 +619,9 @@ ok("a batch that read the key and every sheet is complete", !length(fp_acc_unrea
 rf <- rd; rf$ok[2] <- FALSE
 ok("a Read whose result was an error does not count as read", identical(fp_acc_unread(rf, bd, kp, "sheet_001.png"), "sheet_001.png"))
 ok("calls not matched to their results are refused", refused(fp_acc_unread(rd[, c("name", "path")], bd, kp, "sheet_001.png")))
-ok("publish requires labels_b.csv and the model hash committed and clean",
-   any(grepl('"ls-files", "--error-unmatch"', imp_src, fixed = TRUE)) && any(grepl('"diff", "--quiet", "HEAD"', imp_src, fixed = TRUE)))
 ok("publish checks its copy and freezes B's labels by hash",
    any(grepl("isTRUE(file.copy(out_csv, f, overwrite = TRUE))", imp_src, fixed = TRUE)) &&
    any(grepl("labels_b.sha256", imp_src, fixed = TRUE)))
-ok("the gate refuses a labels_b.csv edited after the model's labels were published",
-   any(grepl("labels_b.sha256", est_src, fixed = TRUE)))
 smap <- data.frame(sheet = c("sheet_001.png", "sheet_002.png"), review_id = c(7L, 3L), cell = c(101, 102), batch = 1L)
 wcm <- fp_acc_model_wc(rr, smap, "model:test-model", "2026-10-23")
 ok("model rows map through the sheet map to review_id and cell", identical(wcm$review_id, c(7L, 3L)) &&

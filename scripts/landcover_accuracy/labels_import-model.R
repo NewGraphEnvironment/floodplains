@@ -94,7 +94,10 @@ if (mode == "prompt") {
     lapply(Filter(function(x) identical(x$type, "tool_result"), r$message$content), function(x) {
       img <- Filter(function(y) is.list(y) && identical(y$type, "image"), if (is.list(x$content)) x$content else list())
       list(id = x$tool_use_id %||% NA_character_, err = isTRUE(x$is_error),
-           src = if (length(img)) img[[1]]$source else NULL)
+           src = if (length(img)) img[[1]]$source else NULL,
+           txt = if (is.character(x$content)) x$content else
+             paste(vapply(Filter(function(y) is.list(y) && identical(y$type, "text"), x$content), function(y) y$text, ""),
+                   collapse = ""))
     })), recursive = FALSE)
   res_id  <- vapply(res, function(x) x$id, "")
   res_err <- vapply(res, function(x) x$err, TRUE)
@@ -118,6 +121,12 @@ if (mode == "prompt") {
   # was shown: its bytes in the transcript against the file on disk. Names repeat across renders; bytes do not.
   if (!identical(readLines(key_md, warn = FALSE), fp_acc_labelling_key()))
     stop(key_md, " is not the labelling key in research/landcover_accuracy.md", call. = FALSE)
+  # ...and the key TEXT the agent was shown (in the transcript) is that key, not just the file on disk now
+  key_ids  <- calls$id[calls$name == "Read" & calls$ok & !is.na(calls$path) &
+                       normalizePath(calls$path, mustWork = FALSE) == normalizePath(key_md)]
+  key_seen <- any(vapply(key_ids, function(i) {
+    k <- match(i, res_id); identical(fp_acc_read_text(res[[k]]$txt %||% ""), fp_acc_labelling_key())
+  }, TRUE))
   rd <- calls[calls$name == "Read" & calls$ok & !is.na(calls$path) &
               dirname(normalizePath(calls$path, mustWork = FALSE)) == normalizePath(batch_dir(b)), ]
   disk  <- vapply(want, function(x) sha256(file.path(batch_dir(b), x)), "")
@@ -125,10 +134,9 @@ if (mode == "prompt") {
     ids <- rd$id[basename(rd$path) == x]
     any(vapply(ids, function(i) fp_acc_image_matches(img_of(i), file.path(batch_dir(b), x)), TRUE))
   }, TRUE)
-  moved <- want[!saw]
-  if (length(moved)) stop(length(moved), " sheet(s) of batch ", b, " on disk are not the images the agent saw (",
-                          paste(utils::head(moved, 3), collapse = ", "), "): a re-render since the batch was labelled",
-                          call. = FALSE)
+  # a sheet not read (or read with an error) is `unread`, reported as such; `moved` is a sheet READ whose
+  # image is not the one on disk now
+  moved <- setdiff(want[!saw], unread)
   f_csv <- file.path(dir_raw, sprintf("batch_%02d.csv", b))
   if (file.exists(f_csv) && !identical(Sys.getenv("FORCE"), "1"))
     stop(f_csv, " is already extracted; FORCE=1 only to replace an accepted batch deliberately", call. = FALSE)
@@ -138,12 +146,16 @@ if (mode == "prompt") {
                 missing = length(setdiff(want, rows$sheet)), extra = length(setdiff(rows$sheet, want)),
                 key_sha256 = sha256(key_md), sheet_sha256 = as.list(disk),
                 extracted_utc = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))
-  if (nrow(viol) || length(unread) || audit$missing || audit$extra || anyDuplicated(rows$sheet)) {
+  if (nrow(viol) || length(unread) || length(moved) || !key_seen || audit$missing || audit$extra ||
+      anyDuplicated(rows$sheet)) {
     rej <- file.path(dir_raw, "rejected"); dir.create(rej, showWarnings = FALSE)
-    jsonlite::write_json(c(audit, list(violation_calls = viol, unread_files = unread)), file.path(rej, sprintf("batch_%02d_%s.json", b,
+    jsonlite::write_json(c(audit, list(violation_calls = viol, unread_files = unread, moved_sheets = moved,
+                                       key_text_seen = key_seen)), file.path(rej, sprintf("batch_%02d_%s.json", b,
                          format(Sys.time(), "%Y%m%dT%H%M%S", tz = "UTC"))), auto_unbox = TRUE, pretty = TRUE)
-    stop(sprintf("batch %d refused: %d tool call(s) outside its sheets and the key, %d file(s) never read, %d sheet(s) missing, %d extra -- label it again",
-                 b, nrow(viol), length(unread), audit$missing, audit$extra), call. = FALSE)
+    stop(sprintf(paste("batch %d refused: %d tool call(s) outside its sheets and the key, %d file(s) never read,",
+                       "%d sheet(s) on disk not the image seen (a re-render), key text seen: %s, %d sheet(s) missing,",
+                       "%d extra -- label it again"),
+                 b, nrow(viol), length(unread), length(moved), key_seen, audit$missing, audit$extra), call. = FALSE)
   }
   utils::write.csv(rows, f_csv, row.names = FALSE, na = "")
   audit$csv_sha256 <- sha256(f_csv)
@@ -157,15 +169,7 @@ if (mode == "prompt") {
   models <- unique(vapply(au, function(x) x$model, ""))
   if (length(models) != 1) stop("batches were labelled by different models: ", paste(models, collapse = ", "), call. = FALSE)
   # each batch as extracted, on the sheets now on disk, read under the key now on disk
-  for (k in seq_along(fb)) {
-    x <- au[[k]]
-    if (is.null(x$csv_sha256) || !identical(sha256(fb[k]), x$csv_sha256))
-      stop(fb[k], " is not the csv its audit recorded: extract it again", call. = FALSE)
-    if (!identical(x$key_sha256, sha256(key_md))) stop("batch ", x$batch, " was read under another key.md", call. = FALSE)
-    now <- vapply(names(x$sheet_sha256), function(s) sha256(file.path(batch_dir(x$batch), s)), "")
-    if (!identical(unname(now), unname(unlist(x$sheet_sha256))))
-      stop("batch ", x$batch, "'s sheets on disk are not the ones it labelled: the render moved under it", call. = FALSE)
-  }
+  for (k in seq_along(fb)) fp_acc_batch_verify(au[[k]], fb[k], key_md, batch_dir(au[[k]]$batch))
   rows <- do.call(rbind, lapply(fb, utils::read.csv, colClasses = "character", na.strings = ""))
   day  <- max(as.Date(substr(vapply(au, function(x) x$extracted_utc, ""), 1, 10)))
   wc   <- fp_acc_model_wc(rows, sheet_map, paste0(FP_ACC_MODEL_PREFIX, models), format(day))
@@ -192,27 +196,22 @@ if (mode == "prompt") {
   if (!file.exists(sha_file) || !file.exists(out_csv)) stop("run import first", call. = FALSE)
   # COMMITTED, not merely on disk: the hash is what the model's labels are held to, and B's labels must be
   # fixed in history before the model's are put where B could read them
-  for (g in c(fb, sha_file)) {
-    tracked <- system2("git", c("-C", shQuote(here::here()), "ls-files", "--error-unmatch", shQuote(g)), stdout = FALSE, stderr = FALSE) == 0
-    clean   <- system2("git", c("-C", shQuote(here::here()), "diff", "--quiet", "HEAD", "--", shQuote(g)), stdout = FALSE, stderr = FALSE) == 0
-    if (!tracked || !clean) stop(g, " is not committed as it stands: commit it before publishing", call. = FALSE)
-  }
-  # ...and the model's hash was committed BEFORE B's labels first were: its last commit is an ancestor of the
-  # commit that added labels_b.csv, so a re-import or re-commit after B had seen anything is refused
-  git1 <- function(...) system2("git", c("-C", shQuote(here::here()), ...), stdout = TRUE)
-  c_hash <- git1("log", "-1", "--format=%H", "--", shQuote(sha_file))
-  c_b    <- utils::tail(git1("log", "--diff-filter=A", "--format=%H", "--", shQuote(fb)), 1)
-  before <- length(c_hash) == 1 && length(c_b) == 1 && c_hash != c_b &&
-    system2("git", c("-C", shQuote(here::here()), "merge-base", "--is-ancestor", c_hash, c_b), stdout = FALSE, stderr = FALSE) == 0
-  if (!before) stop(basename(sha_file), "'s last commit does not precede the commit that added labels_b.csv", call. = FALSE)
+  for (g in c(fb, sha_file)) if (!fp_acc_git_committed(here::here(), g))
+    stop(g, " is not committed as it stands: commit it before publishing", call. = FALSE)
+  # ...and the model's hash was committed BEFORE B's labels first were, so a re-import or re-commit after B
+  # had seen anything is refused
+  if (!fp_acc_git_committed_before(here::here(), sha_file, fb))
+    stop(basename(sha_file), "'s last commit does not precede the commit that added labels_b.csv", call. = FALSE)
   want <- strsplit(readLines(sha_file, n = 1), "  ", fixed = TRUE)[[1]][1]
   if (!identical(sha256(out_csv), want)) stop(out_csv, " does not match the committed hash ", want, call. = FALSE)
   f <- file.path(cfg$dir_ref, "labels.csv")
+  fp_acc_publish_first(f, file.path(cfg$dir_ref, "labels_b.sha256"))
   if (file.exists(f) && !identical(sha256(f), want)) stop(f, " exists and differs from the model's labels", call. = FALSE)
   if (!isTRUE(file.copy(out_csv, f, overwrite = TRUE)) || !identical(sha256(f), want))
     stop("copying the model's labels to ", f, " failed", call. = FALSE)
   # B is frozen from here: the gate in accuracy_estimate.R refuses a labels_b.csv that differs from this,
   # and a second publish refuses rather than re-freezing an edited B
   fp_acc_freeze(file.path(cfg$dir_ref, "labels_b.sha256"), sha256(fb), "labels_b.csv")
-  message(f, ": the model's labels, matching ", basename(sha_file), "; labels_b.csv frozen in labels_b.sha256")
+  message(f, ": the model's labels, matching ", basename(sha_file), "; labels_b.csv frozen in labels_b.sha256. ",
+          "Commit labels.csv and labels_b.sha256 together: the estimate refuses an uncommitted freeze.")
 }
