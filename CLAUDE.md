@@ -276,6 +276,17 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
     (qgis/QGIS#54161). Each chip is clipped to its point's Voronoi cell with nodata, not a mask band:
     a VRT ignores source masks when it composites. Labels decided on them record `esri_dated`, never
     `esri`, which labelling-key rule 5 caps at `low`.
+  - **The model labeller (#145).** A blind Plan agent labels every point from contact sheets
+    (`review_render-sheets.R`), and a person labels the second-labeller subset, which grew to 75 points
+    toward the stable strata. `accuracy_estimate.R` refuses unless the gate pre-registered in
+    `research/landcover_accuracy.md` ("Model labeller") holds. `labels_import-model.R` runs
+    `prompt` → `extract` → `import` → `freeze` → `publish`.
+    - The model's labels stay gitignored behind `labels_model.sha256` until `labels_b.csv` is committed.
+    - Every freeze is decided by git history, never by disk. So **merge this work with a merge commit,
+      never a squash**.
+    - The Read tool re-encodes large PNGs to JPEG, so a label is bound to its sheet by pixels
+      (`fp_acc_image_matches`), not bytes.
+    - Never read `data/<area>/accuracy/model/` from a session that will label or review blind.
   - **`fly_georef` needs a frame's roll neighbours** for its bearing. Pass the year's full frame set,
     never the fetched sample, and never `suppressWarnings()` around it. fly#88 was this exact
     caller error, filed against fly and withdrawn.
