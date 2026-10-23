@@ -14,6 +14,7 @@ pkgs_cran <- c(
   "DBI", "RPostgres",              # fwapg
   "here", "fs", "yaml", "jsonlite", "digest",  # utils + config (jsonlite/digest: provenance, #33)
   "curl",                          # HEAD of the DEM source for the step-2 DEM cache key (#122)
+  "png", "jpeg",                   # model labeller: compare the image an agent saw with its sheet (#145)
   "dplyr", "readr", "stringr"
 )
 
@@ -25,7 +26,8 @@ pkgs_gh <- c(
                                    #   (flooded#83); fp_habitat_join.R asserts it
   "newgraphenvironment/drift",     # STAC LULC classify + transition (>= 0.10.0: paged STAC fetch, #81; fp_lulc asserts this floor;
                                    #   >= 0.19.0 for dft_accuracy_*, >= 0.20.0 for aggregation = "count" in
-                                   #   scripts/landcover_accuracy/, #93, drift#92)
+                                   #   scripts/landcover_accuracy/, #93, drift#92; >= 0.24.0 for dft_wayback_*
+                                   #   in wayback_coverage-area.R, #145, which asserts it)
   "newgraphenvironment/fresh"      # falls.csv + parameter CSVs (link engine)
 )
 

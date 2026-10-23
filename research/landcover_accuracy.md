@@ -1,6 +1,6 @@
 # IO LULC accuracy inside our floodplains
 
-**Verified:** 2026-10-06 · **Issues:** #93 (this work), #111 (blind review, labelling key), #92 (report), #94 (review surface), #95
+**Verified:** 2026-10-23 · **Issues:** #93 (this work), #111 (blind review, labelling key), #145 (model labeller), #113 (confidence ceiling, growth blinding), #92 (report), #94 (review surface), #95
 (wetland flag), #103 (prior-fire stratum, dated imagery), drift#79 / drift#81 (composites, sampling + estimators); spawned #100 (patch-level
 harvest attribution) and drift#92 (clear-observation counts) · **Produced by:**
 `scripts/landcover_accuracy/` (logs under `scripts/landcover_accuracy/logs/`) · **Status:**
@@ -273,8 +273,9 @@ usage, so a disagreement measures IO's error rather than a mismatch of definitio
    evidence.
 4. **Mixed cells take the plurality class.** If no class clearly covers more of the cell than any
    other, the status is `cannot_label`.
-5. **Imagery date sets the ceiling on confidence.**
-   - Imagery within ±1 year of the endpoint supports `high` or `medium`.
+5. **Imagery date sets the ceiling on confidence.** *(Widened from ±1 year on 2026-10-23, before any
+   label existed: #113 decision 1, decided at #145's plan gate.)*
+   - Imagery within ±2 years of the endpoint supports `high` or `medium`.
    - Older or newer imagery supports `low` at most.
    - The undated basemaps (Esri, Google, Bing) support `low` at most, and never alone for a change
      call.
@@ -303,14 +304,18 @@ usage, so a disagreement measures IO's error rather than a mismatch of definitio
   - Each point's 10 m cell is drawn, because the label is about that square.
   - Blinding is procedural for anyone holding this public repo, which carries `sample.gpkg` and the key.
     That was accepted.
-- **Growth is not blind to its batch (known limit).** When the pilot grows to the full sample (same seed,
-  larger `n`), the new points take ids above the pilot's. The growth is expected to raise the stable
-  strata first, so an id above the pilot's count hints at "no change". Labels made on a growth batch are
-  made knowing that batch's stratum mix. Before growing, decide whether to accept this (and report it)
-  or to label the full sample in one blind pass.
+- **Growth is not blind to its batch (known limit, accepted).** When the pilot grows to the full sample
+  (same seed, larger `n`), the new points take ids above the pilot's. The growth is expected to raise
+  the stable strata first, so an id above the pilot's count hints at "no change". **Decided 2026-10-23,
+  before any label (#113 decision 2, at #145's gate): accept it and report it.** Every label carries
+  its batch through `review_key.csv`, and a report states the batch mix behind each stratum's
+  accuracy. The model labeller below never sees a `review_id`, so the hint reaches a human labeller
+  only.
 - **Second labeller (pre-registered 2026-10-06, before any label).**
   - A fixed subset of 3 points per stratum (48 for NECR) is drawn once from its own seed stream and
-    recorded in the key's `second` column. It never grows with the sample.
+    recorded in the key's `second` column. It never grows with the sample. *(Amended 2026-10-23, before
+    any label, #145: it grew once, by 9 more points in each stable stratum, as "Model labeller" sets
+    out. It still never grows with the sample.)*
   - Labeller B works in a separate project holding only that subset (`REVIEWER=b review_build-qgis.R`),
     blind to the map and to A's labels. The export writes B's copy to `labels_b.csv`, deciding from what
     the copy holds rather than from a flag.
@@ -320,6 +325,98 @@ usage, so a disagreement measures IO's error rather than a mismatch of definitio
     - `cannot_label` disagreements (one could read the cell, the other could not) are counted
       separately, never as class disagreements;
     - agreement is **information about the reference** and never enters the estimates or the criteria.
+      *(Amended 2026-10-23, before any label, #145: when labeller A is a model, agreement also
+      **gates** whether the estimate runs, as set out next. It still never enters the numbers.)*
+
+### Model labeller (pre-registered 2026-10-23, before any label)
+
+**Committed before any label existed, human or model** (#145). Both NECR working copies held 0
+labels at the time (480 and 48 rows), and no `reference/necr/labels*.csv` existed. Never edit this
+subsection to fit agreement already measured.
+
+- **Roles.** A blind model agent is labeller A and labels every sample point, which makes
+  `reference/<area>/labels.csv`. A person is labeller B and labels the second-labeller subset, which
+  makes `labels_b.csv`. Both are blind to the map. `reviewer` in A's labels reads
+  `model:<model id>`, with the id taken from the agent's own transcript.
+- **The audit subset grows once, now, toward the stable strata** (decided at #145's gate, after the
+  plan review). The 48 points put 39 in change strata, while the 3 stable strata hold 86% of NECR's
+  area, so the audit could not see a model that invents change in stable land. So 9 more points are
+  drawn in **each stable stratum**, from their own seed stream (`second_labeller_stable`), among
+  points not already in the subset. That makes 75 points, 36 of them stable. B's working copy is
+  rebuilt so that the new points take their place in `review_id` order, not appended at the end.
+- **The person is blind to the model's labels.** The model's labels stay out of the repository
+  (gitignored `data/<area>/accuracy/model/`) until `labels_b.csv` is committed. Until then, only
+  their SHA-256 is committed (`reference/<area>/labels_model.sha256`). `labels.csv` is written from
+  that same file afterwards, and is checked against the hash.
+  - *(Mechanism amended 2026-10-23, after labelling and before any agreement was computed, by the
+    code review; the rule above is unchanged.)* B is frozen in two committed steps, decided by git
+    history and never by files on disk:
+    1. `labels_import-model.R freeze` writes `labels_b.sha256` once B is complete and committed.
+    2. That freeze is committed.
+    3. `publish` then writes `labels.csv`, which is committed in turn.
+
+    The estimate requires all of this:
+    - the freeze committed exactly once;
+    - the freeze matching B;
+    - the freeze committed before `labels.csv` was.
+
+    A freeze that a re-run, a clean or a second checkout could re-make was defeated three ways in
+    review. The model's hash and `labels.csv` are held to history the same way: the hash committed
+    before B, and `labels.csv` committed once. **This work merges with a merge commit, never a
+    squash**, because a squash re-commits the freeze and `labels.csv` in one commit and the estimate
+    then refuses. Out of reach of any local check: history rewritten on purpose, and a freeze made
+    on another machine and never pushed.
+- **What the model sees.** One contact sheet per point. Sheets are named `sheet_<k>` over a shuffle
+  drawn at render time, which is not the `review_id` order. The map from sheet to point is frozen
+  once any label exists. A sheet shows the outlined 10 m cell in:
+  - the Sentinel-2 same-season composites, 310 m around the cell;
+  - the Wayback capture nearest each endpoint, 120 m around the cell, titled with its capture date.
+    It is fetched unclipped. The review project's chips are clipped to Voronoi cells, which would
+    show where neighbouring sample points lie;
+  - the air photo epochs the review project themes (`dated/airphoto_<year>.vrt`), where they cover
+    the point.
+
+  Each panel is titled with its source and date only. **The orthophoto is left out:** it comes from a
+  private endpoint and is not sent to the model's API. The model also reads the Labelling key above,
+  as extracted by `fp_acc_labelling_key()`, and the batch prompt committed as
+  `scripts/landcover_accuracy/model_labeller-prompt.md` before the first batch.
+- **What the model never sees:** `point_id`, `review_id`, the stratum, the batch, any IO class, the
+  change patches, cause or wetland flags, the undated Esri/Google/Bing basemaps, the orthophoto, or
+  another labeller's labels. Its labels come from its reply, which is extracted by script.
+  - **Transcript audit.** An agent may only `Read` its own batch's sheets and `key.md`. Any other
+    tool call, or a read of any other path, discards that batch, and the batch is labelled again
+    from the same frozen sheets.
+- **The two labellers do not see the same inputs, by design.** B works in the QGIS project, with the
+  orthophoto, free zoom and the undated basemaps for orientation (rule 5 caps those at `low`). The
+  model has the sheets only. Agreement therefore measures the model on sheets against a person with
+  the full project, which is the substitution being decided, and the comparison is conservative
+  toward the model.
+- **Threshold.** The model's labels feed `accuracy_estimate.R` only if all four of these hold:
+  - Cohen's κ ≥ **0.7** on `ref_from`, over the points **both** labellers labelled (the "Second
+    labeller" rules above for `cannot_label`);
+  - Cohen's κ ≥ **0.7** on `ref_to`, over the same points;
+  - agreement on **change** ≥ **0.85** over the same points, where a point's change call is
+    `ref_from != ref_to`;
+  - **abstention ≤ 10%:** of the points B labelled, the model called at most 10% `cannot_label`.
+    Kappa counts only points both labelled, so a model that abstains on the hard cells would
+    otherwise look better.
+
+  These are point estimates. Their 95% intervals are printed beside them and do not gate. The subset
+  is not weighted by stratum area, so agreement describes the labellers on these points, not on the
+  map's area.
+- **When the threshold fails,** the estimate refuses and prints agreement per stratum. A follow-up
+  issue decides from that table which strata a person relabels; with 3 audit points in a change
+  stratum, one disagreement reads as 0.67, so no per-stratum rule is fixed here. None of the model's
+  labels are used until that issue is settled.
+- **Measured, not assumed.** Nothing about the model's accuracy is claimed before B's labels exist.
+- **What a sheet looks like to the model (measured 2026-10-23, NECR batch 1).** The Read tool passes a
+  small PNG through byte for byte, but re-encodes a large one to JPEG: 26 of 40 sheets at 1600 x 860
+  arrived as JPEG. So a label is bound to its sheet by pixels, not bytes (`fp_acc_image_matches`). A
+  re-encoded sheet sits 0.0031-0.0040 mean absolute RGB difference from its own PNG and 0.038-0.139
+  from any other sheet, so the 0.01 tolerance separates them about tenfold. The first render was
+  near-black on forest (a linear 0-0.25 stretch, with forest near 0.03) and smoothed (terra's
+  `plotRGB(smooth = TRUE)`). The sheets use a fixed square-root stretch and unsmoothed pixels.
+- **The NECR run:** `scripts/landcover_accuracy/logs/20261023_model_labels_necr.md`.
 
 - **Project.** `review_build-qgis.R` builds an rfp restoration-template project, which needs QGIS
   4.x, under `data/<area>/accuracy/review/` (gitignored). It holds the label layer with a
@@ -458,8 +555,16 @@ as it stood on each of 197 release dates (2014-02-20 to 2026-09-24).
   - **115 of 480 points have the same capture at both endpoints**, because one capture is all they have
     near either. The chip then dates one endpoint well and the other poorly, and the label says which.
 - **A label decided on a chip records `esri_dated`, never `esri`.** Rule 5 caps the undated
-  basemaps at `low`; a dated capture within +/-1 year supports `high` or `medium` like any dated
+  basemaps at `low`; a dated capture within +/-2 years (+/-1 before #145) supports `high` or `medium` like any dated
   imagery. The rule itself is unchanged: it already says imagery date sets the ceiling.
+- **BULK sees far less (#145 step 1, 2026-10-23).** Over 1,000 area-random points on `all_ff04`
+  (`wayback_coverage-area.R`), a capture lies within +/-2 years of 2017 for 38.0% of the floodplain and
+  of 2023 for 35.1%, and of both for 15.7%; 42.6% has none at either. The nearest capture to 2017 is
+  a 2014 one for 44.9% of points, and a quarter of the floodplain has nothing newer than 2016. NECR's
+  points are a stratified sample, so the two are not one estimate, but its per-endpoint shares are about
+  double BULK's (73% and 76%), its both-endpoint share 3.6 times (56.2%), and its neither share a sixth
+  (7.5%). Only Wayback was measured: BULK's orthophoto and air photo coverage is not indexed yet. Log:
+  `scripts/landcover_accuracy/logs/20261023_wayback_coverage_bulk.md`.
 - **The reviewer sees the capture.** `cells.gpkg` carries `capture_<year>` ("2017-06-11, 0.31 m"),
   which the cell layer labels outside the cell as "Esri 2017: …", taken from the chips actually built.
 

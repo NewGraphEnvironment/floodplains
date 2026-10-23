@@ -273,8 +273,8 @@ la <- data.frame(point_id = c("p1", "p2", "p3", "p4"), label_status = "labelled"
                  ref_from = c(2L, 2L, 11L, 11L), ref_to = c(11L, 2L, 11L, 5L))
 lb <- la; lb$ref_to[4] <- 11L; lb$label_status[3] <- "cannot_label"
 ag <- fp_acc_agreement(la, lb)
-ok("agreement uses only points both labelled (3 of 4)", identical(ag$n, c(3L, 3L)))
-ok("agreement per endpoint: first 3/3, last 2/3", isTRUE(all.equal(ag$agree, c(1, 2 / 3))))
+ok("agreement uses only points both labelled (3 of 4)", identical(ag$n, c(3L, 3L, 3L)))
+ok("agreement per endpoint: first 3/3, last 2/3", isTRUE(all.equal(ag$agree[1:2], c(1, 2 / 3))))
 ok("kappa is 1 on perfect agreement", isTRUE(all.equal(ag$kappa[1], 1)))
 ok("cannot_label disagreements are counted apart (A labelled, B could not: 1)",
    identical(attr(ag, "cannot_label")[["b_only_cannot"]], 1L))
@@ -459,6 +459,283 @@ ok("a source rewritten in A (new inode) is relinked in B",
 unlink(lt, recursive = TRUE)
 ok("`esri_dated` is a form value apart from the undated `esri` (labelling key rule 5)",
    all(c("esri_dated", "esri") %in% FP_ACC_IMAGERY))
+
+
+# --- Model labeller (#145) ---------------------------------------------------------------------
+message("model labeller (#145)")
+ok("agreement carries a change row (ref_from != ref_to)", identical(ag$endpoint[3], "change (ref_from != ref_to)") &&
+   isTRUE(all.equal(ag$agree[3], 2 / 3)))
+ok("agreement prints intervals beside the point estimates",
+   all(c("agree_lo", "agree_hi", "kappa_lo", "kappa_hi") %in% names(ag)) && all(ag$agree_lo <= ag$agree))
+
+# the gate: 20 points; A and B agree except where a case changes them
+gate_pts <- function() {
+  data.frame(point_id = sprintf("p%02d", 1:20), label_status = "labelled",
+             ref_from = rep(c(2L, 11L, 5L, 2L), 5), ref_to = rep(c(2L, 11L, 5L, 11L), 5), stringsAsFactors = FALSE)
+}
+gb <- gate_pts()
+ok("gate passes when the labellers agree", fp_acc_model_gate(gate_pts(), gb)$pass)
+ga <- gate_pts(); ga$ref_from[1:6] <- 8L          # first-year class disagreements: kappa_from drops below 0.7
+g <- fp_acc_model_gate(ga, gb)
+ok("gate fails on kappa(ref_from) below 0.7", !g$pass && !g$checks[["kappa_from"]], sprintf("kappa %.2f", g$agreement$kappa[1]))
+ga <- gate_pts(); ga$ref_to[c(4, 8, 12, 16)] <- ga$ref_from[c(4, 8, 12, 16)]   # 4 of 20 change calls flipped
+g <- fp_acc_model_gate(ga, gb)
+ok("gate fails on change agreement below 0.85", !g$pass && !g$checks[["change"]], sprintf("change %.2f", g$agreement$agree[3]))
+ga <- gate_pts(); ga$ref_to[4] <- 2L                 # 1 of 20 flipped: 0.95 change agreement
+ok("gate passes at change agreement 0.95", fp_acc_model_gate(ga, gb)$checks[["change"]])
+ga <- gate_pts(); ga$label_status[1:3] <- "cannot_label"; ga$ref_from[1:3] <- NA; ga$ref_to[1:3] <- NA
+g <- fp_acc_model_gate(ga, gb)
+ok("gate fails when the model abstains on more than 10% of B's points, whatever kappa says",
+   !g$pass && !g$checks[["abstain"]] && g$checks[["kappa_from"]], sprintf("abstain %.2f", g$abstain))
+ok("must-fail arm: kappa alone (points both labelled) cannot see that abstention",
+   isTRUE(all.equal(g$agreement$kappa[1], 1)))
+ga <- gate_pts(); ga$label_status[1:2] <- "cannot_label"; ga$ref_from[1:2] <- NA; ga$ref_to[1:2] <- NA
+ok("gate passes at exactly 10% abstention", fp_acc_model_gate(ga, gb)$checks[["abstain"]])
+est_src <- readLines(here::here("scripts", "landcover_accuracy", "accuracy_estimate.R"))
+i_gate <- grep("fp_acc_model_gate(", est_src, fixed = TRUE)[1]
+i_est  <- grep("res <- fp_acc_estimate(", est_src, fixed = TRUE)[1]
+ok("accuracy_estimate.R gates BEFORE it estimates (nothing is printed or saved from failing labels)",
+   !is.na(i_gate) && !is.na(i_est) && i_gate < i_est)
+ok("accuracy_estimate.R: synthetic labels bypass the gate, the model hash or any model reviewer triggers it",
+   any(grepl("if (!synthetic && (hashed || any(startsWith(as.character(lab$reviewer), FP_ACC_MODEL_PREFIX)", est_src, fixed = TRUE)))
+
+ok("accuracy_estimate.R: a blank reviewer (NA) does not abort the gate trigger",
+   any(grepl("FP_ACC_MODEL_PREFIX) %in% TRUE))", est_src, fixed = TRUE)))
+ok("must-fail arm: any(startsWith()) over a blank reviewer is NA, which `if` cannot take",
+   is.na(any(startsWith(c("a person", NA), FP_ACC_MODEL_PREFIX))))
+kb <- data.frame(point_id = sprintf("p%02d", 1:6), second = c(TRUE, TRUE, TRUE, FALSE, FALSE, FALSE))
+ok("B's labels must be the whole second-labeller subset", !refused(fp_acc_b_complete(data.frame(point_id = c("p01", "p02", "p03")), kb)))
+ok("a partial labels_b.csv (an export midway through labelling) is refused",
+   refused(fp_acc_b_complete(data.frame(point_id = c("p01", "p02")), kb)))
+ok("a labels_b.csv holding a point outside the subset is refused",
+   refused(fp_acc_b_complete(data.frame(point_id = c("p01", "p02", "p03", "p04")), kb)))
+i_b <- grep("fp_acc_b_complete(", est_src, fixed = TRUE)[1]
+ok("accuracy_estimate.R checks B is complete before the gate", !is.na(i_b) && i_b < i_gate)
+imp_src <- readLines(here::here("scripts", "landcover_accuracy", "labels_import-model.R"))
+ok("publish refuses an incomplete labels_b.csv", any(grepl("fp_acc_b_complete(", imp_src, fixed = TRUE)))
+ren_src <- readLines(here::here("scripts", "landcover_accuracy", "review_render-sheets.R"))
+ok("a re-render removes the old sheet map before drawing the first sheet",
+   isTRUE(grep('unlink(file.path(dir_model, c("sheet_map.csv"', ren_src, fixed = TRUE)[1] <
+          grep("for (i in seq_len(", ren_src, fixed = TRUE)[1]))
+
+fz <- tempfile()
+ok("freeze writes when absent and passes on the same hash", isTRUE(fp_acc_freeze(fz, "abc", "x")) &&
+   isFALSE(fp_acc_freeze(fz, "abc", "x")))
+ok("freeze refuses a different hash (a re-run cannot re-freeze an edited file)", refused(fp_acc_freeze(fz, "def", "x")))
+unlink(fz)
+pngf <- tempfile(fileext = ".png"); grDevices::png(pngf, 40, 40); par(mar = c(0, 0, 0, 0)); plot.new(); grDevices::dev.off()
+ok("the image hash from a transcript's base64 equals the file's own hash",
+   identical(fp_acc_b64_sha256(jsonlite::base64_enc(readBin(pngf, "raw", file.size(pngf)))),
+             digest::digest(file = pngf, algo = "sha256")))
+src_of <- function(f, mt) list(media_type = mt, data = jsonlite::base64_enc(readBin(f, "raw", file.size(f))))
+pa <- tempfile(fileext = ".png"); pb <- tempfile(fileext = ".png"); jf <- tempfile(fileext = ".jpg")
+grDevices::png(pa, 200, 120); par(mar = c(0, 0, 0, 0)); image(matrix(1:12, 3), col = hcl.colors(12)); grDevices::dev.off()
+grDevices::png(pb, 200, 120); par(mar = c(0, 0, 0, 0)); image(matrix(12:1, 3), col = hcl.colors(12)); grDevices::dev.off()
+jpeg::writeJPEG(png::readPNG(pa)[, , 1:3], jf, quality = 0.9)
+ok("a PNG passed through unchanged matches its sheet", fp_acc_image_matches(src_of(pa, "image/png"), pa))
+ok("a JPEG re-encode of the sheet (what the Read tool returns for a large PNG) matches it",
+   fp_acc_image_matches(src_of(jf, "image/jpeg"), pa))
+ok("a different image does not match", !fp_acc_image_matches(src_of(pb, "image/png"), pa))
+ok("must-fail arm: byte equality alone would refuse the re-encoded sheet",
+   !identical(fp_acc_b64_sha256(src_of(jf, "image/jpeg")$data), digest::digest(file = pa, algo = "sha256")))
+unlink(c(pa, pb, jf, pngf))
+# behavioural arms for each guard the scripts call (round 4: a grep arm stayed green with its guard deleted)
+td <- tempfile("gates"); dir.create(td)
+wr <- function(f, x) { writeLines(x, file.path(td, f)); file.path(td, f) }
+shaf <- function(f) digest::digest(file = f, algo = "sha256")
+lab_f <- wr("labels.csv", "a,b"); msha <- wr("labels_model.sha256", paste0(shaf(lab_f), "  labels_model.csv"))
+ok("labels.csv equal to the committed model hash is recognised as the model's (the gate applies)",
+   isTRUE(fp_acc_labels_hashed(lab_f, msha)))
+writeLines("a,b,dropped-row-or-reviewer-edited", lab_f)
+ok("labels.csv that differs from the model hash is refused (a dropped row or a rewritten reviewer)",
+   refused(fp_acc_labels_hashed(lab_f, msha)))
+ok("no model hash: the labels are not the model's", isFALSE(fp_acc_labels_hashed(lab_f, file.path(td, "none"))))
+# a batch against its audit
+bdir <- file.path(td, "batch_01"); dir.create(bdir); sh <- file.path(bdir, "sheet_001.png"); writeLines("img", sh)
+km <- wr("key.md", "key"); cv <- wr("batch_01.csv", "sheet,ref_from")
+au1 <- list(batch = 1, csv_sha256 = shaf(cv), key_sha256 = shaf(km), sheet_sha256 = list(sheet_001.png = shaf(sh)))
+ok("a batch matching its audit verifies", !refused(fp_acc_batch_verify(au1, cv, km, bdir)))
+writeLines("sheet,ref_from,edited", cv)
+ok("a raw csv edited after extract is refused", refused(fp_acc_batch_verify(au1, cv, km, bdir)))
+writeLines("sheet,ref_from", cv); au1$csv_sha256 <- shaf(cv); writeLines("img2", sh)
+ok("a sheet re-rendered after extract is refused", refused(fp_acc_batch_verify(au1, cv, km, bdir)))
+writeLines("img", sh); writeLines("key2", km)
+ok("a key changed after extract is refused", refused(fp_acc_batch_verify(au1, cv, km, bdir)))
+ok("the key text a Read returned is recovered line for line",
+   identical(fp_acc_read_text("1\t## Labelling key\n2\t\n3\tRule one\n4\t"), c("## Labelling key", "", "Rule one")))
+# commit order and committed freezes, in a throwaway repository
+gr <- file.path(td, "repo"); dir.create(gr)
+g <- function(...) fp_acc_git(gr, ...)
+g("init", "-q"); g("config", "user.email", "check@example.org"); g("config", "user.name", "check")
+hf <- file.path(gr, "labels_model.sha256"); bf <- file.path(gr, "labels_b.csv"); ff <- file.path(gr, "labels_b.sha256")
+writeLines("h1  labels_model.csv", hf); g("add", "."); g("commit", "-qm", "hash")
+writeLines("point_id", bf); g("add", "."); g("commit", "-qm", "B")
+ok("the model hash committed before labels_b.csv passes", fp_acc_git_committed_before(gr, hf, bf))
+writeLines("h2  labels_model.csv", hf); g("add", "."); g("commit", "-qm", "reimport")
+ok("a model hash re-committed after labels_b.csv is refused", !fp_acc_git_committed_before(gr, hf, bf))
+writeLines(paste0(shaf(bf), "  labels_b.csv"), ff)
+ok("an uncommitted B freeze is refused by the estimate", refused(fp_acc_b_frozen(gr, bf, ff)))
+ok("a first freeze: its path and labels.csv never in history", !refused(fp_acc_git_never(gr, c(ff, file.path(gr, "labels.csv")))))
+g("add", "."); g("commit", "-qm", "freeze")
+ok("a freeze committed once and matching B passes", !refused(fp_acc_git_never(gr, file.path(gr, "labels.csv"))) &&
+   !refused(fp_acc_b_frozen(gr, bf, ff)))
+ok("a second freeze is refused by history (whatever is on disk)", refused(fp_acc_git_never(gr, ff)))
+lf <- file.path(gr, "labels.csv"); writeLines("model", lf); g("add", "."); g("commit", "-qm", "publish")
+ok("labels.csv committed after the freeze passes the estimate's check", !refused(fp_acc_b_frozen(gr, bf, ff, lf)))
+writeLines("point_id,edited", bf)
+ok("a B edited after the freeze is refused", refused(fp_acc_b_frozen(gr, bf, ff)))
+writeLines("point_id", bf)
+g("rm", "-q", "labels_b.sha256", "labels.csv"); g("commit", "-qm", "removed")
+ok("after a git rm the freeze path is still in history, so a re-freeze is refused (round 5 variant B)",
+   refused(fp_acc_git_never(gr, c(ff, lf))))
+writeLines(paste0(shaf(bf), "  labels_b.csv"), ff); g("add", "."); g("commit", "-qm", "refreeze")
+ok("a freeze committed more than once is refused, even when it matches B", refused(fp_acc_b_frozen(gr, bf, ff)))
+gr2 <- file.path(td, "repo2"); dir.create(gr2)
+g2 <- function(...) fp_acc_git(gr2, ...)
+g2("init", "-q"); g2("config", "user.email", "check@example.org"); g2("config", "user.name", "check")
+bf2 <- file.path(gr2, "labels_b.csv"); ff2 <- file.path(gr2, "labels_b.sha256"); lf2 <- file.path(gr2, "labels.csv")
+writeLines("point_id", bf2); writeLines("model", lf2); g2("add", "."); g2("commit", "-qm", "labels")
+writeLines(paste0(shaf(bf2), "  labels_b.csv"), ff2); g2("add", "."); g2("commit", "-qm", "freeze")
+ok("a freeze committed AFTER labels.csv is refused (B could have seen the model's labels)",
+   refused(fp_acc_b_frozen(gr2, bf2, ff2, lf2)))
+unlink(ff)
+ok("a missing B freeze is refused, never read as 'not frozen yet'", refused(fp_acc_b_frozen(gr, bf, ff)))
+# the model's labels as published (round 6): hash before B, labels.csv committed once
+gr3 <- file.path(td, "repo3"); dir.create(gr3)
+g3 <- function(...) fp_acc_git(gr3, ...)
+g3("init", "-q"); g3("config", "user.email", "check@example.org"); g3("config", "user.name", "check")
+h3 <- file.path(gr3, "labels_model.sha256"); b3 <- file.path(gr3, "labels_b.csv"); f3 <- file.path(gr3, "labels_b.sha256")
+l3 <- file.path(gr3, "labels.csv")
+writeLines("h1  labels_model.csv", h3); g3("add", "."); g3("commit", "-qm", "hash")
+writeLines("point_id", b3); g3("add", "."); g3("commit", "-qm", "B")
+writeLines(paste0(shaf(b3), "  labels_b.csv"), f3); g3("add", "."); g3("commit", "-qm", "freeze")
+writeLines("model", l3); g3("add", "."); g3("commit", "-qm", "publish")
+ok("the model's labels published in order pass", !refused(fp_acc_model_published(gr3, h3, b3, l3)))
+# the reviewer's sequence: the freeze staged, stashed, applied, then committed once
+gr4 <- file.path(td, "repo4"); dir.create(gr4)
+g4 <- function(...) fp_acc_git(gr4, ...)
+g4("init", "-q"); g4("config", "user.email", "check@example.org"); g4("config", "user.name", "check")
+writeLines("x", file.path(gr4, "seed")); g4("add", "."); g4("commit", "-qm", "seed")
+f4 <- file.path(gr4, "labels_b.sha256"); writeLines("abc  labels_b.csv", f4)
+g4("add", "labels_b.sha256"); g4("stash", "-q"); g4("stash", "apply", "-q"); g4("add", "labels_b.sha256"); g4("commit", "-qm", "freeze")
+ok("a stash of the staged freeze does not count as a second commit of it", length(fp_acc_git_commits(gr4, f4)) == 1)
+ok("must-fail arm: without --exclude=refs/stash the stash's index commit is counted",
+   length(fp_acc_git(gr4, "log", "--all", "--format=%H", "--", shQuote(f4))) >= 2)
+rm(gr4, g4, f4)
+# each guard alone: labels.csv re-committed with the hash untouched...
+g3("branch", "-q", "published")
+writeLines("model, edited", l3); g3("add", "."); g3("commit", "-qm", "relabel")
+ok("labels.csv committed a second time is refused (hash untouched)", refused(fp_acc_model_published(gr3, h3, b3, l3)))
+# ...and the hash re-committed after B with labels.csv committed once (a fresh branch from before the relabel)
+g3("checkout", "-q", "published"); g3("branch", "-q", "-D", "master"); g3("branch", "-q", "-D", "main")
+writeLines("h2  labels_model.csv", h3); g3("add", "."); g3("commit", "-qm", "rehash")
+ok("a model hash re-committed after B is refused (labels.csv committed once)",
+   length(fp_acc_git_commits(gr3, l3)) == 1 && refused(fp_acc_model_published(gr3, h3, b3, l3)))
+rm(gr3, g3, h3, b3, f3, l3)
+rm(lf, bf, ff, hf, gr, g, gr2, g2, bf2, ff2, lf2)   # names later sections use for their own fixtures
+unlink(td, recursive = TRUE)
+# the wiring, from the PARSE TREE: a call commented out is gone from it, where a text grep still finds it
+calls_in <- function(f) { pd <- utils::getParseData(parse(f, keep.source = TRUE))
+                          unique(pd$text[pd$token == "SYMBOL_FUNCTION_CALL"]) }
+est_calls <- calls_in(here::here("scripts", "landcover_accuracy", "accuracy_estimate.R"))
+imp_calls <- calls_in(here::here("scripts", "landcover_accuracy", "labels_import-model.R"))
+ok("the estimate calls its guards (parse tree)", all(c("fp_acc_labels_hashed", "fp_acc_b_frozen", "fp_acc_b_complete",
+   "fp_acc_git_committed", "fp_acc_model_gate", "fp_acc_model_published") %in% est_calls))
+ok("the importer calls its guards (parse tree)", all(c("fp_acc_batch_verify", "fp_acc_git_committed_before", "fp_acc_git_never",
+   "fp_acc_b_frozen", "fp_acc_freeze", "fp_acc_unread", "fp_acc_transcript_audit", "fp_acc_image_matches",
+   "fp_acc_read_text", "fp_acc_b_complete") %in% imp_calls))
+tmpf <- tempfile(fileext = ".R"); writeLines(c("f <- function() {", "  # fp_acc_b_frozen(x)", "}"), tmpf)
+ok("must-fail arm: a commented-out call is not in the parse tree", !"fp_acc_b_frozen" %in% calls_in(tmpf))
+unlink(tmpf)
+ok("a render refuses while transcripts or raw labels exist",
+   any(grepl('c("raw", "transcripts")', ren_src, fixed = TRUE)))
+
+# the reply, the audit and the working copy
+rep_txt <- paste("Quoting the contract first:", "```csv", "sheet,ref_from,ref_to,label_status,confidence,imagery,note",
+                 "sheet_999.png,1,1,labelled,low,esri,example", "```", "Answer:", "```csv",
+                 "sheet,ref_from,ref_to,label_status,confidence,imagery,note",
+                 "sheet_001.png,2,11,labelled,medium,esri_dated,crown gone",
+                 "sheet_002.png,,,cannot_label,,,cloud", "```", sep = "\n")
+rr <- fp_acc_model_csv(rep_txt)
+ok("the LAST csv block of a reply is the answer", identical(rr$sheet, c("sheet_001.png", "sheet_002.png")))
+ok("a reply with no csv block is refused", refused(fp_acc_model_csv("no table here")))
+ok("a reply with other columns is refused",
+   refused(fp_acc_model_csv(paste("```csv", "sheet,class", "sheet_001.png,2", "```", sep = "\n"))))
+bd <- file.path(tempdir(), "model", "batch_01"); kp <- file.path(tempdir(), "model", "key.md")
+calls <- data.frame(name = c("Read", "Read", "Read", "Read", "Bash", "Read"),
+                    path = c(file.path(bd, "sheet_001.png"), kp, file.path(dirname(bd), "sheet_map.csv"),
+                             file.path(dirname(bd), "batch_02", "sheet_041.png"), NA, here::here("CLAUDE.md")),
+                    stringsAsFactors = FALSE)
+v <- fp_acc_transcript_audit(calls, bd, kp)
+ok("audit allows only its own sheets and the key; flags the map, another batch, a command and CLAUDE.md",
+   nrow(v) == 4 && !any(v$path %in% c(file.path(bd, "sheet_001.png"), kp), na.rm = TRUE))
+rd <- data.frame(name = "Read", path = c(kp, file.path(bd, "sheet_001.png")), ok = TRUE, stringsAsFactors = FALSE)
+ok("a sheet labelled but never read is caught", identical(fp_acc_unread(rd, bd, kp, c("sheet_001.png", "sheet_002.png")),
+                                                          "sheet_002.png"))
+ok("a batch that never read the key is caught", identical(fp_acc_unread(rd[2, ], bd, kp, "sheet_001.png"), "key.md"))
+ok("a batch that read the key and every sheet is complete", !length(fp_acc_unread(rd, bd, kp, "sheet_001.png")))
+rf <- rd; rf$ok[2] <- FALSE
+ok("a Read whose result was an error does not count as read", identical(fp_acc_unread(rf, bd, kp, "sheet_001.png"), "sheet_001.png"))
+ok("calls not matched to their results are refused", refused(fp_acc_unread(rd[, c("name", "path")], bd, kp, "sheet_001.png")))
+ok("publish checks its copy and freezes B's labels by hash",
+   any(grepl("isTRUE(file.copy(out_csv, f, overwrite = TRUE))", imp_src, fixed = TRUE)) &&
+   any(grepl("labels_b.sha256", imp_src, fixed = TRUE)))
+smap <- data.frame(sheet = c("sheet_001.png", "sheet_002.png"), review_id = c(7L, 3L), cell = c(101, 102), batch = 1L)
+wcm <- fp_acc_model_wc(rr, smap, "model:test-model", "2026-10-23")
+ok("model rows map through the sheet map to review_id and cell", identical(wcm$review_id, c(7L, 3L)) &&
+   identical(wcm$cell, c(101, 102)) && identical(wcm$ref_from, c(2L, NA)))
+ok("a sheet labelled twice is refused", refused(fp_acc_model_wc(rbind(rr, rr[1, ]), smap, "model:x", "2026-10-23")))
+ok("a sheet with no label is refused", refused(fp_acc_model_wc(rr[1, ], smap, "model:x", "2026-10-23")))
+rx <- rr; rx$sheet[2] <- "sheet_003.png"
+ok("a sheet the map does not hold is refused", refused(fp_acc_model_wc(rx, smap, "model:x", "2026-10-23")))
+rx <- rr; rx$ref_to[1] <- "Trees"
+ok("a class that is not an integer code is refused", refused(fp_acc_model_wc(rx, smap, "model:x", "2026-10-23")))
+rx <- rr; rx$ref_to[1] <- "2.5"
+ok("a fractional class code is refused, never truncated to a valid one",
+   refused(fp_acc_model_wc(rx, smap, "model:x", "2026-10-23")))
+ok("must-fail arm: as.integer('2.5') is 2, a valid IO code", identical(as.integer("2.5"), 2L))
+ok("a reviewer without the model: prefix is refused", refused(fp_acc_model_wc(rr, smap, "claude", "2026-10-23")))
+
+# the sheets: names, titles, PNG metadata, the directory
+pl <- fp_acc_sheet_plan(101:180, 40L, 11L)
+ok("sheet plan: every review_id once, named by counter, in batches of 40",
+   setequal(pl$review_id, 101:180) && all(grepl(FP_ACC_SHEET_RE, pl$sheet)) && identical(as.vector(table(pl$batch)), c(40L, 40L)))
+ok("sheet plan: the order is shuffled, not review order", !identical(pl$review_id, 101:180))
+ok("sheet names never carry a review_id or a point_id", !any(grepl("_[0-9]+_|[0-9]{3,}_[0-9]{5}", pl$sheet)) &&
+   !any(fp_acc_point_id_like(pl$sheet)))
+ok("titles: source and date pass", all(fp_acc_sheet_title_ok(c("Sentinel-2 2017 Aug-Sep composite, 10 m",
+   "Esri Wayback captured 2016-09-30, 0.5 m", "Esri Wayback: no capture", "Air photo 2012"))))
+ok("titles: anything of the design is refused", !any(fp_acc_sheet_title_ok(c("17_00009", "Trees -> Rangeland",
+   "Sentinel-2 2017 Aug composite, 10 m stratum 4", "review 12", "Orthophoto 2021 in_harvest"))))
+md <- file.path(tempdir(), "model_chk"); dir.create(file.path(md, "batch_01"), recursive = TRUE)
+grDevices::png(file.path(md, "batch_01", "sheet_001.png"), 60, 60); par(mar = c(0, 0, 0, 0)); plot.new(); grDevices::dev.off()
+ok("a clean sheet directory passes, and R's png() writes no text chunk",
+   !refused(fp_acc_sheet_dir_check(md)) && !length(fp_acc_png_text_chunks(file.path(md, "batch_01", "sheet_001.png"))))
+pb <- readBin(file.path(md, "batch_01", "sheet_001.png"), "raw", 1e6)
+txt <- charToRaw("Commentstratum 4")
+chunk <- c(as.raw(c(0, 0, 0, length(txt))), charToRaw("tEXt"), txt, as.raw(c(0, 0, 0, 0)))
+writeBin(c(pb[1:33], chunk, pb[34:length(pb)]), file.path(md, "batch_01", "sheet_002.png"))
+ok("a sheet carrying a PNG text chunk is refused", refused(fp_acc_sheet_dir_check(md)))
+unlink(file.path(md, "batch_01", "sheet_002.png"))
+file.copy(file.path(md, "batch_01", "sheet_001.png"), file.path(md, "batch_01", "17_00009.png"))
+ok("a file named other than sheet_<k>.png in a batch is refused", refused(fp_acc_sheet_dir_check(md)))
+unlink(file.path(md, "batch_01", "17_00009.png")); writeLines("x", file.path(md, "batch_01", "sheet_map.csv"))
+ok("the sheet map inside a batch is refused", refused(fp_acc_sheet_dir_check(md)))
+unlink(md, recursive = TRUE)
+
+# the one growth of the second-labeller subset
+ks <- data.frame(review_id = 1:60, point_id = sprintf("%d_%05d", rep(1:3, each = 20), rep(1:20, 3)),
+                 cell = 1:60, stratum = rep(1:3, each = 20), map_class = 1L, stringsAsFactors = FALSE)
+ks <- fp_acc_second_subset(ks, 930093, c("Mersenne-Twister", "Inversion", "Rejection"))
+st <- data.frame(stratum = 1:3, kind = c("change", "stable", "stable"))
+ks2 <- fp_acc_second_stable(ks, 930093, c("Mersenne-Twister", "Inversion", "Rejection"), st)
+ok("stable strata grow from 3 to 12 audit points; change strata stay at 3",
+   identical(as.vector(tapply(ks2$second, ks2$stratum, sum)), c(3L, 12L, 12L)))
+ok("the growth never drops a point already in the subset", all(ks$second <= ks2$second))
+ok("the growth is idempotent (a re-run of the build draws nothing new)",
+   identical(fp_acc_second_stable(ks2, 930093, c("Mersenne-Twister", "Inversion", "Rejection"), st), ks2))
+ok("the growth has its own seed stream",
+   fp_acc_seed(930093, "second_labeller_stable") != fp_acc_seed(930093, "second_labeller"))
 
 message(if (fails) sprintf("\n%d FAIL", fails) else "\nALL PASS")
 quit(status = if (fails) 1L else 0L)

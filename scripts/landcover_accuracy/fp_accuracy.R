@@ -221,7 +221,7 @@ fp_acc_imagery_themes <- function(imagery, n_points) {
 # point was imaged (rtj research/esri_wayback.md). wayback_index-capture.R reads each release's capture
 # polygons and hands every (point, release) capture here; this picks, per point and endpoint, the
 # capture nearest the endpoint. Ranked by whole years from the endpoint first, because the
-# pre-registered labelling key sets confidence by +/-1 year; then by days from 1 July of the endpoint
+# pre-registered labelling key sets confidence by whole years (+/-2 since #145); then by days from 1 July of the endpoint
 # year (mid growing season); then finer resolution; then the later release, then the larger release id
 # (a release serving the same capture as an earlier one redirects to its tiles, so either fetches it).
 # Every point gets a row at every endpoint; one with no capture has an empty release.
@@ -643,7 +643,7 @@ fp_acc_blind_leaks <- function(nm) nm[nm %in% c("point_id", "stratum", "stratum_
 # subset are reproducible from design.json alone. Hashed from a purpose string, drift's idiom
 # (digest2int over "<namespace>:<seed>:<code>"): an arithmetic offset let two streams collide (the review
 # order's append batch at n0 = 111 equalled the second-labeller seed).
-FP_ACC_SEED_PURPOSES <- c("review_order", "second_labeller")
+FP_ACC_SEED_PURPOSES <- c("review_order", "second_labeller", "second_labeller_stable")
 fp_acc_seed <- function(design_seed, purpose, n0 = 0L) {
   if (!purpose %in% FP_ACC_SEED_PURPOSES) stop("unknown seed purpose ", purpose, call. = FALSE)
   digest::digest2int(sprintf("floodplains-accuracy-review:%s:%s:%d", format(design_seed, scientific = FALSE),
@@ -753,6 +753,29 @@ fp_acc_second_subset <- function(key, design_seed, rng_kind, n_per = 3L) {
   key
 }
 
+# The one growth of the second-labeller subset (#145, pre-registered before any label): n_add more points
+# in each STABLE stratum, which hold most of the area and had 3 audit points each, so the audit can see a
+# labeller inventing change in stable land. Drawn from its own seed stream among points not already in
+# the subset. Idempotent by count: a stable stratum already holding n_per + n_add is left alone, so a
+# re-run of the build never draws again.
+fp_acc_second_stable <- function(key, design_seed, rng_kind, strata, n_per = 3L, n_add = 9L) {
+  if (!"second" %in% names(key)) stop("the key has no second-labeller subset to grow", call. = FALSE)
+  key$second <- key$second %in% TRUE
+  stable <- sort(strata$stratum[strata$kind == "stable"])
+  if (!length(stable)) stop("strata.csv names no stable stratum", call. = FALSE)
+  k <- key[order(key$point_id, method = "radix"), ]
+  pick <- fp_acc_with_seed(fp_acc_seed(design_seed, "second_labeller_stable"), rng_kind, {
+    unlist(lapply(stable, function(st) {
+      have <- sum(k$second & k$stratum == st)
+      want <- min(n_per + n_add, sum(k$stratum == st)) - have
+      ids  <- k$point_id[k$stratum == st & !k$second]
+      if (want <= 0 || !length(ids)) character(0) else ids[sample.int(length(ids), min(want, length(ids)))]
+    }))
+  })
+  key$second <- key$second | key$point_id %in% pick
+  key
+}
+
 # Agreement between the two labellers, by the rules pre-registered in research/landcover_accuracy.md
 # ("Second labeller"): class agreement and Cohen's kappa per endpoint over the points BOTH labelled, and
 # the cannot_label disagreements counted apart (one labeller could read the cell, the other could not).
@@ -769,11 +792,62 @@ fp_acc_agreement <- function(a, b) {
     po <- sum(diag(t)); pe <- sum(rowSums(t) * colSums(t))
     if (isTRUE(all.equal(pe, 1))) NA_real_ else (po - pe) / (1 - pe)
   }
-  out <- data.frame(endpoint = c("first year (ref_from)", "last year (ref_to)"), n = nrow(m),
-                    agree = c(mean(m$ref_from.x == m$ref_from.y), mean(m$ref_to.x == m$ref_to.y)),
-                    kappa = c(kappa(m$ref_from.x, m$ref_from.y), kappa(m$ref_to.x, m$ref_to.y)))
+  # #145: the change call (ref_from != ref_to) is a third row; for a model labeller it gates the estimate
+  chg_a <- m$ref_from.x != m$ref_to.x; chg_b <- m$ref_from.y != m$ref_to.y
+  out <- data.frame(endpoint = c("first year (ref_from)", "last year (ref_to)", "change (ref_from != ref_to)"),
+                    n = nrow(m),
+                    agree = c(mean(m$ref_from.x == m$ref_from.y), mean(m$ref_to.x == m$ref_to.y), mean(chg_a == chg_b)),
+                    kappa = c(kappa(m$ref_from.x, m$ref_from.y), kappa(m$ref_to.x, m$ref_to.y), kappa(chg_a, chg_b)))
+  # 95% intervals, printed and never gating (pre-registered): Wald for agreement, and for kappa the
+  # large-sample SE sqrt(po (1 - po) / (n (1 - pe)^2)) from the observed and chance agreement
+  pe <- function(x, y) { lv <- sort(unique(c(x, y))); t <- table(factor(x, lv), factor(y, lv)) / length(x)
+                         sum(rowSums(t) * colSums(t)) }
+  pes <- c(pe(m$ref_from.x, m$ref_from.y), pe(m$ref_to.x, m$ref_to.y), pe(chg_a, chg_b))
+  se_a <- sqrt(out$agree * (1 - out$agree) / pmax(out$n, 1))
+  se_k <- sqrt(out$agree * (1 - out$agree) / (pmax(out$n, 1) * (1 - pes)^2))
+  out$agree_lo <- pmax(0, out$agree - 1.96 * se_a); out$agree_hi <- pmin(1, out$agree + 1.96 * se_a)
+  out$kappa_lo <- out$kappa - 1.96 * se_k; out$kappa_hi <- pmin(1, out$kappa + 1.96 * se_k)
   attr(out, "cannot_label") <- cant
   out
+}
+
+# The model-labeller gate (#145, research/landcover_accuracy.md "Model labeller"): A's labels feed the
+# estimate only if kappa >= FP_ACC_MODEL_KAPPA on both endpoints, change agreement >= FP_ACC_MODEL_CHANGE,
+# and A abstained (cannot_label) on at most FP_ACC_MODEL_ABSTAIN of the points B labelled. Point
+# estimates; the intervals ride along in `agreement`.
+FP_ACC_MODEL_ABSTAIN <- 0.10
+# B's labels must be the WHOLE second-labeller subset (labelled or cannot_label): an export taken midway
+# through labelling holds only the rows done so far, and agreement on any subset can pass the gate.
+fp_acc_b_complete <- function(b, key) {
+  want <- key$point_id[key$second %in% TRUE]
+  if (!length(want)) stop("review_key.csv names no second-labeller subset", call. = FALSE)
+  if (!setequal(b$point_id, want) || anyDuplicated(b$point_id))
+    stop("labels_b.csv holds ", length(unique(b$point_id)), " of the ", length(want), " second-labeller points (",
+         length(setdiff(want, b$point_id)), " missing, ", length(setdiff(b$point_id, want)), " not in the subset): ",
+         "finish labelling and export again", call. = FALSE)
+  invisible(TRUE)
+}
+
+fp_acc_model_gate <- function(a, b) {
+  ag <- fp_acc_agreement(a, b)
+  b_lab <- b$point_id[b$label_status == "labelled"]
+  abstain <- mean(a$label_status[match(b_lab, a$point_id)] %in% "cannot_label")
+  checks <- c(kappa_from = isTRUE(ag$kappa[1] >= FP_ACC_MODEL_KAPPA),
+              kappa_to   = isTRUE(ag$kappa[2] >= FP_ACC_MODEL_KAPPA),
+              change     = isTRUE(ag$agree[3] >= FP_ACC_MODEL_CHANGE),
+              abstain    = length(b_lab) > 0 && abstain <= FP_ACC_MODEL_ABSTAIN)
+  list(pass = all(checks), checks = checks, abstain = abstain, agreement = ag)
+}
+
+# Agreement per stratum, for the refusal message (never a rule: 3 points per change stratum, see research)
+fp_acc_agreement_by_stratum <- function(a, b, smp) {
+  m <- merge(a[a$label_status == "labelled", c("point_id", "ref_from", "ref_to")],
+             b[b$label_status == "labelled", c("point_id", "ref_from", "ref_to")], by = "point_id")
+  m$stratum <- smp$stratum[match(m$point_id, smp$point_id)]
+  do.call(rbind, lapply(split(m, m$stratum), function(d) data.frame(
+    stratum = d$stratum[1], n = nrow(d), agree_from = mean(d$ref_from.x == d$ref_from.y),
+    agree_to = mean(d$ref_to.x == d$ref_to.y),
+    agree_change = mean((d$ref_from.x != d$ref_to.x) == (d$ref_from.y != d$ref_to.y)))))
 }
 
 # Hard-link every file under `from` into `to` (same filesystem: no extra disk, and the links are real
@@ -836,4 +910,269 @@ fp_acc_working_copy_role <- function(ids, key) {
     return("b")
   stop("the working copy holds ", length(unique(ids)), " point(s): neither the whole keyed sample (",
        nrow(key), ") nor the second-labeller subset (", sum(key$second %in% TRUE), ")", call. = FALSE)
+}
+
+# --- Model labeller (#145) --------------------------------------------------------------------------
+# A blind model agent labels every point from one PNG contact sheet per point (review_render-sheets.R);
+# a person labels the second-labeller subset; agreement gates the estimate. Pre-registered in
+# research/landcover_accuracy.md, "Model labeller", before any label existed -- these constants are
+# that text and move only with it.
+FP_ACC_MODEL_KAPPA  <- 0.7    # Cohen's kappa on ref_from AND on ref_to
+FP_ACC_MODEL_CHANGE <- 0.85   # agreement on change vs no change (ref_from != ref_to)
+FP_ACC_MODEL_PREFIX <- "model:"
+
+# The shipped name of a sheet. A plain counter over a fresh shuffle: never the review_id, which is
+# drawn in review order and so would carry the batch hint (#113), and never anything of the design.
+fp_acc_sheet_name <- function(k) sprintf("sheet_%03d.png", as.integer(k))
+FP_ACC_SHEET_RE <- "^sheet_[0-9]{3}[.]png$"
+
+# review_ids -> data.frame(sheet, review_id, batch): a shuffle drawn from `seed`, cut into batches of
+# n_batch sheets in shuffled order. The map stays outside the batch directories.
+fp_acc_sheet_plan <- function(review_ids, n_batch = 40L, seed) {
+  if (anyDuplicated(review_ids)) stop("duplicate review_id handed to the sheet plan", call. = FALSE)
+  o <- fp_acc_with_seed(seed, c("Mersenne-Twister", "Inversion", "Rejection"), sample.int(length(review_ids)))
+  k <- seq_along(review_ids)
+  data.frame(sheet = fp_acc_sheet_name(k), review_id = as.integer(review_ids[o]),
+             batch = as.integer((k - 1L) %/% n_batch + 1L), stringsAsFactors = FALSE)
+}
+
+# A panel title may say what the image is and when it was taken, and nothing else: a fixed vocabulary
+# of sources, dates, months and resolutions. Anything outside it is refused before it is drawn.
+fp_acc_sheet_title_ok <- function(x) grepl(paste0(
+  "^(Sentinel-2 [0-9]{4} (Aug|Aug-Sep) composite, 10 m|",
+  "Esri Wayback captured [0-9]{4}-[0-9]{2}-[0-9]{2}, [0-9.]+ m|Esri Wayback: no capture|",
+  "Orthophoto [0-9]{4}|Air photo [0-9]{4}|",
+  "Label the outlined 10 m cell in 2017 and in 2023)$"), x)
+
+# PNG text chunks (tEXt, zTXt, iTXt) in a file: a sheet carries none, so nothing rides in metadata.
+fp_acc_png_text_chunks <- function(path) {
+  b <- readBin(path, "raw", file.size(path))
+  if (!identical(b[1:8], as.raw(c(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a))))
+    stop(path, " is not a PNG", call. = FALSE)
+  i <- 9L; out <- character(0)
+  while (i + 7L <= length(b)) {
+    len  <- sum(as.numeric(b[i:(i + 3L)]) * 256^(3:0))
+    type <- rawToChar(b[(i + 4L):(i + 7L)])
+    if (type %in% c("tEXt", "zTXt", "iTXt")) out <- c(out, type)
+    if (type == "IEND") break
+    i <- i + 12L + as.integer(len)
+  }
+  out
+}
+
+# What an agent is handed: batch_<NN>/ holding sheets only, and key.md beside them. Refuses any other
+# file, any sheet name outside the counter, and any PNG carrying text.
+fp_acc_sheet_dir_check <- function(dir_model) {
+  b <- list.dirs(dir_model, recursive = FALSE)
+  b <- b[grepl("^batch_[0-9]{2}$", basename(b))]
+  if (!length(b)) stop("no batch_<NN> directory under ", dir_model, call. = FALSE)
+  for (d in b) {
+    f <- list.files(d, all.files = TRUE, no.. = TRUE)
+    bad <- f[!grepl(FP_ACC_SHEET_RE, f)]
+    if (length(bad)) stop(d, " holds file(s) other than sheets: ", paste(utils::head(bad, 3), collapse = ", "),
+                          call. = FALSE)
+    for (x in f) {
+      t <- fp_acc_png_text_chunks(file.path(d, x))
+      if (length(t)) stop(file.path(d, x), " carries PNG text chunk(s) ", paste(t, collapse = ", "), call. = FALSE)
+    }
+  }
+  invisible(length(b))
+}
+
+# The CSV block of a model batch reply -> a character data.frame. The LAST ```csv fence in the reply:
+# a reply quoting the contract before answering must not be read as the answer.
+FP_ACC_MODEL_COLS <- c("sheet", "ref_from", "ref_to", "label_status", "confidence", "imagery", "note")
+fp_acc_model_csv <- function(reply) {
+  x <- strsplit(reply, "\n", fixed = TRUE)[[1]]
+  open <- which(trimws(x) == "```csv"); close <- which(trimws(x) == "```")
+  if (!length(open)) stop("the reply holds no ```csv block", call. = FALSE)
+  i <- max(open); j <- close[close > i][1]
+  if (is.na(j)) stop("the reply's ```csv block is not closed", call. = FALSE)
+  d <- utils::read.csv(text = paste(x[(i + 1L):(j - 1L)], collapse = "\n"), colClasses = "character",
+                       na.strings = "", strip.white = TRUE)
+  if (!identical(names(d), FP_ACC_MODEL_COLS))
+    stop("the reply's columns are ", paste(names(d), collapse = ","), ", not ",
+         paste(FP_ACC_MODEL_COLS, collapse = ","), call. = FALSE)
+  d
+}
+
+# An agent's tool calls (data.frame: name, path) against what it may touch: Read of its own batch's
+# sheets and of the key. Returns the violations; any one discards the batch.
+fp_acc_transcript_audit <- function(calls, batch_dir, key_path) {
+  ok_path <- function(p) !is.na(p) & (normalizePath(p, mustWork = FALSE) == normalizePath(key_path, mustWork = FALSE) |
+    (dirname(normalizePath(p, mustWork = FALSE)) == normalizePath(batch_dir, mustWork = FALSE) &
+       grepl(FP_ACC_SHEET_RE, basename(p))))
+  calls[!(calls$name == "Read" & ok_path(calls$path)), , drop = FALSE]
+}
+
+# What the agent did NOT read: the key, and each sheet of its batch. A reply can label a sheet the agent
+# never opened (it skipped it, or ran out of context), and the audit above only sees reads it should not
+# have made, never reads it failed to make.
+# A Read counts only when its tool_result came back without an error (`calls$ok`, from extract): a Read
+# that failed showed the agent nothing, so a label for that sheet was made blind of it.
+fp_acc_unread <- function(calls, batch_dir, key_path, want) {
+  if (!"ok" %in% names(calls)) stop("calls carry no `ok` column: match each Read to its tool_result first", call. = FALSE)
+  rd <- calls$path[calls$name == "Read" & !is.na(calls$path) & calls$ok %in% TRUE]
+  rd <- normalizePath(rd, mustWork = FALSE)
+  in_batch <- basename(rd)[dirname(rd) == normalizePath(batch_dir, mustWork = FALSE)]
+  c(if (!normalizePath(key_path, mustWork = FALSE) %in% rd) "key.md", setdiff(want, in_batch))
+}
+
+# All batches' rows + the frozen sheet map -> the working-copy frame labels_export uses (review_id, cell,
+# label fields). Every sheet exactly once, no sheet the map does not hold.
+fp_acc_model_wc <- function(rows, sheet_map, reviewer, labelled_on) {
+  dup <- rows$sheet[duplicated(rows$sheet)]
+  if (length(dup)) stop(length(dup), " sheet(s) labelled more than once: ", paste(utils::head(dup, 3), collapse = ", "),
+                        call. = FALSE)
+  unk <- setdiff(rows$sheet, sheet_map$sheet)
+  if (length(unk)) stop(length(unk), " labelled sheet(s) not in sheet_map.csv: ", paste(utils::head(unk, 3), collapse = ", "),
+                        call. = FALSE)
+  miss <- setdiff(sheet_map$sheet, rows$sheet)
+  if (length(miss)) stop(length(miss), " sheet(s) have no label: ", paste(utils::head(miss, 3), collapse = ", "),
+                         call. = FALSE)
+  if (!startsWith(reviewer, FP_ACC_MODEL_PREFIX)) stop("a model reviewer reads ", FP_ACC_MODEL_PREFIX, "<id>", call. = FALSE)
+  m <- match(rows$sheet, sheet_map$sheet)
+  # as.integer("2.5") is 2 with no warning, so a fractional code would pass as a valid class: read as a
+  # number and refuse anything that is not a whole one
+  num <- function(v) { v <- trimws(v); x <- suppressWarnings(as.numeric(v)); x[is.na(v) | !nzchar(v)] <- NA
+                       x[!is.na(x) & x != round(x)] <- NaN; out <- as.integer(x); out[is.nan(x)] <- NA; out }
+  bad <- !is.na(rows$ref_from) & is.na(num(rows$ref_from)) | !is.na(rows$ref_to) & is.na(num(rows$ref_to))
+  if (any(bad)) stop(sum(bad), " row(s) with a class that is not an integer code: ",
+                     paste(utils::head(rows$sheet[bad], 3), collapse = ", "), call. = FALSE)
+  data.frame(review_id = as.integer(sheet_map$review_id[m]), cell = as.numeric(sheet_map$cell[m]),
+             ref_from = num(rows$ref_from), ref_to = num(rows$ref_to), label_status = rows$label_status,
+             confidence = rows$confidence, imagery = rows$imagery, note = rows$note,
+             reviewer = reviewer, labelled_on = labelled_on, stringsAsFactors = FALSE)
+}
+
+# Freeze a fact by hash: write `<sha>  <name>` when the file is absent, pass when it already holds this sha,
+# and refuse when it holds another. A freeze that a re-run can overwrite freezes nothing (#145 code-check).
+fp_acc_freeze <- function(path, sha, name) {
+  if (file.exists(path)) {
+    have <- strsplit(readLines(path, n = 1), "  ", fixed = TRUE)[[1]][1]
+    if (!identical(have, sha)) stop(path, " already freezes ", name, " at ", substr(have, 1, 12), "; it now reads ",
+                                    substr(sha, 1, 12), ". Refusing to re-freeze an edited file.", call. = FALSE)
+    return(invisible(FALSE))
+  }
+  writeLines(sprintf("%s  %s", sha, name), path)
+  invisible(TRUE)
+}
+
+# Is the image a Read returned (a transcript's `source`: media_type + base64) the sheet on disk? It binds a
+# label to the picture the agent saw, not to a file name every render reuses. The Read tool passes a small
+# PNG through byte for byte and re-encodes a large one to JPEG, so: identical bytes, or the same size with a
+# mean absolute RGB difference within `tol`. Measured on NECR batch 1: a re-encoded sheet sits 0.0031-0.0040
+# from its own PNG and 0.038-0.139 from any other sheet, so 0.01 separates them about tenfold.
+FP_ACC_IMAGE_TOL <- 0.01
+fp_acc_b64_sha256 <- function(b64) digest::digest(jsonlite::base64_dec(b64), algo = "sha256", serialize = FALSE)
+fp_acc_image_matches <- function(src, png_path, tol = FP_ACC_IMAGE_TOL) {
+  if (is.null(src$data) || is.null(src$media_type)) return(FALSE)
+  raw <- jsonlite::base64_dec(src$data)
+  if (identical(digest::digest(raw, algo = "sha256", serialize = FALSE), digest::digest(file = png_path, algo = "sha256")))
+    return(TRUE)
+  seen <- switch(src$media_type, "image/png" = png::readPNG(raw), "image/jpeg" = jpeg::readJPEG(raw), NULL)
+  disk <- png::readPNG(png_path)
+  if (is.null(seen) || length(dim(seen)) != 3 || !identical(dim(seen)[1:2], dim(disk)[1:2])) return(FALSE)
+  mean(abs(seen[, , 1:3] - disk[, , 1:3])) <= tol
+}
+
+# --- Model-labeller guards as functions (#145 code-check round 4) ------------------------------------------
+# Each refusal the scripts rely on lives here, so accuracy-check.R can exercise it and go red when it is removed.
+
+# the sha in a `<sha>  <name>` file
+fp_acc_sha_file <- function(path) strsplit(readLines(path, n = 1, warn = FALSE), "  ", fixed = TRUE)[[1]][1]
+
+# git, from R, on one repository; NULL output on failure
+fp_acc_git <- function(repo, ..., status = FALSE) {
+  if (status) return(system2("git", c("-C", shQuote(repo), ...), stdout = FALSE, stderr = FALSE) == 0)
+  suppressWarnings(system2("git", c("-C", shQuote(repo), ...), stdout = TRUE, stderr = FALSE))
+}
+# Tracked and identical to HEAD: what a freeze or a hash must be before anything relies on it. A file that
+# is merely on disk can be deleted by a clean or missing on another checkout, and then reads as "never set".
+fp_acc_git_committed <- function(repo, path)
+  fp_acc_git(repo, "ls-files", "--error-unmatch", shQuote(path), status = TRUE) &&
+  fp_acc_git(repo, "diff", "--quiet", "HEAD", "--", shQuote(path), status = TRUE)
+# The last commit touching `first` is a strict ancestor of the commit that first added `then`.
+fp_acc_git_committed_before <- function(repo, first, then) {
+  c1 <- fp_acc_git(repo, "log", "-1", "--format=%H", "--", shQuote(first))
+  c2 <- utils::tail(fp_acc_git(repo, "log", "--diff-filter=A", "--format=%H", "--", shQuote(then)), 1)
+  length(c1) == 1 && length(c2) == 1 && c1 != c2 &&
+    fp_acc_git(repo, "merge-base", "--is-ancestor", c1, c2, status = TRUE)
+}
+
+# labels.csv must be the model's labels as hashed, wherever a committed model hash exists. TRUE when the
+# labels are the model's (so the gate applies), FALSE when there is no model hash at all.
+fp_acc_labels_hashed <- function(labels_csv, sha_file) {
+  if (!file.exists(sha_file)) return(FALSE)
+  if (!identical(digest::digest(file = labels_csv, algo = "sha256"), fp_acc_sha_file(sha_file)))
+    stop(labels_csv, " is not the model's labels as hashed in ", basename(sha_file), call. = FALSE)
+  TRUE
+}
+# Every commit, on any local branch, that ever touched `path`.
+# A stash's index commit is not history anyone committed, so stashes are excluded (`--exclude` must precede
+# `--all`): staging the freeze, stashing and applying it would otherwise count it twice.
+fp_acc_git_commits <- function(repo, path)
+  fp_acc_git(repo, "log", "--exclude=refs/stash", "--all", "--format=%H", "--", shQuote(path))
+fp_acc_git_commit_refs <- function(repo, path)
+  paste(fp_acc_git(repo, "log", "--exclude=refs/stash", "--all", "--format=%h%d", "--", shQuote(path)), collapse = "; ")
+
+# B as frozen, decided by HISTORY, never by what is on disk (rounds 3-5 each defeated a disk-based freeze: a
+# re-run rewrote it, its absence read as "not frozen yet", a clean made a re-run look like a first one):
+#   - the freeze is committed, and exactly ONE commit has ever touched its path, so it was never re-frozen;
+#   - it matches labels_b.csv as it stands;
+#   - when labels.csv is given, that one commit is an ancestor of the commit that first added labels.csv,
+#     so B was fixed in history before the model's labels were in the tree to be seen.
+# Out of reach of any local check, and stated as such in research/landcover_accuracy.md: history rewritten
+# on purpose, and a freeze made on another machine and never pushed.
+fp_acc_b_frozen <- function(repo, labels_b, freeze, labels_csv = NULL) {
+  if (!file.exists(freeze) || !fp_acc_git_committed(repo, freeze))
+    stop(freeze, " is missing or not committed: B's labels are not frozen", call. = FALSE)
+  n <- length(fp_acc_git_commits(repo, freeze))
+  if (n != 1) stop(freeze, " has been committed ", n, " times (", fp_acc_git_commit_refs(repo, freeze), "). Either B was ",
+                   "re-frozen, so the freeze proves nothing, or the branch was squash-merged while the original still ",
+                   "exists: this work merges with a merge commit, never a squash.", call. = FALSE)
+  if (!identical(digest::digest(file = labels_b, algo = "sha256"), fp_acc_sha_file(freeze)))
+    stop(labels_b, " is not the one frozen when the model's labels were published", call. = FALSE)
+  if (!is.null(labels_csv) && !fp_acc_git_committed_before(repo, freeze, labels_csv))
+    stop(basename(freeze), " was not committed before labels.csv was", call. = FALSE)
+  invisible(TRUE)
+}
+# The model's labels as published, decided by history like B's freeze: the hash committed and last touched
+# before B's labels were first added, and labels.csv committed exactly once (a re-import with FORCE=1 and a
+# hand copy, committed later, would otherwise pass: the estimate compared labels.csv with the hash on disk).
+fp_acc_model_published <- function(repo, sha_file, labels_b, labels_csv) {
+  if (!fp_acc_git_committed(repo, sha_file)) stop(sha_file, " is not committed as it stands", call. = FALSE)
+  if (!fp_acc_git_committed_before(repo, sha_file, labels_b))
+    stop(basename(sha_file), "'s last commit does not precede the commit that added ", basename(labels_b), call. = FALSE)
+  n <- length(fp_acc_git_commits(repo, labels_csv))
+  if (n != 1) stop(labels_csv, " has been committed ", n, " times (", fp_acc_git_commit_refs(repo, labels_csv),
+                   "): the model's labels were published once", call. = FALSE)
+  invisible(TRUE)
+}
+# A path history has never seen, on any branch: what makes a freeze or a publish a FIRST one.
+fp_acc_git_never <- function(repo, paths) {
+  seen <- paths[vapply(paths, function(p) length(fp_acc_git_commits(repo, p)) > 0, TRUE)]
+  if (length(seen)) stop(paste(basename(seen), collapse = " and "), " already in history: not a first freeze or publish",
+                         call. = FALSE)
+  invisible(TRUE)
+}
+
+# An extracted batch against its audit: the csv as written, the key it was read under, the sheets it saw.
+fp_acc_batch_verify <- function(audit, csv, key_md, batch_dir) {
+  sha <- function(f) digest::digest(file = f, algo = "sha256")
+  if (is.null(audit$csv_sha256) || !identical(sha(csv), audit$csv_sha256))
+    stop(csv, " is not the csv its audit recorded: extract it again", call. = FALSE)
+  if (!identical(audit$key_sha256, sha(key_md))) stop("batch ", audit$batch, " was read under another key.md", call. = FALSE)
+  now <- vapply(names(audit$sheet_sha256), function(s) sha(file.path(batch_dir, s)), "")
+  if (!identical(unname(now), unname(unlist(audit$sheet_sha256))))
+    stop("batch ", audit$batch, "'s sheets on disk are not the ones it labelled: the render moved under it", call. = FALSE)
+  invisible(TRUE)
+}
+# The key text a Read returned (`N<TAB>line` per line) -> the lines the agent read, for comparison with
+# fp_acc_labelling_key(): the transcript says what the agent saw, key.md only what is on disk now.
+fp_acc_read_text <- function(txt) {
+  x <- strsplit(txt, "\n", fixed = FALSE)[[1]]
+  x <- sub("^[0-9]+\t", "", x)
+  while (length(x) && !nzchar(x[length(x)])) x <- x[-length(x)]
+  x
 }
