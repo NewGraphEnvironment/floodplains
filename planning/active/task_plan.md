@@ -87,12 +87,12 @@ Measured in exploration (2026-10-23):
 ## Phase 5: Records
 - [ ] `research/landcover_accuracy.md`: rewrite "Reference sample (NECR pilot)" (drawn on `all_ff04`, the new strata table, the reason, and that the first draw's model labels were discarded unread); update the chip and Wayback counts, the windows, criterion 4 and the Verified line
 - [ ] Logs under `scripts/landcover_accuracy/logs/2026*_<stage>_necr.md` for each stage
-- [ ] CLAUDE.md #93 bullet: windows name their scenario; NECR's sample is on `all_ff04` since #148
+- [x] CLAUDE.md #93 bullet: windows name their scenario; NECR's sample is on `all_ff04` since #148
 - [x] Research, Model labeller subsection: a dated amendment note recording the redraw, the discarded first-draw hash (4072a24) and why, written before the new hash is committed (review item 3)
 - [ ] Research, other ch_ff04 numbers: the wetland composition table, the dated-imagery table, the windows sentence, the Wayback shares, the Status line, the "NECR run" line. Pre-registered rationale (sieve 18%, prior fire 27%, 48/39/86%) stays as dated rationale (review items 4, 6)
-- [ ] CLAUDE.md, the other stale lines: "all_ff04 under a ch_ff04 sample", "windows do not yet (#148)", "sieve removes 18%", the expected-failure note on NECR (5), and review_key "append-only" (a forced redraw starts a new key) (review item 5)
+- [x] CLAUDE.md, the other stale lines: "all_ff04 under a ch_ff04 sample", "windows do not yet (#148)", "sieve removes 18%", the expected-failure note on NECR (5), and review_key "append-only" (a forced redraw starts a new key) (review item 5)
 - [ ] Curated windows copy under `scripts/landcover_accuracy/logs/`
-- [ ] Edit #131's body: the must-fail arm protects whatever scenario `fp_acc_design_scenario()` names (now `all_ff04`); `ch_ff04` is no longer protected by the design
+- [x] Edit #131's body: the must-fail arm protects whatever scenario `fp_acc_design_scenario()` names (now `all_ff04`); `ch_ff04` is no longer protected by the design
 
 ## Validation
 

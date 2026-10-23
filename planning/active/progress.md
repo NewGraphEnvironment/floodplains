@@ -8,3 +8,5 @@
 - Scaffolded PWF baseline from issue #148 with approved phases
 - Next: start Phase 1
 - Phase 1: `fp_acc_windows_read()` and `fp_acc_window_obs_read()` (fp_accuracy.R); `run` and `derive` stamp `scenario`; chip_build, review_build and review_render-sheets read through the guard. review_render-sheets' month label generalised (it named only "8" and "8-9", so a re-measured window would have aborted it). accuracy-check: 9 new arms, ALL PASS; in a copy, removing the windows guard gives 4 FAIL, removing derive's input guard 2 FAIL.
+- Phases 2-3 (reference half): redraw committed 7f5e7e9 with windows, imagery and Wayback indexes regenerated; branch pushed. S2 chip build started 22:18Z.
+- Phase 5 (partial): research free-reference, wetland, reference-sample, dated-imagery and Wayback passages restated on all_ff04 with the ch_ff04 values kept beside them; CLAUDE.md stale lines; #131 body (no design names a species scenario now). Wayback shares re-derived by the method that reproduces the old 73/76/56.2/7.5 exactly. Still owed: chip counts and the model-run line.
