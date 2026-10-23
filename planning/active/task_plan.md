@@ -59,7 +59,7 @@ Gate answers to the review's three forks (user, 2026-10-23): leave the orthophot
 - [ ] I look at about 5 sheets myself for legibility at the size an agent reads them. That is a render check, not labelling.
 
 ## Phase 3 — Label with blind agents
-- [ ] Canary: one Plan and one Explore agent, with no tools, asked whether their context mentions `stratum`, `in_harvest` or `floodplains`. Use whichever type is clean.
+- [x] Canary: one Plan and one Explore agent, with no tools, asked whether their context mentions `stratum`, `in_harvest` or `floodplains`. Use whichever type is clean.
 - [ ] Batches of 40 sheets, so **12 agent spawns, 3 at a time**. That is above the usual 5-per-task bound, and I'm stating it here so the budget is approved at this gate.
 - [ ] Each agent gets the `labelling_key.md` path, its sheet directory, and the output contract: one CSV row per sheet with `sheet, ref_from, ref_to, label_status, confidence, imagery, note`, using the IO codes and vocab in `FP_ACC_IO_CODES`, `FP_ACC_STATUS`, `FP_ACC_CONFIDENCE` and `FP_ACC_IMAGERY`. It is never told what any point is.
 - [ ] Each reply's CSV is extracted from the agent's transcript **by script**, never retyped. Each transcript's tool calls are audited for any read outside its batch directory and the key; a hit throws out that batch's labels.
