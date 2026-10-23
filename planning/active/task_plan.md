@@ -42,7 +42,7 @@ Gate answers to the review's three forks (user, 2026-10-23): leave the orthophot
 
 - [x] Phase 1b — amend the pre-registration before any label: the audit growth, model labels kept out of the repo (SHA-256 only) until `labels_b.csv` lands, unclipped Wayback, no orthophoto, the batch prompt committed (`model_labeller-prompt.md`), the transcript-audit rule, the inputs differ by design, the abstention ceiling, intervals printed. The per-stratum fallback rule is deferred to a follow-up issue (3 points per change stratum cannot carry it).
 - [x] `fp_acc_second_stable()` + seed purpose `second_labeller_stable`, wired into `review_build-qgis.R`; B's working copy (0 labels) is rebuilt so the new points sit in `review_id` order.
-- [ ] Push the branch before the first agent spawn, so the pre-registration has a public timestamp.
+- [x] Push the branch before the first agent spawn, so the pre-registration has a public timestamp.
 - **Phase 5 moved out of this PR** to Owed: drift 0.20.0 is installed and does not export `dft_wayback_captures` (checked), and BULK work waits on NECR anyway.
 - Phase 3 details: `sheet_map.csv` records `cell` at render; the importer requires role "a" via `fp_acc_working_copy_role()`; the reviewer id comes from the transcript's `model` field; the canary passes on design terms only (the working directory names the repo); a coverage check asserts every sheet labelled exactly once.
 - Phase 4 details: the gate runs **before** `fp_acc_estimate()`, `SYNTHETIC=1` bypasses it, it triggers on any `model:` reviewer, and `accuracy-check.R`'s `identical(ag$n, c(3L, 3L))` arm is updated for the new `change` row.
@@ -60,15 +60,15 @@ Gate answers to the review's three forks (user, 2026-10-23): leave the orthophot
 
 ## Phase 3 — Label with blind agents
 - [x] Canary: one Plan and one Explore agent, with no tools, asked whether their context mentions `stratum`, `in_harvest` or `floodplains`. Use whichever type is clean.
-- [ ] Batches of 40 sheets, so **12 agent spawns, 3 at a time**. That is above the usual 5-per-task bound, and I'm stating it here so the budget is approved at this gate.
-- [ ] Each agent gets the `labelling_key.md` path, its sheet directory, and the output contract: one CSV row per sheet with `sheet, ref_from, ref_to, label_status, confidence, imagery, note`, using the IO codes and vocab in `FP_ACC_IO_CODES`, `FP_ACC_STATUS`, `FP_ACC_CONFIDENCE` and `FP_ACC_IMAGERY`. It is never told what any point is.
-- [ ] Each reply's CSV is extracted from the agent's transcript **by script**, never retyped. Each transcript's tool calls are audited for any read outside its batch directory and the key; a hit throws out that batch's labels.
-- [ ] `scripts/landcover_accuracy/labels_import-model.R <area>`:
+- [x] Batches of 40 sheets, so **12 agent spawns, 3 at a time**. That is above the usual 5-per-task bound, and I'm stating it here so the budget is approved at this gate.
+- [x] Each agent gets the `labelling_key.md` path, its sheet directory, and the output contract: one CSV row per sheet with `sheet, ref_from, ref_to, label_status, confidence, imagery, note`, using the IO codes and vocab in `FP_ACC_IO_CODES`, `FP_ACC_STATUS`, `FP_ACC_CONFIDENCE` and `FP_ACC_IMAGERY`. It is never told what any point is.
+- [x] Each reply's CSV is extracted from the agent's transcript **by script**, never retyped. Each transcript's tool calls are audited for any read outside its batch directory and the key; a hit throws out that batch's labels.
+- [x] `scripts/landcover_accuracy/labels_import-model.R <area>`:
   - maps `sheet` to `review_id`, then unblinds through `fp_acc_unblind()`;
   - builds rows with `fp_acc_labels_frame()`, which validates the vocab;
   - sets `reviewer = "model:claude-opus-5-5"` and `labelled_on`;
-  - writes `reference/necr/labels.csv`, with the same refuse-to-overwrite rule as `labels_export.R`.
-- [ ] Commit `labels.csv` and the extraction/audit log under `scripts/landcover_accuracy/logs/20261023_model_labels_necr.md`, which records the counts per status and per confidence. It shows no accuracy, because nothing exists to compare against yet.
+  - writes `reference/necr/labels.csv`, with the same refuse-to-overwrite rule as `labels_export.R`. *(Amended after review: it writes gitignored `labels_model.csv` + committed `labels_model.sha256`; `publish` writes `labels.csv` after B.)*
+- [x] Commit `labels.csv` and the extraction/audit log under `scripts/landcover_accuracy/logs/20261023_model_labels_necr.md`, which records the counts per status and per confidence. It shows no accuracy, because nothing exists to compare against yet.
 
 ## Phase 4 — The gate in the estimate
 - [x] `fp_acc_agreement()` gains a `change` row (agreement on `ref_from != ref_to`).

@@ -54,6 +54,14 @@ Relates #93, #103, #111, #134, #140, #141, drift#108.
 
 
 
+## Model labeller: what the agents flagged about the form (2026-10-23)
+
+Raised unprompted by batch agents, and true of the human's form too (`labels_form.qml`), so it is not a model-only defect:
+- **One `label_status` per point for two years.** A cell readable in 2023 but not in 2017 must either be labelled at low confidence or lose both years to `cannot_label` (batch 4 chose the former on two sheets).
+- **One `confidence` and one `imagery` per point for two labels.** Agents took the lower ceiling and the source that decided the harder label.
+- Agents classed gravel roads and tracks as Bare ground, not Built area (IO's Built examples are paved), and trees inside a homestead yard as Built (IO's note).
+Candidates for a follow-up on the form; changing it now would change the pre-registered schema mid-labelling.
+
 ## Errors Encountered
 
 | Error | Resolution |
