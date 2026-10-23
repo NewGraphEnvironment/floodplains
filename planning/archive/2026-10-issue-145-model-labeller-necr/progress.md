@@ -34,3 +34,9 @@
 | 4 | 4 | 4 | 0 | y (freeze absent read as unset) |
 | 5 | 1 + note | 2 | 0 | y (freeze decided by disk) |
 | 6 | 2 + 3 notes | 2 | 3 notes | y (count over-refused stash/squash) |
+
+## Session 2026-10-23 (after the archive): drift upgrade and Phase 5
+
+- The user asked why drift was not simply upgraded, and approved upgrading drift 0.20.0 → 0.24.3, fly 0.19.0 → 0.24.1, flooded 0.8.2 → 0.8.4, link 0.67.0 → 0.68.0 and ngr 0.0.3 → 0.0.4 with `pak` (spacehakr 0.4.1 came as a new dependency; gq stays on its local checkout). soul#513 filed: an outdated first-party package is proposed for upgrade at the plan gate, never routed around. `accuracy-check.R` passes (217) and `SYNTHETIC=1 accuracy_estimate.R necr` runs after the upgrade.
+- Phase 5 back in: `wayback_coverage-area.R` (new). A 50-point trial hit a 900 s timeout during the metadata queries (197 releases × 3 zooms, cached by bbox); the 1,000-point run took 57.6 min (15:01:51Z → 15:59:25Z). Result in the log and the research file.
+- `/code-check` on the Wayback change (`review-wayback-round{1,2,3}.md`): round 1, two overstated sentences (fixed); round 2, four more, one inside round 1's fix ("Sentinel-2 alone" when only Wayback was measured; BULK's orthophoto and air photo coverage is not indexed); round 3 ended on an enumeration of 56 quantified claims, every one recomputed and holding, plus the stale agent count in the PR body (now 24). Script code clean in all three.

@@ -557,6 +557,14 @@ as it stood on each of 197 release dates (2014-02-20 to 2026-09-24).
 - **A label decided on a chip records `esri_dated`, never `esri`.** Rule 5 caps the undated
   basemaps at `low`; a dated capture within +/-2 years (+/-1 before #145) supports `high` or `medium` like any dated
   imagery. The rule itself is unchanged: it already says imagery date sets the ceiling.
+- **BULK sees far less (#145 step 1, 2026-10-23).** Over 1,000 area-random points on `all_ff04`
+  (`wayback_coverage-area.R`), a capture lies within +/-2 years of 2017 for 38.0% of the floodplain and
+  of 2023 for 35.1%, and of both for 15.7%; 42.6% has none at either. The nearest capture to 2017 is
+  a 2014 one for 44.9% of points, and a quarter of the floodplain has nothing newer than 2016. NECR's
+  points are a stratified sample, so the two are not one estimate, but its per-endpoint shares are about
+  double BULK's (73% and 76%), its both-endpoint share 3.6 times (56.2%), and its neither share a sixth
+  (7.5%). Only Wayback was measured: BULK's orthophoto and air photo coverage is not indexed yet. Log:
+  `scripts/landcover_accuracy/logs/20261023_wayback_coverage_bulk.md`.
 - **The reviewer sees the capture.** `cells.gpkg` carries `capture_<year>` ("2017-06-11, 0.31 m"),
   which the cell layer labels outside the cell as "Esri 2017: …", taken from the chips actually built.
 

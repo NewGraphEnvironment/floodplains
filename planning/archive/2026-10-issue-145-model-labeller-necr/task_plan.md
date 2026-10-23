@@ -80,15 +80,15 @@ Gate answers to the review's three forks (user, 2026-10-23): leave the orthophot
 
   Restore each defect and watch the arm go red.
 
-## Phase 5 — BULK imagery coverage (MOVED to Owed: needs drift ≥ 0.24 for `dft_wayback_captures`)
+## Phase 5 — BULK imagery coverage (back in after the drift upgrade, 2026-10-23)
 
-Not run in this PR; see Owed at the end.
+- [x] drift 0.20.0 → 0.24.3 (with fly, flooded, link and ngr; the user approved the upgrade). `wayback_coverage-area.R bulk 1000`: 1,000 area-random points on `all_ff04`, Wayback within ±2 years of 2017 for 38.0% and of 2023 for 35.1%, both for 15.7%. Log: `scripts/landcover_accuracy/logs/20261023_wayback_coverage_bulk.md`; note in the research file.
 
 ## Owed at the end (reported, done after merge)
 - [ ] You label the 75 audit points in `necr_lulc_review_b` (re-sync Mergin first if you label there), then run `REVIEWER=b labels_export.R necr` and commit `labels_b.csv`.
 - [ ] `accuracy_estimate.R necr` gives agreement, then either the estimate or the refusal. The verdict is recorded in the research file, #93 and #145.
 - [ ] BULK design, chips and labelling (#145 steps 2–6), sized from NECR's result.
-- [ ] BULK Wayback coverage (old Phase 5), after drift is upgraded past 0.20.0.
+- [x] BULK Wayback coverage (old Phase 5), after drift is upgraded past 0.20.0. Done in this PR (Phase 5).
 - [ ] After `labels_b.csv` is committed: `labels_import-model.R freeze necr` → commit `labels_b.sha256` → `labels_import-model.R publish necr` → commit `labels.csv` → `accuracy_estimate.R necr`.
 
 ## Validation

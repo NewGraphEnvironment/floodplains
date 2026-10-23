@@ -50,6 +50,10 @@ enumeration of 64 places.
 - **Wayback.** The capture is within ±1 year of 2017 for 243 of 480 points, and within ±2 years for 349 of 480
   at 2017 and 365 at 2023. That measurement superseded #113's premise that every sharp source sits outside
   the window.
+- **BULK's Wayback (Phase 5, after the drift upgrade).** Over 1,000 area-random floodplain points, a capture
+  is within ±2 years of 2017 for 38.0% and of 2023 for 35.1%, about half NECR's per-endpoint shares, and of
+  both for 15.7% (NECR 56.2%); 42.6% has a capture within ±2 years at neither endpoint (NECR 7.5%). The nearest capture to 2017 is a 2014 one
+  for 44.9% of points, and a quarter of the floodplain has nothing newer than 2016.
 - **The audit subset was mostly change.** Before the growth, 39 of its 48 points sat in change strata, while
   the stable strata hold 86% of the area. That is why it grew.
 - **The checks.** `accuracy-check.R` ends at 217 checks. Every new guard goes red when its defect is restored:
@@ -63,6 +67,7 @@ enumeration of 64 places.
 ## Evidence
 
 - `scripts/landcover_accuracy/logs/20261023_model_labels_necr.md`
+- `scripts/landcover_accuracy/logs/20261023_wayback_coverage_bulk.md`
 - `planning/archive/2026-10-issue-145-model-labeller-necr/review-*.md`
 
 ## Owed
@@ -70,7 +75,6 @@ enumeration of 64 places.
 - You label the 75 audit points in `necr_lulc_review_b` (re-sync Mergin first if you label there), then run `REVIEWER=b labels_export.R necr` and commit `labels_b.csv`.
 - `accuracy_estimate.R necr` gives agreement, then either the estimate or the refusal. The verdict is recorded in the research file, #93 and #145.
 - BULK design, chips and labelling (#145 steps 2–6), sized from NECR's result.
-- BULK Wayback coverage (old Phase 5), after drift is upgraded past 0.20.0.
 - After `labels_b.csv` is committed: `labels_import-model.R freeze necr` → commit `labels_b.sha256` → `labels_import-model.R publish necr` → commit `labels.csv` → `accuracy_estimate.R necr`.
 
 Closed by: PR (Part of #145; closes #113)
