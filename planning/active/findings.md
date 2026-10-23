@@ -32,6 +32,7 @@ Relates #140, #93, #145, #131.
 
 | Error | Resolution |
 |-------|------------|
+| `window_count-clear.R run`: 2022-08 and 2022-09 FAILED, `HTTP content type response 'text/plain' not defined for this operation` (Planetary Computer STAC); derive refused "2 month-year(s) failed or unmeasured" | Transient: `run` re-run (47 months cached, the 2 re-counted, 0 failed); derive then hit the same error on the 2017 Aug-Sep direct count and passed on a re-run. 0 `repoprted` in all five logs |
 
 ## Plan review (2026-10-23)
 
@@ -48,3 +49,16 @@ A re-run of step 2 or 3 under the same scenario name (`all_ff04`) between `run` 
 ## Criterion 4 moves with the population (recorded 2026-10-23, before the all_ff04 value is computed)
 
 Criterion 4 (free reference: IO's omission of qualifying harvest) was scored on `ch_ff04`: omission_io **0.2549** over 92.0 ha, so it did not hold. The sample moves to `all_ff04` for a catalogue reason (the species items were retired 2026-10-15; the published NECR floodplain is `all_ff04`), decided by the user before any `all_ff04` accuracy number existed. The **`all_ff04` value is the one that counts** for the verdict, whatever it is, and the `ch_ff04` value stays stated beside it in the research file, so a move across the threshold cannot read as choosing the population for the result.
+
+## Phase 2-3 results (2026-10-23)
+
+- Redraw byte-identical twice (`sample.gpkg`, `strata.csv`, `design.json` cmp-equal). `fp_acc_area("necr")` gives all_ff04 / all / 2 / design, no NOTE. `fp_acc_grid()` refuses the ch_ff04 grid.
+- Windows (validate 2021-07 floodplain-wide 2.3 min; run ~70 min; derive): August in every year but 2017, 2017 widened to Aug-Sep (direct count 0.999). The same windows as on ch_ff04, now stamped `all_ff04`.
+- Wetland reference: FWA wetland cells 12,809.04 ha of the 80,782.9 ha footprint; `composition-check.R necr` (5) PASS at 12,809.04 vs 12,809.04, ALL PASS. Outside the group polygon: 190.1 ha of change, 1,014.8 ha of floodplain.
+- Criterion 4 on all_ff04: omission_io **0.1475** over 481.46 ha (223 qualifying cutblocks); does not hold. ch_ff04 was 0.2549 over 92.0 ha. Same verdict.
+- imagery.csv: themed epochs unchanged in kind, air photo 2012 (480 of 480) and orthophoto 2021 (136 of 480, 28.3%; was 204, 42.5%).
+- wayback.csv: 960 rows; 160 of 480 points have the same capture at both endpoints (was 115).
+- Review project A built (480 cells, patches from transition_all_ff04, 24 columns); review_key.csv 480 rows, 75 in B's subset.
+- Dated: orthophoto 2021 VRT 227 tiles (0.15 m); air photo 2012 305 frames georeferenced (388 old frame thumbnails reused), 0 covered points without one, 4.41 m. fly warned 13 of 1,589 corrected frames are <95% DEM-covered.
+- Wayback chips: 960 fetched, 0 failed, every point reads its own chip, 766 MB, 14.5 min.
+- S2 chip build started (480 x 4).

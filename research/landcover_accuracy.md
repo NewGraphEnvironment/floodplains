@@ -368,7 +368,14 @@ subsection to fit agreement already measured.
     on another machine and never pushed.
 - **What the model sees.** One contact sheet per point. Sheets are named `sheet_<k>` over a shuffle
   drawn at render time, which is not the `review_id` order. The map from sheet to point is frozen
-  once any label exists. A sheet shows the outlined 10 m cell in:
+  once any label exists. *(Amended 2026-10-23, before any agreement was computed and before labeller
+  B made any label, #148.)* The one exception is a forced redraw: the sample moved from `ch_ff04` to
+  the published `all_ff04` floodplain, so the first draw's model labels (hash committed in 4072a24)
+  describe cells no longer in the sample. They were discarded unread: nobody, the session that ran the
+  redraw included, opened them. The sheets were rendered afresh for the new draw and the model
+  labelled them again, under the same rules, so the second hash replaces the first. A redraw is
+  decided by `sample_draw-pilot.R` under `FORCE=1`, never to change labels. A sheet shows the outlined
+  10 m cell in:
   - the Sentinel-2 same-season composites, 310 m around the cell;
   - the Wayback capture nearest each endpoint, 120 m around the cell, titled with its capture date.
     It is fetched unclipped. The review project's chips are clipped to Voronoi cells, which would
