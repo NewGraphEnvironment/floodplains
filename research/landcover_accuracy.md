@@ -409,6 +409,14 @@ subsection to fit agreement already measured.
   stratum, one disagreement reads as 0.67, so no per-stratum rule is fixed here. None of the model's
   labels are used until that issue is settled.
 - **Measured, not assumed.** Nothing about the model's accuracy is claimed before B's labels exist.
+- **What a sheet looks like to the model (measured 2026-10-23, NECR batch 1).** The Read tool passes a
+  small PNG through byte for byte, but re-encodes a large one to JPEG: 26 of 40 sheets at 1600 x 860
+  arrived as JPEG. So a label is bound to its sheet by pixels, not bytes (`fp_acc_image_matches`). A
+  re-encoded sheet sits 0.0031-0.0040 mean absolute RGB difference from its own PNG and 0.038-0.139
+  from any other sheet, so the 0.01 tolerance separates them about tenfold. The first render was
+  near-black on forest (a linear 0-0.25 stretch, with forest near 0.03) and smoothed (terra's
+  `plotRGB(smooth = TRUE)`). The sheets use a fixed square-root stretch and unsmoothed pixels.
+- **The NECR run:** `scripts/landcover_accuracy/logs/20261023_model_labels_necr.md`.
 
 - **Project.** `review_build-qgis.R` builds an rfp restoration-template project, which needs QGIS
   4.x, under `data/<area>/accuracy/review/` (gitignored). It holds the label layer with a
