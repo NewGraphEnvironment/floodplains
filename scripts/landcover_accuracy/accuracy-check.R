@@ -818,6 +818,34 @@ ok("an omission file on another scenario is refused",
 utils::write.csv(om, om_f, row.names = FALSE)
 ok("an omission file with no scenario (pre-#140) is refused",
    inherits(tryCatch(fp_acc_omission_read(om_f, "ch_ff04"), error = identity), "error"))
+
+message("\ncomposite windows name their scenario (#148)")
+win   <- data.frame(window = "same_season", year = c(2017L, 2023L), months = c("8-9", "8"))
+win_f <- file.path(sc_dir, "windows.csv")
+utils::write.csv(cbind(win, scenario = "all_ff04"), win_f, row.names = FALSE, quote = FALSE)
+w_ok <- fp_acc_windows_read(win_f, "all_ff04")
+ok("windows on the design's scenario are read, months kept as text",
+   identical(w_ok$months, c("8-9", "8")) && nrow(w_ok) == 2)
+ok("windows on another scenario are refused", refused(fp_acc_windows_read(win_f, "ch_ff04")))
+utils::write.csv(cbind(win, scenario = c("all_ff04", "ch_ff04")), win_f, row.names = FALSE, quote = FALSE)
+ok("windows mixing two scenarios are refused", refused(fp_acc_windows_read(win_f, "all_ff04")))
+utils::write.csv(win, win_f, row.names = FALSE, quote = FALSE)
+ok("windows with no scenario (pre-#148) are refused", refused(fp_acc_windows_read(win_f, "ch_ff04")))
+utils::write.csv(cbind(win, scenario = "all_ff04")[0, ], win_f, row.names = FALSE, quote = FALSE)
+ok("an empty windows file is refused", refused(fp_acc_windows_read(win_f, "all_ff04")))
+utils::write.csv(cbind(win[c(1, 1), ], scenario = "all_ff04"), win_f, row.names = FALSE, quote = FALSE)
+ok("a duplicate window x year is refused", refused(fp_acc_windows_read(win_f, "all_ff04")))
+
+obs   <- data.frame(year = c(2017L, 2017L, 2021L), month = c("8", "8-9", "7"), res = c(100, 100, 20),
+                    share_ge1 = c(0.99, 1, 0.98))
+obs_f <- file.path(sc_dir, "windows_clear_obs.csv")
+utils::write.csv(cbind(obs, scenario = "all_ff04"), obs_f, row.names = FALSE)
+o_ok <- fp_acc_window_obs_read(obs_f, "all_ff04")
+ok("derive reads counts made on its scenario, per-month res-100 rows only",
+   nrow(o_ok) == 1 && identical(o_ok$month, 8L))
+ok("derive refuses counts made on another scenario", refused(fp_acc_window_obs_read(obs_f, "ch_ff04")))
+utils::write.csv(obs, obs_f, row.names = FALSE)
+ok("derive refuses counts with no scenario (pre-#148)", refused(fp_acc_window_obs_read(obs_f, "all_ff04")))
 unlink(sc_dir, recursive = TRUE)
 
 message(if (fails) sprintf("\n%d FAIL", fails) else "\nALL PASS")

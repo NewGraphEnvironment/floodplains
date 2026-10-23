@@ -58,11 +58,11 @@ Measured in exploration (2026-10-23):
 - [x] Edit #148's body and title: add the NECR redraw on `all_ff04` with its reason, and drop "Re-measure NECR on ch_ff04"
 
 ## Phase 1: Windows name their scenario (#148)
-- [ ] `window_count-clear.R run`: write a `scenario` column in `windows_clear_obs.csv` (`cfg$primary_scenario`)
-- [ ] `derive`: refuse a `windows_clear_obs.csv` with a missing or different scenario; write `scenario` into `windows.csv`
-- [ ] `fp_acc_windows_read(path, scenario)` in `fp_accuracy.R`, the shape of `fp_acc_omission_read()`: refuse a missing column or a different scenario, and keep the existing column, duplicate and character-`months` checks
-- [ ] Use it in `chip_build-composite.R` (the `WINDOWS=` override is checked too), `review_build-qgis.R` and `review_render-sheets.R`
-- [ ] `accuracy-check.R` arms: no column refused, another scenario refused, right scenario passes, `derive`'s input guard; each shown red against a copy with the guard removed
+- [x] `window_count-clear.R run`: write a `scenario` column in `windows_clear_obs.csv` (`cfg$primary_scenario`)
+- [x] `derive`: refuse a `windows_clear_obs.csv` with a missing or different scenario; write `scenario` into `windows.csv`
+- [x] `fp_acc_windows_read(path, scenario)` in `fp_accuracy.R`, the shape of `fp_acc_omission_read()`: refuse a missing column or a different scenario, and keep the existing column, duplicate and character-`months` checks
+- [x] Use it in `chip_build-composite.R` (the `WINDOWS=` override is checked too), `review_build-qgis.R` and `review_render-sheets.R`
+- [x] `accuracy-check.R` arms: no column refused, another scenario refused, right scenario passes, `derive`'s input guard; each shown red against a copy with the guard removed
 
 ## Phase 2: Redraw NECR on all_ff04
 - [ ] Move aside, without reading: the four `data/necr/accuracy/review/necr_lulc_review*` directories and `data/necr/accuracy/model/`, into `data/necr/accuracy/_aside_<UTC date>/`
