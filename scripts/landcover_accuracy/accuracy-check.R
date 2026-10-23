@@ -537,11 +537,21 @@ calls <- data.frame(name = c("Read", "Read", "Read", "Read", "Bash", "Read"),
 v <- fp_acc_transcript_audit(calls, bd, kp)
 ok("audit allows only its own sheets and the key; flags the map, another batch, a command and CLAUDE.md",
    nrow(v) == 4 && !any(v$path %in% c(file.path(bd, "sheet_001.png"), kp), na.rm = TRUE))
-rd <- data.frame(name = "Read", path = c(kp, file.path(bd, "sheet_001.png")), stringsAsFactors = FALSE)
+rd <- data.frame(name = "Read", path = c(kp, file.path(bd, "sheet_001.png")), ok = TRUE, stringsAsFactors = FALSE)
 ok("a sheet labelled but never read is caught", identical(fp_acc_unread(rd, bd, kp, c("sheet_001.png", "sheet_002.png")),
                                                           "sheet_002.png"))
 ok("a batch that never read the key is caught", identical(fp_acc_unread(rd[2, ], bd, kp, "sheet_001.png"), "key.md"))
 ok("a batch that read the key and every sheet is complete", !length(fp_acc_unread(rd, bd, kp, "sheet_001.png")))
+rf <- rd; rf$ok[2] <- FALSE
+ok("a Read whose result was an error does not count as read", identical(fp_acc_unread(rf, bd, kp, "sheet_001.png"), "sheet_001.png"))
+ok("calls not matched to their results are refused", refused(fp_acc_unread(rd[, c("name", "path")], bd, kp, "sheet_001.png")))
+ok("publish requires labels_b.csv and the model hash committed and clean",
+   any(grepl('"ls-files", "--error-unmatch"', imp_src, fixed = TRUE)) && any(grepl('"diff", "--quiet", "HEAD"', imp_src, fixed = TRUE)))
+ok("publish checks its copy and freezes B's labels by hash",
+   any(grepl("isTRUE(file.copy(out_csv, f, overwrite = TRUE))", imp_src, fixed = TRUE)) &&
+   any(grepl("labels_b.sha256", imp_src, fixed = TRUE)))
+ok("the gate refuses a labels_b.csv edited after the model's labels were published",
+   any(grepl("labels_b.sha256", est_src, fixed = TRUE)))
 smap <- data.frame(sheet = c("sheet_001.png", "sheet_002.png"), review_id = c(7L, 3L), cell = c(101, 102), batch = 1L)
 wcm <- fp_acc_model_wc(rr, smap, "model:test-model", "2026-10-23")
 ok("model rows map through the sheet map to review_id and cell", identical(wcm$review_id, c(7L, 3L)) &&

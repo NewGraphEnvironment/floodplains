@@ -73,6 +73,11 @@ if (!synthetic && any(startsWith(as.character(lab$reviewer), FP_ACC_MODEL_PREFIX
   if (is.null(lb)) stop("labels.csv holds model labels and there is no ", fb, ": the pre-registered gate ",
                         "needs the person's labels before any estimate", call. = FALSE)
   fp_acc_b_complete(lb, fp_acc_review_key_read(file.path(cfg$dir_ref, "review_key.csv")))
+  # B as it was when the model's labels were published (labels_import-model.R publish), not as edited since
+  fsha <- file.path(cfg$dir_ref, "labels_b.sha256")
+  if (!file.exists(fsha) || !identical(digest::digest(file = fb, algo = "sha256"),
+                                       strsplit(readLines(fsha, n = 1), "  ", fixed = TRUE)[[1]][1]))
+    stop(fb, " is not the one frozen when the model's labels were published (", basename(fsha), ")", call. = FALSE)
   gate <- fp_acc_model_gate(lab, lb)
   cat("Model-labeller gate (kappa >= ", FP_ACC_MODEL_KAPPA, " both endpoints, change >= ", FP_ACC_MODEL_CHANGE,
       ", abstention <= ", FP_ACC_MODEL_ABSTAIN, "):\n", sep = "")

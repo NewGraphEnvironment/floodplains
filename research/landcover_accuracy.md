@@ -529,7 +529,7 @@ as it stood on each of 197 release dates (2014-02-20 to 2026-09-24).
   - **115 of 480 points have the same capture at both endpoints**, because one capture is all they have
     near either. The chip then dates one endpoint well and the other poorly, and the label says which.
 - **A label decided on a chip records `esri_dated`, never `esri`.** Rule 5 caps the undated
-  basemaps at `low`; a dated capture within +/-1 year supports `high` or `medium` like any dated
+  basemaps at `low`; a dated capture within +/-2 years (+/-1 before #145) supports `high` or `medium` like any dated
   imagery. The rule itself is unchanged: it already says imagery date sets the ceiling.
 - **The reviewer sees the capture.** `cells.gpkg` carries `capture_<year>` ("2017-06-11, 0.31 m"),
   which the cell layer labels outside the cell as "Esri 2017: …", taken from the chips actually built.

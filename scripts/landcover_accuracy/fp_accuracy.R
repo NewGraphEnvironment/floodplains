@@ -1008,8 +1008,11 @@ fp_acc_transcript_audit <- function(calls, batch_dir, key_path) {
 # What the agent did NOT read: the key, and each sheet of its batch. A reply can label a sheet the agent
 # never opened (it skipped it, or ran out of context), and the audit above only sees reads it should not
 # have made, never reads it failed to make.
+# A Read counts only when its tool_result came back without an error (`calls$ok`, from extract): a Read
+# that failed showed the agent nothing, so a label for that sheet was made blind of it.
 fp_acc_unread <- function(calls, batch_dir, key_path, want) {
-  rd <- calls$path[calls$name == "Read" & !is.na(calls$path)]
+  if (!"ok" %in% names(calls)) stop("calls carry no `ok` column: match each Read to its tool_result first", call. = FALSE)
+  rd <- calls$path[calls$name == "Read" & !is.na(calls$path) & calls$ok %in% TRUE]
   rd <- normalizePath(rd, mustWork = FALSE)
   in_batch <- basename(rd)[dirname(rd) == normalizePath(batch_dir, mustWork = FALSE)]
   c(if (!normalizePath(key_path, mustWork = FALSE) %in% rd) "key.md", setdiff(want, in_batch))

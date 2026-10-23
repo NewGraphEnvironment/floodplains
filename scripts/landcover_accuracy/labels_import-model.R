@@ -82,10 +82,19 @@ if (mode == "prompt") {
   models <- models[!is.na(models)]
   if (length(models) != 1) stop("the transcript names ", length(models), " models (", paste(models, collapse = ", "),
                                 "); a batch is labelled by one", call. = FALSE)
-  calls <- do.call(rbind, c(list(data.frame(name = character(0), path = character(0))), unlist(lapply(recs, function(r)
-    lapply(Filter(function(x) identical(x$type, "tool_use"), r$message$content), function(x)
-      data.frame(name = x$name, path = x$input$file_path %||% NA_character_, stringsAsFactors = FALSE))),
+  calls <- do.call(rbind, c(list(data.frame(id = character(0), name = character(0), path = character(0))),
+    unlist(lapply(recs, function(r)
+      lapply(Filter(function(x) identical(x$type, "tool_use"), r$message$content), function(x)
+        data.frame(id = x$id %||% NA_character_, name = x$name, path = x$input$file_path %||% NA_character_,
+                   stringsAsFactors = FALSE))),
     recursive = FALSE)))
+  # each call's result, from the user turns: a call counts as done only if a result came back without error
+  res <- unlist(lapply(Filter(function(r) identical(r$type, "user") && is.list(r$message$content), lapply(lines, function(l)
+    tryCatch(jsonlite::fromJSON(l, simplifyVector = FALSE), error = function(e) NULL))), function(r)
+    lapply(Filter(function(x) identical(x$type, "tool_result"), r$message$content), function(x)
+      c(id = x$tool_use_id %||% NA_character_, err = isTRUE(x$is_error)))), recursive = FALSE)
+  res <- if (length(res)) as.data.frame(do.call(rbind, res), stringsAsFactors = FALSE) else data.frame(id = character(0), err = character(0))
+  calls$ok <- calls$id %in% res$id[res$err == "FALSE"]
   # The reply: the handback message when the agent ends through one, else its last text block. The
   # handback itself is how the reply is delivered, not a tool the agent used on the files.
   hand  <- calls$name == "SubagentHandback"
@@ -146,10 +155,20 @@ if (mode == "prompt") {
   fp_acc_b_complete(utils::read.csv(fb, colClasses = c(point_id = "character")),
                     fp_acc_review_key_read(file.path(cfg$dir_ref, "review_key.csv")))
   if (!file.exists(sha_file) || !file.exists(out_csv)) stop("run import first", call. = FALSE)
+  # COMMITTED, not merely on disk: the hash is what the model's labels are held to, and B's labels must be
+  # fixed in history before the model's are put where B could read them
+  for (g in c(fb, sha_file)) {
+    tracked <- system2("git", c("-C", shQuote(here::here()), "ls-files", "--error-unmatch", shQuote(g)), stdout = FALSE, stderr = FALSE) == 0
+    clean   <- system2("git", c("-C", shQuote(here::here()), "diff", "--quiet", "HEAD", "--", shQuote(g)), stdout = FALSE, stderr = FALSE) == 0
+    if (!tracked || !clean) stop(g, " is not committed as it stands: commit it before publishing", call. = FALSE)
+  }
   want <- strsplit(readLines(sha_file, n = 1), "  ", fixed = TRUE)[[1]][1]
   if (!identical(sha256(out_csv), want)) stop(out_csv, " does not match the committed hash ", want, call. = FALSE)
   f <- file.path(cfg$dir_ref, "labels.csv")
   if (file.exists(f) && !identical(sha256(f), want)) stop(f, " exists and differs from the model's labels", call. = FALSE)
-  file.copy(out_csv, f, overwrite = TRUE)
-  message(f, ": the model's labels, matching ", basename(sha_file))
+  if (!isTRUE(file.copy(out_csv, f, overwrite = TRUE)) || !identical(sha256(f), want))
+    stop("copying the model's labels to ", f, " failed", call. = FALSE)
+  # B is frozen from here: the gate in accuracy_estimate.R refuses a labels_b.csv that differs from this
+  writeLines(sprintf("%s  labels_b.csv", sha256(fb)), file.path(cfg$dir_ref, "labels_b.sha256"))
+  message(f, ": the model's labels, matching ", basename(sha_file), "; labels_b.csv frozen in labels_b.sha256")
 }
