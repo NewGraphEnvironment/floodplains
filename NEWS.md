@@ -1,3 +1,25 @@
+# floodplains 0.1.17 (2026-10-23)
+
+* A blind model labeller for NECR's accuracy sample (#145, #93). One agent labels all 480 points from
+  rendered sheets of Sentinel-2 composites, the Esri Wayback captures nearest each endpoint and the
+  2012 air photo. A person labels a 75-point audit. `accuracy_estimate.R` lets the model's labels into
+  the estimate only if the gate pre-registered in `research/landcover_accuracy.md` ("Model labeller")
+  holds: kappa >= 0.7 at both endpoints, change agreement >= 0.85, model abstention <= 10%.
+  * `review_render-sheets.R` draws the sheets; `labels_import-model.R` runs `prompt`, `extract`,
+    `import`, `freeze` and `publish`. Each label is bound to the image the agent saw, by pixels.
+  * The model's labels stay out of the repo behind `reference/necr/labels_model.sha256` until the
+    person's `labels_b.csv` is committed. Every freeze is decided by git history, so this work merges
+    with a merge commit, never a squash.
+  * NECR's run: 471 labelled, 9 declined. No accuracy is claimed until the audit is labelled
+    (`scripts/landcover_accuracy/logs/20261023_model_labels_necr.md`).
+* The labelling key's confidence rule widens to +/-2 years, and growth blinding is accepted and
+  reported (#113).
+* `wayback_coverage-area.R <area>` measures how near each change endpoint Esri Wayback can see an
+  area's floodplain, from capture metadata only (drift >= 0.24.0). BULK's result is in
+  `scripts/landcover_accuracy/logs/20261023_wayback_coverage_bulk.md`.
+* `research/network_reference.md` holds the network reference tables that lived in machine-local
+  memory.
+
 # floodplains 0.1.16 (2026-10-19)
 
 * Every floodplain layer is split at the watershed group line, and each piece carries `in_wsg`
