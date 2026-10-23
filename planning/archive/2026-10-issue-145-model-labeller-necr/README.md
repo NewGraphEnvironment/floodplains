@@ -24,7 +24,7 @@ transcript passed the audit:
 The labels stay gitignored behind a committed SHA-256 until the person's labels exist. **No accuracy is
 claimed yet.**
 
-**The code review.** `/code-check branch` ran six rounds. Rounds 2, 4 and 5 each found a defect inside the
+**The code review.** `/code-check branch` ran six rounds. Rounds 2, 4, 5 and 6 each found a defect inside the
 previous round's fix, and all of them sat in one mechanism: the machinery that keeps the person blind to the
 model's labels. Round 3 named it: steps identified their input by a name every run reuses, and "freezes" were
 written by steps that can run again, so a re-run, a reused name or a missing file could make two records
