@@ -78,8 +78,8 @@ Measured in exploration (2026-10-23):
 - [x] `reference_composition-wetland.R necr` and `reference_omission-disturbance.R necr` (both stamped `all_ff04`); `composition-check.R necr` (5) PASS; report criterion 4's new value
 - [x] `imagery_index-dated.R necr` produces `imagery.csv`; `wayback_index-capture.R necr` produces `wayback.csv`
 - [x] Air-photo thumbnails: reuse the aside project's `dated/airphoto_*` if they are keyed by frame, not point (review item 9)
-- [ ] `review_build-qgis.R necr` (A) creates the project and `review_key.csv`; then `imagery_build-dated.R`, `wayback_build-chips.R` and `caffeinate -s chip_build-composite.R necr` (about 17 h, backgrounded, gated on its own log and manifest, not its exit)
-- [ ] Rebuild A, then `REVIEWER=b` B (75 points), so both carry the chips and the dated themes; 0 labels in each
+- [x] `review_build-qgis.R necr` (A) creates the project and `review_key.csv`; then `imagery_build-dated.R`, `wayback_build-chips.R` and `caffeinate -s chip_build-composite.R necr` (about 17 h, backgrounded, gated on its own log and manifest, not its exit)
+- [x] Rebuild A, then `REVIEWER=b` B (75 points), so both carry the chips and the dated themes; 0 labels in each
 
 ## Phase 4: Model labeller on the new draw
 - [ ] `review_render-sheets.R necr 40`; batches through `labels_import-model.R prompt → extract` with blind Plan agents (canary first, 3 at a time); `import` writes the new `labels_model.sha256`. This session never reads `model/`.
