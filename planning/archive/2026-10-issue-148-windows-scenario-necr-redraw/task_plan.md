@@ -97,9 +97,9 @@ Measured in exploration (2026-10-23):
 ## Validation
 
 - [x] Tests pass
-- [ ] `/code-check` clean (once over the branch with `/code-check branch`)
-- [ ] PWF checkboxes match landed work
-- [ ] `/planning-archive` on completion
+- [x] `/code-check` clean (once over the branch with `/code-check branch`)
+- [x] PWF checkboxes match landed work
+- [x] `/planning-archive` on completion
 
 Verification:
 - `accuracy-check.R` ALL PASS, with the new arms; the mutations turn them red, run in a copy.
