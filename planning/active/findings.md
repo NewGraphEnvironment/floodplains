@@ -71,4 +71,5 @@ Criterion 4 (free reference: IO's omission of qualifying harvest) was scored on 
 
 ## Chips on the all_ff04 draw (2026-10-24)
 
-- A gdalcubes `repoprted` line appeared for one 2023 chip (32_00004) that drift's chunk_status check did not refuse. Refetched, the chip was identical cell for cell, so the warning did not reach the output this time; it shows the check does not see every failed read (drift#87).
+- The one gdalcubes `repoprted` line in the 2023 log was first credited to 32_00004, which drift did not refuse, and that chip was refetched (identical, 0 of 3,969 cells). Round 5 showed the attribution wrong: gdalcubes' output is block-buffered (blocks of 1, 2, 4 … 445 lines), 648 `##` lines (~324 cubes) precede the warning, and 19_00001, which drift refused, was the 325th query. So the line sits where its block was flushed.
+- The same buffering means a log's last block is never written: each window log has 895 `##` lines for 473 cubes, so the last ~25 cubes left no line, and the `grep repoprted` gate cannot see them. This applies to every gdalcubes log the repo greps (windows included). Filed as #150.

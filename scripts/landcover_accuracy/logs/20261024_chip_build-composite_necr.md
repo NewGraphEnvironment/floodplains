@@ -23,11 +23,19 @@ The redraw moved every point, so every chip was a cold fetch.
 - **The full pass** (`chip_build-composite.R necr`, all four windows) fetched the three and wrote the
   manifest and the VRTs: **1,920 chips (0 missing) for 480 points x 4 windows in 6.0 min**. The manifest's
   points equal `sample.gpkg`'s, four windows each.
-- **`grep -c repoprted`:** 0 in the 2017, 2018 and 2020 logs and in the full pass. **1 in the 2023 log**,
-  for point `32_00004`, which drift did not refuse: its `chunk_status` recorded no failure, so the per-chunk check does not see every failed read (drift#87).
-  The chip was moved aside and fetched again
-  with no warning, and the two are identical (0 of 11,907 cells differ). The pass after that wrote
-  1,920 chips, 0 missing, in 2.8 min.
+- **`grep -c repoprted`:** 0 in the 2017, 2018 and 2020 logs and in the full pass, 1 in the 2023 log. That
+  one is gdalcubes reporting `19_00001`, the chip drift refused. gdalcubes' `##` and `[WARNING]` lines reach
+  the log in buffered blocks that double in size (1, 2, 4 … 224, 445 lines), so a line lands where its
+  block was flushed, not where it was written. The warning sat in the block flushed during point
+  `32_00004`, but 648 `##` lines (about 324 cubes) precede it, and `19_00001` was the 325th query.
+  - Read at first as `32_00004`'s, that chip was moved aside and fetched again. The two are identical
+    (0 of 3,969 cells differ in any of 3 bands). The pass after that wrote 1,920 chips, 0 missing, in
+    2.8 min.
+  - **The grep cannot see the end of a log.** The last block is never written: each window log holds
+    895 `##` lines for 473 fetched cubes, about two a cube, so the last 25 or so cubes left no line.
+    The full pass (3 cubes) and the `32_00004` pass (1 cube) wrote only 3 and 1 `##` lines, about half
+    of theirs, so they are partly in that blind spot. What vouches for every chip is drift's
+    `chunk_status` check, which refused `19_00001` on its first fetch (#150).
 - **NA share per chip** (bands x cells): the median is 0 in every window. The maximum is 1.0% (2017),
   8.1% (2018, the one chip over 5%), 1.1% (2020) and 0 (2023).
 

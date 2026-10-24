@@ -467,8 +467,9 @@ subsection to fit agreement already measured.
   - **Re-chipped on the `all_ff04` draw (#148).** Every point moved, so every chip was fetched cold.
     One process ran at about 73 s a chip, so the build ran as four one-window processes, which took
     175 to 560 min. Three chips failed on transient errors and came on the full pass: **1,920 chips
-    with 0 missing**, finished 2026-10-24. One 2023 chip had a gdalcubes failed-read line that drift's
-    chunk check did not refuse; fetched again, it was identical cell for cell. Log:
+    with 0 missing**, finished 2026-10-24. The one gdalcubes failed-read line was for a chip drift's
+    chunk check had refused. Those lines are buffered, so a log's last block is never written, and a
+    `grep` for them cannot see a log's last ~25 cubes. Log:
     `scripts/landcover_accuracy/logs/20261024_chip_build-composite_necr.md`.
 - **2017 summer imagery is thin.** Under the 20% scene-cloud filter, **5 of 15** test points had
   no usable July–August 2017 scene at all ("no scenes"). Only Sentinel-2A was flying, and 2017 was
