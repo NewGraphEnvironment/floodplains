@@ -1,12 +1,14 @@
 # IO LULC accuracy inside our floodplains
 
-**Verified:** 2026-10-23 · **Issues:** #93 (this work), #111 (blind review, labelling key), #145 (model labeller), #113 (confidence ceiling, growth blinding), #92 (report), #94 (review surface), #95
+**Verified:** 2026-10-24 · **Issues:** #93 (this work), #111 (blind review, labelling key), #145 (model labeller), #113 (confidence ceiling, growth blinding), #92 (report), #94 (review surface), #95
 (wetland flag), #103 (prior-fire stratum, dated imagery), drift#79 / drift#81 (composites, sampling + estimators); spawned #100 (patch-level
 harvest attribution) and drift#92 (clear-observation counts) · **Produced by:**
 `scripts/landcover_accuracy/` (logs under `scripts/landcover_accuracy/logs/`) · **Status:**
 OPEN — criteria and definitions pre-registered; drought years and free reference measured
-(criterion 4 does not hold); NECR pilot sample and review project ready; composite-window rule
-measured (August; 2017 August–September); chips built and in the review project;
+(criterion 4 does not hold); NECR pilot sample redrawn on the published `all_ff04` floodplain
+(#148) and review project ready; composite-window rule measured (August; 2017 August–September);
+chips built on the new draw (2026-10-24) and in both review projects; model labeller run on the
+new draw;
 **verdict pending human labels.**
 
 Every land-cover number this repo publishes — floodplain tree loss, the fire/harvest attribution
@@ -118,98 +120,115 @@ transition is `from * 1000 + to`.
 
 ## Free reference: results
 
-**Verified:** 2026-09-29 · **Produced by:** `scripts/landcover_accuracy/reference_omission-disturbance.R`
-and `reference_composition-wetland.R`, logs `scripts/landcover_accuracy/logs/20260929_reference_*_necr.*`.
+**Verified:** 2026-10-23, on `all_ff04` (#148; first measured 2026-09-29 on `ch_ff04`) · **Produced by:**
+`scripts/landcover_accuracy/reference_omission-disturbance.R` and `reference_composition-wetland.R`, logs
+`scripts/landcover_accuracy/logs/2026*_reference_*_necr.*`.
 
 ### Omission of known disturbance
 
 These are computed exactly as defined above. The breakdown is **per start year** rather than per
-polygon (79 polygons, most under 1 ha of floodplain Trees). That is a reporting choice and changes
+polygon (223 polygons, 2.2 ha of floodplain Trees each on average). That is a reporting choice and changes
 nothing in the criterion.
 
 | source | polygons | IO Trees 2017 inside (ha) | IO omission | published omission |
 |---|---:|---:|---:|---:|
-| harvest (clearcut ≥ 90%, RESULTS/VRI, 2018–2022) | 79 | 92.1 | **0.255** | 0.411 |
-| fire (2018–2022) | 3 | 635.2 | 0.314 | 0.329 |
+| harvest (clearcut ≥ 90%, RESULTS/VRI, 2018–2022) | 223 | 481.5 | **0.148** | 0.234 |
+| fire (2018–2022) | 5 | 1,481.6 | 0.332 | 0.351 |
 
-- **Criterion 4 does not hold.** IO labels 74.5% of qualifying harvest area as tree loss by 2023,
-  so it misses 25.5%, under the 30% bar. The annual rows range 0.20–0.33, over 12–24 ha each.
-- **The sieve costs more than IO does.** The published map misses 41.1% of the same harvest area,
-  so step 3's 1 ha sieve adds 16 points of omission on top of IO's. That is a property of our
-  product, not of IO, and it is the reason the stratified sample carries a sieved-change stratum.
-- The denominator is small. NECR's floodplain holds only 92 ha of qualifying clearcut that IO saw
-  as Trees in 2017, so this is a census of a small population, not a precise rate. Nearly all of
-  the fire row is the two 2018 fires.
+- **Criterion 4 does not hold.** IO labels 85.2% of qualifying harvest area as tree loss by 2023,
+  so it misses 14.8%, under the 30% bar. The annual rows range 0.12–0.18, over 84–113 ha each.
+- **The population moved, and the verdict did not** (#148). On `ch_ff04`, the population the sample
+  was first drawn on, criterion 4 read **0.255** over 92.1 ha (79 polygons; published omission 0.411).
+  The sample moved to the published `all_ff04` floodplain for a catalogue reason, decided before
+  any `all_ff04` accuracy number existed, and it was recorded beforehand that the `all_ff04` value is
+  the one that counts. Both values sit under the bar.
+- **The sieve still costs more than IO does.** The published map misses 23.4% of the same harvest
+  area, so step 3's 1 ha sieve adds 9 points of omission on top of IO's (16 on `ch_ff04`). That is a
+  property of our product, not of IO, and it is the reason the stratified sample carries a
+  sieved-change stratum.
+- The denominator is larger than on `ch_ff04` but still a census of a modest population: 481 ha of
+  qualifying clearcut that IO saw as Trees in 2017. The 2018 fires are 90% of the fire row's area
+  (99.95% on `ch_ff04`); the 2021 fire adds 145 ha.
 - Caveats, as defined: riparian reserves inside cutblock polygons inflate apparent omission;
   start year is not removal date; regrowth to Trees by 2023 reads as missed.
 
 ### How IO labels a mapped wetland
 
-Inside FWA wetlands, per cell centre: 1,122 polygons touch the floodplain, covering 6,436.6 ha of
-the 41,838 ha footprint.
+Inside FWA wetlands, per cell centre: 2,646 polygons touch the `all_ff04` floodplain, covering
+12,809.0 ha of the 80,783 ha footprint (on `ch_ff04`: 1,122 polygons, 6,436.6 of 41,838 ha).
 
 | IO class | 2017 | 2018 | 2019 | 2020 | 2021 | 2022 | 2023 |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| Trees | 0.583 | 0.568 | 0.508 | 0.565 | 0.527 | 0.552 | 0.518 |
-| Rangeland | 0.340 | 0.350 | 0.412 | 0.349 | 0.387 | 0.380 | 0.411 |
-| Crops | 0.052 | 0.057 | 0.058 | 0.058 | 0.056 | 0.047 | 0.049 |
-| Water | 0.012 | 0.018 | 0.017 | 0.017 | 0.022 | 0.016 | 0.018 |
-| Flooded Vegetation | 0.003 | 0.006 | 0.004 | 0.009 | 0.006 | 0.005 | 0.004 |
+| Trees | 0.607 | 0.583 | 0.541 | 0.611 | 0.559 | 0.580 | 0.538 |
+| Rangeland | 0.326 | 0.345 | 0.390 | 0.316 | 0.367 | 0.360 | 0.398 |
+| Crops | 0.045 | 0.049 | 0.047 | 0.046 | 0.048 | 0.041 | 0.044 |
+| Water | 0.012 | 0.017 | 0.017 | 0.018 | 0.021 | 0.015 | 0.016 |
+| Flooded Vegetation | 0.004 | 0.004 | 0.004 | 0.006 | 0.004 | 0.004 | 0.003 |
 
-- **IO almost never calls a mapped wetland "Flooded Vegetation"**: 0.3–0.9% in every year. Treed
+- **IO almost never calls a mapped wetland "Flooded Vegetation"**: 0.3–0.6% in every year (0.3–0.9%
+  on `ch_ff04`). Treed
   swamp is legitimately Trees under IO's legend, so this is not an error rate by itself. It does
   mean that wetland change in IO terms is almost entirely **Trees ↔ Rangeland** movement inside
   wetlands, not a Flooded Vegetation signal. Criterion 1 (FV producer's accuracy) and criterion 3
   (Trees→Rangeland user's accuracy) are the two places the sample will test it.
-- **The Trees/Rangeland split inside wetlands moves 7 points between years** (Trees 0.508 in 2019,
-  0.583 in 2017), with nothing on the ground known to move it. Across the whole floodplain, Trees
-  moves 3.5 points (0.411–0.445). That year-to-year flicker, 2× stronger in wetlands, is
-  what a change map built from two single years inherits.
+- **The Trees/Rangeland split inside wetlands moves 7 points between years** (Trees 0.538 in 2023,
+  0.611 in 2020), with nothing on the ground known to move it. Across the whole floodplain, Trees
+  moves 3.5 points (0.510–0.545). That year-to-year flicker, 2× stronger in wetlands, is
+  what a change map built from two single years inherits. (`ch_ff04`: 0.508–0.583 in wetlands,
+  0.410–0.445 overall.)
 
 ## Reference sample (NECR pilot)
 
-**Drawn:** 2026-09-29, redrawn 2026-10-02 with stratum 19 (#103) · **Produced by:**
+**Drawn:** 2026-10-23 on `all_ff04` (#148), after draws on `ch_ff04` on 2026-09-29 and 2026-10-02 · **Produced by:**
 `scripts/landcover_accuracy/sample_draw-pilot.R`, logs
 `scripts/landcover_accuracy/logs/2026*_sample_draw-pilot_necr.md` · **Record:**
 `reference/necr/{sample.gpkg,strata.csv,design.json}` · seed 930093, 30 points per stratum.
 
-The 16 strata partition the 41,838 ha footprint exactly. The change strata sum to the 472,998
-published change cells, and the sieved stratum holds the 104,947 cells the 1 ha sieve removed.
-The design record redraws **byte-identical**.
+**Why it moved.** The sample was first drawn on `ch_ff04`, NECR's chinook floodplain. The catalogue
+retired the species items on 2026-10-15, so the published NECR floodplain is `all_ff04`, the whole
+network at order ≥ 2, and the sample was redrawn there under `FORCE=1`, with the same seed and
+allocation. Nobody had labelled in either review project. The model labeller's labels for the first
+draw were discarded unread (see "Model labeller"). Every reference input was regenerated on the new
+draw.
 
-The 2026-10-02 redraw added stratum 19. Strata that lost no cells to it kept every point, across
-drift 0.19.0 → 0.20.0. Eight gave it cells; seven moved under the same ids, and Crops ↔ Trees (0.02 ha given) kept its points. Nothing had been
-labelled; the 2026-10-02 log has the per-stratum detail.
+The 16 strata partition the 80,783 ha footprint exactly (41,838 ha on `ch_ff04`). The change strata
+sum to the 1,019,347 published change cells, and the sieved stratum holds the 204,033 cells the 1 ha
+sieve removed. The design record redraws **byte-identical**.
+
+Earlier draws, on `ch_ff04`: the 2026-10-02 redraw added stratum 19 (#103). Strata that lost no cells
+to it kept every point, across drift 0.19.0 → 0.20.0. Eight gave it cells; seven moved under the same
+ids, and Crops ↔ Trees (0.02 ha given) kept its points. Nothing had been labelled; the 2026-10-02 log
+has the per-stratum detail.
 
 | stratum | ha | weight |
 |---|---:|---:|
-| change: fire | 582.5 | 0.0139 |
-| change: harvest | 621.5 | 0.0149 |
-| wetland change | 758.0 | 0.0181 |
-| Trees → Rangeland | 180.6 | 0.0043 |
-| Rangeland → Trees | 390.1 | 0.0093 |
-| Crops ↔ Rangeland | 1,304.4 | 0.0312 |
-| Crops ↔ Trees | 178.8 | 0.0043 |
-| Snow/Ice → any | 3.4 | 0.0001 |
-| any ↔ Water | 126.1 | 0.0030 |
-| other tree loss | 31.8 | 0.0008 |
-| other change | 99.5 | 0.0024 |
-| change in prior fire (2002–2016) | 453.4 | 0.0108 |
-| sieved change (<1 ha) | 1,049.5 | 0.0251 |
-| stable wetland (FWA or Flooded Vegetation) | 5,198.5 | 0.1243 |
-| stable Trees | 13,206.1 | 0.3156 |
-| stable other | 17,654.1 | 0.4220 |
+| change: fire | 1,531.7 | 0.0190 |
+| change: harvest | 1,709.4 | 0.0212 |
+| wetland change | 1,473.2 | 0.0182 |
+| Trees → Rangeland | 370.1 | 0.0046 |
+| Rangeland → Trees | 1,248.8 | 0.0155 |
+| Crops ↔ Rangeland | 2,384.9 | 0.0295 |
+| Crops ↔ Trees | 335.2 | 0.0041 |
+| Snow/Ice → any | 14.9 | 0.0002 |
+| any ↔ Water | 208.0 | 0.0026 |
+| other tree loss | 48.9 | 0.0006 |
+| other change | 194.5 | 0.0024 |
+| change in prior fire (2002–2016) | 673.8 | 0.0083 |
+| sieved change (<1 ha) | 2,040.3 | 0.0253 |
+| stable wetland (FWA or Flooded Vegetation) | 10,283.3 | 0.1273 |
+| stable Trees | 32,363.4 | 0.4006 |
+| stable other | 25,902.3 | 0.3206 |
 
-- **Cell-level causes are not the published attribution, and for harvest the gap is large.** 3 of
-  the 30 fire-stratum points lie outside every fire polygon at cell level, but **17 of the 30
-  harvest-stratum points** lie outside every cutblock. Measured over the whole grid, only 48.9% of
-  NECR's harvest-attributed tree loss (287.8 of 588.9 ha) lies inside a qualifying cutblock. For fire
-  it is 94.2%. Step 3 tags a patch with a cause if it touches the polygon anywhere, so half of the
+- **Cell-level causes are not the published attribution, and for harvest the gap is large.** 1 of
+  the 30 fire-stratum points lies outside every fire polygon at cell level, but **17 of the 30
+  harvest-stratum points** lie outside every cutblock (on `ch_ff04`: 3 and 17). Measured over the
+  whole `ch_ff04` grid (2026-09-29), only 48.9% of NECR's harvest-attributed tree loss (287.8 of
+  588.9 ha) lies inside a qualifying cutblock, and for fire 94.2%; not re-measured on `all_ff04`. Step 3 tags a patch with a cause if it touches the polygon anywhere, so half of the
   "harvest" credit is change beside a block. Filed as #100. Criterion 2 scores the reference
   against cell-level polygons for exactly this reason.
 - **Stable strata are thin at 30 points.** drift measured a rare class hiding in a large stratum
   giving 95% intervals that cover 61% of the time at 25 points per stratum (drift#81). The stable
-  strata hold 86% of the footprint and are where omission hides. The pilot keeps the allocation
+  strata hold 85% of the footprint (86% on `ch_ff04`) and are where omission hides. The pilot keeps the allocation
   chosen at the plan gate. The full sample should raise the stable strata first: same seed, larger
   `n`, and the pilot's labels carry over.
 
@@ -297,7 +316,8 @@ usage, so a disagreement measures IO's error rather than a mismatch of definitio
     the `cell`, the dated imagery covering the point, and the label fields. It carries no `point_id`,
     stratum, IO class or cause flag.
   - `reference/<area>/review_key.csv` (committed, never shipped in the project) maps `review_id` back.
-    It is append-only and drawn from a seed stream of the design seed.
+    It is append-only and drawn from a seed stream of the design seed. A forced redraw starts a new
+    one, because the old key maps ids to points that moved (#148).
   - The export unblinds through the key and checks every cell against it.
   - IO's change patches and the FWA wetlands (a stratifier) appear only in the `9 After labelling`
     theme, and are unchecked in the layer tree.
@@ -368,7 +388,14 @@ subsection to fit agreement already measured.
     on another machine and never pushed.
 - **What the model sees.** One contact sheet per point. Sheets are named `sheet_<k>` over a shuffle
   drawn at render time, which is not the `review_id` order. The map from sheet to point is frozen
-  once any label exists. A sheet shows the outlined 10 m cell in:
+  once any label exists. *(Amended 2026-10-23, before any agreement was computed and before labeller
+  B made any label, #148.)* The one exception is a forced redraw: the sample moved from `ch_ff04` to
+  the published `all_ff04` floodplain, so the first draw's model labels (hash committed in 4072a24)
+  describe cells no longer in the sample. They were discarded unread: nobody, the session that ran the
+  redraw included, opened them. The sheets are rendered afresh for the new draw and the model
+  labels them again, under the same rules; that second hash (`084dafcd3563…`, 2026-10-24) replaces the first. A redraw is
+  decided by `sample_draw-pilot.R` under `FORCE=1`, never to change labels. A sheet shows the outlined
+  10 m cell in:
   - the Sentinel-2 same-season composites, 310 m around the cell;
   - the Wayback capture nearest each endpoint, 120 m around the cell, titled with its capture date.
     It is fetched unclipped. The review project's chips are clipped to Voronoi cells, which would
@@ -416,7 +443,7 @@ subsection to fit agreement already measured.
   from any other sheet, so the 0.01 tolerance separates them about tenfold. The first render was
   near-black on forest (a linear 0-0.25 stretch, with forest near 0.03) and smoothed (terra's
   `plotRGB(smooth = TRUE)`). The sheets use a fixed square-root stretch and unsmoothed pixels.
-- **The NECR run:** `scripts/landcover_accuracy/logs/20261023_model_labels_necr.md`.
+- **The NECR run:** `scripts/landcover_accuracy/logs/20261024_model_labels_necr.md`, on the `all_ff04` draw (hash `084dafcd3563…`). The first draw's run, discarded unread, is `logs/20261023_model_labels_necr.md`.
 
 - **Project.** `review_build-qgis.R` builds an rfp restoration-template project, which needs QGIS
   4.x, under `data/<area>/accuracy/review/` (gitignored). It holds the label layer with a
@@ -437,10 +464,17 @@ subsection to fit agreement already measured.
     missing** in 282 min on 2026-10-02. Unmoved points came from the per-point cache, and the log
     has no gdalcubes failed-read line. Log:
     `scripts/landcover_accuracy/logs/20261002_chip_build-composite_necr.md`.
+  - **Re-chipped on the `all_ff04` draw (#148).** Every point moved, so every chip was fetched cold.
+    One process ran at about 73 s a chip, so the build ran as four one-window processes, which took
+    175 to 560 min. Three chips failed on transient errors and came on the full pass: **1,920 chips
+    with 0 missing**, finished 2026-10-24. The one gdalcubes failed-read line was for a chip drift's
+    chunk check had refused. Those lines are buffered, so a log's last block is never written, and a
+    `grep` for them cannot see a log's last ~25 cubes. Log:
+    `scripts/landcover_accuracy/logs/20261024_chip_build-composite_necr.md`.
 - **2017 summer imagery is thin.** Under the 20% scene-cloud filter, **5 of 15** test points had
   no usable July–August 2017 scene at all ("no scenes"). Only Sentinel-2A was flying, and 2017 was
   a heavy smoke year. The window measurement settled it: July 2017 has no scene at all on the
-  floodplain and August reaches 0.852, but August–September clears everywhere. The 2017 chips use
+  floodplain and August reaches 0.869 (0.852 on `ch_ff04`), but August–September clears everywhere. The 2017 chips use
   that window (see Composite windows), so HLS (drift#82) is not needed for the endpoint.
 - **Estimation is wired end to end.** On synthetic labels (IO's own endpoints with 20% of `ref_to`
   flipped, `SYNTHETIC=1`) it returns the nonresponse table, error-adjusted areas with CIs for
@@ -449,7 +483,7 @@ subsection to fit agreement already measured.
 
 ## Dated reference imagery (#103)
 
-**Verified:** 2026-10-02 · **Produced by:** `scripts/landcover_accuracy/imagery_index-dated.R`
+**Verified:** 2026-10-23, on the `all_ff04` draw (#148) · **Produced by:** `scripts/landcover_accuracy/imagery_index-dated.R`
 (writes `reference/necr/imagery.csv`), `imagery_build-dated.R`, `review_build-qgis.R` · **Issues:**
 #103, fly#88 (withdrawn: a caller error, see below).
 
@@ -459,18 +493,20 @@ sample point is listed, so a stale index can be detected and not just a disagree
 
 | source | epoch | points covered (of 480) | resolution | review theme |
 |---|---|---:|---|---|
-| orthophoto (private catalogue) | 2021 | 204 (42.5%) | 0.15 m | yes |
-| air photo, digital | 2012 | 480 (100%) | 4.43 m (georeferenced thumbnails) | yes |
-| air photo, digital | 2019 | 14 | | no (< 25%) |
-| air photo, film | 1963–2006 | up to 480 (1988, 1996, 2000) | | no: indexed only |
+| orthophoto (private catalogue) | 2021 | 136 (28.3%) | 0.15 m | yes |
+| air photo, digital | 2012 | 480 (100%) | 4.41 m (georeferenced thumbnails) | yes |
+| air photo, digital | 2019 | 12 | | no (< 25%) |
+| air photo, film | 1963–2006 | up to 480 (1996, 2000) | | no: indexed only |
 
-- **Orthophoto coverage is measured from pixels, not footprints.** The footprints touch 229 points,
-  but 25 of them sit on a tile's zero-filled collar. The orthophotos are read remotely from the
+  On the first (`ch_ff04`) draw the orthophoto covered 204 of 480 points (42.5%). Why the share fell
+  on `all_ff04` was not measured.
+- **Orthophoto coverage is measured from pixels, not footprints.** The footprints give 161
+  point-tile hits, 15 of them on a tile's zero-filled collar (229 and 25 on the first draw). The orthophotos are read remotely from the
   private catalogue, through a VRT warped to BC Albers inside the gitignored review project.
   **That catalogue's endpoint is never written into this public repo, and every remote call
   redacts URLs and hosts from its messages.**
 - **2012 air photos are the only themed pre-interval view**, five years before the 2017 endpoint.
-  - **The 4.43 m thumbnails are the limit.** They are sharper than the chips, not sharper than the
+  - **The 4.4 m thumbnails are the limit.** They are sharper than the chips, not sharper than the
     orthophoto, and they help with structure (stand edges, channel position) more than with
     class.
 - **Film epochs wait for per-roll rotations (fly#53).** `fly_georef` skips a film frame that has a
@@ -481,8 +517,10 @@ sample point is listed, so a stale index can be detected and not just a disagree
     skipped, while `suppressWarnings()` hid fly's warning naming the cause.
   - It was filed as a fly defect. Code review traced it back, and the issue was corrected and
     withdrawn.
-  - Passing the year's full frame set georeferences 250 of 250 frames.
-- **`windows.csv` does not change.**
+  - Passing the year's full frame set georeferenced 250 of 250 frames on the first draw, and 305 of
+    305 on the `all_ff04` draw.
+- **Dated imagery does not change `windows.csv`.** Only a change of scenario re-measures it, since
+  the windows are counted over the floodplain and their readers refuse another scenario (#148).
   - The windows come from a pre-registered rule over clear-day counts (Composite windows).
   - No orthophoto or air photo epoch falls on an endpoint: the orthophoto is 2021, and the latest
     themed air photo is 2012. The Esri Wayback captures (next section) are what reaches the
@@ -503,7 +541,7 @@ sample point is listed, so a stale index can be detected and not just a disagree
 
 ## Esri Wayback captures nearest each endpoint (#115)
 
-**Verified:** 2026-10-08 · **Produced by:** `scripts/landcover_accuracy/wayback_index-capture.R`
+**Verified:** 2026-10-23, on the `all_ff04` draw (#148; first 2026-10-08) · **Produced by:** `scripts/landcover_accuracy/wayback_index-capture.R`
 (writes `reference/necr/wayback.csv`), `wayback_build-chips.R`, `review_build-qgis.R` · **Issues:**
 #115, rtj#377 (the Mergin project), rfp#398, qgis/QGIS#54161. Run record:
 `planning/archive/*-issue-115-*/`.
@@ -512,9 +550,9 @@ Esri's World Imagery is sub-metre over most of NECR, and its archive, Wayback, p
 as it stood on each of 197 release dates (2014-02-20 to 2026-09-24).
 
 - **A release date is not a capture date** (rtj `research/esri_wayback.md`). A release mosaics
-  captures of many years, so no single release is "the 2017 layer". At NECR point 1 (`17_00009`),
-  the 2017-11-16 release serves a 2013-05-06 capture, and the 2017-06-11 capture first appears in the
-  2020-04-29 release.
+  captures of many years, so no single release is "the 2017 layer". At a NECR point of the first
+  draw (`17_00009`, 2026-10-08), the 2017-11-16 release served a 2013-05-06 capture, and the
+  2017-06-11 capture first appeared in the 2020-04-29 release.
 - **So the capture is chosen per point, from metadata.**
   - Each release's metadata MapServer has one layer per scale band; layer `L` describes tile zoom
     `23 - L`. Layers 4-6 (zoom 19-17) are queried once per release over the sample's bbox and joined
@@ -523,36 +561,41 @@ as it stood on each of 197 release dates (2014-02-20 to 2026-09-24).
   - Per point and endpoint, the capture nearest the endpoint wins (`fp_acc_wayback_pick`): whole
     years first, as rule 5 of the labelling key does, then days from 1 July, then finer resolution,
     then the later release.
-- **NECR, 480 points** (90,538 point-release captures, 52 distinct capture dates; no point without
-  one):
+- **NECR, 480 points of the `all_ff04` draw** (89,814 point-release captures, 55 distinct capture
+  dates; no point without one):
 
   | endpoint | same year | +/-1 year | +/-2 years | further |
   |---|---:|---:|---:|---:|
-  | 2017 | 6 | 237 | 106 | 131 |
-  | 2023 | 148 | 115 | 102 | 115 |
+  | 2017 | 34 | 287 | 64 | 95 |
+  | 2023 | 136 | 100 | 76 | 168 |
 
-  So 243 points (51%) have a capture within +/-1 year of 2017, where before there was no sharp
-  imagery nearer than the 2012 air photo thumbnails. 2023 has 263 (55%).
-  - Captures are 0.31-0.5 m (639 of the 960 picks at 0.5 m). 211 picks are served at zoom 17 (tiles
-    ~0.70 m on the ground at 54 N) and 749 at zoom 18 (~0.35 m).
+  So 321 points (67%) have a capture within +/-1 year of 2017, where before there was no sharp
+  imagery nearer than the 2012 air photo thumbnails. 2023 has 236 (49%). On the first (`ch_ff04`)
+  draw the shares were 243 (51%) and 263 (55%), so the better-covered endpoint changed.
+  - Captures are 0.31-0.5 m (596 of the 960 picks at 0.5 m). 209 picks are served at zoom 17 (tiles
+    ~0.70 m on the ground at 54 N) and 751 at zoom 18 (~0.35 m).
 - **QGIS cannot draw Wayback** (qgis/QGIS#54161, open since 2023-08, not fixed in 4.2.3 or the 3.44
   LTR). A tile unchanged in a release 301-redirects to the release holding it, with a relative
   `Location`, which QGIS requests as a bare path. GDAL follows it, so the chips are fetched with GDAL
   into local rasters, and labelling needs no network.
-- **Each pixel belongs to its nearest point.** 176 of the 480 points have a neighbour within 300 m,
-  so the +/-150 m chips overlap, and neighbours are usually different captures. Each chip is clipped
+- **Each pixel belongs to its nearest point.** 119 of the 480 points have a neighbour within 300 m
+  (176 on the first draw), so the +/-150 m chips overlap. Neighbours usually share one capture: of
+  the 86 pairs within 300 m, the picked capture date differs in 0 at 2017 and 2 at 2023 (3 and 4 of
+  140 on the first draw). Where it differs, or the release or zoom does, an unclipped chip would
+  cover its neighbour's point with the wrong date, so each chip is clipped
   to its point's Voronoi cell.
   - A VRT ignores a source's **mask** band when it composites but honours its **nodata** (measured:
     with JPEG + mask chips, the chip listed last overwrote its neighbour at the neighbour's own
     point).
   - So the chips are lossless with nodata 0 outside the cell. The build reads the pixel under every
     point back from the mosaic and refuses unless it is that point's own chip.
-- **Built for NECR: 960 chips (480 points x 2 endpoints), 711 MB** in `dated/wayback_*`. A cold build
-  takes 21 min and a re-run seconds: tiles are cached, and a chip is kept while its release, zoom and
-  clip are unchanged. Log: `scripts/landcover_accuracy/logs/20261008_wayback_necr.md`.
+- **Built for NECR: 960 chips (480 points x 2 endpoints), 766 MB** in `dated/wayback_*` (on the
+  `all_ff04` draw, 2026-10-23: 0 failed, 14.5 min cold). A cold build takes 15–21 min and a re-run seconds: tiles are cached, and a chip is kept while its release, zoom and
+  clip are unchanged. Logs: `scripts/landcover_accuracy/logs/20261023_imagery-wayback_necr.md` (this
+  draw) and `20261008_wayback_necr.md` (the first: 711 MB, 21.2 min, 4 failed then fetched).
   - **A flat cell is not a failure.** The first build refused three cells as possible placeholder
     tiles. All three were open lake, so the check was removed.
-  - **115 of 480 points have the same capture at both endpoints**, because one capture is all they have
+  - **160 of 480 points have the same capture at both endpoints** (115 on the first draw), because one capture is all they have
     near either. The chip then dates one endpoint well and the other poorly, and the label says which.
 - **A label decided on a chip records `esri_dated`, never `esri`.** Rule 5 caps the undated
   basemaps at `low`; a dated capture within +/-2 years (+/-1 before #145) supports `high` or `medium` like any dated
@@ -562,10 +605,10 @@ as it stood on each of 197 release dates (2014-02-20 to 2026-09-24).
   of 2023 for 35.1%, and of both for 15.7%; 42.6% has none at either. The nearest capture to 2017 is
   a 2014 one for 44.9% of points, and a quarter of the floodplain has nothing newer than 2016. NECR's
   points are a stratified sample, so the two are not one estimate, but its per-endpoint shares are about
-  double BULK's (73% and 76%), its both-endpoint share 3.6 times (56.2%), and its neither share a sixth
-  (7.5%). Only Wayback was measured: BULK's orthophoto and air photo coverage is not indexed yet. Log:
+  double BULK's (80% and 65% on the `all_ff04` draw; 73% and 76% on the first), its both-endpoint share
+  3.2 times (49.8%), and its neither share a ninth (4.6%). Only Wayback was measured: BULK's orthophoto and air photo coverage is not indexed yet. Log:
   `scripts/landcover_accuracy/logs/20261023_wayback_coverage_bulk.md`.
-- **The reviewer sees the capture.** `cells.gpkg` carries `capture_<year>` ("2017-06-11, 0.31 m"),
+- **The reviewer sees the capture.** `cells.gpkg` carries `capture_<year>` (for example "2017-06-11, 0.31 m"),
   which the cell layer labels outside the cell as "Esri 2017: …", taken from the chips actually built.
 
 ## Accuracy labels and training labels never mix
@@ -610,22 +653,24 @@ code is `fp_acc_window_*` in `scripts/landcover_accuracy/fp_accuracy.R`, and
 - **Early and late windows.** The first and last month clear everywhere in each year are
   reported here, not chipped. Chips cache per point, so adding them later rebuilds nothing.
 
-**Measured 2026-09-30** (`window_count-clear.R`, logs
-`scripts/landcover_accuracy/logs/20260930_window_count-clear_necr*`). The drift#87 grep was clean
-on every cache-filling log.
+**Measured 2026-10-23 on `all_ff04`** (#148; first measured 2026-09-30 on `ch_ff04`; logs
+`scripts/landcover_accuracy/logs/2026*_window_count-clear_necr*`). The drift#87 grep was clean
+on every cache-filling log. The windows came out the same on both floodplains; the `ch_ff04`
+values are in brackets.
 
 - **No month is clear everywhere in all seven years.** Four month-years have no scene under 20%
   cloud anywhere on the floodplain: 2017 April, May and July, and 2021 September. Mid-summer is
-  also not reliably clear: July 2019 is 0.180 and June 2019 is 0.811.
+  also not reliably clear: July 2019 is 0.149 (0.180) and June 2019 is 0.840 (0.811).
 - **The same season is August.** Without 2017, only May and August pass in every year. August
-  takes the tie on minimum share (0.9985 against 0.988).
-- **2017 needed the pre-registered deviation.** August 2017 alone reaches 0.852. Adding September
-  (0.999 on its own) gives a direct count of **1.000**, so the 2017 window is **August–September**.
-  HLS is not needed for the endpoint.
-- **Reference windows** (`reference/necr/windows.csv`): 2017 `8-9`; 2018, 2020 and 2023 `8`.
-- **Early and late windows.** The first month clear everywhere is May in five of the seven years
-  (April in 2021, June in 2017). The last is October in four (September in 2017 and 2020, August in
-  2021).
+  takes the tie on minimum share (0.999 against 0.963; 0.9985 against 0.988).
+- **2017 needed the pre-registered deviation.** August 2017 alone reaches 0.869 (0.852). Adding
+  September (0.998 on its own) gives a direct count of **0.999** (1.000), so the 2017 window is
+  **August–September**. HLS is not needed for the endpoint.
+- **Reference windows** (`reference/necr/windows.csv`, scenario `all_ff04`): 2017 `8-9`; 2018,
+  2020 and 2023 `8`.
+- **Early and late windows.** The first month clear everywhere is May in six of the seven years
+  (June in 2017; on `ch_ff04` May in five, April in 2021). The last is October in three (2018, 2022
+  and 2023), September in 2017, 2019 and 2020, and August in 2021 (October in four on `ch_ff04`).
   - This is a statement about **clear imagery, not phenology**.
   - It means a May composite and an August–October composite exist in most years, for reading
     seasonal amplitude by eye.

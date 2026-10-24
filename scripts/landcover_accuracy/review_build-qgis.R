@@ -77,7 +77,7 @@ endpoint_tag <- function(y) if (y == ends[1]) " - FIRST YEAR" else if (y == ends
 months_lab <- function(m) paste(month.abb[as.integer(strsplit(as.character(m), "-", fixed = TRUE)[[1]])],
                                 collapse = "-")
 win_csv <- file.path(cfg$dir_ref, "windows.csv")
-wins <- if (file.exists(win_csv)) utils::read.csv(win_csv, stringsAsFactors = FALSE) else NULL
+wins <- if (file.exists(win_csv)) fp_acc_windows_read(win_csv, cfg$primary_scenario) else NULL
 s2_name <- function(v) {                       # chips/<window>_<year>.vrt
   b <- sub("[.]vrt$", "", v); y <- as.integer(sub(".*_", "", b)); w <- sub("_[0-9]{4}$", "", b)
   m <- if (!is.null(wins)) wins$months[wins$window == w & wins$year == y] else character(0)

@@ -18,7 +18,8 @@
 #             past the span is accepted only on a DIRECT count of the widened window.
 #
 # Output: data/<area>/accuracy/windows_clear_obs.csv (per month/year stats) and, from derive,
-# reference/<area>/windows.csv. The curated copy and the log go to scripts/landcover_accuracy/logs/
+# reference/<area>/windows.csv. Both name the scenario counted over, and derive and every windows.csv
+# reader refuse another or none (#148): a redraw onto a new floodplain re-measures. The curated copy and the log go to scripts/landcover_accuracy/logs/
 # by hand, with the date prefix.
 #
 # A failed gdalcubes chunk read is NOT visible here (drift#87): it prints
@@ -159,9 +160,7 @@ if (mode == "validate") {
 } else if (mode == "derive") {
   f_in <- file.path(cfg$dir_acc, "windows_clear_obs.csv")
   if (!file.exists(f_in)) stop("no ", f_in, ": run `window_count-clear.R ", area, " run` first", call. = FALSE)
-  st <- utils::read.csv(f_in, stringsAsFactors = FALSE)
-  st <- st[st$res == 100 & grepl("^[0-9]+$", st$month), ]   # per-month rows only
-  st$month <- as.integer(st$month)
+  st <- fp_acc_window_obs_read(f_in, cfg$primary_scenario)   # counted on this floodplain (#148)
   wp <- fp_acc_window_pass(st, YEARS, MONTHS)
   cat("share of floodplain cells with >= 1 clear day (rows year, cols month):\n")
   print(round(wp$share, 3))
@@ -198,7 +197,8 @@ if (mode == "validate") {
   }
 
   win <- data.frame(window = "same_season", year = CHIP_YEARS,
-                    months = vapply(months_by_year, fp_acc_months_str, ""), stringsAsFactors = FALSE)
+                    months = vapply(months_by_year, fp_acc_months_str, ""),
+                    scenario = cfg$primary_scenario, stringsAsFactors = FALSE)   # its readers check it (#148)
   f_out <- file.path(cfg$dir_ref, "windows.csv")
   utils::write.csv(win, f_out, row.names = FALSE, quote = FALSE)
   print(win)
@@ -226,6 +226,7 @@ if (mode == "validate") {
                     as.numeric(difftime(Sys.time(), t0, units = "mins"))))
   }
   res <- do.call(rbind, rows)
+  res$scenario <- cfg$primary_scenario   # the floodplain counted over; derive refuses another (#148)
   if (any(res$status == "failed"))
     warning(sum(res$status == "failed"), " month-year(s) FAILED (NA); re-run before choosing windows",
             call. = FALSE)

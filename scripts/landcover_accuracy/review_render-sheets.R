@@ -53,10 +53,10 @@ if (any(as.numeric(cells$cell) != key$cell[m])) stop("cells.gpkg disagrees with 
 
 # Sentinel-2: point_id-keyed manifest (kept outside the project, #111), read here and never shipped
 man  <- utils::read.csv(file.path(cfg$dir_acc, "chips_manifest.csv"), stringsAsFactors = FALSE)
-wins <- utils::read.csv(file.path(cfg$dir_ref, "windows.csv"), stringsAsFactors = FALSE,
-                        colClasses = c(months = "character"))
+wins <- fp_acc_windows_read(file.path(cfg$dir_ref, "windows.csv"), cfg$primary_scenario)
 s2_years  <- sort(unique(man$year[man$window == "same_season"]))
-month_lab <- function(mo) c("8" = "Aug", "8-9" = "Aug-Sep")[[mo]]
+# Any measured window, not only NECR's first ones ("8", "8-9"): a redraw re-measures them (#148)
+month_lab <- function(mo) paste(month.abb[as.integer(strsplit(mo, "-", fixed = TRUE)[[1]])], collapse = "-")
 s2_title  <- function(y) sprintf("Sentinel-2 %d %s composite, 10 m", y,
                                  month_lab(wins$months[wins$window == "same_season" & wins$year == y]))
 
