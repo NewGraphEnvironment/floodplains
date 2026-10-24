@@ -62,3 +62,13 @@ Criterion 4 (free reference: IO's omission of qualifying harvest) was scored on 
 - Dated: orthophoto 2021 VRT 227 tiles (0.15 m); air photo 2012 305 frames georeferenced (388 old frame thumbnails reused), 0 covered points without one, 4.41 m. fly warned 13 of 1,589 corrected frames are <95% DEM-covered.
 - Wayback chips: 960 fetched, 0 failed, every point reads its own chip, 766 MB, 14.5 min.
 - S2 chip build started (480 x 4).
+
+## Model labeller on the all_ff04 draw (2026-10-24)
+
+- 12 batches, all accepted on the first try (40 rows, 41 reads, 0 violations each); 476 labelled, 4 cannot_label; hash `084dafcd3563…`. Log: `scripts/landcover_accuracy/logs/20261024_model_labels_necr.md`.
+- Follow-ups for the form, not acted on mid-labelling: one batch named the key's note that yards and groves count as Built area (a land-cover-only reading would say Trees); the same batch wrote notes after its csv block, which `extract` ignores.
+- The agents' replies reach the orchestrating session as hand-back messages. That session labels nothing and reviews nothing blind; extraction is by script from the copied transcripts.
+
+## Chips on the all_ff04 draw (2026-10-24)
+
+- A gdalcubes `repoprted` line appeared for one 2023 chip (32_00004) that drift's chunk_status check did not refuse. Refetched, the chip was identical cell for cell, so the warning did not reach the output this time; it shows the check does not see every failed read (drift#87).

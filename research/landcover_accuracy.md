@@ -1,13 +1,14 @@
 # IO LULC accuracy inside our floodplains
 
-**Verified:** 2026-10-23 · **Issues:** #93 (this work), #111 (blind review, labelling key), #145 (model labeller), #113 (confidence ceiling, growth blinding), #92 (report), #94 (review surface), #95
+**Verified:** 2026-10-24 · **Issues:** #93 (this work), #111 (blind review, labelling key), #145 (model labeller), #113 (confidence ceiling, growth blinding), #92 (report), #94 (review surface), #95
 (wetland flag), #103 (prior-fire stratum, dated imagery), drift#79 / drift#81 (composites, sampling + estimators); spawned #100 (patch-level
 harvest attribution) and drift#92 (clear-observation counts) · **Produced by:**
 `scripts/landcover_accuracy/` (logs under `scripts/landcover_accuracy/logs/`) · **Status:**
 OPEN — criteria and definitions pre-registered; drought years and free reference measured
 (criterion 4 does not hold); NECR pilot sample redrawn on the published `all_ff04` floodplain
 (#148) and review project ready; composite-window rule measured (August; 2017 August–September);
-chips built and in the review project;
+chips built on the new draw (2026-10-24) and in both review projects; model labeller run on the
+new draw;
 **verdict pending human labels.**
 
 Every land-cover number this repo publishes — floodplain tree loss, the fire/harvest attribution
@@ -392,7 +393,7 @@ subsection to fit agreement already measured.
   the published `all_ff04` floodplain, so the first draw's model labels (hash committed in 4072a24)
   describe cells no longer in the sample. They were discarded unread: nobody, the session that ran the
   redraw included, opened them. The sheets are rendered afresh for the new draw and the model
-  labels them again, under the same rules; that second hash replaces the first. A redraw is
+  labels them again, under the same rules; that second hash (`084dafcd3563…`, 2026-10-24) replaces the first. A redraw is
   decided by `sample_draw-pilot.R` under `FORCE=1`, never to change labels. A sheet shows the outlined
   10 m cell in:
   - the Sentinel-2 same-season composites, 310 m around the cell;
@@ -442,7 +443,7 @@ subsection to fit agreement already measured.
   from any other sheet, so the 0.01 tolerance separates them about tenfold. The first render was
   near-black on forest (a linear 0-0.25 stretch, with forest near 0.03) and smoothed (terra's
   `plotRGB(smooth = TRUE)`). The sheets use a fixed square-root stretch and unsmoothed pixels.
-- **The NECR run:** `scripts/landcover_accuracy/logs/20261023_model_labels_necr.md`.
+- **The NECR run:** `scripts/landcover_accuracy/logs/20261024_model_labels_necr.md`, on the `all_ff04` draw (hash `084dafcd3563…`). The first draw's run, discarded unread, is `logs/20261023_model_labels_necr.md`.
 
 - **Project.** `review_build-qgis.R` builds an rfp restoration-template project, which needs QGIS
   4.x, under `data/<area>/accuracy/review/` (gitignored). It holds the label layer with a
@@ -463,6 +464,12 @@ subsection to fit agreement already measured.
     missing** in 282 min on 2026-10-02. Unmoved points came from the per-point cache, and the log
     has no gdalcubes failed-read line. Log:
     `scripts/landcover_accuracy/logs/20261002_chip_build-composite_necr.md`.
+  - **Re-chipped on the `all_ff04` draw (#148).** Every point moved, so every chip was fetched cold.
+    One process ran at about 73 s a chip, so the build ran as four one-window processes, which took
+    175 to 560 min. Three chips failed on transient errors and came on the full pass: **1,920 chips
+    with 0 missing**, finished 2026-10-24. One 2023 chip had a gdalcubes failed-read line that drift's
+    chunk check did not refuse; fetched again, it was identical cell for cell. Log:
+    `scripts/landcover_accuracy/logs/20261024_chip_build-composite_necr.md`.
 - **2017 summer imagery is thin.** Under the 20% scene-cloud filter, **5 of 15** test points had
   no usable July–August 2017 scene at all ("no scenes"). Only Sentinel-2A was flying, and 2017 was
   a heavy smoke year. The window measurement settled it: July 2017 has no scene at all on the

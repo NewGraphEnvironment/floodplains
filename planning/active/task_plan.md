@@ -82,21 +82,21 @@ Measured in exploration (2026-10-23):
 - [x] Rebuild A, then `REVIEWER=b` B (75 points), so both carry the chips and the dated themes; 0 labels in each
 
 ## Phase 4: Model labeller on the new draw
-- [ ] `review_render-sheets.R necr 40`; batches through `labels_import-model.R prompt → extract` with blind Plan agents (canary first, 3 at a time); `import` writes the new `labels_model.sha256`. This session never reads `model/`.
+- [x] `review_render-sheets.R necr 40`; batches through `labels_import-model.R prompt → extract` with blind Plan agents (canary first, 3 at a time); `import` writes the new `labels_model.sha256`. This session never reads `model/`.
 
 ## Phase 5: Records
-- [ ] `research/landcover_accuracy.md`: rewrite "Reference sample (NECR pilot)" (drawn on `all_ff04`, the new strata table, the reason, and that the first draw's model labels were discarded unread); update the chip and Wayback counts, the windows, criterion 4 and the Verified line
-- [ ] Logs under `scripts/landcover_accuracy/logs/2026*_<stage>_necr.md` for each stage
+- [x] `research/landcover_accuracy.md`: rewrite "Reference sample (NECR pilot)" (drawn on `all_ff04`, the new strata table, the reason, and that the first draw's model labels were discarded unread); update the chip and Wayback counts, the windows, criterion 4 and the Verified line
+- [x] Logs under `scripts/landcover_accuracy/logs/2026*_<stage>_necr.md` for each stage
 - [x] CLAUDE.md #93 bullet: windows name their scenario; NECR's sample is on `all_ff04` since #148
 - [x] Research, Model labeller subsection: a dated amendment note recording the redraw, the discarded first-draw hash (4072a24) and why, written before the new hash is committed (review item 3)
-- [ ] Research, other ch_ff04 numbers: the wetland composition table, the dated-imagery table, the windows sentence, the Wayback shares, the Status line, the "NECR run" line. Pre-registered rationale (sieve 18%, prior fire 27%, 48/39/86%) stays as dated rationale (review items 4, 6)
+- [x] Research, other ch_ff04 numbers: the wetland composition table, the dated-imagery table, the windows sentence, the Wayback shares, the Status line, the "NECR run" line. Pre-registered rationale (sieve 18%, prior fire 27%, 48/39/86%) stays as dated rationale (review items 4, 6)
 - [x] CLAUDE.md, the other stale lines: "all_ff04 under a ch_ff04 sample", "windows do not yet (#148)", "sieve removes 18%", the expected-failure note on NECR (5), and review_key "append-only" (a forced redraw starts a new key) (review item 5)
 - [x] Curated windows copy under `scripts/landcover_accuracy/logs/`
 - [x] Edit #131's body: the must-fail arm protects whatever scenario `fp_acc_design_scenario()` names (now `all_ff04`); `ch_ff04` is no longer protected by the design
 
 ## Validation
 
-- [ ] Tests pass
+- [x] Tests pass
 - [ ] `/code-check` clean (once over the branch with `/code-check branch`)
 - [ ] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion
