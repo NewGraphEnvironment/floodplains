@@ -1,3 +1,13 @@
+# floodplains 0.1.18 (2026-10-26)
+
+* The accuracy module reads its scenario from the committed design, not `area.yml` (#140, #93).
+  `fp_acc_area()` takes the scenario and interval from `design.json`'s `transition_layer`, and species
+  and `min_order` from that scenario's `flood_scenarios.csv` row; `area.yml` answers only before a
+  first draw. `fp_acc_grid()` refuses a transition grid other than the design's, and
+  `sample_draw-pilot.R` moves the scenario only under `FORCE=1`. `wetland_composition.csv` and
+  `omission_disturbance.csv` record their scenario, and their readers compare only the same one.
+* `CLAUDE.md` synced with current soul conventions.
+
 # floodplains 0.1.17 (2026-10-23)
 
 * A blind model labeller for NECR's accuracy sample (#145, #93). One agent labels all 480 points from
