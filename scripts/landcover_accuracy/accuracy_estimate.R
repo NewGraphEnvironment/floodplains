@@ -96,9 +96,7 @@ if (!synthetic && (hashed || any(startsWith(as.character(lab$reviewer), FP_ACC_M
 }
 
 om_f <- file.path(cfg$dir_acc, "omission_disturbance.csv")
-omission <- if (file.exists(om_f)) {
-  o <- utils::read.csv(om_f); o$omission_io[o$source == "harvest" & o$year == "all"]
-} else NA_real_
+omission <- if (file.exists(om_f)) fp_acc_omission_read(om_f, cfg$primary_scenario) else NA_real_
 
 res <- fp_acc_estimate(lab, smp, strata, causes, omission_harvest_io = omission)
 

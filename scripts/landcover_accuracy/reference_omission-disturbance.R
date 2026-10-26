@@ -60,6 +60,8 @@ for (nm in names(polys)) {
 out <- do.call(rbind, rows)
 num <- vapply(out, is.numeric, TRUE)
 out[num] <- lapply(out[num], function(x) round(x, 4))
+# The scenario it was measured on (#140): accuracy_estimate.R refuses it for any other design.
+out <- cbind(scenario = cfg$primary_scenario, out)
 
 dir.create(cfg$dir_acc, showWarnings = FALSE, recursive = TRUE)
 utils::write.csv(out, file.path(cfg$dir_acc, "omission_disturbance.csv"), row.names = FALSE, na = "")
