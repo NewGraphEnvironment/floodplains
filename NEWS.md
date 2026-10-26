@@ -1,3 +1,18 @@
+# floodplains 0.1.19 (2026-10-26)
+
+* Composite windows name their scenario (#148). `window_count-clear.R run` stamps `scenario` into
+  `windows_clear_obs.csv`, `derive` refuses counts with none or another one and writes it into
+  `windows.csv`, and every reader goes through `fp_acc_windows_read()` / `fp_acc_window_obs_read()`,
+  the chip build's `WINDOWS=` override included.
+* NECR's accuracy sample is redrawn on `all_ff04`, the published floodplain (#148, #93): 16 strata and
+  480 points, byte-identical on a second draw. The windows, wetland and omission references, imagery
+  and Wayback indexes, 1,920 Sentinel-2 chips, both review projects (480 and 75 points) and the
+  contact sheets were regenerated on it. Criterion 4 is 0.148 on `all_ff04` (0.2549 on `ch_ff04`),
+  below the 0.30 bar either way. The blind model labeller re-ran on the new draw; only its hash is
+  committed, and the first draw's labels were discarded unread.
+* The `repoprted` log grep cannot see a log's last gdalcubes block (#150); drift's `chunk_status`
+  check is what vouches for every chip.
+
 # floodplains 0.1.18 (2026-10-26)
 
 * The accuracy module reads its scenario from the committed design, not `area.yml` (#140, #93).
