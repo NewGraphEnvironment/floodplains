@@ -162,6 +162,36 @@ fp_acc_omission_read <- function(path, scenario) {
   v
 }
 
+# The composite windows (reference/<area>/windows.csv) were counted over one floodplain. `derive` writes
+# its scenario beside them (#148), and every reader refuses another or none: a redraw onto a new scenario
+# would otherwise build its chips from the old floodplain's windows, with no message. months as
+# character: an all-single-month file ("7") would otherwise read back as integer.
+fp_acc_windows_read <- function(path, scenario) {
+  w <- utils::read.csv(path, stringsAsFactors = FALSE, colClasses = c(months = "character"))
+  if (!all(c("window", "year", "months") %in% names(w)))
+    stop(path, " needs columns window, year, months (e.g. \"7-8\")", call. = FALSE)
+  if (!"scenario" %in% names(w) || !nrow(w) || !all(w$scenario %in% scenario))
+    stop(path, " is on ", if ("scenario" %in% names(w)) paste(unique(w$scenario), collapse = ", ") else
+           "an unrecorded scenario (predates #148)", ", not ", scenario,
+         "; re-run window_count-clear.R <area> run, then derive", call. = FALSE)
+  if (anyDuplicated(w[, c("window", "year")])) stop("duplicate window x year in ", path, call. = FALSE)
+  w
+}
+
+# `derive`'s input, the clear-day counts `run` cached (data/<area>/accuracy/windows_clear_obs.csv): the
+# per-month rows at res 100, refused unless every row names this scenario. derive mixes them with direct
+# counts over the current floodplain, so counts from another one would decide a committed file (#148).
+fp_acc_window_obs_read <- function(path, scenario) {
+  st <- utils::read.csv(path, stringsAsFactors = FALSE)
+  if (!"scenario" %in% names(st) || !nrow(st) || !all(st$scenario %in% scenario))
+    stop(path, " was counted on ", if ("scenario" %in% names(st)) paste(unique(st$scenario), collapse = ", ") else
+           "an unrecorded scenario (predates #148)", ", not ", scenario,
+         "; re-run window_count-clear.R <area> run", call. = FALSE)
+  st <- st[st$res == 100 & grepl("^[0-9]+$", st$month), ]   # per-month rows only
+  st$month <- as.integer(st$month)
+  st
+}
+
 # --- Strata (phase 5) -------------------------------------------------------------------------
 # One stratum per footprint cell, FIRST MATCH WINS in the order below (research/landcover_accuracy.md,
 # "Strata"). Cause strata come first and are numbered 1..k in `sources:` order; the rest are fixed.
@@ -1018,9 +1048,11 @@ fp_acc_sheet_plan <- function(review_ids, n_batch = 40L, seed) {
 }
 
 # A panel title may say what the image is and when it was taken, and nothing else: a fixed vocabulary
-# of sources, dates, months and resolutions. Anything outside it is refused before it is drawn.
+# of sources, dates, months and resolutions. Anything outside it is refused before it is drawn. The
+# composite's months are any measured window (one month or a span), not only NECR's first (#148).
 fp_acc_sheet_title_ok <- function(x) grepl(paste0(
-  "^(Sentinel-2 [0-9]{4} (Aug|Aug-Sep) composite, 10 m|",
+  "^(Sentinel-2 [0-9]{4} ", "(", paste(month.abb, collapse = "|"), ")(-(", paste(month.abb, collapse = "|"),
+  "))? composite, 10 m|",
   "Esri Wayback captured [0-9]{4}-[0-9]{2}-[0-9]{2}, [0-9.]+ m|Esri Wayback: no capture|",
   "Orthophoto [0-9]{4}|Air photo [0-9]{4}|",
   "Label the outlined 10 m cell in 2017 and in 2023)$"), x)

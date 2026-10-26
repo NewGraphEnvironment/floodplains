@@ -69,7 +69,7 @@ print(out, row.names = FALSE)
 
 h <- out[out$source == "harvest" & out$year == "all", ]
 cat(sprintf(paste0("\nCriterion 4 (IO misses > 30%% of in-window stand-replacing harvest area): ",
-                   "omission_io = %.3f over %.1f ha -> %s\n"),
+                   "omission_io = %.4f over %.1f ha -> %s\n"),
             h$omission_io, h$denom_ha,
             if (is.na(h$omission_io)) "NOT EVALUABLE (no qualifying harvest)" else
               if (h$omission_io > 0.30) "HOLDS" else "does not hold"))

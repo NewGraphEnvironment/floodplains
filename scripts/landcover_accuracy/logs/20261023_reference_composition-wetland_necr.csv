@@ -1,0 +1,110 @@
+"scenario","year","zone","class_code","class","ha","share"
+"all_ff04",2017,"fwa_wetland",1,"Water",150.52,0.0118
+"all_ff04",2017,"fwa_wetland",2,"Trees",7768.77,0.6065
+"all_ff04",2017,"fwa_wetland",4,"Flooded Vegetation",52.22,0.0041
+"all_ff04",2017,"fwa_wetland",5,"Crops",575.11,0.0449
+"all_ff04",2017,"fwa_wetland",7,"Built Area",4.78,4e-04
+"all_ff04",2017,"fwa_wetland",8,"Bare Ground",68.04,0.0053
+"all_ff04",2017,"fwa_wetland",9,"Snow/Ice",13.12,0.001
+"all_ff04",2017,"fwa_wetland",11,"Rangeland",4176.48,0.3261
+"all_ff04",2017,"floodplain",1,"Water",13316.72,0.1648
+"all_ff04",2017,"floodplain",2,"Trees",44053.93,0.5453
+"all_ff04",2017,"floodplain",4,"Flooded Vegetation",191.98,0.0024
+"all_ff04",2017,"floodplain",5,"Crops",7156.96,0.0886
+"all_ff04",2017,"floodplain",7,"Built Area",414.05,0.0051
+"all_ff04",2017,"floodplain",8,"Bare Ground",264.32,0.0033
+"all_ff04",2017,"floodplain",9,"Snow/Ice",38.14,5e-04
+"all_ff04",2017,"floodplain",11,"Rangeland",15346.77,0.19
+"all_ff04",2018,"fwa_wetland",1,"Water",220.31,0.0172
+"all_ff04",2018,"fwa_wetland",2,"Trees",7470.66,0.5832
+"all_ff04",2018,"fwa_wetland",4,"Flooded Vegetation",55.76,0.0044
+"all_ff04",2018,"fwa_wetland",5,"Crops",630.83,0.0492
+"all_ff04",2018,"fwa_wetland",7,"Built Area",7.39,6e-04
+"all_ff04",2018,"fwa_wetland",8,"Bare Ground",2.68,2e-04
+"all_ff04",2018,"fwa_wetland",9,"Snow/Ice",0.59,0
+"all_ff04",2018,"fwa_wetland",11,"Rangeland",4420.82,0.3451
+"all_ff04",2018,"floodplain",1,"Water",13725.09,0.1699
+"all_ff04",2018,"floodplain",2,"Trees",42738.07,0.529
+"all_ff04",2018,"floodplain",4,"Flooded Vegetation",131.96,0.0016
+"all_ff04",2018,"floodplain",5,"Crops",7726.72,0.0956
+"all_ff04",2018,"floodplain",7,"Built Area",550.4,0.0068
+"all_ff04",2018,"floodplain",8,"Bare Ground",12.77,2e-04
+"all_ff04",2018,"floodplain",9,"Snow/Ice",1.46,0
+"all_ff04",2018,"floodplain",11,"Rangeland",15896.4,0.1968
+"all_ff04",2019,"fwa_wetland",1,"Water",220.29,0.0172
+"all_ff04",2019,"fwa_wetland",2,"Trees",6930.08,0.541
+"all_ff04",2019,"fwa_wetland",4,"Flooded Vegetation",47.27,0.0037
+"all_ff04",2019,"fwa_wetland",5,"Crops",598.79,0.0467
+"all_ff04",2019,"fwa_wetland",7,"Built Area",6.36,5e-04
+"all_ff04",2019,"fwa_wetland",8,"Bare Ground",0.33,0
+"all_ff04",2019,"fwa_wetland",9,"Snow/Ice",14.31,0.0011
+"all_ff04",2019,"fwa_wetland",11,"Rangeland",4991.61,0.3897
+"all_ff04",2019,"floodplain",1,"Water",13566.02,0.1679
+"all_ff04",2019,"floodplain",2,"Trees",41235.68,0.5105
+"all_ff04",2019,"floodplain",4,"Flooded Vegetation",122.94,0.0015
+"all_ff04",2019,"floodplain",5,"Crops",7261.48,0.0899
+"all_ff04",2019,"floodplain",7,"Built Area",526.13,0.0065
+"all_ff04",2019,"floodplain",8,"Bare Ground",2.3,0
+"all_ff04",2019,"floodplain",9,"Snow/Ice",26.55,3e-04
+"all_ff04",2019,"floodplain",11,"Rangeland",18041.77,0.2233
+"all_ff04",2020,"fwa_wetland",1,"Water",228.56,0.0178
+"all_ff04",2020,"fwa_wetland",2,"Trees",7821.57,0.6106
+"all_ff04",2020,"fwa_wetland",4,"Flooded Vegetation",81.69,0.0064
+"all_ff04",2020,"fwa_wetland",5,"Crops",593.87,0.0464
+"all_ff04",2020,"fwa_wetland",7,"Built Area",6.84,5e-04
+"all_ff04",2020,"fwa_wetland",8,"Bare Ground",0.18,0
+"all_ff04",2020,"fwa_wetland",9,"Snow/Ice",33.81,0.0026
+"all_ff04",2020,"fwa_wetland",11,"Rangeland",4042.52,0.3156
+"all_ff04",2020,"floodplain",1,"Water",13552.75,0.1678
+"all_ff04",2020,"floodplain",2,"Trees",42464.28,0.5257
+"all_ff04",2020,"floodplain",4,"Flooded Vegetation",191.95,0.0024
+"all_ff04",2020,"floodplain",5,"Crops",6703.1,0.083
+"all_ff04",2020,"floodplain",7,"Built Area",528.15,0.0065
+"all_ff04",2020,"floodplain",8,"Bare Ground",4.4,1e-04
+"all_ff04",2020,"floodplain",9,"Snow/Ice",158.8,0.002
+"all_ff04",2020,"floodplain",11,"Rangeland",17179.44,0.2127
+"all_ff04",2021,"fwa_wetland",1,"Water",268.4,0.021
+"all_ff04",2021,"fwa_wetland",2,"Trees",7164.39,0.5593
+"all_ff04",2021,"fwa_wetland",4,"Flooded Vegetation",52.8,0.0041
+"all_ff04",2021,"fwa_wetland",5,"Crops",617.27,0.0482
+"all_ff04",2021,"fwa_wetland",7,"Built Area",9.19,7e-04
+"all_ff04",2021,"fwa_wetland",8,"Bare Ground",0.03,0
+"all_ff04",2021,"fwa_wetland",9,"Snow/Ice",1.67,1e-04
+"all_ff04",2021,"fwa_wetland",11,"Rangeland",4695.29,0.3666
+"all_ff04",2021,"floodplain",1,"Water",13860.25,0.1716
+"all_ff04",2021,"floodplain",2,"Trees",41350.2,0.5119
+"all_ff04",2021,"floodplain",4,"Flooded Vegetation",149.35,0.0018
+"all_ff04",2021,"floodplain",5,"Crops",7153.74,0.0886
+"all_ff04",2021,"floodplain",7,"Built Area",597.92,0.0074
+"all_ff04",2021,"floodplain",8,"Bare Ground",0.77,0
+"all_ff04",2021,"floodplain",9,"Snow/Ice",4.01,0
+"all_ff04",2021,"floodplain",11,"Rangeland",17666.63,0.2187
+"all_ff04",2022,"fwa_wetland",1,"Water",188.67,0.0147
+"all_ff04",2022,"fwa_wetland",2,"Trees",7427.31,0.5798
+"all_ff04",2022,"fwa_wetland",4,"Flooded Vegetation",47.23,0.0037
+"all_ff04",2022,"fwa_wetland",5,"Crops",524,0.0409
+"all_ff04",2022,"fwa_wetland",7,"Built Area",7.26,6e-04
+"all_ff04",2022,"fwa_wetland",9,"Snow/Ice",0.01,0
+"all_ff04",2022,"fwa_wetland",11,"Rangeland",4614.56,0.3603
+"all_ff04",2022,"floodplain",1,"Water",13460.42,0.1666
+"all_ff04",2022,"floodplain",2,"Trees",42774.75,0.5295
+"all_ff04",2022,"floodplain",4,"Flooded Vegetation",206.68,0.0026
+"all_ff04",2022,"floodplain",5,"Crops",6528,0.0808
+"all_ff04",2022,"floodplain",7,"Built Area",625.37,0.0077
+"all_ff04",2022,"floodplain",8,"Bare Ground",0.04,0
+"all_ff04",2022,"floodplain",9,"Snow/Ice",0.02,0
+"all_ff04",2022,"floodplain",11,"Rangeland",17187.59,0.2128
+"all_ff04",2023,"fwa_wetland",1,"Water",207.57,0.0162
+"all_ff04",2023,"fwa_wetland",2,"Trees",6893.16,0.5381
+"all_ff04",2023,"fwa_wetland",4,"Flooded Vegetation",33.53,0.0026
+"all_ff04",2023,"fwa_wetland",5,"Crops",564.98,0.0441
+"all_ff04",2023,"fwa_wetland",7,"Built Area",8.19,6e-04
+"all_ff04",2023,"fwa_wetland",11,"Rangeland",5101.61,0.3983
+"all_ff04",2023,"floodplain",1,"Water",13541.09,0.1676
+"all_ff04",2023,"floodplain",2,"Trees",41669.05,0.5158
+"all_ff04",2023,"floodplain",4,"Flooded Vegetation",99.06,0.0012
+"all_ff04",2023,"floodplain",5,"Crops",7347.16,0.0909
+"all_ff04",2023,"floodplain",7,"Built Area",627.54,0.0078
+"all_ff04",2023,"floodplain",8,"Bare Ground",2.68,0
+"all_ff04",2023,"floodplain",9,"Snow/Ice",0.01,0
+"all_ff04",2023,"floodplain",11,"Rangeland",17496.28,0.2166

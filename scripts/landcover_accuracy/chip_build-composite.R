@@ -6,7 +6,7 @@
 # the whole bbox (drift#88), while a chip streams only the COG blocks under it and is cached on its
 # own, so extending the pilot to the full sample fetches only the new points.
 #
-# Windows come from reference/<area>/windows.csv (columns: window, year, months), which phase 2
+# Windows come from reference/<area>/windows.csv (columns: window, year, months, scenario), which phase 2
 # writes once the windows are MEASURED (`window_count-clear.R <area> derive`), so this script refuses
 # to run without the file rather than guess; `WINDOWS=<csv>` points it at another file (a timing run).
 #
@@ -35,11 +35,8 @@ win_file <- Sys.getenv("WINDOWS", file.path(cfg$dir_ref, "windows.csv"))
 if (!file.exists(win_file))
   stop("no ", win_file, ": the composite windows are measured first -- run window_count-clear.R <area> run, then derive",
        call. = FALSE)
-# months as character: an all-single-month file ("7") would otherwise read back as integer
-wins <- utils::read.csv(win_file, stringsAsFactors = FALSE, colClasses = c(months = "character"))
-if (!all(c("window", "year", "months") %in% names(wins)))
-  stop(win_file, " needs columns window, year, months (e.g. \"7-8\")", call. = FALSE)
-if (anyDuplicated(wins[, c("window", "year")])) stop("duplicate window x year in ", win_file, call. = FALSE)
+# A WINDOWS= override is held to the same scenario: chips are built for this design's sample (#148)
+wins <- fp_acc_windows_read(win_file, cfg$primary_scenario)
 
 pts <- sf::st_read(file.path(cfg$dir_ref, "sample.gpkg"), layer = "sample", quiet = TRUE)
 if (!is.na(nmax)) pts <- do.call(rbind, lapply(split(pts, pts$stratum), utils::head, nmax))

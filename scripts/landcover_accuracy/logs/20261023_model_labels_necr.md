@@ -1,5 +1,7 @@
 # Model labels, NECR — 2026-10-23 (#145)
 
+**Superseded (#148, 2026-10-23):** these labels were made on the first, `ch_ff04` draw. The sample was redrawn on `all_ff04` before labeller B made any label and before any agreement was computed; these labels were discarded unread, and their hash (commit 4072a24) was removed, for the new draw's to replace. The run below is kept as the record of the method.
+
 The blind model labeller on all 480 NECR sample points, run under the protocol pre-registered in
 `research/landcover_accuracy.md`, "Model labeller" (commits `8b6b648`, `a4f663a`, pushed before the first
 batch).
