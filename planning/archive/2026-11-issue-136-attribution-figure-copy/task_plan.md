@@ -68,7 +68,7 @@ out "not yet" wording. #136's body now records the widened scope.
 - [x] Tests pass (the two README checks above)
 - [x] `/code-check` clean (once over the branch with `/code-check branch`): 5 rounds, ended by enumeration
 - [x] PWF checkboxes match landed work
-- [ ] `/planning-archive` on completion
+- [x] `/planning-archive` on completion
 
 Verification is visual (the PNG read back) plus unchanged bar figures, plus the README checks.
 
