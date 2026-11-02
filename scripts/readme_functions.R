@@ -57,7 +57,8 @@ FIG_INSET <- c(xmin = 983000, ymin = 1033000, xmax = 999000, ymax = 1051500)
 
 # Ramped rather than listed, so the palette cannot go one short of the scenarios it colours.
 PAL_FF_ENDS <- c("#1f5f92", "#dbe9f2")                 # narrowest -> widest
-UNATTRIBUTED <- "not yet attributed"
+# Present tense (#136): the figure is shown on a site whose copy rules rule out "not yet" wording.
+UNATTRIBUTED <- "no mapped cause"
 
 # One row per cause, so the hex and the word a screen reader gets cannot drift apart. They were
 # separate the first time and the alt text ended up saying "fire in #c1441e".
@@ -72,7 +73,7 @@ CAUSE_STYLE <- data.frame(
 #'
 #' Not a literal list. `config/disturbance.yml` is what `fp_disturbance_tag()` consumes, and it
 #' carries a commented-out `pest` source; enabling it would add an `in_pest` column that a
-#' hardcoded fire/harvest figure would silently fold into "not yet attributed" while the caption
+#' hardcoded fire/harvest figure would silently fold into "no mapped cause" while the caption
 #' still claimed to describe that file.
 fp_readme_sources <- function(f = "config/disturbance.yml") {
   y <- yaml::read_yaml(f)
@@ -306,11 +307,12 @@ fp_fig_floodplain <- function(out = fp_fig_path("floodplain.png")) {
 #' happens to list under `sources:`, not the limit of what it takes. Its `context:` overlays (#95,
 #' e.g. wetlands) locate change and never appear here. The numbers live in the figure and nowhere
 #' else, so they cannot go stale in prose the way #77's counts did.
+#'
+#' Titles only, no subtitles (#136): the figure is shown outside this repo, beside captions of its
+#' own, so how attribution works is said in the README prose under it, not in the image.
 fp_fig_attribution <- function(out = fp_fig_path("attribution.png")) {
-  # The sources come from config/disturbance.yml, which is what the caption claims to describe.
-  # Hardcoding fire and harvest would fold a newly enabled source (pest is sitting commented out
-  # in that file) into "not yet attributed" while the caption still said the figure showed what
-  # the file lists.
+  # The sources come from config/disturbance.yml. Hardcoding fire and harvest would fold a newly
+  # enabled source (pest is sitting commented out in that file) into "no mapped cause".
   src <- fp_readme_sources()
   lv <- c(src, UNATTRIBUTED)
   span <- paste(FIG_SPAN, collapse = "_")
@@ -351,8 +353,7 @@ fp_fig_attribution <- function(out = fp_fig_path("attribution.png")) {
     ggplot2::coord_sf(expand = FALSE) + ggplot2::theme_void() + fp_fig_theme() +
     ggplot2::theme(legend.position = "bottom", legend.box = "vertical") +
     ggplot2::labs(title = sprintf("Floodplain tree loss %s–%s, %s watershed group",
-                                  FIG_SPAN[1], FIG_SPAN[2], FIG_AREA_LABEL),
-                  subtitle = "every patch the model found, coloured by what it can be attributed to today")
+                                  FIG_SPAN[1], FIG_SPAN[2], FIG_AREA_LABEL))
 
   d <- sf::st_drop_geometry(tl)
   s <- stats::aggregate(area_ha ~ cause, data = d, FUN = sum)
@@ -369,14 +370,7 @@ fp_fig_attribution <- function(out = fp_fig_path("attribution.png")) {
     ggplot2::scale_colour_manual(values = fp_cause_pal(lv), guide = "none") +
     ggplot2::scale_y_continuous(limits = c(-1.6, 1.1)) +
     ggplot2::theme_void() + fp_fig_theme() +
-    ggplot2::labs(title = "Share of that loss, by attributed cause",
-                  # Derived: fix #5 made the PLOT track config/disturbance.yml and left this
-                  # string claiming to describe it, so enabling `pest` would have made the
-                  # figure right and the caption false.
-                  subtitle = sprintf(
-                    "%s %s the causes config/disturbance.yml lists today — it takes any layer",
-                    paste(src, collapse = " and "),
-                    if (length(src) == 1) "is" else "are"))
+    ggplot2::labs(title = "Share of that loss, by attributed cause")
 
   fp_fig_write(out, list(map, bar), nrow = 2, heights = c(4.3, 1), width = 1500, height = 1500)
 }

@@ -46,7 +46,7 @@ a measurement.
 Used that way it works: the model surfaces real riparian change in the Bulkley that would
 otherwise have to be found by eye, at a scale no one is going to walk.
 
-<img src="fig/attribution.png" alt="Top: the Bulkley watershed group with every modelled floodplain tree-loss patch 2017-2023 drawn as a dot sized by area and coloured by attributed cause - fire in red, harvest in amber, and grey where nothing yet attributes it. Bottom: a stacked bar of the same loss by area, showing those sources accounting for roughly a third of it between them." width="100%" />
+<img src="fig/attribution.png" alt="Top: the Bulkley watershed group with every modelled floodplain tree-loss patch 2017-2023 drawn as a dot sized by area and coloured by attributed cause - fire in red, harvest in amber, and grey where there is no mapped cause. Bottom: a stacked bar of the same loss by area, showing those sources accounting for roughly a third of it between them." width="100%" />
 
 **Attribution is the part that is growing.** Each change patch is intersected with the overlay
 layers named in `config/disturbance.yml` and tagged with what it hits. Fire and harvest are the causes
