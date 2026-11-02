@@ -1,3 +1,10 @@
+# floodplains 0.1.20 (2026-11-02)
+
+* The README's attribution figure (`fig/attribution.png`) reads for a site visitor (#136): no
+  in-plot subtitles, and the residual is labelled "no mapped cause" rather than "not yet attributed"
+  in the legend, the bar and the alt text. The bar is unchanged (66 / 474 / 1,025 ha).
+* `CLAUDE.md` synced with current soul conventions.
+
 # floodplains 0.1.19 (2026-10-26)
 
 * Composite windows name their scenario (#148). `window_count-clear.R run` stamps `scenario` into
