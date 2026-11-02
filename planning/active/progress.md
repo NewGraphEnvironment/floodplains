@@ -17,3 +17,6 @@
 - `/code-check branch`: rounds 1 and 2 Clean. Round 3 found the company site holds its own
   byte-identical copy of the old PNG (verified by git blob sha); the swap is already
   newgraphenvironment.github.io#66, now an owed item in task_plan.md
+- Round 4: site #66 also wants "not yet attributed" gone, and the (unread until now) comment on
+  #136 asks for it with "no mapped cause". Widened #136 (body edited), relabelled, rebuilt, re-rendered
+  (Phase 4). A website session (PR #68 on the site) asked for the same and waits on the push

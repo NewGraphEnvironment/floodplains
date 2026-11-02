@@ -45,6 +45,17 @@ Approved by the user at the plan gate, 2026-11-02.
 - [x] `bash scripts/readme_determinism-check.sh` (after the gpkgs are removed and with no render
       byproducts on disk) and `python3 scripts/readme_content-check.py` pass
 
+## Phase 4: Relabel "not yet attributed" (scope widened by code-check round 4)
+
+Site #66 (from site #65's review) names two problems with this figure and points at #136 for both;
+the comment on #136 asks for the relabel and suggests "no mapped cause". The site's copy rules rule
+out "not yet" wording. #136's body now records the widened scope.
+- [x] `UNATTRIBUTED <- "no mapped cause"` and its two comment mentions; README.Rmd alt text
+      "where there is no mapped cause"
+- [x] Rebuild the PNG (gpkgs re-copied from m1, sha256-matched, removed after); bar unchanged
+- [x] Re-render: README.md and index.html move only in the alt text and the PNG payload;
+      determinism and content checks (links included) pass
+
 ## Owed at the end (reported, done after merge)
 
 - [ ] The company site holds its own copy of the old PNG
