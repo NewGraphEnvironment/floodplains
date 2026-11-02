@@ -57,7 +57,8 @@ FIG_INSET <- c(xmin = 983000, ymin = 1033000, xmax = 999000, ymax = 1051500)
 
 # Ramped rather than listed, so the palette cannot go one short of the scenarios it colours.
 PAL_FF_ENDS <- c("#1f5f92", "#dbe9f2")                 # narrowest -> widest
-UNATTRIBUTED <- "not yet attributed"
+# Present tense (#136): the figure is shown on a site whose copy rules rule out "not yet" wording.
+UNATTRIBUTED <- "no mapped cause"
 
 # One row per cause, so the hex and the word a screen reader gets cannot drift apart. They were
 # separate the first time and the alt text ended up saying "fire in #c1441e".
@@ -72,7 +73,7 @@ CAUSE_STYLE <- data.frame(
 #'
 #' Not a literal list. `config/disturbance.yml` is what `fp_disturbance_tag()` consumes, and it
 #' carries a commented-out `pest` source; enabling it would add an `in_pest` column that a
-#' hardcoded fire/harvest figure would silently fold into "not yet attributed" while the caption
+#' hardcoded fire/harvest figure would silently fold into "no mapped cause" while the caption
 #' still claimed to describe that file.
 fp_readme_sources <- function(f = "config/disturbance.yml") {
   y <- yaml::read_yaml(f)
@@ -311,7 +312,7 @@ fp_fig_floodplain <- function(out = fp_fig_path("floodplain.png")) {
 #' own, so how attribution works is said in the README prose under it, not in the image.
 fp_fig_attribution <- function(out = fp_fig_path("attribution.png")) {
   # The sources come from config/disturbance.yml. Hardcoding fire and harvest would fold a newly
-  # enabled source (pest is sitting commented out in that file) into "not yet attributed".
+  # enabled source (pest is sitting commented out in that file) into "no mapped cause".
   src <- fp_readme_sources()
   lv <- c(src, UNATTRIBUTED)
   span <- paste(FIG_SPAN, collapse = "_")

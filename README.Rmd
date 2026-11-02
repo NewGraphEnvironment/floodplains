@@ -163,7 +163,7 @@ a measurement.
 Used that way it works: the model surfaces real riparian change in the Bulkley that would
 otherwise have to be found by eye, at a scale no one is going to walk.
 
-```{r fig-attribution, echo=FALSE, fig.alt=paste0("Top: the ", FIG_AREA_LABEL, " watershed group with every modelled floodplain tree-loss patch ", FIG_SPAN[1], "-", FIG_SPAN[2], " drawn as a dot sized by area and coloured by attributed cause - ", paste(sprintf("%s in %s", src, fp_cause_colour(src)), collapse = ", "), ", and ", fp_cause_colour(UNATTRIBUTED), " where nothing yet attributes it. Bottom: a stacked bar of the same loss by area, showing those sources accounting for roughly a third of it between them.")}
+```{r fig-attribution, echo=FALSE, fig.alt=paste0("Top: the ", FIG_AREA_LABEL, " watershed group with every modelled floodplain tree-loss patch ", FIG_SPAN[1], "-", FIG_SPAN[2], " drawn as a dot sized by area and coloured by attributed cause - ", paste(sprintf("%s in %s", src, fp_cause_colour(src)), collapse = ", "), ", and ", fp_cause_colour(UNATTRIBUTED), " where there is no mapped cause. Bottom: a stacked bar of the same loss by area, showing those sources accounting for roughly a third of it between them.")}
 knitr::include_graphics(fp_fig_require("attribution.png"))
 ```
 
