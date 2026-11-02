@@ -3,7 +3,7 @@
 # config/disturbance.yml carries two lists. `sources:` are CAUSES: fp_disturbance_report() counts
 # every in_<source> as explaining tree loss, and the README attribution figure reads the same list.
 # `context:` entries (FWA wetlands) tag the same patches so they can be found, and must never move
-# the attribution residual. An in_wetland filed under sources would shrink "not yet attributed" for
+# the attribution residual. An in_wetland filed under sources would shrink "no mapped cause" for
 # a reason that explains nothing, and nothing would fail -- the numbers would just be wrong.
 #
 # Two sections:

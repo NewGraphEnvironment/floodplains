@@ -27,7 +27,7 @@
 # NOT causes. An FWA wetland says where a patch is, not why it changed, so it has no year and no
 # window, and fp_disturbance_report() never sees it: callers pass only `sources:` to the report, and
 # the README attribution figure reads only `sources:` (fp_readme_sources). Filed under sources, an
-# in_wetland would shrink the "not yet attributed" share for a reason that explains nothing.
+# in_wetland would shrink the "no mapped cause" share for a reason that explains nothing.
 # fp_disturbance_validate() enforces the split, since the only difference between the two lists
 # in the tagging code is whether the query carries a year predicate.
 #

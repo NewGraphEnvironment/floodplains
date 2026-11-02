@@ -112,8 +112,8 @@ driver + provenance layer. Do NOT re-implement package logic here — extend the
   gpkg's own tables (`PRAGMA table_info`, `gpkg_geometry_columns`) so no reader default can hide a
   change. **Fire + harvest wired; pest deferred.** Harvest resolves ~30–36% of floodplain tree
   loss previously in the "noise" bucket. **Measured 2026-09-04 on BULK's current output** (the
-  2026-09-02 re-run, 1,565.1 ha of tree loss): fire **4.2%** / harvest **30.3%** / not yet
-  attributed **65.5%** by area. The 5 / 36 / 62 stated here before was pre-re-run and is dead, not
+  2026-09-02 re-run, 1,565.1 ha of tree loss): fire **4.2%** / harvest **30.3%** / no mapped
+  cause **65.5%** by area. The 5 / 36 / 62 stated here before was pre-re-run and is dead, not
   superseded. It is now computed at figure-build time into `fig/attribution.png` and stated in no
   prose, which is the only version of this that stays true (#77). The transition
   layer now carries N disturbance attrs → the STAC schema must too (stac_floodplains_bc#6).
