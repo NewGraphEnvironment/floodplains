@@ -21,7 +21,7 @@
   #136 asks for it with "no mapped cause". Widened #136 (body edited), relabelled, rebuilt, re-rendered
   (Phase 4). A website session (PR #68 on the site) asked for the same and waits on the push
 - Round 5: three prose mentions of the old label (CLAUDE.md split across two lines, plus comments
-  in disturbance-check.R and fp_disturbance.R), fixed in 71fc872. Inside round 4's fix, so the
+  in disturbance-check.R and fp_disturbance.R), fixed in 4b1313a. Inside round 4's fix, so the
   loop ended by enumeration: a multi-line grep for the old label leaves only planning records;
   `UNATTRIBUTED` is used by readme_functions.R and README.Rmd only (accuracy_estimate.R's is a
   comment word); every other reference to the figure quotes neither label nor subtitle
