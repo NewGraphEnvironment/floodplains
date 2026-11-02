@@ -1066,6 +1066,12 @@ and both rendered files still hash identically, which is why
 `scripts/readme_determinism-check.sh` checks for that directory **by name** rather than through
 `git status`. Measured: the porcelain form reported OK with `README_files/` sitting on disk.
 
+**`fig/attribution.png` has a second, committed copy.** The company site's Open Source page
+shows it from its own file (`newgraphenvironment.github.io`,
+`content/project/open_source_software/floodplains_attribution.png`). A rebuild here is not live
+there until that copy is swapped, and the site's copy rules apply to the figure's text: plain,
+present tense, no "not yet" (#136).
+
 ## Conventions
 
 Run `/claude-md-init` to sync New Graph soul conventions below the marker.
