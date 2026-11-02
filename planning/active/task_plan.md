@@ -26,20 +26,24 @@ Approved by the user at the plan gate, 2026-11-02.
   build so m4 does not keep a stale snapshot.
 
 ## Phase 1: Drop the subtitles
-- [ ] Remove `subtitle =` from the map `labs()` and the bar `labs()`, with the now-orphaned comment
-- [ ] Revise the roxygen to say the explanation lives in the README prose beside the figure
+- [x] Remove `subtitle =` from the map `labs()` and the bar `labs()`, with the now-orphaned comment
+- [x] Revise the roxygen to say the explanation lives in the README prose beside the figure
+- [x] Reword the `src` comment, which claimed the caption describes the config (plan review)
 
 ## Phase 2: Rebuild fig/attribution.png
-- [ ] scp the three gpkgs from m1 `data/bulk/` into m4 `data/bulk/`
+- [x] scp the three gpkgs from m1 `data/bulk/` into m4 `data/bulk/` (sha256 matches m1)
 - [ ] `Rscript -e 'source("scripts/readme_functions.R"); fp_fig_attribution()'`
 - [ ] Read the PNG: no subtitles; bar still reads fire 66 ha 4% / harvest 474 ha 30% /
       not yet attributed 1025 ha 66%. If the numbers moved, stop and report (the README's
-      "about a third" and the alt text depend on them)
-- [ ] Remove the copied gpkgs
+      "about a third" and the alt text depend on them). Check the bar panel's layout too, now
+      the subtitle row is gone (`heights = c(4.3, 1)`)
+- [ ] Remove `data/bulk/{floodplain_landcover,floodplain,subbasins}.gpkg`
 
 ## Phase 3: Re-render the README
-- [ ] Render with `rmd_on = TRUE, update_figs = FALSE` (index.html embeds the PNG as base64)
-- [ ] `bash scripts/readme_determinism-check.sh` and `scripts/readme_content-check.py` pass
+- [ ] Render both targets: `rmd_on = FALSE` (README.md) and `rmd_on = TRUE` (index.html, which
+      embeds the PNG as base64), both with `update_figs = FALSE`
+- [ ] `bash scripts/readme_determinism-check.sh` (after the gpkgs are removed and with no render
+      byproducts on disk) and `python3 scripts/readme_content-check.py` pass
 
 ## Validation
 
