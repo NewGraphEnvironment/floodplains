@@ -45,6 +45,13 @@ Approved by the user at the plan gate, 2026-11-02.
 - [x] `bash scripts/readme_determinism-check.sh` (after the gpkgs are removed and with no render
       byproducts on disk) and `python3 scripts/readme_content-check.py` pass
 
+## Owed at the end (reported, done after merge)
+
+- [ ] The company site holds its own copy of the old PNG
+      (`content/project/open_source_software/floodplains_attribution.png` in
+      newgraphenvironment.github.io, byte-identical to main's old figure, found by code-check
+      round 3). Swapping it is newgraphenvironment.github.io#66, which waits on this merge.
+
 ## Validation
 
 - [x] Tests pass (the two README checks above)
@@ -58,5 +65,4 @@ Verification is visual (the PNG read back) plus unchanged bar figures, plus the 
 
 - `FIG_PRIMARY` is still `co_ff04`, a retired species item; #131's prune would remove the layer
   this figure reads, and #128 rewrites the README. Neither is touched here.
-- If the company site holds its own copy of the PNG rather than linking Pages, it needs a refresh
-  there after merge.
+- The site's copy of the figure: see Owed at the end.

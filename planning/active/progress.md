@@ -14,3 +14,6 @@
   Copied gpkgs removed
 - Phase 3: README.md unchanged; index.html differs only in the embedded PNG (diff with payloads
   masked is empty). Determinism check OK; content check OK, links included (`CHECK_LINKS=1`)
+- `/code-check branch`: rounds 1 and 2 Clean. Round 3 found the company site holds its own
+  byte-identical copy of the old PNG (verified by git blob sha); the swap is already
+  newgraphenvironment.github.io#66, now an owed item in task_plan.md
