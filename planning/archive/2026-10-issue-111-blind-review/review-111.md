@@ -25,7 +25,7 @@ Read-only review of plan + committed code + live project. Condensed.
 - G7 agreement rules -> pre-registered in research (both-labelled only; cannot_label reported apart; kappa
   per endpoint over IO codes).
 - G8 withr undeclared -> replaced with base RNG save/restore.
-- G9 growth on Mergin -> rtj#367 hand-off note: floodplains' gpkg is a seed, never copied over the Mergin
+- G9 growth on Mergin -> an internal issue hand-off note: floodplains' gpkg is a seed, never copied over the Mergin
   working copy; freeze schema before first sync.
 - G10 docs -> research Dated imagery section; build header "never rewritten".
 

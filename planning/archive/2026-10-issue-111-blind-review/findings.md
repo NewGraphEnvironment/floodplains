@@ -34,8 +34,8 @@ During review:
 ## Notes
 
 - **Private endpoint: decided 2026-10-06, fine on Mergin.** The dated orthophoto VRTs hold hrefs to the **private** endpoint (CLAUDE.md, #93 rules). On Mergin they sit in the org's private workspace (members: us only), never in git.
-- **Change patches: decided 2026-10-06.** They show IO's answer, so they go in a separate theme used after labelling, chosen from the theme drop-down (rtj#367). They never appear in the labelling view.
-- **Order:** this issue first, then NewGraphEnvironment/rtj#367 composes and syncs the project.
+- **Change patches: decided 2026-10-06.** They show IO's answer, so they go in a separate theme used after labelling, chosen from the theme drop-down. They never appear in the labelling view.
+- **Order:** this issue first, then an internal issue composes and syncs the project.
 - No labels exist yet: 480 points, 0 labelled as of 2026-10-06. Nothing needs migrating if this lands before labelling starts.
 
 Relates: #93, #94, #103
@@ -48,7 +48,7 @@ Relates: #93, #94, #103
 - `chips/manifest.csv` inside the project maps point_id -> chip file; chip tif names are hashes (no leak).
 - Current build puts `Change patches` in `base`, i.e. in every theme including Review.
 - `labels.gpkg`: 480 points, 0 with a label_status.
-- rfp manifest source types: bcdata fwa aws osm url stac frozen (no local-file type) -- rtj#367 decides ingestion.
+- rfp manifest source types: bcdata fwa aws osm url stac frozen (no local-file type) -- an internal issue decides ingestion.
 
 ## Errors Encountered
 

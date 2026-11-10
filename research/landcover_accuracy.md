@@ -543,7 +543,7 @@ sample point is listed, so a stale index can be detected and not just a disagree
 
 **Verified:** 2026-10-23, on the `all_ff04` draw (#148; first 2026-10-08) · **Produced by:** `scripts/landcover_accuracy/wayback_index-capture.R`
 (writes `reference/necr/wayback.csv`), `wayback_build-chips.R`, `review_build-qgis.R` · **Issues:**
-#115, rtj#377 (the Mergin project), rfp#398, qgis/QGIS#54161. Run record:
+#115, an internal issue (the Mergin project), an internal issue, qgis/QGIS#54161. Run record:
 `planning/archive/*-issue-115-*/`.
 
 Esri's World Imagery is sub-metre over most of NECR, and its archive, Wayback, publishes the mosaic

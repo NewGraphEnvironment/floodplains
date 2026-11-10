@@ -69,7 +69,7 @@ source across two codes.
 - [x] Docs:
   - `research/landcover_accuracy.md`, "Dated reference imagery": Wayback release vs capture, the QGIS bug, and the `esri` form value;
   - CLAUDE.md #93 bullet: `wayback.csv`.
-- [x] Hand-off on rtj#377 (body edited: it named `chips_wayback/`), rfp#398 comment, drift#101 filed. Original: Hand-off comment on rtj#377: the file pattern `dated/wayback_<year>.vrt`, the `cells.gpkg` columns, and that the release services and themes go. Note on rfp#398 that this is the drawable route. File the drift issue to promote to `dft_wayback_*`. All of these are our own repos.
+- [x] Hand-off on an internal issue (body edited: it named `chips_wayback/`), an internal issue comment, drift#101 filed. Original: Hand-off comment on an internal issue: the file pattern `dated/wayback_<year>.vrt`, the `cells.gpkg` columns, and that the release services and themes go. Note on an internal issue that this is the drawable route. File the drift issue to promote to `dft_wayback_*`. All of these are our own repos.
 
 ## Validation
 - [x] `accuracy-check.R` green, every new must-fail shown red against the restored defect

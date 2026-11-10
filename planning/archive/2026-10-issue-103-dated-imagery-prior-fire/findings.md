@@ -17,7 +17,7 @@ Separately, **fire attribution is windowed to the change interval** (`cfg$change
 ## What
 
 1. **Find the overlapping imagery** for the #93 sample points (start with NECR): orthophotos from our private orthophoto STAC, air photos via `fly`. Record per point which dated images cover it, and when.
-2. **Load them into the review project as map themes where they make sense.** One theme per epoch or source. That means the source has to cover a useful share of points; a single photo over two points doesn't earn a theme. Follow how rtj does it: `scripts/gis/stac_raster-add` and the map-theme work (rtj#327), and the Nelson project (`nelson_20260826`, KOTL+LARL+SLOC, rtj#213) as the worked example.
+2. **Load them into the review project as map themes where they make sense.** One theme per epoch or source. That means the source has to cover a useful share of points; a single photo over two points doesn't earn a theme. Follow how rtj does it: `scripts/gis/stac_raster-add` and the map-theme work, and the Nelson project (`nelson_20260826`, KOTL+LARL+SLOC, an internal issue) as the worked example.
 3. **Fire regrowth.** Tag transition patches with *prior* fires, not only in-window ones. One option is a separate lookback (e.g. `in_fire_prior` + fire year), kept apart from in-window `in_fire` so the cause semantics do not blur. It also feeds a regrowth stratum for the accuracy sample.
 4. **Windows are not fixed.** `reference/necr/windows.csv` (August; 2017 August–September) can change if dated ortho or air-photo epochs argue for different reference years. Chips cache per point, so re-chipping costs only the new windows.
 
@@ -28,7 +28,7 @@ Separately, **fire attribution is windowed to the change interval** (`cfg$change
 - **Data contract.** Does the prior-fire tag change the published transition layer, and with it the STAC schema in `stac_floodplains_bc`? The coupling stays one-way.
 - **Strata.** Is a regrowth stratum a redraw? A redraw moves points under the same ids, and `sample_draw-pilot.R` refuses to redraw over labels. So this has to be decided **before** labelling starts.
 
-Relates: #93, #95, #100, rtj#213, rtj#327
+Relates: #93, #95, #100, internal issues
 
 
 (Private endpoint and repo name redacted: floodplains is public, and the ortho repo's CLAUDE.md

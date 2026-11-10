@@ -218,7 +218,7 @@
 
 # floodplains 0.1.6 (2026-10-06)
 
-* Blind, randomised, cell-level NECR accuracy review (#111), ready for rtj#367 to put on Mergin.
+* Blind, randomised, cell-level NECR accuracy review (#111), ready for an internal issue to put on Mergin.
   * **Blind working copy.** The labels layer carries an opaque, shuffled `review_id` and no design
     column, because `point_id` encodes the stratum. `reference/<area>/review_key.csv` maps it back.
   * **Pre-registered labelling key** in `research/landcover_accuracy.md`, quoting IO's class

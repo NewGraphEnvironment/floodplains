@@ -1,7 +1,7 @@
 # #117 branch review — round 3
 
 Scope: `branch.diff` (merge-base...HEAD, index.html excluded), the changed files read in the repo,
-issue bodies #117 / #125 / #128 / soul#402 / flooded#78 / stac_floodplains_bc#76, flooded#67 + PR #77,
+issue bodies #117 / #125 / #128 / an internal issue / flooded#78 / stac_floodplains_bc#76, flooded#67 + PR #77,
 flooded 0.7.0 NEWS and DESCRIPTION (at 698042e), soul `origin/main:conventions/code-check-spatial.md`,
 the scratchpad snapshot `before/provenance.json`, `after_run1.json`, `after_run2.json`, run logs,
 and every `data/*/provenance.json`.
@@ -59,18 +59,18 @@ exists: (c) **dated and versioned referents**, meaning every "from/since/unchang
     every published floodplain predates flooded 0.7.0's grid (#117, re-run under #125). No count is
     needed, so #77's rule is not broken.
 
-- **[fragile, minor] soul#402 body, "What is wrong" and "Proposed change" — the issue describes
+- **[fragile, minor] an internal issue body, "What is wrong" and "Proposed change" — the issue describes
   the convention as it stood before soul 7b2a125. Two of its four proposed changes are already on
   soul main.**
   soul commit 7b2a125 (2026-10-13T18:58Z) landed in `conventions/code-check-spatial.md` before
-  soul#402 was filed (22:11Z). That commit already added:
+  an internal issue was filed (22:11Z). That commit already added:
   - the datum-step paragraph ("A template fixes the grid, not the values: the datum step is PROJ's
     choice too … ~1.3 m between PROJ 9.5.1 and 9.8.1, which is also what moved GDAL's suggested
     grid. Pin it with `terra::project(pipeline =)` …");
   - an evidence entry, "Corrected 2026-10-13 in flooded#67: the move above was the PROJ datum step,
     not the GDAL version".
 
-  soul#402 still says "The rule **and its evidence** say the grid moved because GDAL 3.8.5 and
+  An internal issue still says "The rule **and its evidence** say the grid moved because GDAL 3.8.5 and
   3.13.0 choose differently", and still proposes "Add the second half: … pin the datum step" and
   "Evidence block: append the correction". Whoever picks it up would add both a second time.
 

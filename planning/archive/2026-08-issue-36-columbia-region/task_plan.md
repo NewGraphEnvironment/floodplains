@@ -40,7 +40,7 @@ first species with any access, not the best, so `wct` never fires — documented
 
 ## Phase 5 — Docs + close
 - [x] `README.md` + `CLAUDE.md`: 17 → 20 groups, four regions, Columbia numbers
-- [ ] `/planning-archive`, `/gh-pr-push` (PR body refs rtj#213, sred#35)
+- [ ] `/planning-archive`, `/gh-pr-push` (PR body refs internal issues)
 
 ## Validation
 - [ ] `/code-check` clean on each commit

@@ -24,7 +24,7 @@ Reviewing `bcgov/FIT_changedetector` at the user's prompt did not change the fix
 makes a byte checksum stable — but it supplied the shape of #46 and exposed a real gap in
 `code-check.md`: its cache-key guidance says to hash WKB rather than the sfc, and says nothing about
 canonicalizing geometry first, so two identical polygons with different ring order hash differently
-(soul#95). Both that issue and #46 state the same unresolved blocker instead of guessing past it —
+(an internal issue). Both that issue and #46 state the same unresolved blocker instead of guessing past it —
 `sf::st_normalize()` rescales to the unit bbox and is **not** GEOS `normalize`, so neither
 recommends a function that was not verified.
 

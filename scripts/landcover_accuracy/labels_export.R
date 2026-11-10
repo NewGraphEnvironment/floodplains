@@ -16,7 +16,7 @@
 #
 # usage: Rscript scripts/landcover_accuracy/labels_export.R [area] [labels.gpkg]
 #   labels.gpkg defaults to the local review project; pass the Mergin working copy's path to export
-#   from there (rtj#367).
+#   from there.
 #   WHICH record is written follows from the working copy itself: a copy holding every keyed point, or
 #   exactly the points of the key's first batches (made before the sample grew), is labeller A's
 #   (labels.csv); one holding exactly the second-labeller subset is B's (labels_b.csv); anything else

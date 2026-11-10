@@ -62,8 +62,8 @@
 - [ ] Docs:
   - `research/landcover_accuracy.md` "Dated reference imagery": Wayback release vs capture, and the QGIS bug.
   - CLAUDE.md #93 bullet: `wayback.csv`.
-- [ ] Hand-off on rtj#377: the file pattern `dated/wayback_<year>.vrt`, the `cells.gpkg` columns, and that the release services and themes go.
-- [ ] Note on rfp#398 that this is the drawable route. File the drift issue to promote the code to `dft_wayback_*`.
+- [ ] Hand-off on an internal issue: the file pattern `dated/wayback_<year>.vrt`, the `cells.gpkg` columns, and that the release services and themes go.
+- [ ] Note on an internal issue that this is the drawable route. File the drift issue to promote the code to `dft_wayback_*`.
 
 ## Critical files
 - new: `scripts/landcover_accuracy/wayback_index-capture.R`, `wayback_build-chips.R`
@@ -80,7 +80,7 @@ Reused:
 - **Blind:** grep the review inputs for `point_id`-shaped names (`[0-9]+_[0-9]{5}`); expect none.
 
 
-Relates: #93, #111, NewGraphEnvironment/rtj#367, NewGraphEnvironment/rtj#377, NewGraphEnvironment/rfp#398
+Relates: #93, #111, internal issues
 
 
 

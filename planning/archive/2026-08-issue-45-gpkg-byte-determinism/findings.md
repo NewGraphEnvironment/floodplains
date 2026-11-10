@@ -135,9 +135,9 @@ Filed rather than half-built:
 |---|---|
 | `stac_floodplains_bc#23` | the asset-split half of #41, moved with its size table |
 | `stac_floodplains_bc#22` | commented: `file:checksum` unblocked for a clean rebuild, with the partial-rerun caveat and the semantics decision it forces on consumers |
-| `soul#95` | canonicalize geometry before hashing — the gap in `code-check.md`'s cache-key section |
+| an internal issue | canonicalize geometry before hashing — the gap in `code-check.md`'s cache-key section |
 | `#46` | content hash per feature, so "did the output change?" survives a partial rerun |
 
-`soul#95` and `#46` both carry the same open blocker, stated rather than papered over: **what
+an internal issue and `#46` both carry the same open blocker, stated rather than papered over: **what
 exposes GEOS `normalize` in R**. `sf::st_normalize()` rescales to the unit bbox and is not it, so
 neither issue names a function it has not verified.

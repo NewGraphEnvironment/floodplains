@@ -17,7 +17,7 @@ What was learned:
 - Every percentage of "the move" needs its base. MORR is −0.25% against its published record and +0.17% against the 9.8.1 replay.
 - Digests only exist from the 2026-09-02 record, so nothing can be "digest-identical to 09-01".
 
-Follow-ups filed: flooded#78, soul#402 (the spatial convention still names GDAL), a DUNC cache note on #125.
+Follow-ups filed: flooded#78, an internal issue (the spatial convention still names GDAL), a DUNC cache note on #125.
 
 ## Measurement
 

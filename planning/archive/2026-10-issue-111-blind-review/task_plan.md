@@ -14,13 +14,13 @@ The #93 reference sample (480 NECR points, 30 in each of 16 strata, 0 labelled) 
 - `Change patches` sits in every theme, and points come grouped by stratum.
 - No cell outline is drawn, and there is no written labelling key.
 
-#111 fixes all of that before the first label. rtj#367 then composes and syncs the Mergin project.
+#111 fixes all of that before the first label. An internal issue then composes and syncs the Mergin project.
 
 **Decisions at the gate (user, 2026-10-06):**
 - **Blinding:** an opaque `review_id` plus a committed key, not hidden fields.
 - **Hay and pasture:** ~~both Crops~~ corrected 2026-10-06 against IO's fetched legend: hay = **Crops**, grazed pasture = **Rangeland** (IO names pastures under Rangeland; re-asked, user chose to follow IO exactly).
 - **Regenerating stands:** **Trees only at canopy**.
-- **Local build:** keep it and update it until rtj#367 retires it.
+- **Local build:** keep it and update it until an internal issue retires it.
 
 Already decided in the issues:
 - Change patches go in a separate after-labelling theme, picked from the drop-down.
@@ -52,7 +52,7 @@ Already decided in the issues:
   - The build refuses to replace an old-schema `labels.gpkg` that holds any `label_status`.
   - Today it holds none, so the old one is moved aside.
 - [x] Move `chips/manifest.csv` out of the shipped project, to `data/<area>/accuracy/chips_manifest.csv`. Update `chip_build-composite.R` and its readers.
-- [x] `labels_export.R <area> [labels.gpkg]` takes an optional path, so it can read the Mergin working copy for rtj#367.
+- [x] `labels_export.R <area> [labels.gpkg]` takes an optional path, so it can read the Mergin working copy for an internal issue.
   - It maps `review_id` to `point_id` through the key.
   - It refuses an unknown `review_id`, or a working-copy `cell` that disagrees with the key.
   - Everything else goes through `fp_acc_labels_frame` unchanged, so `labels.csv` keeps its format.
@@ -79,7 +79,7 @@ Already decided in the issues:
 
 ## Phase 4: Second labeller
 - [x] Subset: 3 points per stratum (48), drawn with a seed derived from the design seed and recorded as a `second` column in `review_key.csv`. Pre-registered.
-- [x] `labels_b.gpkg` holds the same schema for the subset only. `REVIEWER=b review_build-qgis.R` builds a separate local project, so labeller B never sees A's labels. On Mergin this becomes rtj#367's second project.
+- [x] `labels_b.gpkg` holds the same schema for the subset only. `REVIEWER=b review_build-qgis.R` builds a separate local project, so labeller B never sees A's labels. On Mergin this becomes an internal issue's second project.
 - [x] `labels_export.R` writes `labels_b.csv` from `labels_b.gpkg`. `accuracy_estimate.R` reports percent agreement and Cohen's kappa per endpoint over the overlap, as information only and never in the estimates. An arm covers it.
 
 ## Phase 5: Rebuild NECR, verify, hand off
@@ -91,7 +91,7 @@ Already decided in the issues:
 - [x] Run a synthetic-label export round trip in a temp copy.
 - [x] Run `accuracy-check.R`, and show each new must-fail arm going red in a copy.
 - [x] Update the docs: CLAUDE.md's #93 bullet (review ID, the key file, the blind schema), and the Review setup section in `research/landcover_accuracy.md`.
-- [ ] Comment on rtj#367 with the exact input list:
+- [ ] Comment on an internal issue with the exact input list:
   - `labels.gpkg`, `labels_b.gpkg`, `cells.gpkg`;
   - `labels_form.qml`, `labelling_key.md`;
   - `chips/` and `dated/`;

@@ -1,6 +1,6 @@
 ## Outcome
 
-The #93 NECR accuracy review is now built to be blind, randomised and cell-level, ready for rtj#367 to
+The #93 NECR accuracy review is now built to be blind, randomised and cell-level, ready for an internal issue to
 put on Mergin.
 
 - **Blind by construction.** The labels working copy carries an opaque, shuffled `review_id` and no
