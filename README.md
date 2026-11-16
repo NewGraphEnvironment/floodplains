@@ -263,6 +263,26 @@ repo’s `data/` and publishes it. This repo knows nothing about it beyond the r
 prints. What the catalogue holds, how to query it, and how to download from it are documented
 there — including the collection id, which is **hyphenated** and is not the repository name.
 
+## Ecosystem
+
+<!-- BEGIN ecosystem.yml -->
+<!-- Generated from the source registry; edit the registry, not this block. -->
+
+| Package | Role |
+|---|---|
+| [link](https://www.newgraphenvironment.com/link/) | Build, compare and test fish habitat and access models, every fish habitat definition editable |
+| [fresh](https://www.newgraphenvironment.com/fresh/) | Splits streams at barriers, classifies habitat by species, traces what's upstream |
+| [wet](https://www.newgraphenvironment.com/wet/) | Typical flow in nearly every stream, tested against gauges; station flow and temperature |
+| [flooded](https://www.newgraphenvironment.com/flooded/) | Maps floodplains from terrain: the valley floor a river can spread across |
+| [drift](https://www.newgraphenvironment.com/drift/) | Maps what changed in land cover, where and when, in a floodplain or any area, from free satellite maps or your own |
+| [fly](https://www.newgraphenvironment.com/fly/) | Puts BC's historic airphotos back on the map from free thumbnails |
+| [cd](https://www.newgraphenvironment.com/cd/) | How far any BC watershed's climate has shifted from your chosen baseline |
+| [knowledge](https://www.newgraphenvironment.com/knowledge/) | Starts from each species' life history and tunes its fish habitat definitions from where sampling did and did not catch it |
+| **floodplains** | Maps BC's floodplains and how the land in them changed, one watershed group at a time (this package) |
+| [crate](https://www.newgraphenvironment.com/crate/) | Canonical schemas for data that changes shape, and provenance receipts for outputs |
+| [stac_floodplains_bc](https://www.newgraphenvironment.com/stac_floodplains_bc/) | Floodplains and land-cover change, a screen for where to look; by watershed group |
+<!-- END ecosystem.yml -->
+
 ## Method
 
 The valley confinement approach, the flood-factor scenarios and their ecological framing come
